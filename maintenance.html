@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrackImmo — Maintenance en cours</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Même dégradé que l'écran de connexion TrackImmo */
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+    color: #fff;
+    padding: 20px;
+    overflow: hidden;
+  }
+
+  /* Halos décoratifs animés en fond */
+  .halo {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.35;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .halo-1 { width: 420px; height: 420px; background: #6366f1; top: -120px; left: -100px; animation: drift1 14s ease-in-out infinite; }
+  .halo-2 { width: 360px; height: 360px; background: #8b5cf6; bottom: -120px; right: -80px; animation: drift2 16s ease-in-out infinite; }
+  @keyframes drift1 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(40px,30px); } }
+  @keyframes drift2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-30px,-40px); } }
+
+  .card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 480px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 24px;
+    padding: 48px 40px;
+    text-align: center;
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Logo */
+  .logo-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 36px;
+  }
+  .logo-icon {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    /* Pulsation douce */
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(99,102,241,0)); }
+    50% { transform: scale(1.08); filter: drop-shadow(0 0 18px rgba(129,140,248,0.6)); }
+  }
+  .logo-text {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #fff;
+  }
+  .logo-text em {
+    font-style: normal;
+    background: linear-gradient(135deg, #818cf8, #c4b5fd);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Icône engrenage animée */
+  .gear-badge {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(129, 140, 248, 0.3);
+    border-radius: 50%;
+  }
+  .gear-badge svg {
+    width: 36px;
+    height: 36px;
+    animation: spin 8s linear infinite;
+  }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: #fff;
+  }
+  .subtitle {
+    font-size: 15px;
+    line-height: 1.6;
+    color: #cbd5e1;
+    margin-bottom: 32px;
+  }
+
+  /* Compte à rebours */
+  .countdown-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #94a3b8;
+    margin-bottom: 10px;
+  }
+  .countdown {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    font-variant-numeric: tabular-nums;
+    background: linear-gradient(135deg, #818cf8, #c4b5fd);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  .countdown-hint {
+    font-size: 12.5px;
+    color: #94a3b8;
+  }
+
+  /* Barre de progression */
+  .progress-track {
+    margin-top: 28px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    border-radius: 999px;
+    transition: width 1s linear;
+  }
+
+  .footer-note {
+    margin-top: 32px;
+    font-size: 12px;
+    color: #64748b;
+  }
+
+  @media (max-width: 480px) {
+    .card { padding: 36px 24px; }
+    .countdown { font-size: 36px; }
+    h1 { font-size: 20px; }
+  }
+</style>
+</head>
+<body>
+  <div class="halo halo-1"></div>
+  <div class="halo halo-2"></div>
+
+  <div class="card">
+    <!-- Logo TrackImmo (identique à l'app) -->
+    <div class="logo-wrap">
+      <svg class="logo-icon" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
+        <rect width="34" height="34" rx="9" fill="url(#lg)"/>
+        <rect x="6" y="14" width="8" height="12" rx="1" fill="white" opacity="0.9"/>
+        <rect x="8" y="11" width="4" height="3" rx="0.5" fill="white" opacity="0.7"/>
+        <rect x="16" y="10" width="9" height="16" rx="1" fill="white" opacity="0.95"/>
+        <rect x="8" y="19" width="2" height="2" rx="0.3" fill="#6366f1"/>
+        <rect x="17.5" y="13" width="2" height="2" rx="0.3" fill="#6366f1"/>
+        <rect x="21" y="13" width="2" height="2" rx="0.3" fill="#6366f1"/>
+        <rect x="17.5" y="17" width="2" height="2" rx="0.3" fill="#6366f1"/>
+        <rect x="21" y="17" width="2" height="2" rx="0.3" fill="#6366f1"/>
+        <path d="M6 24 L11 20 L17 22 L26 16" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="26" cy="16" r="1.5" fill="#22c55e"/>
+      </svg>
+      <div class="logo-text">Track<em>Immo</em></div>
+    </div>
+
+    <!-- Badge engrenage animé -->
+    <div class="gear-badge">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="#818cf8" stroke-width="1.5"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <h1>Maintenance en cours</h1>
+    <p class="subtitle">
+      TrackImmo est temporairement indisponible le temps d'une mise à jour.<br>
+      La plateforme sera de retour dans quelques instants.
+    </p>
+
+    <div class="countdown-label">Retour estimé dans</div>
+    <div class="countdown" id="countdown">05:00</div>
+    <div class="countdown-hint">La page se rechargera automatiquement</div>
+
+    <div class="progress-track">
+      <div class="progress-fill" id="progress"></div>
+    </div>
+
+    <div class="footer-note">Merci de votre patience 🙏</div>
+  </div>
+
+  <script>
+    // Compte à rebours de 5 minutes, démarré à l'arrivée sur la page.
+    // À 0 : rafraîchissement automatique (le visiteur retombe sur l'app si elle est revenue).
+    var TOTAL_SECONDS = 5 * 60;
+    var remaining = TOTAL_SECONDS;
+    var cdEl = document.getElementById('countdown');
+    var progressEl = document.getElementById('progress');
+
+    function format(s) {
+      var m = Math.floor(s / 60);
+      var sec = s % 60;
+      return (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
+    }
+
+    function tick() {
+      cdEl.textContent = format(remaining);
+      var pct = ((TOTAL_SECONDS - remaining) / TOTAL_SECONDS) * 100;
+      progressEl.style.width = pct + '%';
+
+      if (remaining <= 0) {
+        // Rechargement : force le contournement du cache pour récupérer la version à jour
+        window.location.reload(true);
+        return;
+      }
+      remaining--;
+    }
+
+    tick(); // affichage immédiat
+    setInterval(tick, 1000);
+  </script>
+</body>
+</html>
