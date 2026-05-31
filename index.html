@@ -2793,8 +2793,6 @@ async function onAuthSuccess(user) {
   loadPreferences();
   // Charger le profil (rôle admin, etc.)
   await loadProfile();
-  // Appliquer l'apparence depuis la DB (couleur + toggles), migre le localStorage si besoin
-  await applyAppearanceFromPrefs();
   // Démarrer l'app
   await loadAndStart();
 }
@@ -3322,7 +3320,7 @@ function renderAccueil(el) {
       <div class="page-sub">Vue synthétique de votre pipeline immobilier</div>
     </div>
 
-    <div class="kpi-row"${dashVisibility.kpi===false?' style="display:none"':''}>
+    <div class="kpi-row">
       <div class="kpi-card"><div class="kpi-icon-w">🏠</div><div class="kpi-label">Fiches actives</div><div class="kpi-value">${total}</div><div class="kpi-sub">${positifs} rentable${positifs>1?'s':''} · ${total-positifs} à surveiller</div></div>
       <div class="kpi-card"><div class="kpi-icon-w">💶</div><div class="kpi-label">Cashflow total / mois</div><div class="kpi-value ${cfCls(totalCF)}">${fmt(totalCF)} €</div><div class="kpi-sub">Cumul de tous les biens</div></div>
       <div class="kpi-card"><div class="kpi-icon-w">⭐</div><div class="kpi-label">Meilleur cashflow</div><div class="kpi-value positive">${fmt(best)} €</div><div class="kpi-sub">par mois</div></div>
@@ -3332,12 +3330,12 @@ function renderAccueil(el) {
     </div>
 
     <div class="charts-row">
-      <div class="chart-card"${dashVisibility.cf===false?' style="display:none"':''}>
+      <div class="chart-card">
         <div class="chart-title">Cashflow par bien</div>
         <div class="chart-sub">Résultat mensuel en €</div>
         <div style="height:140px" id="chart-cf-wrap"><canvas id="chart-cf"></canvas></div>
       </div>
-      <div class="chart-card"${dashVisibility.st===false?' style="display:none"':''}>
+      <div class="chart-card">
         <div class="chart-title">Répartition par statut</div>
         <div class="chart-sub">Distribution du pipeline</div>
         <div style="height:210px"><canvas id="chart-st"></canvas></div>
@@ -3376,7 +3374,7 @@ function renderAccueil(el) {
   `;
 
   // Chart cashflow — HORIZONTAL BARS
-  if (dashVisibility.cf !== false && biensAvecCF.length) {
+  if (biensAvecCF.length) {
     if(charts['cf']) { charts['cf'].destroy(); charts['cf'] = null; }
     const cfWrap = document.getElementById('chart-cf-wrap');
     const h = Math.max(140, biensAvecCF.length * 44 + 20);
@@ -3432,7 +3430,7 @@ function renderAccueil(el) {
   const sLabels = Object.keys(statutGroups);
   const sData = Object.values(statutGroups);
   const ctx2 = document.getElementById('chart-st');
-  if (dashVisibility.st !== false && ctx2 && sLabels.length) charts['st'] = new Chart(ctx2, {
+  if (ctx2 && sLabels.length) charts['st'] = new Chart(ctx2, {
     type:'doughnut',
     data:{
       labels:sLabels,
@@ -4993,7 +4991,7 @@ const PARAMS_SECTIONS = [
   { family:'Préférences', items:[
     { id:'apparence',    label:'Apparence',        icon:'🎨', status:'ready' },
     { id:'metier',       label:'Préférences métier',icon:'⚙️', status:'ready' },
-    { id:'integrations', label:'Intégrations',     icon:'🔌', status:'soon', adminOnly:true },
+    { id:'integrations', label:'Intégrations',     icon:'🔌', status:'soon' },
   ]},
   { family:'Données & gestion', items:[
     { id:'donnees',      label:'Données',          icon:'🗂️', status:'ready' },
@@ -5010,31 +5008,13 @@ const PARAMS_SECTIONS = [
 
 let currentParamsSection = 'compte';
 
-// Détecte si une section est réservée aux admins (item ou famille marqué adminOnly)
-function isParamsSectionAdminOnly(id) {
-  let res = false;
-  PARAMS_SECTIONS.forEach(f => f.items.forEach(i => {
-    if(i.id === id && (i.adminOnly || f.adminOnly)) res = true;
-  }));
-  return res;
-}
-
 function renderParametres(el) {
   const isAdmin = currentProfile?.role === 'admin' || currentUser?.email === ADMIN_EMAIL;
   // Section demandée via hash ?
   const hashSection = (window.location.hash.match(/#parametres\/([a-z]+)/)||[])[1];
   if (hashSection && PARAMS_SECTIONS.some(f=>f.items.some(i=>i.id===hashSection))) {
-    // Bloquer l'accès direct par URL à une section admin-only pour un non-admin
-    if (isParamsSectionAdminOnly(hashSection) && !isAdmin) {
-      currentParamsSection = 'compte';
-    } else {
-      currentParamsSection = hashSection;
-    }
+    currentParamsSection = hashSection;
   } else if (!PARAMS_SECTIONS.some(f=>f.items.some(i=>i.id===currentParamsSection))) {
-    currentParamsSection = 'compte';
-  }
-  // Si la section courante est admin-only et l'utilisateur n'est pas admin, revenir à Compte
-  if (isParamsSectionAdminOnly(currentParamsSection) && !isAdmin) {
     currentParamsSection = 'compte';
   }
 
@@ -5076,15 +5056,6 @@ function renderParamsSection() {
   if(!c) return;
   const isAdmin = currentProfile?.role === 'admin' || currentUser?.email === ADMIN_EMAIL;
   const sec = currentParamsSection;
-
-  // Garde de sécurité : une section admin-only ne peut JAMAIS être rendue pour un non-admin,
-  // même via navigation directe par URL (double cloisonnement : nav + rendu).
-  if (isParamsSectionAdminOnly(sec) && !isAdmin) {
-    c.innerHTML = `
-      <div class="params-section-title">🔒 Accès réservé</div>
-      <div class="params-section-sub">Cette section est réservée aux administrateurs.</div>`;
-    return;
-  }
 
   // Trouver le statut de la section
   let meta = null;
@@ -5222,11 +5193,11 @@ function syncAppearanceControls() {
     if(el) el.checked = dashVisibility[key] !== false;
   });
   // Pastille de couleur active
-  const activeAccentCss = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  const currentAccent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
   document.querySelectorAll('#color-grid .color-swatch').forEach(s => {
     const c = s.style.background;
     // Comparaison souple (rgb vs hex) : on compare via un élément témoin
-    const isActive = colorMatches(c, activeAccentCss);
+    const isActive = colorMatches(c, currentAccent);
     s.classList.toggle('active', isActive);
     s.textContent = isActive ? '✓' : '';
   });
@@ -10076,10 +10047,7 @@ const THEMES = {
 };
 
 let currentTheme = 'indigo';
-// Visibilité des blocs du tableau de bord (cf = graphique cashflow, st = donut statuts, kpi = bandeau KPIs)
-const dashVisibility = { cf: true, st: true, kpi: true };
-// Couleur d'accent active (suivie pour la persistance DB). Défaut = indigo.
-let currentAccent = { color: '#6366f1', colorDark: '#4f46e5' };
+const dashVisibility = { cf: true, st: true, top: true };
 
 function openSettings() {
   // Redirige vers la nouvelle page Paramètres (Lot A)
@@ -10132,11 +10100,8 @@ function setAccent(color, colorDark, el) {
     s.textContent = '';
   });
   if(el) { el.classList.add('active'); el.textContent = '✓'; }
-  // Suivi en mémoire + cache localStorage (anti-flash au prochain chargement)
-  currentAccent = { color, colorDark };
+  // Persist
   localStorage.setItem('ti_accent', JSON.stringify({color, colorDark}));
-  // Persistance DB (source de vérité, suit le compte partout)
-  persistAppearance();
 }
 
 function savePrefs() {
@@ -10147,47 +10112,18 @@ function savePrefs() {
   dashVisibility.cf  = cfOn;
   dashVisibility.st  = stOn;
   dashVisibility.kpi = kpiOn;
-  // Cache localStorage (anti-flash)
   localStorage.setItem('ti_dash_cf',  cfOn  ? '1' : '0');
   localStorage.setItem('ti_dash_st',  stOn  ? '1' : '0');
   localStorage.setItem('ti_dash_kpi', kpiOn ? '1' : '0');
-  // Persistance DB
-  persistAppearance();
   // Re-render dashboard if on that page
   if(currentPage === 'accueil') renderAccueil(document.getElementById('content'));
 }
 
-// Enregistre l'apparence courante (couleur + toggles) en base de données.
-// Source de vérité = DB ; le localStorage n'est qu'un cache anti-flash.
-async function persistAppearance() {
-  const isHex = (c) => typeof c === 'string' && /^#[0-9A-Fa-f]{6}$/.test(c);
-  const accent  = isHex(currentAccent.color)     ? currentAccent.color     : null;
-  const accent2 = isHex(currentAccent.colorDark) ? currentAccent.colorDark : null;
-  try {
-    const { error } = await db.rpc('update_my_appearance', {
-      p_accent_color:  accent,
-      p_accent_color2: accent2,
-      p_dash_cf:  dashVisibility.cf  !== false,
-      p_dash_st:  dashVisibility.st  !== false,
-      p_dash_kpi: dashVisibility.kpi !== false
-    });
-    if(error) throw error;
-    // Refléter dans userPrefs en mémoire
-    if(userPrefs){
-      userPrefs.accent_color  = accent;
-      userPrefs.accent_color2 = accent2;
-      userPrefs.dash_show_cf  = dashVisibility.cf  !== false;
-      userPrefs.dash_show_st  = dashVisibility.st  !== false;
-      userPrefs.dash_show_kpi = dashVisibility.kpi !== false;
-    }
-  } catch(e){ console.warn('persistAppearance:', e.message); }
-}
-
 function loadPreferences() {
-  // Fast path (localStorage) : appliqué immédiatement pour éviter un flash de thème
-  // avant que les préférences DB ne soient chargées (cf. applyAppearanceFromPrefs).
+  // Theme (old system)
   const savedTheme = localStorage.getItem('ti_theme');
   if(savedTheme && THEMES[savedTheme]) applyTheme(savedTheme);
+  // New accent color system
   try {
     const savedAccent = JSON.parse(localStorage.getItem('ti_accent')||'null');
     if(savedAccent?.color) {
@@ -10195,42 +10131,14 @@ function loadPreferences() {
       document.documentElement.style.setProperty('--accent2', savedAccent.colorDark);
       const grad = `linear-gradient(135deg, ${savedAccent.color}, ${savedAccent.colorDark})`;
       document.documentElement.style.setProperty('--accent-g', grad);
-      currentAccent = { color: savedAccent.color, colorDark: savedAccent.colorDark };
     }
   } catch(e){}
+  // Dashboard toggles
   ['cf','st','kpi'].forEach(key => {
     const saved = localStorage.getItem('ti_dash_'+key);
     if(saved === '0') dashVisibility[key] = false;
   });
 }
-
-// Applique l'apparence depuis la DB (userPrefs), chargée après loadProfile().
-// La DB fait autorité. Si la DB n'a jamais reçu d'apparence (accent_color null),
-// on migre l'état localStorage courant vers la DB (une seule fois).
-async function applyAppearanceFromPrefs() {
-  if(!userPrefs) return;
-  const dbAccent = userPrefs.accent_color;
-  if(dbAccent) {
-    // La DB a une apparence enregistrée → elle fait autorité
-    const color = userPrefs.accent_color;
-    const colorDark = userPrefs.accent_color2 || color;
-    document.documentElement.style.setProperty('--accent', color);
-    document.documentElement.style.setProperty('--accent2', colorDark);
-    document.documentElement.style.setProperty('--accent-g', `linear-gradient(135deg, ${color}, ${colorDark})`);
-    currentAccent = { color, colorDark };
-    localStorage.setItem('ti_accent', JSON.stringify({color, colorDark}));
-    // Toggles dashboard depuis la DB
-    dashVisibility.cf  = userPrefs.dash_show_cf  !== false;
-    dashVisibility.st  = userPrefs.dash_show_st  !== false;
-    dashVisibility.kpi = userPrefs.dash_show_kpi !== false;
-    ['cf','st','kpi'].forEach(k => localStorage.setItem('ti_dash_'+k, dashVisibility[k] ? '1' : '0'));
-  } else {
-    // La DB n'a jamais reçu d'apparence → migration du localStorage (déjà appliqué
-    // par loadPreferences) vers la DB, une seule fois.
-    await persistAppearance();
-  }
-}
-
 
 // Also remove "Données" button from topbar (now in settings)
 
