@@ -1947,6 +1947,52 @@ body{background:var(--sb-bg);color:var(--c-text);font-family:var(--font);font-si
 .mfb-spark-label .delta.neg{color:var(--negative);}
 .mfb-spark-canvas-wrap{position:relative;height:48px;width:100%;}
 
+/* ── Section Rentabilité ── */
+.renta-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:18px;}
+.renta-seg{display:inline-flex;background:var(--c-bg);border:1px solid var(--c-border);border-radius:9px;padding:3px;gap:2px;}
+.renta-seg button{border:0;background:transparent;color:var(--c-dim);font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:7px;cursor:pointer;transition:all .12s;font-family:inherit;}
+.renta-seg button.active{background:var(--c-surface);color:var(--c-text);box-shadow:var(--c-shadow);}
+.renta-note{font-size:11.5px;color:var(--c-muted);display:flex;align-items:center;gap:6px;}
+.renta-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;}
+.renta-kpi{background:var(--c-surface);border:1px solid var(--c-border);border-radius:12px;padding:16px 18px;box-shadow:var(--c-shadow);position:relative;overflow:hidden;}
+.renta-kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);opacity:.55;}
+.renta-kpi.is-pos::before{background:var(--positive);}
+.renta-kpi.is-neg::before{background:var(--negative);}
+.renta-kpi-lbl{font-size:11px;font-weight:600;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;}
+.renta-kpi-val{font-size:24px;font-weight:800;color:var(--c-text);line-height:1.05;letter-spacing:-.02em;}
+.renta-kpi-val.pos{color:var(--positive);}
+.renta-kpi-val.neg{color:var(--negative);}
+.renta-kpi-sub{font-size:11.5px;color:var(--c-muted);margin-top:6px;line-height:1.4;}
+.renta-kpi-sub .pos{color:var(--positive);font-weight:600;}
+.renta-kpi-sub .neg{color:var(--negative);font-weight:600;}
+.renta-panel{background:var(--c-surface);border:1px solid var(--c-border);border-radius:12px;padding:18px 20px;box-shadow:var(--c-shadow);margin-bottom:18px;}
+.renta-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;}
+.renta-panel-title{font-size:14px;font-weight:700;color:var(--c-text);display:flex;align-items:center;gap:8px;}
+.renta-panel-hint{font-size:11px;color:var(--c-muted);}
+.renta-chart-wrap{position:relative;height:260px;width:100%;}
+.renta-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:11.5px;color:var(--c-dim);}
+.renta-legend span{display:inline-flex;align-items:center;gap:6px;}
+.renta-legend i{width:12px;height:12px;border-radius:3px;display:inline-block;}
+.renta-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.renta-table th{text-align:right;padding:9px 10px;font-size:10.5px;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid var(--c-border);white-space:nowrap;}
+.renta-table th.l,.renta-table td.l{text-align:left;}
+.renta-table td{text-align:right;padding:10px;border-bottom:1px solid var(--c-border);color:var(--c-dim);white-space:nowrap;}
+.renta-table tr:last-child td{border-bottom:0;}
+.renta-table tr.tot td{font-weight:700;color:var(--c-text);border-top:2px solid var(--c-border);background:var(--c-bg);}
+.renta-table .bien-name{font-weight:600;color:var(--c-text);}
+.renta-table .pos{color:var(--positive);font-weight:600;}
+.renta-table .neg{color:var(--negative);font-weight:600;}
+.renta-recouv-bar{height:6px;border-radius:3px;background:var(--c-border);overflow:hidden;min-width:60px;margin-top:4px;}
+.renta-recouv-bar i{display:block;height:100%;border-radius:3px;}
+.renta-bilan-box{background:linear-gradient(135deg,rgba(99,102,241,.06),rgba(139,92,246,.06));border:1px solid var(--c-border);border-radius:12px;padding:18px 20px;}
+.renta-bilan-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;}
+.renta-bilan-row .sci-form-group{margin-bottom:0;}
+.renta-bilan-btn{background:var(--accent-g);color:#fff;border:0;border-radius:9px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .12s;white-space:nowrap;}
+.renta-bilan-btn:hover{opacity:.9;}
+.renta-bilan-btn:disabled{opacity:.5;cursor:not-allowed;}
+.renta-empty{text-align:center;padding:40px 20px;color:var(--c-muted);}
+.renta-empty-icon{font-size:36px;margin-bottom:10px;}
+
 .mfb-card-cta{padding:10px 16px;background:var(--c-surface);}
 .mfb-cta-btn{width:100%;background:var(--c-bg);border:1px solid var(--c-border);color:var(--c-text);font-size:12px;font-weight:600;padding:8px 12px;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;font-family:inherit;}
 .mfb-cta-btn:hover{background:var(--accent);color:white;border-color:var(--accent);}
@@ -2549,6 +2595,7 @@ function showForm(name) {
 // ── Alertes ──
 function showAuthAlert(msg, type='error') {
   const el = document.getElementById('auth-alert');
+  if(!el) return;
   const icons = {error:'⚠️', success:'✅', info:'ℹ️'};
   el.className = 'auth-alert '+type;
   el.innerHTML = '<span>'+icons[type]+'</span><span>'+msg+'</span>';
@@ -5827,7 +5874,7 @@ async function renderModuleFinancier(el) {
 
   // Chargement parallèle des données nécessaires (biens déjà chargés via init, locataires à charger)
   if(!allBiens.length && currentUser) await loadBiens();
-  await Promise.all([loadLocataires(), loadMfFinancialData()]);
+  await Promise.all([loadLocataires(), loadMfFinancialData(), loadSCIList(), loadMfBilans()]);
 
   switchMfTab(mfTab);
 }
@@ -7169,11 +7216,389 @@ function setMfLocFilter(f) {
   const c = document.getElementById('mf-content');
   if(c) renderMfLocataires(c);
 }
-function renderMfRenta(c) {
-  c.innerHTML = mfPlaceholder('💶', 'Rentabilité réelle et écarts',
-    'Graphiques d\'évolution du cashflow mensuel, comparaison prévisionnel vs réel, taux d\'impayés et bouton d\'alimentation du bilan SCI annuel.',
-    6);
+// ═════════════════════════════════════════════════════
+//  RENTABILITÉ — Étape 6 : réel vs prévisionnel, recouvrement, bilan SCI
+// ═════════════════════════════════════════════════════
+
+let mfRentaPeriod = '12m';                 // '12m' (glissant) | 'civil'
+let mfRentaYear   = new Date().getFullYear();
+
+// Loyer + charges DUS (attendu) sur un mois pour un bien
+function mfLoyerDuMois(bienId, mois, annee) {
+  const l = allLoyers.find(x => x.bien_id === bienId && x.mois === mois && x.annee === annee);
+  if(!l) return 0;
+  return (parseFloat(l.loyer_du)||0) + (parseFloat(l.charges_dues)||0);
 }
+
+// Charges NON récupérables (coût réel du propriétaire) sur un mois, avec lissage
+function mfChargesNonRecupMois(bienId, mois, annee) {
+  let total = 0;
+  for(const c of allCharges) {
+    if(c.bien_id !== bienId) continue;
+    if(c.recuperable_locataire) continue;      // récupérables = neutres pour le proprio
+    const dC = new Date(c.date_charge);
+    if(c.lissable) { if(dC.getFullYear() === annee) total += (parseFloat(c.montant)||0)/12; }
+    else { if(dC.getMonth()+1 === mois && dC.getFullYear() === annee) total += parseFloat(c.montant)||0; }
+  }
+  return total;
+}
+
+// Mois de la période active
+function mfRentaPeriodMonths() {
+  if(mfRentaPeriod === '12m') return mf12LastMonths();
+  const now = new Date(), curY = now.getFullYear(), curM = now.getMonth()+1;
+  const maxM = (mfRentaYear === curY) ? curM : 12;   // pas de mois futurs vides
+  const out = [];
+  for(let m = 1; m <= maxM; m++) out.push({ mois:m, annee:mfRentaYear, label:MOIS_LABELS[m-1] });
+  return out;
+}
+
+// Années disponibles (données loyers) + année courante
+function mfRentaYearsAvailable() {
+  const set = new Set(allLoyers.map(l => l.annee).filter(Boolean));
+  set.add(new Date().getFullYear());
+  return [...set].sort((a,b) => b - a);
+}
+
+// Agrégat rentabilité d'un bien sur une liste de mois
+function mfRentaBien(b, months) {
+  let enc = 0, du = 0, chg = 0, chgNR = 0;
+  for(const m of months) {
+    enc  += mfLoyerEncaisseMois(b.id, m.mois, m.annee);
+    du   += mfLoyerDuMois(b.id, m.mois, m.annee);
+    chg  += mfChargesMois(b.id, m.mois, m.annee);
+    chgNR+= mfChargesNonRecupMois(b.id, m.mois, m.annee);
+  }
+  const n = months.length || 1;
+  const facteur = 12 / n;                                  // annualisation
+  const mensu = (parseFloat(b.mensualite_credit)||0) * n;
+  const ma = mfMontantAcquisition(b);
+  const cashflowReel = enc - chg - mensu;
+  const cashflowPrev = mfCashflowPrevisionnel(b) * n;
+  return {
+    enc, du, chg, chgNR, mensu, ma, n,
+    cashflowReel, cashflowPrev,
+    ecart: cashflowReel - cashflowPrev,
+    recouvrement: du > 0 ? (enc/du)*100 : (enc > 0 ? 100 : null),
+    impaye: Math.max(0, du - enc),
+    rendementBrut: ma > 0 ? (enc*facteur/ma)*100 : 0,
+    rendementNet:  ma > 0 ? ((enc - chgNR)*facteur/ma)*100 : 0,
+  };
+}
+
+// Cashflow réel mensuel agrégé du portefeuille (pour un mois donné)
+function mfPortfolioCfMois(biens, mois, annee) {
+  let v = 0;
+  for(const b of biens) {
+    v += mfLoyerEncaisseMois(b.id, mois, annee)
+       - mfChargesMois(b.id, mois, annee)
+       - (parseFloat(b.mensualite_credit)||0);
+  }
+  return v;
+}
+
+// ─── Rendu de l'onglet Rentabilité ───
+function renderMfRenta(c) {
+  const biens = allBiens.filter(b => b.statut === 'Acheté');
+
+  if(!biens.length) {
+    c.innerHTML = `<div class="renta-empty">
+      <div class="renta-empty-icon">💶</div>
+      <div class="mfb-empty-title">Aucun bien acheté à analyser</div>
+      <div class="mfb-empty-desc">La rentabilité réelle se calcule sur les biens au statut « Acheté ».<br>Passez un bien en « Acheté » puis saisissez ses loyers dans l'onglet Suivi mensuel.</div>
+    </div>`;
+    return;
+  }
+
+  const months = mfRentaPeriodMonths();
+  const rows = biens.map(b => ({ b, r: mfRentaBien(b, months) }));
+
+  // Totaux portefeuille
+  const T = rows.reduce((t, {r}) => {
+    t.enc += r.enc; t.du += r.du; t.chg += r.chg; t.chgNR += r.chgNR;
+    t.mensu += r.mensu; t.ma += r.ma; t.impaye += r.impaye;
+    t.cashflowReel += r.cashflowReel; t.cashflowPrev += r.cashflowPrev;
+    return t;
+  }, {enc:0,du:0,chg:0,chgNR:0,mensu:0,ma:0,impaye:0,cashflowReel:0,cashflowPrev:0});
+  const n = months.length || 1, facteur = 12/n;
+  const recouvrementT = T.du > 0 ? (T.enc/T.du)*100 : (T.enc > 0 ? 100 : null);
+  const rendementBrutT = T.ma > 0 ? (T.enc*facteur/T.ma)*100 : 0;
+  const rendementNetT  = T.ma > 0 ? ((T.enc - T.chgNR)*facteur/T.ma)*100 : 0;
+  const ecartT = T.cashflowReel - T.cashflowPrev;
+  const nbImpayes = rows.filter(x => x.r.impaye > 0.5).length;
+
+  const years = mfRentaYearsAvailable();
+  const periodLabel = mfRentaPeriod === '12m' ? '12 derniers mois' : `année ${mfRentaYear}`;
+
+  c.innerHTML = `
+    <div class="renta-toolbar">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div class="renta-seg">
+          <button class="${mfRentaPeriod==='12m'?'active':''}" onclick="setRentaPeriod('12m')">12 derniers mois</button>
+          <button class="${mfRentaPeriod==='civil'?'active':''}" onclick="setRentaPeriod('civil')">Année civile</button>
+        </div>
+        ${mfRentaPeriod==='civil' ? `
+          <select class="sci-form-input" style="width:auto;padding:7px 10px" onchange="setRentaYear(this.value)">
+            ${years.map(y => `<option value="${y}" ${y===mfRentaYear?'selected':''}>${y}</option>`).join('')}
+          </select>` : ''}
+      </div>
+      <div class="renta-note">ℹ️ Rendements annualisés sur ${n} mois de données · charges lissées le cas échéant</div>
+    </div>
+
+    <div class="renta-kpi-grid">
+      <div class="renta-kpi ${T.cashflowReel>=0?'is-pos':'is-neg'}">
+        <div class="renta-kpi-lbl">Cashflow réel · ${periodLabel}</div>
+        <div class="renta-kpi-val ${T.cashflowReel>=0?'pos':'neg'}">${T.cashflowReel>=0?'+':''}${fmt(T.cashflowReel)} €</div>
+        <div class="renta-kpi-sub">prévisionnel ${T.cashflowPrev>=0?'+':''}${fmt(T.cashflowPrev)} € · écart <span class="${ecartT>=0?'pos':'neg'}">${ecartT>=0?'+':''}${fmt(ecartT)} €</span></div>
+      </div>
+      <div class="renta-kpi ${rendementNetT>=0?'is-pos':'is-neg'}">
+        <div class="renta-kpi-lbl">Rendement net réel</div>
+        <div class="renta-kpi-val ${rendementNetT>=0?'pos':'neg'}">${rendementNetT.toFixed(2)} %</div>
+        <div class="renta-kpi-sub">brut ${rendementBrutT.toFixed(2)} % · sur ${fmt(T.ma)} € investis</div>
+      </div>
+      <div class="renta-kpi">
+        <div class="renta-kpi-lbl">Taux de recouvrement</div>
+        <div class="renta-kpi-val">${recouvrementT==null?'—':recouvrementT.toFixed(1)+' %'}</div>
+        <div class="renta-kpi-sub">impayés <span class="${T.impaye>0?'neg':''}">${fmt(T.impaye)} €</span>${nbImpayes>0?` · ${nbImpayes} bien${nbImpayes>1?'s':''} concerné${nbImpayes>1?'s':''}`:''}</div>
+      </div>
+      <div class="renta-kpi">
+        <div class="renta-kpi-lbl">Loyers encaissés</div>
+        <div class="renta-kpi-val">${fmt(T.enc)} €</div>
+        <div class="renta-kpi-sub">sur ${fmt(T.du)} € dus · charges payées ${fmt(T.chg)} €</div>
+      </div>
+    </div>
+
+    <div class="renta-panel">
+      <div class="renta-panel-head">
+        <div class="renta-panel-title">📈 Cashflow mensuel — prévisionnel vs réel</div>
+        <div class="renta-panel-hint">${periodLabel}</div>
+      </div>
+      <div class="renta-chart-wrap"><canvas id="renta-cf-chart"></canvas></div>
+      <div class="renta-legend">
+        <span><i style="background:var(--accent)"></i>Réel encaissé</span>
+        <span><i style="background:#94a3b8"></i>Prévisionnel</span>
+      </div>
+    </div>
+
+    <div class="renta-panel">
+      <div class="renta-panel-head">
+        <div class="renta-panel-title">🏦 Détail par bien</div>
+        <div class="renta-panel-hint">${rows.length} bien${rows.length>1?'s':''}</div>
+      </div>
+      <div style="overflow-x:auto">
+      <table class="renta-table">
+        <thead><tr>
+          <th class="l">Bien</th>
+          <th>Loyers encaissés</th>
+          <th>Recouvrement</th>
+          <th>Charges</th>
+          <th>Cashflow réel</th>
+          <th>vs prévi</th>
+          <th>Rendt net</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(({b, r}) => {
+            const rec = r.recouvrement;
+            const recCls = rec==null ? '' : (rec>=95?'pos':(rec>=80?'':'neg'));
+            const recColor = rec==null ? 'var(--c-border)' : (rec>=95?'var(--positive)':(rec>=80?'#f59e0b':'var(--negative)'));
+            return `<tr>
+              <td class="l"><div class="bien-name">${esc(b.titre||'Sans titre')}</div>
+                <div style="font-size:10.5px;color:var(--c-muted)">${esc(b.ville||'')}</div></td>
+              <td>${fmt(r.enc)} €</td>
+              <td>
+                <div>${rec==null?'—':rec.toFixed(0)+' %'}</div>
+                ${rec==null?'':`<div class="renta-recouv-bar"><i style="width:${Math.min(100,rec)}%;background:${recColor}"></i></div>`}
+              </td>
+              <td>${fmt(r.chg)} €</td>
+              <td class="${r.cashflowReel>=0?'pos':'neg'}">${r.cashflowReel>=0?'+':''}${fmt(r.cashflowReel)} €</td>
+              <td class="${r.ecart>=0?'pos':'neg'}">${r.ecart>=0?'+':''}${fmt(r.ecart)} €</td>
+              <td class="${r.rendementNet>=0?'pos':'neg'}">${r.rendementNet.toFixed(2)} %</td>
+            </tr>`;
+          }).join('')}
+          <tr class="tot">
+            <td class="l">Total portefeuille</td>
+            <td>${fmt(T.enc)} €</td>
+            <td>${recouvrementT==null?'—':recouvrementT.toFixed(0)+' %'}</td>
+            <td>${fmt(T.chg)} €</td>
+            <td class="${T.cashflowReel>=0?'pos':'neg'}">${T.cashflowReel>=0?'+':''}${fmt(T.cashflowReel)} €</td>
+            <td class="${ecartT>=0?'pos':'neg'}">${ecartT>=0?'+':''}${fmt(ecartT)} €</td>
+            <td class="${rendementNetT>=0?'pos':'neg'}">${rendementNetT.toFixed(2)} %</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    ${renderRentaBilanBox()}
+  `;
+
+  setTimeout(() => { initRentaCfChart(biens, months); updateRentaBilanPreview(); }, 0);
+}
+
+// ─── Graphique prévi vs réel ───
+function initRentaCfChart(biens, months) {
+  if(typeof Chart === 'undefined') return;
+  const canvas = document.getElementById('renta-cf-chart');
+  if(!canvas) return;
+  const labels = months.map(m => m.label);
+  const reel = months.map(m => mfPortfolioCfMois(biens, m.mois, m.annee));
+  const previMensuel = biens.reduce((s, b) => s + mfCashflowPrevisionnel(b), 0);
+  const previ = months.map(() => previMensuel);
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#6366f1';
+  try {
+    mfbCharts['renta-cf'] = new Chart(canvas, {
+      type: 'line',
+      data: { labels, datasets: [
+        { label:'Réel encaissé', data:reel, borderColor:accent, backgroundColor:accent+'22',
+          borderWidth:2.5, fill:true, tension:0.35, pointRadius:0, pointHoverRadius:5,
+          pointHoverBackgroundColor:accent, pointHoverBorderColor:'#fff', pointHoverBorderWidth:2 },
+        { label:'Prévisionnel', data:previ, borderColor:'#94a3b8', backgroundColor:'transparent',
+          borderWidth:2, borderDash:[5,4], fill:false, tension:0, pointRadius:0, pointHoverRadius:4 },
+      ]},
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins: {
+          legend:{ display:false },
+          tooltip:{ backgroundColor:'rgba(15,23,42,0.95)', titleFont:{size:11}, bodyFont:{size:12,weight:'bold'},
+            padding:9, cornerRadius:6, displayColors:true, boxWidth:8, boxHeight:8,
+            callbacks:{ label:(ctx)=> ' '+ctx.dataset.label+' : '+(ctx.parsed.y>=0?'+':'')+Math.round(ctx.parsed.y).toLocaleString('fr-FR')+' €' } }
+        },
+        scales: {
+          x:{ grid:{display:false}, ticks:{ font:{size:10}, color:'#94a3b8' } },
+          y:{ grid:{color:'rgba(148,163,184,0.15)'}, ticks:{ font:{size:10}, color:'#94a3b8',
+              callback:(v)=> Math.round(v).toLocaleString('fr-FR')+' €' } }
+        },
+        interaction:{ intersect:false, mode:'index' }
+      }
+    });
+  } catch(e) { console.warn('[renta] Erreur chart cashflow', e); }
+}
+
+function setRentaPeriod(p) { mfRentaPeriod = p; switchMfTab('renta'); }
+function setRentaYear(y)   { mfRentaYear = parseInt(y); switchMfTab('renta'); }
+
+// ─── Alimentation du bilan SCI ───
+// Loyers réellement perçus par la SCI sur un exercice (année civile)
+function mfLoyersPercusSCI(sciId, annee) {
+  const ids = new Set(allBiens.filter(b => b.sci_id === sciId).map(b => b.id));
+  let t = 0;
+  for(const l of allLoyers) {
+    if(!ids.has(l.bien_id) || l.annee !== annee) continue;
+    if(l.statut === 'Payé' || l.statut === 'Partiel') t += parseFloat(l.montant_encaisse)||0;
+  }
+  return t;
+}
+// Charges déductibles par catégorie (mapping Cerfa 2044) sur un exercice
+function mfChargesDeductiblesSCI(sciId, annee) {
+  const ids = new Set(allBiens.filter(b => b.sci_id === sciId).map(b => b.id));
+  const parCat = {};
+  for(const c of allCharges) {
+    if(!ids.has(c.bien_id)) continue;
+    if(new Date(c.date_charge).getFullYear() !== annee) continue;
+    parCat[c.categorie || 'Autre'] = (parCat[c.categorie || 'Autre']||0) + (parseFloat(c.montant)||0);
+  }
+  return parCat;
+}
+
+function renderRentaBilanBox() {
+  if(!allSCI.length) {
+    return `<div class="renta-panel">
+      <div class="renta-panel-title" style="margin-bottom:8px">🏛️ Bilan SCI</div>
+      <div style="font-size:12.5px;color:var(--c-muted)">Créez une SCI dans la section « Mes SCI » pour pouvoir alimenter un bilan annuel à partir de vos données réelles.</div>
+    </div>`;
+  }
+  const years = mfRentaYearsAvailable();
+  return `<div class="renta-panel" style="padding:0;overflow:hidden">
+    <div class="renta-bilan-box">
+      <div class="renta-panel-title" style="margin-bottom:6px">🏛️ Alimenter un bilan SCI</div>
+      <div style="font-size:12px;color:var(--c-dim);margin-bottom:14px;line-height:1.5">
+        Reporte automatiquement les <strong>loyers perçus</strong> et les <strong>charges déductibles par catégorie</strong> (réels) de la SCI vers son bilan comptable de l'exercice choisi.
+      </div>
+      <div class="renta-bilan-row">
+        <div class="sci-form-group" style="min-width:200px;flex:1">
+          <label class="sci-form-label">SCI</label>
+          <select class="sci-form-input" id="renta-bil-sci" onchange="updateRentaBilanPreview()">
+            ${allSCI.map(s => `<option value="${s.id}">${esc(s.nom_sci)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="sci-form-group" style="width:130px">
+          <label class="sci-form-label">Exercice</label>
+          <select class="sci-form-input" id="renta-bil-annee" onchange="updateRentaBilanPreview()">
+            ${years.map(y => `<option value="${y}" ${y===mfRentaYear?'selected':''}>${y}</option>`).join('')}
+          </select>
+        </div>
+        <button class="renta-bilan-btn" onclick="mfAlimenterBilan()">Alimenter le bilan →</button>
+      </div>
+      <div id="renta-bil-preview" style="font-size:12px;color:var(--c-dim);margin-top:12px"></div>
+    </div>
+  </div>`;
+}
+
+function updateRentaBilanPreview() {
+  const sel = document.getElementById('renta-bil-sci');
+  const yearSel = document.getElementById('renta-bil-annee');
+  const prev = document.getElementById('renta-bil-preview');
+  if(!sel || !yearSel || !prev) return;
+  const sciId = sel.value, annee = parseInt(yearSel.value);
+  const loyers = mfLoyersPercusSCI(sciId, annee);
+  const parCat = mfChargesDeductiblesSCI(sciId, annee);
+  const totalCharges = Object.values(parCat).reduce((a,b)=>a+b, 0);
+  const nbBiens = allBiens.filter(b => b.sci_id === sciId).length;
+  const existing = allBilans.find(b => b.sci_id === sciId && b.exercice === annee);
+  prev.innerHTML = `📊 <strong>${nbBiens}</strong> bien${nbBiens>1?'s':''} · Loyers perçus <strong>${fmt(loyers)} €</strong> · Charges déductibles <strong>${fmt(totalCharges)} €</strong>`
+    + (existing ? ` · <span style="color:#f59e0b">un bilan ${annee} existe déjà → il sera mis à jour</span>` : ` · <span style="color:var(--positive)">un nouveau bilan brouillon sera créé</span>`);
+}
+
+async function mfAlimenterBilan() {
+  const sciId = document.getElementById('renta-bil-sci')?.value;
+  const annee = parseInt(document.getElementById('renta-bil-annee')?.value);
+  if(!sciId || !annee) { showNotif('Sélectionnez une SCI et un exercice.', true); return; }
+
+  const loyers = mfLoyersPercusSCI(sciId, annee);
+  const parCat = mfChargesDeductiblesSCI(sciId, annee);
+  const totalCharges = Object.values(parCat).reduce((a,b)=>a+b, 0);
+  const sciName = allSCI.find(s => s.id === sciId)?.nom_sci || 'SCI';
+  const existing = allBilans.find(b => b.sci_id === sciId && b.exercice === annee);
+  const bienIds = allBiens.filter(b => b.sci_id === sciId).map(b => b.id);
+
+  const detailCat = Object.entries(parCat).map(([k,v]) => `  • ${k} : ${fmt(v)} €`).join('\n') || '  (aucune charge saisie)';
+  const msg = `Alimenter le bilan « ${sciName} » — exercice ${annee} ?\n\n`
+    + `Loyers perçus : ${fmt(loyers)} €\n`
+    + `Charges déductibles : ${fmt(totalCharges)} €\n${detailCat}\n\n`
+    + (existing ? `⚠️ Un bilan ${annee} existe déjà pour cette SCI : ses données comptables seront écrasées par ces valeurs réelles (régime et statut conservés).`
+                : `Un bilan brouillon ${annee} (régime IR par défaut) sera créé.`);
+  if(!confirm(msg)) return;
+
+  const btn = document.querySelector('.renta-bilan-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+  try {
+    const base = {
+      ir_loyers_percus: loyers,
+      ir_charges_deductibles: parCat,
+      source_bien_ids: bienIds,
+      user_id: currentUser.id,
+      updated_at: new Date().toISOString(),
+    };
+    let res;
+    if(existing) res = await db.from('bilans_comptables').update(base).eq('id', existing.id);
+    else res = await db.from('bilans_comptables').insert({ ...base, sci_id:sciId, exercice:annee, regime:'IR', statut:'Brouillon' });
+    if(res.error) throw res.error;
+    await loadMfBilans();
+    showNotif(`Bilan ${sciName} ${annee} alimenté ✓`);
+    switchMfTab('renta');
+  } catch(e) {
+    showNotif('Erreur : ' + e.message, true);
+    if(btn){ btn.disabled = false; btn.textContent = 'Alimenter le bilan →'; }
+  }
+}
+
+// Chargement des bilans dans le contexte Module Financier
+async function loadMfBilans() {
+  if(!currentUser) return;
+  const { data, error } = await db.from('bilans_comptables').select('*').eq('user_id', currentUser.id);
+  if(!error) allBilans = data || [];
+}
+
 
 // ═════════════════════════════════════════════════════
 //  LOCATAIRES — Étape 2
@@ -7513,7 +7938,7 @@ function refreshLocDocsView() {
     <div class="mf-doc-item">
       <span class="icon">${mfDocIcon(d.type)}</span>
       <div class="body">
-        <div class="name">${d.name}<span class="mf-doc-type-badge">${mfDocLabel(d.type)}</span></div>
+        <div class="name">${esc(d.name)}<span class="mf-doc-type-badge">${mfDocLabel(d.type)}</span></div>
         <div class="meta">${mfFmtSize(d.size)} · ${d.uploaded_at ? new Date(d.uploaded_at).toLocaleDateString('fr-FR') : ''}</div>
       </div>
       <div class="actions">
@@ -7914,8 +8339,8 @@ function renderAdmAnnuaire(c) {
               <div class="contact-info">
                 <div class="contact-name">${esc(ct.prenom||'')} ${esc(ct.nom)}</div>
                 ${ct.societe ? `<div class="contact-sub">${esc(ct.societe)}</div>` : ''}
-                ${ct.telephone ? `<div class="contact-sub">📞 ${ct.telephone}</div>` : ''}
-                ${ct.email ? `<div class="contact-sub">✉️ ${ct.email}</div>` : ''}
+                ${ct.telephone ? `<div class="contact-sub">📞 ${esc(ct.telephone)}</div>` : ''}
+                ${ct.email ? `<div class="contact-sub">✉️ ${esc(ct.email)}</div>` : ''}
               </div>
             </div>`).join('')}
         </div>
@@ -8063,7 +8488,7 @@ function openContactModal(id) {
       <div class="sci-form-group"><label class="sci-form-label">Téléphone</label>
         <input class="sci-form-input" id="ct-tel" value="${ct?.telephone||''}" placeholder="06 xx xx xx xx"></div>
       <div class="sci-form-group"><label class="sci-form-label">Email</label>
-        <input class="sci-form-input" id="ct-email" value="${ct?.email||''}" placeholder="email@exemple.com"></div>
+        <input class="sci-form-input" id="ct-email" value="${esc(ct?.email||'')}" placeholder="email@exemple.com"></div>
     </div>
     <div class="sci-form-group"><label class="sci-form-label">Adresse</label>
       <input class="sci-form-input" id="ct-adresse" value="${esc(ct?.adresse||'')}" placeholder="Adresse professionnelle"></div>
@@ -10295,10 +10720,21 @@ function showNotif(msg,isError=false){
   el.textContent=msg;el.className='notif show'+(isError?' error':'');
   setTimeout(()=>el.classList.remove('show'),3000);
 }
-document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
-// FND-001 : nettoyer la clé NewsAPI qui était hardcodée en localStorage (security: clé compromise, rotée).
-localStorage.removeItem('ti_newsapi_key');
-init();
+// ── Démarrage : garantir que tout le DOM (auth-screen, auth-alert, modals définis
+//    plus bas dans le document) est parsé AVANT d'exécuter init(). Sinon, selon le
+//    timing de résolution de getSession(), getElementById() peut renvoyer null au
+//    restore de session → "Cannot read properties of null (reading 'style')".
+function tiBootstrap(){
+  document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
+  // Nettoyer une éventuelle ancienne clé NewsAPI hardcodée en localStorage (clé rotée).
+  localStorage.removeItem('ti_newsapi_key');
+  init();
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', tiBootstrap);
+} else {
+  tiBootstrap();
+}
 
 // ═══════════════════════════════════════════════════════════
 //   SETTINGS PANEL
