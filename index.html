@@ -3036,7 +3036,7 @@ function buildUserRowsHtml(users, myEmail) {
   }
   return users.map(function(u) {
     var isMe = u.email === myEmail;
-    var fullName = ([u.first_name, u.last_name].filter(Boolean).join(' ') || '—').replace(/</g,'&lt;');
+    var fullName = esc([u.first_name, u.last_name].filter(Boolean).join(' ') || '—');
     var statusCls = u.status === 'active' ? 'active' : u.status === 'pending' ? 'pending' : 'disabled';
     var statusLabel = u.status === 'active' ? '✅ Actif' : u.status === 'pending' ? '⏳ En attente' : '🚫 Archivé';
     var meBadge = isMe ? '<span style="font-size:9px;background:#6366f1;color:white;padding:1px 6px;border-radius:4px;font-weight:700;margin-left:6px">MOI</span>' : '';
@@ -3051,11 +3051,11 @@ function buildUserRowsHtml(users, myEmail) {
       actions.push('<span style="font-size:11px;color:#94a3b8;font-style:italic">Mon compte</span>');
     } else if(u.status === 'pending') {
       // En attente : valider l'accès OU renvoyer l'invitation
-      actions.push('<button class="admin-action-btn is-validate admin-validate-btn" data-id="'+u.id+'" data-email="'+u.email+'" aria-label="Valider l\'accès" title="Activer le compte"><span class="ic">✓</span> Valider</button>');
-      actions.push('<button class="admin-action-btn is-resend admin-resend-btn" data-email="'+u.email+'" data-fn="'+(u.first_name||'').replace(/"/g,'')+'" data-ln="'+(u.last_name||'').replace(/"/g,'')+'" data-role="'+u.role+'" aria-label="Renvoyer l\'invitation" title="Renvoyer un email d\'invitation"><span class="ic">📤</span> Renvoyer</button>');
+      actions.push('<button class="admin-action-btn is-validate admin-validate-btn" data-id="'+u.id+'" data-email="'+esc(u.email)+'" aria-label="Valider l\'accès" title="Activer le compte"><span class="ic">✓</span> Valider</button>');
+      actions.push('<button class="admin-action-btn is-resend admin-resend-btn" data-email="'+esc(u.email)+'" data-fn="'+esc(u.first_name||'')+'" data-ln="'+esc(u.last_name||'')+'" data-role="'+u.role+'" aria-label="Renvoyer l\'invitation" title="Renvoyer un email d\'invitation"><span class="ic">📤</span> Renvoyer</button>');
     } else if(u.status === 'active') {
       // Actif : envoyer reset password OU archiver
-      actions.push('<button class="admin-action-btn is-reset admin-resetpwd-btn" data-email="'+u.email+'" aria-label="Envoyer un email de réinitialisation de mot de passe" title="Envoyer un email de réinitialisation"><span class="ic">🔑</span> Reset</button>');
+      actions.push('<button class="admin-action-btn is-reset admin-resetpwd-btn" data-email="'+esc(u.email)+'" aria-label="Envoyer un email de réinitialisation de mot de passe" title="Envoyer un email de réinitialisation"><span class="ic">🔑</span> Reset</button>');
       actions.push('<button class="admin-action-btn is-disable admin-disable-btn" data-id="'+u.id+'" aria-label="Archiver l\'utilisateur" title="Archiver"><span class="ic">🚫</span> Archiver</button>');
     } else if(u.status === 'disabled') {
       // Archivé : réactiver
@@ -3065,8 +3065,8 @@ function buildUserRowsHtml(users, myEmail) {
 
     return '<tr style="'+bg+'">'
       + '<td style="padding:12px 14px;font-size:13px;font-weight:600;border-bottom:1px solid #e2e8f0">'+fullName+meBadge+'</td>'
-      + '<td style="padding:12px 14px;font-size:12px;color:#475569;border-bottom:1px solid #e2e8f0">'+u.email+'</td>'
-      + '<td style="padding:12px 14px;font-size:12px;color:#475569;border-bottom:1px solid #e2e8f0">'+(u.phone||'—')+'</td>'
+      + '<td style="padding:12px 14px;font-size:12px;color:#475569;border-bottom:1px solid #e2e8f0">'+esc(u.email)+'</td>'
+      + '<td style="padding:12px 14px;font-size:12px;color:#475569;border-bottom:1px solid #e2e8f0">'+esc(u.phone||'—')+'</td>'
       + '<td style="padding:12px 14px;border-bottom:1px solid #e2e8f0"><span class="'+roleCls+'">'+roleLabel+'</span></td>'
       + '<td style="padding:12px 14px;border-bottom:1px solid #e2e8f0"><span class="status-badge '+statusCls+'">'+statusLabel+'</span></td>'
       + '<td style="padding:12px 14px;font-size:11px;color:#64748b;border-bottom:1px solid #e2e8f0">'+dateInscription+'</td>'
