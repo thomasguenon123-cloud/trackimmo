@@ -2326,6 +2326,129 @@ body{background:var(--sb-bg);color:var(--c-text);font-family:var(--font);font-si
   .kpi-value{font-size:18px;}
   .modal{width:100vw !important;max-width:100vw !important;height:100vh;max-height:100vh !important;border-radius:0 !important;}
 }
+
+/* ═══════════ EXPORT PDF DOSSIER BANCAIRE (bkdoc) ═══════════ */
+/* Conteneur de rendu hors écran — les pages y sont construites puis capturées par html2canvas */
+#bkdoc-root{position:fixed;left:-99999px;top:0;z-index:-1;}
+#bkdoc-root .page{--bk-primary:#006040;--bk-secondary:#008080;--bk-accent:#e00020;position:relative;width:794px;height:1123px;background:#fff;overflow:hidden;font-family:'Montserrat',Arial,sans-serif;}
+/* Couverture */
+#bkdoc-root .hdr{position:absolute;top:78px;left:64px;right:64px;display:flex;justify-content:space-between;}
+#bkdoc-root .hdr .name{font-size:15px;font-weight:700;letter-spacing:1px;color:#1d1d1d;}
+#bkdoc-root .hdr .sub{font-size:13px;font-weight:500;letter-spacing:.5px;color:#7a7a7a;margin-top:5px;}
+#bkdoc-root .hdr .right{text-align:right;}
+#bkdoc-root .rule{position:absolute;top:162px;left:64px;right:64px;height:7px;border-radius:3.5px;background:var(--bk-secondary);}
+#bkdoc-root .title{position:absolute;top:268px;left:64px;font-size:55px;font-weight:800;letter-spacing:3px;line-height:1.32;color:#1d1d1d;}
+#bkdoc-root .subtitle{position:absolute;top:470px;left:64px;font-size:23px;font-weight:500;font-style:italic;letter-spacing:5px;color:#2a2a2a;}
+#bkdoc-root .bien-title{position:absolute;top:592px;left:64px;width:46%;font-size:34px;font-weight:300;letter-spacing:4px;line-height:1.45;color:#3f3f3f;}
+#bkdoc-root .wedge{position:absolute;inset:0;clip-path:polygon(17.6% 100%,100% 38.5%,100% 100%);}
+#bkdoc-root .wedge img{width:100%;height:100%;object-fit:cover;object-position:65% 55%;display:block;}
+#bkdoc-root .wedge.no-photo{background:linear-gradient(135deg,var(--bk-secondary) 0%,var(--bk-primary) 100%);}
+#bkdoc-root .cbar{position:absolute;height:22px;border-radius:11px;transform-origin:center;}
+#bkdoc-root .cbar.green{width:1031px;left:-91px;top:727px;background:var(--bk-primary);transform:rotate(-46.55deg);}
+#bkdoc-root .cbar.teal{width:1031px;left:-116px;top:703px;background:var(--bk-secondary);transform:rotate(-46.55deg);}
+#bkdoc-root .logo-card{position:absolute;right:28px;bottom:28px;width:150px;min-height:120px;background:#fff;border-radius:2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:16px 12px;box-sizing:border-box;}
+#bkdoc-root .logo-card img{max-width:100%;max-height:78px;object-fit:contain;}
+#bkdoc-root .logo-card .caption{font-size:9.5px;font-weight:700;letter-spacing:.6px;color:var(--bk-primary);text-align:center;line-height:1.35;}
+#bkdoc-root .logo-fallback{font-size:13px;font-weight:800;color:var(--bk-primary);text-align:center;}
+/* Pages intérieures — coquille */
+#bkdoc-root .ihdr{position:absolute;top:54px;left:64px;right:64px;display:flex;justify-content:space-between;align-items:flex-start;}
+#bkdoc-root .ihdr-kicker{font-size:11px;font-weight:700;letter-spacing:2px;color:var(--bk-primary);margin-bottom:3px;}
+#bkdoc-root .ihdr-name{font-size:14px;font-weight:700;letter-spacing:.5px;color:#1d1d1d;}
+#bkdoc-root .ihdr-name.accent{color:var(--bk-primary);}
+#bkdoc-root .ihdr-sub{font-size:11px;font-weight:500;color:#8a8a8a;margin-top:2px;}
+#bkdoc-root .ihdr .right{text-align:right;}
+#bkdoc-root .irule{position:absolute;top:108px;left:64px;right:64px;height:5px;border-radius:2.5px;background:var(--bk-secondary);}
+#bkdoc-root .ibody{position:absolute;top:150px;left:64px;right:64px;bottom:96px;}
+#bkdoc-root .sec-kicker{font-size:11px;font-weight:700;letter-spacing:3px;color:var(--bk-secondary);margin-bottom:8px;}
+#bkdoc-root .sec-title{font-size:30px;font-weight:800;letter-spacing:.5px;color:#1d1d1d;margin:0 0 16px;line-height:1.15;}
+#bkdoc-root .blead{font-size:14px;font-weight:400;line-height:1.6;color:#555;margin:0 0 26px;max-width:92%;}
+#bkdoc-root .two-col{display:flex;gap:22px;}
+#bkdoc-root .bcard{flex:1;background:#f7faf9;border:1px solid #e3ede9;border-radius:12px;padding:22px 24px;}
+#bkdoc-root .bcard.hl{background:linear-gradient(160deg,#f0f7f4,#e8f3ef);border-color:#d3e6df;}
+#bkdoc-root .bcard-h{font-size:13px;font-weight:700;letter-spacing:1px;color:var(--bk-primary);text-transform:uppercase;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #e3ede9;}
+#bkdoc-root .bkv{display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;border-bottom:1px dashed #e8efec;}
+#bkdoc-root .bkv:last-child{border-bottom:none;}
+#bkdoc-root .bkv span{font-size:13px;color:#777;}
+#bkdoc-root .bkv b{font-size:14px;color:#222;font-weight:600;}
+#bkdoc-root .bkv b.big{font-size:19px;color:var(--bk-primary);font-weight:800;}
+#bkdoc-root .pf{display:flex;gap:12px;align-items:flex-start;padding:11px 0;}
+#bkdoc-root .pf-ic{flex:none;width:22px;height:22px;border-radius:50%;background:var(--bk-primary);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+#bkdoc-root .pf b{font-size:17px;color:#1d1d1d;font-weight:800;display:block;}
+#bkdoc-root .pf-l{font-size:12px;color:#777;margin-top:1px;}
+/* Galerie */
+#bkdoc-root .gallery{display:flex;gap:14px;height:420px;margin-bottom:14px;}
+#bkdoc-root .g-main{flex:1.6;border-radius:12px;overflow:hidden;height:100%;}
+#bkdoc-root .g-main img{width:100%;height:100%;object-fit:cover;display:block;}
+#bkdoc-root .g-side{flex:1;display:flex;flex-direction:column;gap:14px;}
+#bkdoc-root .g-cell{flex:1;border-radius:12px;overflow:hidden;background:#eef4f2;}
+#bkdoc-root .g-cell img{width:100%;height:100%;object-fit:cover;display:block;}
+#bkdoc-root .gallery-bot{display:flex;gap:14px;height:200px;}
+#bkdoc-root .gallery-bot .g-cell{flex:1;}
+#bkdoc-root .extra-photos{margin-top:14px;font-size:12px;color:#888;font-style:italic;text-align:right;}
+/* Tableaux finance */
+#bkdoc-root .two-col.tables{gap:22px;margin-bottom:24px;}
+#bkdoc-root .ftable{flex:1;background:#fff;border:1px solid #e3ede9;border-radius:12px;overflow:hidden;}
+#bkdoc-root .ft-h{background:var(--bk-primary);color:#fff;font-size:13px;font-weight:700;letter-spacing:.5px;padding:12px 18px;}
+#bkdoc-root .ft-r{display:flex;justify-content:space-between;padding:10px 18px;border-bottom:1px solid #f0f5f3;font-size:13px;}
+#bkdoc-root .ft-r span{color:#666;}
+#bkdoc-root .ft-r b{color:#222;font-weight:600;}
+#bkdoc-root .ft-r.sep{border-top:2px solid #eef4f2;}
+#bkdoc-root .ft-r.total{background:#f0f7f4;border-bottom:none;}
+#bkdoc-root .ft-r.total span{font-weight:700;color:var(--bk-primary);}
+#bkdoc-root .ft-r.total b{font-size:16px;font-weight:800;color:var(--bk-primary);}
+#bkdoc-root .kpi-row{display:flex;gap:22px;}
+#bkdoc-root .kpi-big{flex:1;border-radius:12px;padding:20px 26px;background:#f7faf9;border:1px solid #e3ede9;}
+#bkdoc-root .kpi-big.pos{background:linear-gradient(135deg,#1d9e75,#16a34a);border:none;}
+#bkdoc-root .kpi-big.neg{background:linear-gradient(135deg,#e0674f,#dc2626);border:none;}
+#bkdoc-root .kpi-big.pos .kpi-l,#bkdoc-root .kpi-big.neg .kpi-l{color:rgba(255,255,255,.85);}
+#bkdoc-root .kpi-big.pos .kpi-v,#bkdoc-root .kpi-big.neg .kpi-v{color:#fff;}
+#bkdoc-root .kpi-l{font-size:12px;font-weight:600;letter-spacing:.5px;color:#777;text-transform:uppercase;margin-bottom:6px;}
+#bkdoc-root .kpi-v{font-size:34px;font-weight:800;color:#1d1d1d;}
+#bkdoc-root .kpi-v.accent-txt{color:var(--bk-primary);}
+/* Plan de financement */
+#bkdoc-root .fin-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:26px;}
+#bkdoc-root .fin-card{background:#f7faf9;border:1px solid #e3ede9;border-radius:12px;padding:20px 24px;}
+#bkdoc-root .fin-l{font-size:12px;font-weight:600;letter-spacing:.5px;color:#888;text-transform:uppercase;margin-bottom:8px;}
+#bkdoc-root .fin-v{font-size:26px;font-weight:800;color:var(--bk-primary);}
+#bkdoc-root .endet{background:#fff;border:1px solid #e3ede9;border-radius:12px;padding:22px 26px;display:flex;align-items:center;gap:18px;margin-bottom:22px;}
+#bkdoc-root .endet-l{font-size:14px;font-weight:600;color:#555;}
+#bkdoc-root .endet-badge{font-size:22px;font-weight:800;padding:6px 18px;border-radius:24px;color:#fff;}
+#bkdoc-root .endet-badge.ok{background:#16a34a;}
+#bkdoc-root .endet-badge.warn{background:#f59e0b;}
+#bkdoc-root .endet-badge.bad{background:#dc2626;}
+#bkdoc-root .endet-note{font-size:12px;color:#888;margin-left:auto;}
+#bkdoc-root .annex-note{font-size:13px;color:var(--bk-primary);font-weight:600;background:#f0f7f4;border-radius:10px;padding:14px 18px;border-left:3px solid var(--bk-secondary);}
+/* Page SCI */
+#bkdoc-root .sci-id{background:#fff;border:1px solid #e3ede9;border-radius:12px;overflow:hidden;margin-bottom:26px;}
+#bkdoc-root .sci-id-row{display:flex;justify-content:space-between;padding:13px 22px;border-bottom:1px solid #f0f5f3;font-size:14px;}
+#bkdoc-root .sci-id-row:last-child{border-bottom:none;}
+#bkdoc-root .sci-id-row span{color:#777;}
+#bkdoc-root .sci-id-row b{color:#1d1d1d;font-weight:600;}
+#bkdoc-root .sci-assoc-title{font-size:13px;font-weight:700;letter-spacing:1.5px;color:var(--bk-primary);text-transform:uppercase;margin:0 0 14px;}
+#bkdoc-root .bassoc{display:flex;gap:18px;background:#f7faf9;border:1px solid #e3ede9;border-radius:12px;padding:20px 24px;align-items:flex-start;margin-bottom:14px;}
+#bkdoc-root .bassoc-avatar{flex:none;width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,var(--bk-secondary),var(--bk-primary));color:#fff;font-size:19px;font-weight:800;display:flex;align-items:center;justify-content:center;letter-spacing:.5px;}
+#bkdoc-root .bassoc-body{flex:1;}
+#bkdoc-root .bassoc-name{font-size:17px;font-weight:800;color:#1d1d1d;}
+#bkdoc-root .bassoc-role{font-size:13px;font-weight:600;color:var(--bk-primary);margin:3px 0 8px;}
+#bkdoc-root .bassoc-contact{font-size:13px;color:#555;}
+#bkdoc-root .bassoc-contact .lbl{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--bk-primary);text-transform:uppercase;margin-right:6px;}
+#bkdoc-root .assoc-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;margin-top:12px;padding-top:12px;border-top:1px dashed #dfe9e5;}
+#bkdoc-root .af{display:flex;flex-direction:column;}
+#bkdoc-root .af-l{font-size:10px;font-weight:700;letter-spacing:1px;color:#8aa39a;text-transform:uppercase;}
+#bkdoc-root .af-v{font-size:14px;font-weight:600;color:#1d1d1d;margin-top:2px;}
+/* Pied de page */
+#bkdoc-root .ifoot{position:absolute;left:0;right:0;bottom:0;height:72px;background:var(--bk-secondary);display:flex;align-items:center;justify-content:flex-end;padding-right:28px;}
+#bkdoc-root .ifoot-logo{background:#fff;border-radius:6px;padding:8px 12px;display:flex;align-items:center;justify-content:center;height:48px;min-width:70px;}
+#bkdoc-root .ifoot-logo img{max-height:32px;max-width:90px;object-fit:contain;}
+/* Modal de configuration (visible, dans l'UI de l'app) */
+.bkdoc-photo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px;}
+.bkdoc-photo-item{position:relative;border-radius:8px;overflow:hidden;border:2px solid transparent;cursor:pointer;aspect-ratio:4/3;background:#eef2f7;}
+.bkdoc-photo-item img{width:100%;height:100%;object-fit:cover;display:block;}
+.bkdoc-photo-item.sel{border-color:var(--accent);}
+.bkdoc-photo-item .tick{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;display:none;align-items:center;justify-content:center;}
+.bkdoc-photo-item.sel .tick{display:flex;}
+.bkdoc-progress{display:none;margin-top:14px;padding:10px 14px;background:#f1f5f9;border-radius:8px;font-size:12.5px;color:var(--c-dim);}
+
 </style>
 </head>
 <body>
@@ -4953,6 +5076,7 @@ async function openDetail(id) {
     </div>
 
     <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="openDossierModal('${b.id}')">📄 Dossier banque</button>
       <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Fermer</button>
       <button class="btn btn-primary" onclick="closeModal('modal-detail');editBien('${b.id}')">✏️ Édition complète</button>
     </div>
@@ -5086,6 +5210,460 @@ async function deleteAction() {
   _reopenDetailTab = 'dt-act';
   await openDetail(bienId);
 }
+
+// ═══════════════════════════════════════════════════════════
+//   EXPORT PDF — DOSSIER BANCAIRE (module bkdoc)
+//   Bouton fiche bien → modal config → génération client
+//   html2canvas (pages) + jsPDF (assemblage) + pdf-lib (annexe)
+// ═══════════════════════════════════════════════════════════
+
+const BKDOC_ASSETS = 'https://dizkljqobgiywxsbsdkd.supabase.co/storage/v1/object/public/bank-assets/';
+const BKDOC_COVER_URL = BKDOC_ASSETS + 'assets/cover-photo.jpg';
+let bkdocLibsPromise = null;
+let bkdocPresetsCache = null;
+let bkdocCtx = null; // contexte du modal en cours { bien, scis, sims, photoPaths, selPhotos }
+
+function bkdocLoadScript(src){
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res;
+    s.onerror = () => rej(new Error('Échec de chargement : ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+function bkdocEnsureLibs(){
+  if(!bkdocLibsPromise){
+    bkdocLibsPromise = (async () => {
+      if(!document.getElementById('bkdoc-font')){
+        const l = document.createElement('link');
+        l.id = 'bkdoc-font'; l.rel = 'stylesheet';
+        l.href = 'https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,500;0,600;0,800;1,500&display=swap';
+        document.head.appendChild(l);
+      }
+      const jobs = [];
+      if(!window.html2canvas) jobs.push(bkdocLoadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'));
+      if(!(window.jspdf && window.jspdf.jsPDF)) jobs.push(bkdocLoadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'));
+      if(!window.PDFLib) jobs.push(bkdocLoadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js'));
+      await Promise.all(jobs);
+    })();
+    bkdocLibsPromise.catch(() => { bkdocLibsPromise = null; }); // permet un retry si échec réseau
+  }
+  return bkdocLibsPromise;
+}
+
+// ── Helpers de formatage ──
+function bkdocEUR(n){ return (n == null || isNaN(n)) ? '—' : fmt(n) + ' €'; }
+function bkdocDateFR(d){ const dt = d ? new Date(d) : new Date(); return dt.toLocaleDateString('fr-FR', {day:'numeric', month:'long', year:'numeric'}); }
+function bkdocFilename(titre){
+  const d = new Date();
+  const ymd = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+  const clean = (titre || 'bien').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,60);
+  return ymd + '_Demande_de_financement_' + clean + '.pdf';
+}
+function bkdocInitials(prenom, nom){ return ((prenom||' ')[0] + (nom||' ')[0]).toUpperCase().trim() || '–'; }
+function bkdocLogoErr(img){ const d = document.createElement('div'); d.className = 'logo-fallback'; d.textContent = img.getAttribute('data-bank') || 'Banque'; img.replaceWith(d); }
+
+// ── Ouverture du modal de configuration ──
+async function openDossierModal(bienId){
+  const b = allBiens.find(x => x.id === bienId);
+  if(!b){ showNotif('Bien introuvable.', true); return; }
+
+  document.getElementById('adm-modal-title').textContent = '📄 Dossier banque — ' + (b.titre || 'Bien');
+  document.getElementById('adm-modal-del').style.display = 'none';
+  const saveBtn = document.getElementById('adm-modal-save');
+  saveBtn.innerHTML = '🧾 Générer le dossier';
+  saveBtn.disabled = true; // activé quand les données sont chargées
+  saveBtn.onclick = bkdocGenerate;
+  document.getElementById('adm-modal-body').innerHTML = '<div style="padding:18px 4px;font-size:13px;color:var(--c-dim)"><span class="sci-spinner"></span>Chargement des options…</div>';
+  document.getElementById('adm-modal-overlay').classList.add('open');
+
+  try {
+    // Chargement parallèle : presets banque, SCI du compte, simulations du compte
+    const [presetsRes, scisRes, simsRes] = await Promise.all([
+      bkdocPresetsCache ? Promise.resolve({ data: bkdocPresetsCache }) : db.from('bank_presets').select('*').order('ordre'),
+      db.from('sci').select('*').eq('user_id', currentUser.id).order('nom_sci'),
+      db.from('simulations_credit').select('id, nom_simulation, montant_emprunte, taux_interet, duree_ans, mensualite_calculee, taux_endettement, pdf_path, pdf_name, date_document').eq('user_id', currentUser.id).order('created_at', { ascending: false })
+    ]);
+    if(presetsRes.error) throw presetsRes.error;
+    if(scisRes.error) throw scisRes.error;
+    if(simsRes.error) throw simsRes.error;
+    bkdocPresetsCache = presetsRes.data || [];
+
+    const photoPaths = Array.isArray(b.photos_paths) ? b.photos_paths : [];
+    bkdocCtx = { bien: b, presets: bkdocPresetsCache, scis: scisRes.data || [], sims: simsRes.data || [], photoPaths, selPhotos: new Set() };
+
+    // Présélection : 5 premières photos si plus de 5
+    photoPaths.slice(0, 5).forEach((_, i) => bkdocCtx.selPhotos.add(i));
+
+    const presetOpts = bkdocCtx.presets.map(p =>
+      `<option value="${p.key}" ${!p.actif ? 'disabled' : ''} ${p.key === 'credit-agricole' ? 'selected' : ''}>${esc(p.nom)}${!p.actif ? ' (bientôt)' : ''}</option>`).join('');
+    const sciOpts = ['<option value="">Sans SCI</option>']
+      .concat(bkdocCtx.scis.map(s => `<option value="${s.id}" ${b.sci_id === s.id ? 'selected' : ''}>${esc(s.nom_sci)}</option>`)).join('');
+    const simOpts = ['<option value="">Aucune</option>']
+      .concat(bkdocCtx.sims.map(s => `<option value="${s.id}">${esc(s.nom_simulation || 'Simulation')}${s.pdf_path ? ' 📎' : ''}</option>`)).join('');
+
+    let photosBlock = '';
+    if(photoPaths.length === 0){
+      photosBlock = '<div style="font-size:12px;color:var(--c-muted);padding:6px 0">Ce bien n\'a aucune photo — la page galerie sera omise.</div>';
+    } else if(photoPaths.length <= 5){
+      photosBlock = `<div style="font-size:12px;color:var(--c-muted);padding:6px 0">Les ${photoPaths.length} photo${photoPaths.length > 1 ? 's' : ''} du bien ser${photoPaths.length > 1 ? 'ont incluses' : 'a incluse'}.</div>`;
+    } else {
+      photosBlock = `<div style="font-size:12px;color:var(--c-muted);margin-bottom:2px">Ce bien a ${photoPaths.length} photos — sélectionnez-en 5 maximum (<span id="bkdoc-photo-count">5</span>/5) :</div>
+        <div class="bkdoc-photo-grid" id="bkdoc-photo-grid">${photoPaths.map((p, i) =>
+          `<div class="bkdoc-photo-item ${i < 5 ? 'sel' : ''}" data-idx="${i}" onclick="bkdocTogglePhoto(${i})"><img data-bkpath="${esc(p.path || '')}" alt=""><span class="tick">✓</span></div>`).join('')}</div>`;
+    }
+
+    document.getElementById('adm-modal-body').innerHTML = `
+      <div class="sci-form-group">
+        <label class="sci-form-label">Banque (charte graphique)</label>
+        <select class="sci-form-input" id="bkdoc-bank">${presetOpts}</select>
+      </div>
+      <div class="sci-form-group">
+        <label class="sci-form-label">SCI emprunteuse</label>
+        <select class="sci-form-input" id="bkdoc-sci">${sciOpts}</select>
+        ${bkdocCtx.scis.length === 0 ? '<div style="font-size:11px;color:var(--c-muted);margin-top:3px">Aucune SCI enregistrée — le dossier sera établi à votre nom.</div>' : ''}
+      </div>
+      <div class="sci-form-group">
+        <label class="sci-form-label">Simulation de crédit à joindre</label>
+        <select class="sci-form-input" id="bkdoc-sim">${simOpts}</select>
+        <div style="font-size:11px;color:var(--c-muted);margin-top:3px">📎 = PDF de la banque joint en annexe. Sans simulation, la page « Plan de financement » est omise.</div>
+      </div>
+      <div class="sci-form-group">
+        <label class="sci-form-label">Photos du bien</label>
+        ${photosBlock}
+      </div>
+      <div class="bkdoc-progress" id="bkdoc-progress"></div>`;
+
+    // Miniatures : résolution asynchrone des URLs signées (sans bloquer l'ouverture)
+    document.querySelectorAll('#bkdoc-photo-grid img[data-bkpath]').forEach(async img => {
+      try { img.src = await TI_STORAGE.signedUrl('biens-photos', img.getAttribute('data-bkpath')); } catch(e) { /* vignette grise */ }
+    });
+
+    saveBtn.disabled = false;
+  } catch(e) {
+    document.getElementById('adm-modal-body').innerHTML = `<div style="padding:14px 4px;font-size:13px;color:#dc2626">Erreur de chargement : ${esc(e.message)}</div>`;
+  }
+}
+
+function bkdocTogglePhoto(idx){
+  const item = document.querySelector(`.bkdoc-photo-item[data-idx="${idx}"]`);
+  if(!item) return;
+  if(bkdocCtx.selPhotos.has(idx)){ bkdocCtx.selPhotos.delete(idx); item.classList.remove('sel'); }
+  else {
+    if(bkdocCtx.selPhotos.size >= 5){ showNotif('5 photos maximum dans le dossier.', true); return; }
+    bkdocCtx.selPhotos.add(idx); item.classList.add('sel');
+  }
+  const c = document.getElementById('bkdoc-photo-count');
+  if(c) c.textContent = bkdocCtx.selPhotos.size;
+}
+
+function bkdocProgress(msg){
+  const el = document.getElementById('bkdoc-progress');
+  if(el){ el.style.display = 'block'; el.innerHTML = '<span class="sci-spinner"></span>' + esc(msg); }
+}
+
+// ── Construction du HTML des pages ──
+function bkdocBuildPages(d){
+  // d = { bien, profil, sci, preset, sim, photoUrls, extraPhotos, coverUrl, logoUrl, caption }
+  const P = d.preset;
+  const vars = `--bk-primary:${P.couleur_primaire};--bk-secondary:${P.couleur_secondaire};--bk-accent:${P.couleur_accent}`;
+  const propName = ((d.profil?.first_name || '') + ' ' + (d.profil?.last_name || '')).trim() || (currentUser?.email || '');
+  const propTel = d.profil?.phone || '';
+  const propMail = d.profil?.email || currentUser?.email || '';
+  const sciName = d.sci?.nom_sci || '';
+  const sciDate = d.sci?.created_at ? 'Créée le ' + bkdocDateFR(d.sci.created_at) : '';
+  const b = d.bien;
+  const logoImg = d.logoUrl
+    ? `<img src="${d.logoUrl}" crossorigin="anonymous" data-bank="${esc(P.nom)}" onerror="bkdocLogoErr(this)">`
+    : `<div class="logo-fallback">${esc(P.nom)}</div>`;
+
+  const hdr = `
+    <div class="ihdr">
+      <div><div class="ihdr-kicker">INVESTISSEMENT LOCATIF</div><div class="ihdr-name">${esc(propName)}</div></div>
+      <div class="right">${sciName ? `<div class="ihdr-name accent">${esc(sciName)}</div><div class="ihdr-sub">${esc(sciDate)}</div>` : ''}</div>
+    </div><div class="irule"></div>`;
+  const foot = `<div class="ifoot"><div class="ifoot-logo">${logoImg}</div></div>`;
+
+  // Calculs métier (formules TrackImmo)
+  const num = v => parseFloat(v) || 0;
+  const loyer = num(b.loyer_en_etat), chLoc = num(b.charges_locataire_etat);
+  const cred = num(b.mensualite_credit), copro = num(b.charge_copro), assur = num(b.assurance_logement), tf = num(b.taxe_fonciere);
+  const cashflow = (loyer + chLoc) - (cred + copro + assur + tf);
+  const prix = num(b.prix_affiche), notaire = num(b.frais_notaire), travaux = num(b.travaux), agence = num(b.frais_agence), csci = num(b.creation_sci);
+  const totalAcq = prix + notaire + travaux + agence + csci;
+  const rendement = prix > 0 ? (loyer * 12 / prix) * 100 : 0;
+  const cfCls2 = cashflow > 0 ? 'pos' : (cashflow < 0 ? 'neg' : '');
+  const cfTxt = (cashflow > 0 ? '+' : '') + fmt(cashflow) + ' €';
+
+  const pages = [];
+
+  // ── Page 1 : couverture ──
+  pages.push(`<div class="page" style="${vars}">
+    <div class="hdr">
+      <div><div class="name">${esc(propName)}</div><div class="sub">${esc([propTel, propMail].filter(Boolean).join(' ; '))}</div></div>
+      <div class="right">${sciName ? `<div class="name">${esc(sciName)}</div><div class="sub">${esc(sciDate)}</div>` : ''}</div>
+    </div>
+    <div class="rule"></div>
+    <div class="title">DEMANDE DE<br>FINANCEMENT</div>
+    <div class="subtitle">INVESTISSEMENT LOCATIF</div>
+    <div class="bien-title">${esc(b.titre || '')}</div>
+    <div class="wedge">${d.coverUrl ? `<img src="${d.coverUrl}" crossorigin="anonymous" onerror="this.closest('.wedge').classList.add('no-photo');this.remove()">` : ''}</div>
+    <div class="cbar green"></div>
+    <div class="cbar teal"></div>
+    <div class="logo-card">${logoImg}${d.caption ? `<div class="caption">${d.caption}</div>` : ''}</div>
+  </div>`);
+  // NB : si pas de coverUrl on force le dégradé
+  if(!d.coverUrl) pages[0] = pages[0].replace('class="wedge"', 'class="wedge no-photo"');
+
+  // ── Page 2 : présentation du bien ──
+  pages.push(`<div class="page" style="${vars}">${hdr}
+    <div class="ibody">
+      <div class="sec-kicker">PRÉSENTATION</div>
+      <h2 class="sec-title">Présentation du bien</h2>
+      <p class="blead">${esc(b.type_bien || 'Bien')} situé à ${esc(b.ville || '')}${b.surface_m2 ? ', d\u2019une surface de ' + fmt(num(b.surface_m2)) + ' m²' : ''}, destiné à la location. Les principales caractéristiques et indicateurs financiers sont présentés ci-dessous.</p>
+      <div class="two-col">
+        <div class="bcard">
+          <div class="bcard-h">Le bien</div>
+          <div class="bkv"><span>Type</span><b>${esc(b.type_bien || '—')}</b></div>
+          <div class="bkv"><span>Surface</span><b>${b.surface_m2 ? fmt(num(b.surface_m2)) + ' m²' : '—'}</b></div>
+          <div class="bkv"><span>Localisation</span><b>${esc(b.ville || '—')}${b.code_postal ? ' (' + esc(b.code_postal) + ')' : ''}</b></div>
+          <div class="bkv"><span>Prix affiché</span><b class="big">${bkdocEUR(prix)}</b></div>
+        </div>
+        <div class="bcard hl">
+          <div class="bcard-h">Indicateurs clés</div>
+          <div class="pf"><span class="pf-ic">✓</span><div><b>${cfTxt}/mois</b><div class="pf-l">Cashflow mensuel</div></div></div>
+          <div class="pf"><span class="pf-ic">✓</span><div><b>${rendement.toFixed(2).replace('.', ',')} %</b><div class="pf-l">Rendement brut</div></div></div>
+          <div class="pf"><span class="pf-ic">✓</span><div><b>${bkdocEUR(loyer)}</b><div class="pf-l">Loyer mensuel attendu</div></div></div>
+        </div>
+      </div>
+    </div>${foot}
+  </div>`);
+
+  // ── Page 3 : galerie (si photos) ──
+  if(d.photoUrls.length > 0){
+    const [p1, p2, p3, p4, p5] = d.photoUrls;
+    const cell = u => u ? `<div class="g-cell"><img src="${u}" crossorigin="anonymous"></div>` : '';
+    pages.push(`<div class="page" style="${vars}">${hdr}
+      <div class="ibody">
+        <div class="sec-kicker">GALERIE</div>
+        <h2 class="sec-title">Photographies du bien</h2>
+        <div class="gallery">
+          <div class="g-main">${p1 ? `<img src="${p1}" crossorigin="anonymous">` : ''}</div>
+          ${(p2 || p3) ? `<div class="g-side">${cell(p2)}${cell(p3)}</div>` : ''}
+        </div>
+        ${(p4 || p5) ? `<div class="gallery-bot">${cell(p4)}${cell(p5)}</div>` : ''}
+        ${d.extraPhotos ? '<div class="extra-photos">D\u2019autres photographies du bien sont disponibles sur demande.</div>' : ''}
+      </div>${foot}
+    </div>`);
+  }
+
+  // ── Page 4 : synthèse financière ──
+  pages.push(`<div class="page" style="${vars}">${hdr}
+    <div class="ibody">
+      <div class="sec-kicker">SYNTHÈSE FINANCIÈRE</div>
+      <h2 class="sec-title">Synthèse financière</h2>
+      <div class="two-col tables">
+        <div class="ftable">
+          <div class="ft-h">Montant d'acquisition</div>
+          <div class="ft-r"><span>Prix affiché</span><b>${bkdocEUR(prix)}</b></div>
+          <div class="ft-r"><span>Frais de notaire (7 %)</span><b>${bkdocEUR(notaire)}</b></div>
+          <div class="ft-r"><span>Travaux</span><b>${bkdocEUR(travaux)}</b></div>
+          <div class="ft-r"><span>Frais d'agence</span><b>${bkdocEUR(agence)}</b></div>
+          <div class="ft-r"><span>Création SCI</span><b>${bkdocEUR(csci)}</b></div>
+          <div class="ft-r total"><span>Total acquisition</span><b>${bkdocEUR(totalAcq)}</b></div>
+        </div>
+        <div class="ftable">
+          <div class="ft-h">Exploitation mensuelle</div>
+          <div class="ft-r"><span>Loyer (en l'état)</span><b>${bkdocEUR(loyer)}</b></div>
+          <div class="ft-r"><span>Charges locataire</span><b>${bkdocEUR(chLoc)}</b></div>
+          <div class="ft-r sep"><span>Mensualité crédit</span><b>− ${bkdocEUR(cred)}</b></div>
+          <div class="ft-r"><span>Charges copropriété</span><b>− ${bkdocEUR(copro)}</b></div>
+          <div class="ft-r"><span>Assurance</span><b>− ${bkdocEUR(assur)}</b></div>
+          <div class="ft-r"><span>Taxe foncière (/12)</span><b>− ${bkdocEUR(tf)}</b></div>
+        </div>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi-big ${cfCls2}"><div class="kpi-l">Cashflow mensuel</div><div class="kpi-v">${cfTxt}</div></div>
+        <div class="kpi-big"><div class="kpi-l">Rendement brut</div><div class="kpi-v accent-txt">${rendement.toFixed(2).replace('.', ',')} %</div></div>
+      </div>
+    </div>${foot}
+  </div>`);
+
+  // ── Page 5 : plan de financement (si simulation) ──
+  if(d.sim){
+    const s = d.sim;
+    const te = num(s.taux_endettement);
+    const teCls = te <= 33 ? 'ok' : (te <= 40 ? 'warn' : 'bad');
+    const teNote = te <= 33 ? 'Sous le seuil recommandé de 33 %' : (te <= 40 ? 'Entre 33 % et 40 %' : 'Au-dessus de 40 %');
+    pages.push(`<div class="page" style="${vars}">${hdr}
+      <div class="ibody">
+        <div class="sec-kicker">FINANCEMENT</div>
+        <h2 class="sec-title">Plan de financement</h2>
+        <p class="blead">Simulation : ${esc(s.nom_simulation || '—')}${s.date_document ? ' — ' + bkdocDateFR(s.date_document) : ''}</p>
+        <div class="fin-grid">
+          <div class="fin-card"><div class="fin-l">Montant emprunté</div><div class="fin-v">${bkdocEUR(num(s.montant_emprunte))}</div></div>
+          <div class="fin-card"><div class="fin-l">Taux d'intérêt</div><div class="fin-v">${num(s.taux_interet).toFixed(2).replace('.', ',')} %</div></div>
+          <div class="fin-card"><div class="fin-l">Durée</div><div class="fin-v">${fmt(num(s.duree_ans))} ans</div></div>
+          <div class="fin-card"><div class="fin-l">Mensualité</div><div class="fin-v">${bkdocEUR(num(s.mensualite_calculee))}</div></div>
+        </div>
+        ${te ? `<div class="endet"><div class="endet-l">Taux d'endettement</div><div class="endet-badge ${teCls}">${te.toFixed(0)} %</div><div class="endet-note">${teNote}</div></div>` : ''}
+        ${d.hasAnnex ? '<p class="annex-note">La simulation détaillée est jointe en annexe de ce dossier.</p>' : ''}
+      </div>${foot}
+    </div>`);
+  }
+
+  // ── Page 6 : présentation de la SCI (si SCI choisie) ──
+  if(d.sci){
+    const s = d.sci;
+    const assocs = Array.isArray(s.associes) ? s.associes : [];
+    const cards = assocs.map(a => {
+      const facts = [
+        a.profession ? `<div class="af"><span class="af-l">Profession</span><span class="af-v">${esc(a.profession)}</span></div>` : '',
+        a.employeur ? `<div class="af"><span class="af-l">Employeur / Entreprise</span><span class="af-v">${esc(a.employeur)}</span></div>` : '',
+        a.type_contrat ? `<div class="af"><span class="af-l">Type de contrat</span><span class="af-v">${esc(a.type_contrat)}</span></div>` : '',
+        (a.revenus_mensuels != null && a.revenus_mensuels !== '') ? `<div class="af"><span class="af-l">Revenus mensuels nets</span><span class="af-v">${bkdocEUR(num(a.revenus_mensuels))}</span></div>` : ''
+      ].filter(Boolean).join('');
+      const contact = [
+        a.telephone ? `<span class="lbl">Tél.</span>${esc(a.telephone)}` : '',
+        a.email ? `<span class="lbl" style="margin-left:14px">Email</span>${esc(a.email)}` : ''
+      ].filter(Boolean).join('');
+      return `<div class="bassoc">
+        <div class="bassoc-avatar">${bkdocInitials(a.prenom, a.nom)}</div>
+        <div class="bassoc-body">
+          <div class="bassoc-name">${esc(((a.prenom || '') + ' ' + (a.nom || '')).trim() || 'Associé')}</div>
+          <div class="bassoc-role">Associé${a.parts_pct ? ' · ' + a.parts_pct + ' % des parts' : ''}</div>
+          ${contact ? `<div class="bassoc-contact">${contact}</div>` : ''}
+          ${facts ? `<div class="assoc-facts">${facts}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    pages.push(`<div class="page" style="${vars}">${hdr}
+      <div class="ibody">
+        <div class="sec-kicker">L'EMPRUNTEUR</div>
+        <h2 class="sec-title">Présentation de la société</h2>
+        <p class="blead">Le présent dossier est porté par la société civile immobilière désignée ci-dessous, constituée en vue de l'acquisition et de la gestion de biens locatifs.</p>
+        <div class="sci-id">
+          <div class="sci-id-row"><span>Dénomination</span><b>${esc(s.nom_sci || '—')}</b></div>
+          ${s.siret ? `<div class="sci-id-row"><span>SIRET</span><b>${esc(s.siret)}</b></div>` : ''}
+          ${s.adresse ? `<div class="sci-id-row"><span>Siège social</span><b>${esc(s.adresse)}</b></div>` : ''}
+          ${s.capital_social ? `<div class="sci-id-row"><span>Capital social</span><b>${bkdocEUR(num(s.capital_social))}</b></div>` : ''}
+        </div>
+        ${assocs.length ? `<div class="sci-assoc-title">Associés</div>${cards}` : ''}
+      </div>${foot}
+    </div>`);
+  }
+
+  return pages.join('');
+}
+
+// Attend le chargement de toutes les images d'un conteneur (résolu même en cas d'erreur individuelle)
+function bkdocWaitImages(root, timeoutMs){
+  const imgs = Array.from(root.querySelectorAll('img'));
+  return Promise.race([
+    Promise.all(imgs.map(im => (im.complete ? Promise.resolve() : new Promise(res => { im.onload = res; im.onerror = res; })))),
+    new Promise(res => setTimeout(res, timeoutMs || 15000))
+  ]);
+}
+
+// ── Génération ──
+async function bkdocGenerate(){
+  if(!bkdocCtx) return;
+  const btn = document.getElementById('adm-modal-save');
+  btn.disabled = true;
+
+  try {
+    bkdocProgress('Chargement des librairies…');
+    await bkdocEnsureLibs();
+    try { await document.fonts.ready; } catch(e) {}
+
+    const b = bkdocCtx.bien;
+    const presetKey = document.getElementById('bkdoc-bank').value;
+    const preset = bkdocCtx.presets.find(p => p.key === presetKey) || bkdocCtx.presets[0];
+    const sciId = document.getElementById('bkdoc-sci').value;
+    const sci = sciId ? bkdocCtx.scis.find(s => s.id === sciId) : null;
+    const simId = document.getElementById('bkdoc-sim').value;
+    const sim = simId ? bkdocCtx.sims.find(s => s.id === simId) : null;
+
+    bkdocProgress('Préparation des photos…');
+    const chosen = bkdocCtx.photoPaths.length > 5
+      ? bkdocCtx.photoPaths.filter((_, i) => bkdocCtx.selPhotos.has(i)).slice(0, 5)
+      : bkdocCtx.photoPaths.slice(0, 5);
+    const photoUrls = [];
+    for(const p of chosen){
+      try { photoUrls.push(await TI_STORAGE.signedUrl('biens-photos', p.path)); } catch(e) { /* photo ignorée */ }
+    }
+
+    bkdocProgress('Construction des pages…');
+    let root = document.getElementById('bkdoc-root');
+    if(root) root.remove();
+    root = document.createElement('div');
+    root.id = 'bkdoc-root';
+    root.innerHTML = bkdocBuildPages({
+      bien: b, profil: currentProfile, sci, preset, sim,
+      photoUrls,
+      extraPhotos: bkdocCtx.photoPaths.length > 5,
+      coverUrl: BKDOC_COVER_URL,
+      logoUrl: preset.logo_path ? BKDOC_ASSETS + preset.logo_path : null,
+      caption: preset.key === 'credit-agricole' ? 'DE LA TOURAINE<br>ET DU POITOU' : '',
+      hasAnnex: !!(sim && sim.pdf_path)
+    });
+    document.body.appendChild(root);
+    await bkdocWaitImages(root);
+
+    const pagesEls = Array.from(root.querySelectorAll('.page'));
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+    for(let i = 0; i < pagesEls.length; i++){
+      bkdocProgress(`Rendu de la page ${i + 1} / ${pagesEls.length}…`);
+      const canvas = await html2canvas(pagesEls[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+      if(i > 0) pdf.addPage();
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+    }
+
+    let finalBytes;
+    if(sim && sim.pdf_path){
+      bkdocProgress('Fusion de la simulation en annexe…');
+      try {
+        const url = await TI_STORAGE.signedUrl('simulations-pdf', sim.pdf_path);
+        const annexBuf = await (await fetch(url)).arrayBuffer();
+        const main = await PDFLib.PDFDocument.load(pdf.output('arraybuffer'));
+        const annex = await PDFLib.PDFDocument.load(annexBuf, { ignoreEncryption: true });
+        const copied = await main.copyPages(annex, annex.getPageIndices());
+        copied.forEach(pg => main.addPage(pg));
+        finalBytes = await main.save();
+      } catch(e) {
+        console.warn('Annexe non fusionnée :', e.message);
+        showNotif('Annexe non jointe (' + e.message + ') — dossier généré sans elle.', true);
+        finalBytes = pdf.output('arraybuffer');
+      }
+    } else {
+      finalBytes = pdf.output('arraybuffer');
+    }
+
+    bkdocProgress('Téléchargement…');
+    const blob = new Blob([finalBytes], { type: 'application/pdf' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = bkdocFilename(b.titre);
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+
+    root.remove();
+    closeAdmModal();
+    showNotif('Dossier banque généré ✓');
+  } catch(e) {
+    console.error('bkdocGenerate:', e);
+    bkdocProgress('');
+    const el = document.getElementById('bkdoc-progress');
+    if(el){ el.style.display = 'block'; el.innerHTML = '<span style="color:#dc2626">Erreur : ' + esc(e.message) + '</span>'; }
+    showNotif('Erreur lors de la génération : ' + e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 
 function switchTab(btn,tabId) {
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
