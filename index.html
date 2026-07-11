@@ -2340,9 +2340,7 @@ body{background:var(--sb-bg);color:var(--c-text);font-family:var(--font);font-si
 #bkdoc-root .title{position:absolute;top:268px;left:64px;font-size:55px;font-weight:800;letter-spacing:3px;line-height:1.32;color:#1d1d1d;}
 #bkdoc-root .subtitle{position:absolute;top:470px;left:64px;font-size:23px;font-weight:500;font-style:italic;letter-spacing:5px;color:#2a2a2a;}
 #bkdoc-root .bien-title{position:absolute;top:592px;left:64px;width:46%;font-size:34px;font-weight:300;letter-spacing:4px;line-height:1.45;color:#3f3f3f;}
-#bkdoc-root .wedge{position:absolute;inset:0;clip-path:polygon(17.6% 100%,100% 38.5%,100% 100%);}
-#bkdoc-root .wedge img{width:100%;height:100%;object-fit:cover;object-position:65% 55%;display:block;}
-#bkdoc-root .wedge.no-photo{background:linear-gradient(135deg,var(--bk-secondary) 0%,var(--bk-primary) 100%);}
+#bkdoc-root .wedge-img{position:absolute;inset:0;width:100%;height:100%;display:block;}
 #bkdoc-root .cbar{position:absolute;height:22px;border-radius:11px;transform-origin:center;}
 #bkdoc-root .cbar.green{width:1031px;left:-91px;top:727px;background:var(--bk-primary);transform:rotate(-46.55deg);}
 #bkdoc-root .cbar.teal{width:1031px;left:-116px;top:703px;background:var(--bk-secondary);transform:rotate(-46.55deg);}
@@ -2372,7 +2370,7 @@ body{background:var(--sb-bg);color:var(--c-text);font-family:var(--font);font-si
 #bkdoc-root .bkv b{font-size:14px;color:#222;font-weight:600;}
 #bkdoc-root .bkv b.big{font-size:19px;color:var(--bk-primary);font-weight:800;}
 #bkdoc-root .pf{display:flex;gap:12px;align-items:flex-start;padding:11px 0;}
-#bkdoc-root .pf-ic{flex:none;width:22px;height:22px;border-radius:50%;background:var(--bk-primary);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+#bkdoc-root .pf-dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--bk-primary);margin-top:8px;}
 #bkdoc-root .pf b{font-size:17px;color:#1d1d1d;font-weight:800;display:block;}
 #bkdoc-root .pf-l{font-size:12px;color:#777;margin-top:1px;}
 /* Galerie */
@@ -5264,6 +5262,46 @@ function bkdocFilename(titre){
 function bkdocInitials(prenom, nom){ return ((prenom||' ')[0] + (nom||' ')[0]).toUpperCase().trim() || '–'; }
 function bkdocLogoErr(img){ const d = document.createElement('div'); d.className = 'logo-fallback'; d.textContent = img.getAttribute('data-bank') || 'Banque'; img.replaceWith(d); }
 
+// Pré-découpe la photo de couverture en triangle dans un canvas (html2canvas ne
+// supporte pas clip-path). Retourne un dataURL JPEG fond blanc, prêt à poser en
+// fond de page. Fallback : triangle dégradé aux couleurs de la banque.
+function bkdocMakeCoverWedge(url, preset){
+  return new Promise(resolve => {
+    const W = 1588, H = 2246; // A4 @ scale 2 pour la qualité d'impression
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+    const clipTriangle = () => { ctx.beginPath(); ctx.moveTo(0.176*W, H); ctx.lineTo(W, 0.385*H); ctx.lineTo(W, H); ctx.closePath(); ctx.clip(); };
+    const gradientFallback = () => {
+      ctx.save(); clipTriangle();
+      const g = ctx.createLinearGradient(0.176*W, 0.385*H, W, H);
+      g.addColorStop(0, preset.couleur_secondaire || '#008080');
+      g.addColorStop(1, preset.couleur_primaire || '#006040');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore();
+      resolve(c.toDataURL('image/jpeg', 0.9));
+    };
+    if(!url){ gradientFallback(); return; }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const timer = setTimeout(() => { img.src = ''; gradientFallback(); }, 12000);
+    img.onload = () => {
+      clearTimeout(timer);
+      try {
+        ctx.save(); clipTriangle();
+        // Cadrage "cover" avec point focal 65% / 55% (identique au template validé)
+        const scale = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+        const sw = W / scale, sh = H / scale;
+        const sx = (img.naturalWidth - sw) * 0.65, sy = (img.naturalHeight - sh) * 0.55;
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
+        ctx.restore();
+        resolve(c.toDataURL('image/jpeg', 0.9));
+      } catch(e) { ctx.restore && ctx.restore(); gradientFallback(); }
+    };
+    img.onerror = () => { clearTimeout(timer); gradientFallback(); };
+    img.src = url;
+  });
+}
+
 // ── Ouverture du modal de configuration ──
 async function openDossierModal(bienId){
   const b = allBiens.find(x => x.id === bienId);
@@ -5396,10 +5434,23 @@ function bkdocBuildPages(d){
   const cfCls2 = cashflow > 0 ? 'pos' : (cashflow < 0 ? 'neg' : '');
   const cfTxt = (cashflow > 0 ? '+' : '') + fmt(cashflow) + ' €';
 
+  // Indicateurs clés conditionnels : seuls les indicateurs renseignés ET présentables
+  // figurent en page 2 (un cashflow négatif ou un loyer absent n'est pas un "indicateur clé" ;
+  // la synthèse financière page 4 expose de toute façon la réalité complète des chiffres).
+  const inds = [];
+  if(cashflow > 0) inds.push({ v: '+' + fmt(cashflow) + ' €/mois', l: 'Cashflow mensuel positif' });
+  if(rendement > 0) inds.push({ v: rendement.toFixed(2).replace('.', ',') + ' %', l: 'Rendement brut' });
+  if(loyer > 0) inds.push({ v: bkdocEUR(loyer), l: 'Loyer mensuel attendu' });
+  if(prix > 0 && num(b.surface_m2) > 0) inds.push({ v: fmt(prix / num(b.surface_m2)) + ' €/m²', l: 'Prix au m²' });
+  const indicHtml = inds.length
+    ? `<div class="bcard hl"><div class="bcard-h">Indicateurs clés</div>${inds.slice(0,3).map(i => `<div class="pf"><span class="pf-dot"></span><div><b>${i.v}</b><div class="pf-l">${i.l}</div></div></div>`).join('')}</div>`
+    : '';
+
   const pages = [];
 
   // ── Page 1 : couverture ──
   pages.push(`<div class="page" style="${vars}">
+    <img class="wedge-img" src="${d.coverData}">
     <div class="hdr">
       <div><div class="name">${esc(propName)}</div><div class="sub">${esc([propTel, propMail].filter(Boolean).join(' ; '))}</div></div>
       <div class="right">${sciName ? `<div class="name">${esc(sciName)}</div><div class="sub">${esc(sciDate)}</div>` : ''}</div>
@@ -5408,13 +5459,10 @@ function bkdocBuildPages(d){
     <div class="title">DEMANDE DE<br>FINANCEMENT</div>
     <div class="subtitle">INVESTISSEMENT LOCATIF</div>
     <div class="bien-title">${esc(b.titre || '')}</div>
-    <div class="wedge">${d.coverUrl ? `<img src="${d.coverUrl}" crossorigin="anonymous" onerror="this.closest('.wedge').classList.add('no-photo');this.remove()">` : ''}</div>
     <div class="cbar green"></div>
     <div class="cbar teal"></div>
     <div class="logo-card">${logoImg}${d.caption ? `<div class="caption">${d.caption}</div>` : ''}</div>
   </div>`);
-  // NB : si pas de coverUrl on force le dégradé
-  if(!d.coverUrl) pages[0] = pages[0].replace('class="wedge"', 'class="wedge no-photo"');
 
   // ── Page 2 : présentation du bien ──
   pages.push(`<div class="page" style="${vars}">${hdr}
@@ -5430,12 +5478,7 @@ function bkdocBuildPages(d){
           <div class="bkv"><span>Localisation</span><b>${esc(b.ville || '—')}${b.code_postal ? ' (' + esc(b.code_postal) + ')' : ''}</b></div>
           <div class="bkv"><span>Prix affiché</span><b class="big">${bkdocEUR(prix)}</b></div>
         </div>
-        <div class="bcard hl">
-          <div class="bcard-h">Indicateurs clés</div>
-          <div class="pf"><span class="pf-ic">✓</span><div><b>${cfTxt}/mois</b><div class="pf-l">Cashflow mensuel</div></div></div>
-          <div class="pf"><span class="pf-ic">✓</span><div><b>${rendement.toFixed(2).replace('.', ',')} %</b><div class="pf-l">Rendement brut</div></div></div>
-          <div class="pf"><span class="pf-ic">✓</span><div><b>${bkdocEUR(loyer)}</b><div class="pf-l">Loyer mensuel attendu</div></div></div>
-        </div>
+        ${indicHtml}
       </div>
     </div>${foot}
   </div>`);
@@ -5461,7 +5504,7 @@ function bkdocBuildPages(d){
   // ── Page 4 : synthèse financière ──
   pages.push(`<div class="page" style="${vars}">${hdr}
     <div class="ibody">
-      <div class="sec-kicker">SYNTHÈSE FINANCIÈRE</div>
+      <div class="sec-kicker">FINANCES</div>
       <h2 class="sec-title">Synthèse financière</h2>
       <div class="two-col tables">
         <div class="ftable">
@@ -5477,15 +5520,15 @@ function bkdocBuildPages(d){
           <div class="ft-h">Exploitation mensuelle</div>
           <div class="ft-r"><span>Loyer (en l'état)</span><b>${bkdocEUR(loyer)}</b></div>
           <div class="ft-r"><span>Charges locataire</span><b>${bkdocEUR(chLoc)}</b></div>
-          <div class="ft-r sep"><span>Mensualité crédit</span><b>− ${bkdocEUR(cred)}</b></div>
-          <div class="ft-r"><span>Charges copropriété</span><b>− ${bkdocEUR(copro)}</b></div>
-          <div class="ft-r"><span>Assurance</span><b>− ${bkdocEUR(assur)}</b></div>
-          <div class="ft-r"><span>Taxe foncière (/12)</span><b>− ${bkdocEUR(tf)}</b></div>
+          <div class="ft-r sep"><span>Mensualité crédit</span><b>${cred > 0 ? '− ' : ''}${bkdocEUR(cred)}</b></div>
+          <div class="ft-r"><span>Charges copropriété</span><b>${copro > 0 ? '− ' : ''}${bkdocEUR(copro)}</b></div>
+          <div class="ft-r"><span>Assurance</span><b>${assur > 0 ? '− ' : ''}${bkdocEUR(assur)}</b></div>
+          <div class="ft-r"><span>Taxe foncière (/12)</span><b>${tf > 0 ? '− ' : ''}${bkdocEUR(tf)}</b></div>
         </div>
       </div>
       <div class="kpi-row">
         <div class="kpi-big ${cfCls2}"><div class="kpi-l">Cashflow mensuel</div><div class="kpi-v">${cfTxt}</div></div>
-        <div class="kpi-big"><div class="kpi-l">Rendement brut</div><div class="kpi-v accent-txt">${rendement.toFixed(2).replace('.', ',')} %</div></div>
+        <div class="kpi-big"><div class="kpi-l">Rendement brut</div><div class="kpi-v accent-txt">${rendement > 0 ? rendement.toFixed(2).replace('.', ',') + ' %' : '—'}</div></div>
       </div>
     </div>${foot}
   </div>`);
@@ -5595,6 +5638,7 @@ async function bkdocGenerate(){
     }
 
     bkdocProgress('Construction des pages…');
+    const coverData = await bkdocMakeCoverWedge(BKDOC_COVER_URL, preset);
     let root = document.getElementById('bkdoc-root');
     if(root) root.remove();
     root = document.createElement('div');
@@ -5603,7 +5647,7 @@ async function bkdocGenerate(){
       bien: b, profil: currentProfile, sci, preset, sim,
       photoUrls,
       extraPhotos: bkdocCtx.photoPaths.length > 5,
-      coverUrl: BKDOC_COVER_URL,
+      coverData,
       logoUrl: preset.logo_path ? BKDOC_ASSETS + preset.logo_path : null,
       caption: preset.key === 'credit-agricole' ? 'DE LA TOURAINE<br>ET DU POITOU' : '',
       hasAnnex: !!(sim && sim.pdf_path)
