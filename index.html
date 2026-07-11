@@ -9838,7 +9838,7 @@ function handleSCIDoc(e) {
   files.forEach(file => {
     const reader = new FileReader();
     reader.onload = ev => {
-      sciDocsPending.push({ nom: file.name, type: file.type, data: ev.target.result });
+      sciDocsPending.push({ nom: file.name, type: file.type, data: ev.target.result, type_doc: 'Autre' });
       renderSCIDocsList();
     };
     reader.readAsDataURL(file);
@@ -9850,10 +9850,14 @@ function renderSCIDocsList() {
   const c = document.getElementById('sci-docs-list');
   if (!c) return;
   if (!sciDocsPending.length) { c.innerHTML = ''; return; }
+  const TYPES_DOC = ['Statuts','Kbis','PV','Contrat','Assurance','Autre'];
   c.innerHTML = sciDocsPending.map((d, i) => `
     <div class="sci-doc-item">
       <span>${d.type.includes('pdf') ? '📄' : '🖼️'}</span>
-      <span class="sci-doc-name">${d.nom}</span>
+      <span class="sci-doc-name">${esc(d.nom)}</span>
+      <select onchange="sciDocsPending[${i}].type_doc=this.value" style="font-size:11px;padding:3px 6px;border:1px solid var(--c-border);border-radius:5px;background:var(--c-card);color:var(--c-text)" title="Type de document">
+        ${TYPES_DOC.map(t => `<option value="${t}" ${(d.type_doc||'Autre')===t?'selected':''}>${t}</option>`).join('')}
+      </select>
       <button class="sci-doc-remove" onclick="sciDocsPending.splice(${i},1);renderSCIDocsList()">✕</button>
     </div>`).join('');
 }
@@ -9865,7 +9869,7 @@ async function loadSCIExistingDocs(sciId) {
   c.innerHTML = '';
   if (!sciId) return;
   const { data, error } = await db.from('sci_documents')
-    .select('id, nom, pdf_path')
+    .select('id, nom, type_doc, pdf_path')
     .eq('sci_id', sciId).eq('user_id', currentUser.id)
     .order('created_at', { ascending: true });
   if (error || !data?.length) return;
@@ -9873,6 +9877,7 @@ async function loadSCIExistingDocs(sciId) {
     <div class="sci-doc-item">
       <span>📄</span>
       <span class="sci-doc-name" style="cursor:pointer" onclick="openSciDocument('${d.pdf_path || ''}')" title="Cliquer pour ouvrir">${esc(d.nom || 'Document')}</span>
+      ${d.type_doc ? `<span style="font-size:10px;font-weight:700;letter-spacing:.4px;color:var(--accent);background:color-mix(in srgb, var(--accent) 12%, transparent);padding:2px 8px;border-radius:10px">${esc(d.type_doc)}</span>` : ''}
       <button class="sci-doc-remove" onclick="deleteSciDocument('${d.id}','${d.pdf_path || ''}')" title="Supprimer">✕</button>
     </div>`).join('');
 }
@@ -11364,9 +11369,14 @@ async function saveSCI() {
       for (const d of sciDocsPending) {
         const up = await TI_STORAGE.uploadDataURL('sci-documents', sciId, d.data, d.nom);
         const { error: docErr } = await db.from('sci_documents').insert({
-          sci_id: sciId, nom: d.nom, pdf_path: up.path, user_id: currentUser.id
+          sci_id: sciId, nom: d.nom, type_doc: d.type_doc || 'Autre',
+          pdf_path: up.path, user_id: currentUser.id
         });
-        if (docErr) throw docErr;
+        if (docErr) {
+          // Rollback compensatoire : ne pas laisser de fichier orphelin dans Storage
+          await TI_STORAGE.remove('sci-documents', up.path);
+          throw docErr;
+        }
       }
       sciDocsPending = [];
     }
