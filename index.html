@@ -4123,7 +4123,7 @@ async function renderNouveau(el, bien) {
           <div class="form-grid cols3">
             <div class="form-group"><label>Prix HA (€)</label><input type="number" id="f-ha" value="${bien?.prix_affiche||''}" oninput="updateNotaire();updatePrev()" placeholder="300 000"></div>
             <div class="form-group">
-              <label>Frais de notaire <span style="color:var(--positive-c);font-weight:600">(7% auto)</span></label>
+              <label>Frais de notaire <span style="color:var(--positive-c);font-weight:600">(${+(notairePct()*100).toFixed(1)}% auto)</span></label>
               <div class="calc-field" id="f-notaire-display">
                 <span class="calc-field-badge">🔒 Auto</span>
                 <span id="notaire-val">${bien?.prix_affiche?fmt(Math.round((bien.prix_affiche||0)*notairePct()))+' €':'—'}</span>
@@ -4250,7 +4250,7 @@ async function renderNouveau(el, bien) {
             <span class="synthese-value" id="syn-emprunt">—</span>
           </div>
           <div class="synthese-row">
-            <span class="synthese-label">Frais notaire (7%)</span>
+            <span class="synthese-label">Frais notaire (${+(notairePct()*100).toFixed(1)}%)</span>
             <span class="synthese-value" id="syn-notaire">—</span>
           </div>
           <div class="synthese-row">
@@ -4818,7 +4818,7 @@ async function inlineSaveBienField(span, newValue) {
   const patch = { [field]: newValue };
   // Si on modifie le prix : recalculer frais_notaire (7%) auto
   if(field === 'prix_affiche' && newValue !== null) {
-    patch.frais_notaire = Math.round(parseFloat(newValue) * 0.07);
+    patch.frais_notaire = Math.round(parseFloat(newValue) * notairePct());
   }
 
   try {
@@ -5052,7 +5052,7 @@ async function openDetail(id) {
       <div class="detail-grid">
         <div class="detail-item"><div class="detail-label">Prix affiché</div><div class="detail-value" style="font-size:16px;font-weight:700">${ie(b.id,'prix_affiche',b.prix_affiche?fmt(b.prix_affiche)+' €':'','number')}</div></div>
         <div class="detail-item"><div class="detail-label">Montant à emprunter</div><div class="detail-value" style="font-size:16px;font-weight:700;color:var(--accent)">${emprunt?fmt(emprunt)+' €':'—'}</div></div>
-        <div class="detail-item"><div class="detail-label">Frais notaire (7% auto)</div><div class="detail-value" style="opacity:0.7">${fmt(b.frais_notaire||0)} €</div></div>
+        <div class="detail-item"><div class="detail-label">Frais notaire (${+(notairePct()*100).toFixed(1)}% auto)</div><div class="detail-value" style="opacity:0.7">${fmt(b.frais_notaire||0)} €</div></div>
         <div class="detail-item"><div class="detail-label">Travaux</div><div class="detail-value">${ie(b.id,'travaux',b.travaux?fmt(b.travaux)+' €':'','number')}</div></div>
         <div class="detail-item"><div class="detail-label">Frais agence</div><div class="detail-value">${ie(b.id,'frais_agence',b.frais_agence?fmt(b.frais_agence)+' €':'','number')}</div></div>
         <div class="detail-item"><div class="detail-label">Création SCI</div><div class="detail-value">${ie(b.id,'creation_sci',b.creation_sci?fmt(b.creation_sci)+' €':'','number')}</div></div>
@@ -5064,6 +5064,15 @@ async function openDetail(id) {
         <div class="detail-item"><div class="detail-label">Taxe foncière</div><div class="detail-value">${ie(b.id,'taxe_fonciere',b.taxe_fonciere?fmt(b.taxe_fonciere)+' €':'','number')}</div></div>
         <div class="detail-item"><div class="detail-label">Rendement brut</div><div class="detail-value" style="color:${parseFloat(rendement)>userPrefs.seuil_rentabilite?'var(--positive-c)':'var(--c-text)'}">${rendement}</div></div>
       </div>
+      ${(b.loyer_apres_travaux || b.charges_locataire_travaux) ? `
+      <div style="margin-top:14px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--c-muted);margin-bottom:8px">🔨 Potentiel après travaux</div>
+        <div class="detail-grid">
+          <div class="detail-item"><div class="detail-label">Loyer après travaux</div><div class="detail-value">${b.loyer_apres_travaux ? fmt(b.loyer_apres_travaux) + ' €' : '—'}</div></div>
+          <div class="detail-item"><div class="detail-label">Charges locataire (après travaux)</div><div class="detail-value">${b.charges_locataire_travaux ? fmt(b.charges_locataire_travaux) + ' €' : '—'}</div></div>
+          <div class="detail-item"><div class="detail-label">Cashflow potentiel</div><div class="detail-value" style="font-weight:700;color:${(((b.loyer_apres_travaux||0)+(b.charges_locataire_travaux||0))-((b.mensualite_credit||0)+(b.charge_copro||0)+(b.assurance_logement||0)+(b.taxe_fonciere||0)))>=0?'var(--positive-c)':'#dc2626'}">${fmt(((b.loyer_apres_travaux||0)+(b.charges_locataire_travaux||0))-((b.mensualite_credit||0)+(b.charge_copro||0)+(b.assurance_logement||0)+(b.taxe_fonciere||0)))} €/mois</div></div>
+        </div>
+      </div>` : ''}
     </div>
 
     <div id="dt-act" style="display:none">
@@ -5695,6 +5704,17 @@ async function bkdocGenerate(){
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
 
     root.remove();
+
+    // FLX-007 : traçabilité — chaque dossier généré est journalisé dans dossiers_bancaires
+    try {
+      await db.from('dossiers_bancaires').insert({
+        nom_dossier: bkdocFilename(b.titre), bien_id: b.id,
+        sci_id: sci?.id || null, simulation_id: sim?.id || null,
+        date_generation: new Date().toISOString().slice(0, 10),
+        user_id: currentUser.id
+      });
+    } catch(e) { console.warn('trace dossier:', e.message); }
+
     closeAdmModal();
     showNotif('Dossier banque généré ✓');
   } catch(e) {
@@ -9838,9 +9858,37 @@ function renderSCIDocsList() {
     </div>`).join('');
 }
 
-// Patch openSCIModal pour init sciDocsPending
-const _origOpenSCIModal = openSCIModal;
-// (intégré directement dans openSCIModal via reset ci-dessous)
+// ── Documents SCI existants : lecture, ouverture, suppression (FLX-001) ──
+async function loadSCIExistingDocs(sciId) {
+  const c = document.getElementById('sci-docs-existing');
+  if (!c) return;
+  c.innerHTML = '';
+  if (!sciId) return;
+  const { data, error } = await db.from('sci_documents')
+    .select('id, nom, pdf_path')
+    .eq('sci_id', sciId).eq('user_id', currentUser.id)
+    .order('created_at', { ascending: true });
+  if (error || !data?.length) return;
+  c.innerHTML = data.map(d => `
+    <div class="sci-doc-item">
+      <span>📄</span>
+      <span class="sci-doc-name" style="cursor:pointer" onclick="openSciDocument('${d.pdf_path || ''}')" title="Cliquer pour ouvrir">${esc(d.nom || 'Document')}</span>
+      <button class="sci-doc-remove" onclick="deleteSciDocument('${d.id}','${d.pdf_path || ''}')" title="Supprimer">✕</button>
+    </div>`).join('');
+}
+async function openSciDocument(path) {
+  if (!path) return;
+  const url = await TI_STORAGE.signedUrl('sci-documents', path);
+  if (url) openDoc(url); else showNotif('Document introuvable.', true);
+}
+async function deleteSciDocument(docId, path) {
+  if (!confirm('Supprimer ce document ?')) return;
+  await TI_STORAGE.remove('sci-documents', path);
+  const { error } = await db.from('sci_documents').delete().eq('id', docId).eq('user_id', currentUser.id);
+  if (error) { showNotif('Erreur : ' + error.message, true); return; }
+  showNotif('Document supprimé');
+  loadSCIExistingDocs(currentSCIId);
+}
 
 // ══════════════════════════════════════════════════════════════
 // DONNÉES TESTS — MODULE ADMINISTRATION
@@ -10434,6 +10482,28 @@ async function confirmAttribuer() {
   closeModal('modal-detail');
   simSelected.clear();
   showNotif(`✅ ${ids.length} simulation${ids.length>1?'s':''} attribuée${ids.length>1?'s':''}`);
+
+  // FLX-002 : une seule source de vérité pour la mensualité — si la simulation
+  // attribuée diffère de la mensualité saisie sur le bien, proposer la synchro.
+  if (bienId && ids.length === 1) {
+    try {
+      const [simRes, bienRes] = await Promise.all([
+        db.from('simulations_credit').select('mensualite_calculee,duree_ans').eq('id', ids[0]).single(),
+        db.from('biens').select('id,titre,mensualite_credit').eq('id', bienId).single()
+      ]);
+      const m = Math.round(parseFloat(simRes.data?.mensualite_calculee) || 0);
+      const bm = Math.round(parseFloat(bienRes.data?.mensualite_credit) || 0);
+      if (m > 0 && m !== bm) {
+        const msg = `La mensualité de la simulation (${fmt(m)} €) diffère de celle du bien « ${bienRes.data?.titre || ''} » (${bm ? fmt(bm) + ' €' : 'non renseignée'}).\n\nMettre à jour la fiche du bien avec la mensualité de la simulation ?`;
+        if (confirm(msg)) {
+          const patch = { mensualite_credit: m };
+          if (simRes.data?.duree_ans) patch.duree_credit_ans = simRes.data.duree_ans;
+          await db.from('biens').update(patch).eq('id', bienId).eq('user_id', currentUser.id);
+          showNotif('Mensualité du bien synchronisée ✓');
+        }
+      }
+    } catch(e) { console.warn('sync mensualité:', e.message); }
+  }
   renderSimulateur(document.getElementById('content'));
 }
 
@@ -11138,9 +11208,11 @@ function openSCIModal(id) {
     document.getElementById('sci-capital').value = sci.capital_social || '';
     document.getElementById('sci-notes').value = sci.notes || '';
     sciAssocies = JSON.parse(JSON.stringify(sci.associes || []));
+    loadSCIExistingDocs(id);
   } else {
     title.textContent = '＋ Nouvelle SCI';
     btnDel.style.display = 'none';
+    const exd = document.getElementById('sci-docs-existing'); if (exd) exd.innerHTML = '';
     document.getElementById('sci-nom').value = '';
     document.getElementById('sci-siret').value = '';
     document.getElementById('sci-adresse').value = '';
@@ -11172,6 +11244,7 @@ function renderAssociesList() {
       <div class="assoc-card-header">
         <div class="assoc-num">${i + 1}</div>
         <div class="assoc-label">Associé ${i + 1}</div>
+        <button type="button" onclick="fillAssocieFromProfile(${i})" title="Reprendre mes informations du profil (évite les divergences d'orthographe)" style="background:none;border:1px solid var(--c-border);border-radius:6px;cursor:pointer;font-size:10.5px;color:var(--accent);padding:3px 8px;margin-right:6px">⤵ Mon profil</button>
         <button class="assoc-remove" onclick="removeAssocie(${i})" title="Supprimer">✕</button>
       </div>
       <div class="assoc-grid" style="margin-bottom:8px">
@@ -11224,6 +11297,18 @@ function renderAssociesList() {
     </div>`).join('');
 }
 
+// FLX-006 : une seule source d'identité — reprend prénom/nom/tél/email depuis le profil
+function fillAssocieFromProfile(i) {
+  if (!sciAssocies[i]) return;
+  const p = currentProfile || {};
+  sciAssocies[i].prenom = p.first_name || sciAssocies[i].prenom;
+  sciAssocies[i].nom = p.last_name || sciAssocies[i].nom;
+  sciAssocies[i].telephone = p.phone || sciAssocies[i].telephone;
+  sciAssocies[i].email = p.email || currentUser?.email || sciAssocies[i].email;
+  renderAssociesList();
+  showNotif('Informations reprises depuis votre profil');
+}
+
 function addAssocie() {
   sciAssocies.push({ prenom:'', nom:'', telephone:'', email:'', parts_pct:0, profession:'', employeur:'', type_contrat:'', revenus_mensuels:null });
   renderAssociesList();
@@ -11263,13 +11348,28 @@ async function saveSCI() {
   };
 
   try {
-    let error;
+    let error, sciId = currentSCIId;
     if (currentSCIId) {
       ({ error } = await db.from('sci').update(payload).eq('id', currentSCIId));
     } else {
-      ({ error } = await db.from('sci').insert(payload));
+      const res = await db.from('sci').insert(payload).select('id').single();
+      error = res.error; sciId = res.data?.id || null;
     }
     if (error) throw error;
+
+    // FLX-001 : persistance des documents joints (Storage privé + table sci_documents).
+    // Avant ce fix, sciDocsPending était affiché puis silencieusement perdu au save.
+    if (sciId && sciDocsPending.length) {
+      btn.innerHTML = '<span class="sci-spinner"></span>Envoi des documents…';
+      for (const d of sciDocsPending) {
+        const up = await TI_STORAGE.uploadDataURL('sci-documents', sciId, d.data, d.nom);
+        const { error: docErr } = await db.from('sci_documents').insert({
+          sci_id: sciId, nom: d.nom, pdf_path: up.path, user_id: currentUser.id
+        });
+        if (docErr) throw docErr;
+      }
+      sciDocsPending = [];
+    }
     showNotif(currentSCIId ? 'SCI mise à jour ✓' : 'SCI créée ✓');
     closeSCIModal();
     await loadAdminData();
@@ -11498,6 +11598,7 @@ async function deleteSCI() {
 
       <!-- Documents -->
       <div class="sci-section-title">Documents légaux</div>
+      <div id="sci-docs-existing"></div>
       <div id="sci-docs-list"></div>
       <label class="sci-doc-upload-btn">
         📎 Ajouter un document (PDF ou image)
