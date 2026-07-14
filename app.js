@@ -8382,7 +8382,7 @@ function showNotif(msg,isError=false){
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 // FND-001 : nettoyer la clé NewsAPI qui était hardcodée en localStorage (security: clé compromise, rotée).
 localStorage.removeItem('ti_newsapi_key');
-init();
+document.addEventListener('DOMContentLoaded', init);
 
 // ═══════════════════════════════════════════════════════════
 //   SETTINGS PANEL
