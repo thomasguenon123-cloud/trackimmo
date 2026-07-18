@@ -8,7 +8,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<link rel="stylesheet" href="styles.css">
+<!-- ?v= : cache-busting — incrémenter à chaque déploiement modifiant CSS/JS -->
+<link rel="stylesheet" href="styles.css?v=2">
 </head>
 <body>
 
@@ -140,7 +141,7 @@
 
 <div class="notif" id="notif"></div>
 
-<script src="app.js"></script>
+<script src="app.js?v=2"></script>
 
 <!-- LIGHTBOX -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
