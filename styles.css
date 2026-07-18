@@ -1376,6 +1376,17 @@ body{background:var(--sb-bg);color:var(--c-text);font-family:var(--font);font-si
 }
 .auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:#e2e8f0;}
 
+.auth-btn-google{
+  width:100%;padding:12px;background:white;
+  color:#334155;border:1.5px solid #e2e8f0;border-radius:10px;
+  font-family:var(--font);font-size:13.5px;font-weight:600;
+  cursor:pointer;transition:all 0.15s;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.auth-btn-google:hover:not(:disabled){border-color:#cbd5e1;background:#f8fafc;box-shadow:0 2px 8px rgba(15,23,42,0.06);}
+.auth-btn-google:disabled{opacity:0.6;cursor:not-allowed;}
+.auth-btn-google .auth-spinner{border-color:rgba(99,102,241,0.25);border-top-color:#6366f1;}
+
 .auth-spinner{
   width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);
   border-top-color:white;border-radius:50%;

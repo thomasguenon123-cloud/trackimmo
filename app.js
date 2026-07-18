@@ -174,29 +174,7 @@ async function doLogin() {
     const { data, error } = await db.auth.signInWithPassword({ email, password: pwd });
     if(error) { showAuthAlert(authErrorToFr(error)); return; }
 
-    // Vérifier le statut du profil avant de laisser entrer
-    try {
-      const { data: profile } = await db.rpc('get_my_profile');
-      if(profile?.status === 'pending') {
-        await db.auth.signOut();
-        showAuthAlert(
-          '<strong>⏳ Compte en attente de validation</strong><br><br>' +
-          'Votre inscription a bien été reçue. Un administrateur va valider votre accès très bientôt. ' +
-          'Vous pourrez ensuite vous connecter avec ces identifiants.',
-          'info'
-        );
-        return;
-      }
-      if(profile?.status === 'disabled') {
-        await db.auth.signOut();
-        showAuthAlert(
-          '<strong>🚫 Compte désactivé</strong><br><br>' +
-          'Votre accès à TrackImmo a été suspendu. Contactez un administrateur pour plus d\'informations.',
-          'error'
-        );
-        return;
-      }
-    } catch(e) { /* pas de profil = on laisse passer (cas legacy) */ }
+    if(!(await ensureProfileActive())) return;
 
     await onAuthSuccess(data.user);
   } catch(e) {
@@ -205,6 +183,103 @@ async function doLogin() {
   } finally {
     setBtnLoading('btn-login','btn-login-label',false,'Se connecter');
   }
+}
+
+// Vérifie le statut du profil (pending/disabled) avant de laisser entrer.
+// Retourne false (et déconnecte) si l'accès est refusé. Utilisé par le login
+// email/mot de passe ET par le retour de connexion Google.
+async function ensureProfileActive() {
+  try {
+    const { data: profile } = await db.rpc('get_my_profile');
+    if(profile?.status === 'pending') {
+      await db.auth.signOut();
+      showAuthAlert(
+        '<strong>⏳ Compte en attente de validation</strong><br><br>' +
+        'Votre inscription a bien été reçue. Un administrateur va valider votre accès très bientôt. ' +
+        'Vous pourrez ensuite vous connecter avec ces identifiants.',
+        'info'
+      );
+      return false;
+    }
+    if(profile?.status === 'disabled') {
+      await db.auth.signOut();
+      showAuthAlert(
+        '<strong>🚫 Compte désactivé</strong><br><br>' +
+        'Votre accès à TrackImmo a été suspendu. Contactez un administrateur pour plus d\'informations.',
+        'error'
+      );
+      return false;
+    }
+  } catch(e) { /* pas de profil = on laisse passer (cas legacy) */ }
+  return true;
+}
+
+// ─────────────────────────────────────────
+//   CONNEXION GOOGLE (SSO — Option B : login uniquement)
+// ─────────────────────────────────────────
+// Les inscriptions via Google sont bloquées côté serveur par le trigger
+// trg_block_external_signup (TRACKIMMO_SSO_RESTREINT). Seuls les comptes
+// existants (email déjà enregistré) peuvent se connecter avec Google.
+async function doGoogleLogin() {
+  clearAuthAlert();
+  setBtnLoading('btn-google','btn-google-label',true,'');
+  try {
+    // redirectTo = page actuelle sans hash ni query (doit être dans les
+    // Redirect URLs autorisées côté Supabase Auth)
+    const redirectTo = window.location.origin + window.location.pathname;
+    const { error } = await db.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo }
+    });
+    if(error) {
+      showAuthAlert(authErrorToFr(error));
+      setBtnLoading('btn-google','btn-google-label',false,'');
+      restoreGoogleBtnLabel();
+    }
+    // Pas de reset du bouton en cas de succès : le navigateur part vers Google.
+  } catch(e) {
+    console.error('[TrackImmo] Google login error:', e);
+    showAuthAlert('Connexion Google impossible. Vérifiez votre accès internet et réessayez.');
+    setBtnLoading('btn-google','btn-google-label',false,'');
+    restoreGoogleBtnLabel();
+  }
+}
+
+// setBtnLoading remplace le label par un spinner ; au retour d'erreur on
+// restaure le contenu riche (logo SVG + texte) plutôt qu'un texte brut.
+function restoreGoogleBtnLabel() {
+  const label = document.getElementById('btn-google-label');
+  if(!label) return;
+  label.innerHTML =
+    '<svg width="18" height="18" viewBox="0 0 48 48">' +
+    '<path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>' +
+    '<path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>' +
+    '<path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>' +
+    '<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>' +
+    '</svg> Continuer avec Google';
+}
+
+// ── Erreurs OAuth au retour de redirection ──
+// Quand le trigger serveur refuse un signup Google, Supabase redirige ici avec
+// #error=server_error&error_description=... (ou en query string selon le flow).
+// Retourne le message FR à afficher, ou null si pas d'erreur OAuth dans l'URL.
+function checkOAuthErrorInUrl() {
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/,''));
+  const queryParams = new URLSearchParams(window.location.search);
+  const err = hashParams.get('error') || queryParams.get('error');
+  const desc = hashParams.get('error_description') || queryParams.get('error_description') || '';
+  if(!err) return null;
+  // Nettoyer l'URL pour ne pas ré-afficher l'erreur au refresh
+  history.replaceState(null, null, window.location.pathname);
+  const d = decodeURIComponent(desc.replace(/\+/g,' '));
+  if(d.includes('TRACKIMMO_SSO_RESTREINT') || d.includes('Database error saving new user'))
+    return '<strong>🚫 Connexion Google refusée</strong><br><br>' +
+      'Aucun compte TrackImmo n\'est associé à cet email Google. ' +
+      'La connexion Google est réservée aux comptes existants : connectez-vous d\'abord ' +
+      'avec votre email et mot de passe, ou contactez un administrateur pour être invité.';
+  if(err === 'access_denied')
+    return 'Connexion Google annulée. Vous pouvez réessayer ou utiliser votre email et mot de passe.';
+  return 'Connexion Google impossible : ' + (d || err) + '. Réessayez ou utilisez votre email et mot de passe.';
 }
 
 // ─────────────────────────────────────────
@@ -765,6 +840,14 @@ async function adminEnableUser(profileId) {
 
 async function init() {
   checkRecoveryHash();
+  // Erreur OAuth au retour de Google (ex : signup bloqué par trg_block_external_signup)
+  const oauthError = checkOAuthErrorInUrl();
+  if(oauthError) {
+    document.getElementById('auth-screen').style.display = 'flex';
+    showForm('login');
+    showAuthAlert(oauthError, 'error');
+    return;
+  }
   db.auth.onAuthStateChange(async (event, session) => {
     if(event === 'SIGNED_OUT') { currentUser = null; return; }
     // Si Supabase parse un lien recovery alors qu'on était déjà sur le site
@@ -781,6 +864,14 @@ async function init() {
     const { data: { session }, error } = await db.auth.getSession();
     if (error) throw error;
     if (session?.user) {
+      // Contrôle pending/disabled aussi ici : couvre le retour de connexion
+      // Google (la session arrive par redirection, sans passer par doLogin)
+      if(!(await ensureProfileActive())) {
+        document.getElementById('auth-screen').style.display = 'flex';
+        const form = document.getElementById('form-login');
+        if(form) form.style.display = 'block';
+        return;
+      }
       await onAuthSuccess(session.user);
     } else {
       document.getElementById('auth-screen').style.display = 'flex';
