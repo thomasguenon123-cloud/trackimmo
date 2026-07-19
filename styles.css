@@ -1841,6 +1841,29 @@ body{background:var(--sb-bg);color:var(--c-text);font-family:var(--font);font-si
 .mf-soon-desc{font-size:13px;color:var(--c-muted);max-width:520px;margin:0 auto 16px;line-height:1.55;}
 .mf-soon-step{display:inline-block;background:var(--accent-g);color:white;font-size:11px;font-weight:600;padding:5px 12px;border-radius:999px;letter-spacing:.3px;}
 
+/* ═══ MF · VUE D'ENSEMBLE ═══ */
+.mfo-charts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.mfo-chart-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:12px;padding:16px;box-shadow:var(--c-shadow);min-width:0;}
+.mfo-canvas-wrap canvas{max-width:100%;}
+.mfo-chart-title{font-size:12.5px;font-weight:700;color:var(--c-text);display:flex;align-items:center;gap:6px;}
+.mfo-chart-sub{font-size:10.5px;color:var(--c-dim);margin:2px 0 10px;}
+.mfo-canvas-wrap{position:relative;height:220px;}
+.mfo-contrib-row{display:grid;grid-template-columns:minmax(130px,1fr) 2fr auto;gap:10px;align-items:center;padding:8px 6px;border-radius:8px;cursor:pointer;transition:background 0.15s;}
+.mfo-contrib-row:hover{background:var(--c-bg);}
+.mfo-contrib-name{font-size:12.5px;font-weight:600;color:var(--c-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mfo-contrib-name .ville{display:block;font-size:10.5px;font-weight:400;color:var(--c-dim);}
+.mfo-contrib-bar-wrap{background:var(--c-bg);border-radius:999px;height:10px;overflow:hidden;}
+.mfo-contrib-bar{height:100%;border-radius:999px;min-width:3px;}
+.mfo-contrib-bar.pos{background:linear-gradient(90deg,#16a34a,#4ade80);}
+.mfo-contrib-bar.neg{background:linear-gradient(90deg,#dc2626,#f87171);}
+.mfo-contrib-val{font-size:12.5px;font-weight:700;white-space:nowrap;}
+.mfo-contrib-val.pos{color:var(--positive);}
+.mfo-contrib-val.neg{color:var(--negative);}
+@media(max-width:800px){
+  .mfo-charts{grid-template-columns:1fr;}
+  .mfo-contrib-row{grid-template-columns:minmax(90px,1fr) 1.2fr auto;}
+}
+
 /* ═══ MF · LOCATAIRES ═══ */
 .mf-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
 .mf-filter-pills{display:flex;gap:6px;flex-wrap:wrap;}

@@ -3985,9 +3985,174 @@ function mfPlaceholder(icon, title, desc, step) {
 }
 
 function renderMfOverview(c) {
-  c.innerHTML = mfPlaceholder('💼', 'Vue d\'ensemble du patrimoine',
-    'KPIs consolidés (cashflow réel total, rendement net moyen, écart prévisionnel/réel) et graphiques d\'évolution sur l\'ensemble de votre portefeuille.',
-    5);
+  const biensAchetes = allBiens.filter(b => b.statut === 'Acheté');
+
+  // ── État vide éducatif (même logique que Mes biens) ──
+  if(biensAchetes.length === 0) {
+    c.innerHTML = `
+      <div class="mfb-empty">
+        <div class="mfb-empty-icon">💼</div>
+        <div class="mfb-empty-title">Votre patrimoine, en un coup d'œil</div>
+        <div class="mfb-empty-desc">
+          La vue d'ensemble consolide le cashflow réel, le rendement net et les écarts
+          prévisionnel/réel de <strong>tous vos biens acquis</strong>. Elle s'activera dès
+          qu'un bien aura le statut <strong>« Acheté »</strong>.
+        </div>
+        <div class="mfb-empty-tip">
+          💡 <strong>Conseil :</strong> passez un bien au statut <em>« Acheté »</em> depuis sa fiche,
+          puis saisissez ses loyers dans le Suivi mensuel pour alimenter les graphiques.
+        </div>
+        <button class="mfb-empty-cta" onclick="navigate('biens')">🏘️ Aller à Mes biens →</button>
+      </div>`;
+    return;
+  }
+
+  // ── KPIs consolidés du portefeuille ──
+  let cfReelTotal = 0, cfPrevTotal = 0, mtAcquisitionTotal = 0;
+  let loyersTotal = 0, sortiesTotal = 0, occupes = 0, impayes = 0;
+  for(const b of biensAchetes) {
+    const cfR = mfCashflowReel12M(b);
+    cfReelTotal  += cfR.cashflow;
+    loyersTotal  += cfR.loyer_encaisse;
+    sortiesTotal += cfR.charges_payees + cfR.mensualites_credit;
+    cfPrevTotal  += mfCashflowPrevisionnel(b) * 12;
+    mtAcquisitionTotal += mfMontantAcquisition(b);
+    const occ = mfStatutOccupation(b.id).type;
+    if(occ === 'occup')  occupes++;
+    if(occ === 'impaye') impayes++;
+  }
+  const rendementNetMoyen = mtAcquisitionTotal > 0 ? (cfReelTotal / mtAcquisitionTotal) * 100 : 0;
+  const ecartPct = cfPrevTotal !== 0 ? ((cfReelTotal - cfPrevTotal) / Math.abs(cfPrevTotal)) * 100 : 0;
+  const tauxOccupation = (occupes / biensAchetes.length) * 100;
+
+  // ── Séries mensuelles consolidées (12 mois) ──
+  const months = mf12LastMonths();
+  const mensuTotal = biensAchetes.reduce((s, b) => s + (parseFloat(b.mensualite_credit) || 0), 0);
+  const serieLoyers  = months.map(m => biensAchetes.reduce((s, b) => s + mfLoyerEncaisseMois(b.id, m.mois, m.annee), 0));
+  const serieSorties = months.map(m => mensuTotal + biensAchetes.reduce((s, b) => s + mfChargesMois(b.id, m.mois, m.annee), 0));
+  const serieCashflow = months.map((m, i) => serieLoyers[i] - serieSorties[i]);
+
+  // ── Contribution au cashflow par bien (triée) ──
+  const contribs = biensAchetes
+    .map(b => ({ b, cf: mfCashflowReel12M(b).cashflow }))
+    .sort((a, b) => b.cf - a.cf);
+  const maxAbs = Math.max(...contribs.map(x => Math.abs(x.cf)), 1);
+
+  c.innerHTML = `
+    <!-- Hero KPIs consolidés -->
+    <div class="mfb-hero-kpis">
+      <div class="mfb-kpi-card">
+        <div class="mfb-kpi-label">Cashflow réel total 12M</div>
+        <div class="mfb-kpi-value ${cfReelTotal >= 0 ? 'pos' : 'neg'}">${cfReelTotal >= 0 ? '+' : ''}${fmt(cfReelTotal)} €</div>
+        <div class="mfb-kpi-sub">soit ${cfReelTotal >= 0 ? '+' : ''}${fmt(cfReelTotal / 12)} €/mois en moyenne</div>
+      </div>
+      <div class="mfb-kpi-card">
+        <div class="mfb-kpi-label">Rendement net moyen</div>
+        <div class="mfb-kpi-value ${rendementNetMoyen >= 0 ? 'pos' : 'neg'}">${rendementNetMoyen.toFixed(2)}%</div>
+        <div class="mfb-kpi-sub">patrimoine acquis : ${fmt(mtAcquisitionTotal)} €</div>
+      </div>
+      <div class="mfb-kpi-card">
+        <div class="mfb-kpi-label">Écart prévisionnel / réel</div>
+        <div class="mfb-kpi-value ${ecartPct >= 0 ? 'pos' : 'neg'}">${ecartPct >= 0 ? '+' : ''}${ecartPct.toFixed(1)}%</div>
+        <div class="mfb-kpi-sub">prévi ${cfPrevTotal >= 0 ? '+' : ''}${fmt(cfPrevTotal)} € · réel ${cfReelTotal >= 0 ? '+' : ''}${fmt(cfReelTotal)} €</div>
+      </div>
+      <div class="mfb-kpi-card">
+        <div class="mfb-kpi-label">Occupation</div>
+        <div class="mfb-kpi-value">${tauxOccupation.toFixed(0)}%</div>
+        <div class="mfb-kpi-sub">${occupes}/${biensAchetes.length} occupé${occupes > 1 ? 's' : ''}${impayes > 0 ? ` · 🚫 ${impayes} impayé${impayes > 1 ? 's' : ''}` : ''}</div>
+      </div>
+    </div>
+
+    <!-- Graphiques d'évolution consolidée -->
+    <div class="mfo-charts">
+      <div class="mfo-chart-card">
+        <div class="mfo-chart-title">📊 Cashflow consolidé par mois</div>
+        <div class="mfo-chart-sub">Tous biens confondus · 12 derniers mois</div>
+        <div class="mfo-canvas-wrap"><canvas id="mfo-chart-cashflow"></canvas></div>
+      </div>
+      <div class="mfo-chart-card">
+        <div class="mfo-chart-title">💶 Entrées vs sorties</div>
+        <div class="mfo-chart-sub">Loyers encaissés vs charges payées + mensualités crédit</div>
+        <div class="mfo-canvas-wrap"><canvas id="mfo-chart-flux"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Contribution par bien -->
+    <div class="mfo-chart-card">
+      <div class="mfo-chart-title">🏆 Contribution au cashflow par bien</div>
+      <div class="mfo-chart-sub">Cashflow réel sur 12 mois · cliquez pour ouvrir le suivi mensuel</div>
+      ${contribs.map(x => `
+        <div class="mfo-contrib-row" onclick="mfBienGoToSuivi('${x.b.id}')">
+          <div class="mfo-contrib-name">${esc(x.b.titre || 'Sans titre')}<span class="ville">${esc(x.b.ville || '')}</span></div>
+          <div class="mfo-contrib-bar-wrap"><div class="mfo-contrib-bar ${x.cf >= 0 ? 'pos' : 'neg'}" style="width:${Math.max(3, Math.abs(x.cf) / maxAbs * 100)}%"></div></div>
+          <div class="mfo-contrib-val ${x.cf >= 0 ? 'pos' : 'neg'}">${x.cf >= 0 ? '+' : ''}${fmt(x.cf)} €</div>
+        </div>`).join('')}
+    </div>
+  `;
+
+  // Charts APRÈS l'injection DOM (même pattern que les sparklines Mes biens)
+  setTimeout(() => initMfOverviewCharts(months, serieLoyers, serieSorties, serieCashflow), 0);
+}
+
+// ── Graphiques Chart.js de la Vue d'ensemble ──
+// Instances stockées dans mfbCharts (clés 'ov-*') : détruites par switchMfTab.
+function initMfOverviewCharts(months, serieLoyers, serieSorties, serieCashflow) {
+  if(typeof Chart === 'undefined') return;
+  const labels = months.map(m => m.label + (m.mois === 1 ? ' ' + String(m.annee).slice(2) : ''));
+  const euroTip = {
+    backgroundColor: 'rgba(15,23,42,0.95)',
+    titleFont: { size: 11 }, bodyFont: { size: 12, weight: 'bold' },
+    padding: 8, cornerRadius: 6,
+    callbacks: { label: (ctx) => (ctx.dataset.label ? ctx.dataset.label + ' : ' : '')
+      + (ctx.parsed.y >= 0 ? '+' : '') + Math.round(ctx.parsed.y).toLocaleString('fr-FR') + ' €' }
+  };
+  const euroAxis = { ticks: { font: { size: 10 }, callback: v => Math.round(v).toLocaleString('fr-FR') + ' €' },
+    grid: { color: 'rgba(100,116,139,0.12)' } };
+
+  const cvCf = document.getElementById('mfo-chart-cashflow');
+  if(cvCf) {
+    try {
+      mfbCharts['ov-cashflow'] = new Chart(cvCf, {
+        type: 'bar',
+        data: { labels, datasets: [{
+          data: serieCashflow,
+          backgroundColor: serieCashflow.map(v => v >= 0 ? 'rgba(22,163,74,0.75)' : 'rgba(220,38,38,0.75)'),
+          borderRadius: 4, maxBarThickness: 26,
+        }]},
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { ...euroTip, displayColors: false } },
+          scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: euroAxis }
+        }
+      });
+    } catch(e) { console.warn('[mfo] Erreur chart cashflow', e); }
+  }
+
+  const cvFlux = document.getElementById('mfo-chart-flux');
+  if(cvFlux) {
+    try {
+      mfbCharts['ov-flux'] = new Chart(cvFlux, {
+        type: 'line',
+        data: { labels, datasets: [
+          { label: 'Loyers encaissés', data: serieLoyers,
+            borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,0.12)',
+            borderWidth: 2, fill: true, tension: 0.35, pointRadius: 0, pointHoverRadius: 4 },
+          { label: 'Sorties (charges + crédit)', data: serieSorties,
+            borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.08)',
+            borderWidth: 2, fill: true, tension: 0.35, pointRadius: 0, pointHoverRadius: 4 },
+        ]},
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { intersect: false, mode: 'index' },
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, font: { size: 11 } } },
+            tooltip: euroTip
+          },
+          scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: euroAxis }
+        }
+      });
+    } catch(e) { console.warn('[mfo] Erreur chart flux', e); }
+  }
 }
 function renderMfBiens(c) {
   // Filtrer biens avec statut 'Acheté' uniquement
