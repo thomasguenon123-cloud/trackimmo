@@ -1864,6 +1864,37 @@ body{background:var(--sb-bg);color:var(--c-text);font-family:var(--font);font-si
   .mfo-contrib-row{grid-template-columns:minmax(90px,1fr) 1.2fr auto;}
 }
 
+/* ═══ MF · RENTABILITÉ ═══ */
+.mfr-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.mfr-year-nav{display:flex;align-items:center;gap:2px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:10px;padding:2px;}
+.mfr-year-nav button{background:none;border:none;cursor:pointer;font-size:16px;color:var(--c-muted);padding:5px 12px;border-radius:8px;font-family:inherit;line-height:1;}
+.mfr-year-nav button:hover{background:var(--c-bg);color:var(--c-text);}
+.mfr-year-nav span{font-size:14px;font-weight:800;color:var(--c-text);min-width:52px;text-align:center;letter-spacing:.3px;}
+.mfr-impaye-row{display:grid;grid-template-columns:90px 1fr auto auto auto;gap:12px;align-items:center;padding:9px 6px;border-radius:8px;cursor:pointer;transition:background .15s;font-size:12.5px;}
+.mfr-impaye-row:hover{background:var(--c-bg);}
+.mfr-impaye-mois{font-weight:700;color:var(--c-text);}
+.mfr-impaye-loc{color:var(--c-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mfr-impaye-badge{background:rgba(220,38,38,0.08);color:var(--negative);border:1px solid rgba(220,38,38,0.2);font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;}
+.mfr-impaye-montants{color:var(--c-text);font-weight:600;white-space:nowrap;}
+.mfr-impaye-montants span{color:var(--c-dim);font-weight:400;}
+.mfr-impaye-manque{color:var(--negative);font-weight:800;white-space:nowrap;}
+@media(max-width:700px){
+  .mfr-toolbar{flex-direction:column;align-items:stretch;}
+  .mfr-toolbar .form-select{max-width:none!important;}
+  .mfr-impaye-row{grid-template-columns:70px 1fr auto;row-gap:2px;}
+  .mfr-impaye-badge,.mfr-impaye-montants{display:none;}
+}
+
+/* ═══ BILANS · résumé + alimentation ═══ */
+.bilan-resume-row{display:flex;justify-content:space-between;gap:12px;font-size:12.5px;color:var(--c-text);padding:5px 0;border-bottom:1px dashed var(--c-border);}
+.bilan-resume-row.sub{color:var(--c-muted);font-size:12px;padding-left:12px;}
+.bilan-resume-row.total{border-bottom:none;border-top:1.5px solid var(--c-border);margin-top:4px;padding-top:8px;font-weight:800;font-size:13.5px;}
+.bilanfeed-warn{background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);color:#b45309;border-radius:10px;padding:10px 14px;font-size:12.5px;font-weight:600;margin-bottom:12px;line-height:1.5;}
+.bilanfeed-src{font-size:11px;color:var(--c-dim);margin-bottom:8px;}
+.bilanfeed-dot-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:6px;}
+.bilanfeed-dot-grid label{font-size:11px;color:var(--c-muted);font-weight:600;display:block;margin-bottom:3px;}
+@media(max-width:600px){.bilanfeed-dot-grid{grid-template-columns:1fr;}}
+
 /* ═══ MF · LOCATAIRES ═══ */
 .mf-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
 .mf-filter-pills{display:flex;gap:6px;flex-wrap:wrap;}

@@ -3973,17 +3973,6 @@ function switchMfTab(tab) {
   else if(tab === 'renta')       renderMfRenta(c);
 }
 
-// ─── Placeholders étape 1 (squelette uniquement) ───
-function mfPlaceholder(icon, title, desc, step) {
-  return `
-    <div class="mf-soon-card">
-      <div class="mf-soon-icon">${icon}</div>
-      <div class="mf-soon-title">${title}</div>
-      <div class="mf-soon-desc">${desc}</div>
-      <span class="mf-soon-step">À venir — Étape ${step}</span>
-    </div>`;
-}
-
 function renderMfOverview(c) {
   const biensAchetes = allBiens.filter(b => b.statut === 'Acheté');
 
@@ -5456,10 +5445,436 @@ function setMfLocFilter(f) {
   const c = document.getElementById('mf-content');
   if(c) renderMfLocataires(c);
 }
+// ═════════════════════════════════════════════════════
+//  RENTABILITÉ — analyse par bien, année civile (Étape 6)
+// ═════════════════════════════════════════════════════
+let mfRentaBienId = null;
+let mfRentaYear = new Date().getFullYear();
+
 function renderMfRenta(c) {
-  c.innerHTML = mfPlaceholder('💶', 'Rentabilité réelle et écarts',
-    'Graphiques d\'évolution du cashflow mensuel, comparaison prévisionnel vs réel, taux d\'impayés et bouton d\'alimentation du bilan SCI annuel.',
-    6);
+  const biensAchetes = allBiens.filter(b => b.statut === 'Acheté');
+
+  if(biensAchetes.length === 0) {
+    c.innerHTML = `
+      <div class="mfb-empty">
+        <div class="mfb-empty-icon">💶</div>
+        <div class="mfb-empty-title">Rentabilité réelle et écarts</div>
+        <div class="mfb-empty-desc">
+          Cet onglet compare, bien par bien et année par année, le cashflow <strong>réellement constaté</strong>
+          au prévisionnel de votre simulation, mesure le taux d'impayés et alimente le bilan comptable de vos SCI.
+          Il s'activera dès qu'un bien aura le statut <strong>« Acheté »</strong>.
+        </div>
+        <button class="mfb-empty-cta" onclick="navigate('biens')">🏘️ Aller à Mes biens →</button>
+      </div>`;
+    return;
+  }
+
+  if(!mfRentaBienId || !biensAchetes.some(b => b.id === mfRentaBienId)) mfRentaBienId = biensAchetes[0].id;
+  const bien = biensAchetes.find(b => b.id === mfRentaBienId);
+  const annee = mfRentaYear;
+  const now = new Date();
+  // Mois "écoulés" de l'exercice affiché : 12 si année passée, mois courant si en cours, 0 si future
+  const nbMois = annee < now.getFullYear() ? 12 : (annee > now.getFullYear() ? 0 : now.getMonth() + 1);
+
+  const mensu = parseFloat(bien.mensualite_credit) || 0;
+  const cfPrevMensuel = mfCashflowPrevisionnel(bien);
+
+  // ── Séries mensuelles : réel (mois écoulés) + cumuls réel/prévisionnel ──
+  const serieReel = [], serieCumulReel = [], serieCumulPrev = [];
+  let cumR = 0, cumP = 0;
+  for(let m = 1; m <= 12; m++) {
+    cumP += cfPrevMensuel;
+    serieCumulPrev.push(Math.round(cumP));
+    if(m <= nbMois) {
+      const r = mfLoyerEncaisseMois(bien.id, m, annee) - mfChargesMois(bien.id, m, annee) - mensu;
+      serieReel.push(Math.round(r));
+      cumR += r;
+      serieCumulReel.push(Math.round(cumR));
+    } else {
+      serieReel.push(null);
+      serieCumulReel.push(null);
+    }
+  }
+  const cfReelAnnee = cumR;
+  const cfPrevAnnee = cfPrevMensuel * nbMois;
+  const ecart = cfReelAnnee - cfPrevAnnee;
+  const ecartPct = cfPrevAnnee !== 0 ? (ecart / Math.abs(cfPrevAnnee)) * 100 : null;
+
+  // ── Impayés : lignes de loyer de l'exercice ──
+  const lignes = allLoyers.filter(l => l.bien_id === bien.id && l.annee === annee);
+  const duTotal  = lignes.reduce((s, l) => s + (parseFloat(l.loyer_du) || 0), 0);
+  const encTotal = lignes.reduce((s, l) => s + ((l.statut === 'Payé' || l.statut === 'Partiel') ? (parseFloat(l.montant_encaisse) || 0) : 0), 0);
+  const manque = Math.max(0, duTotal - encTotal);
+  const tauxImpayes = duTotal > 0 ? (manque / duTotal) * 100 : null;
+  const problemes = lignes
+    .filter(l => (parseFloat(l.loyer_du) || 0) > ((l.statut === 'Payé' || l.statut === 'Partiel') ? (parseFloat(l.montant_encaisse) || 0) : 0))
+    .sort((a, b) => a.mois - b.mois);
+
+  const selectorHtml = `
+    <div class="mfr-toolbar">
+      <select class="form-select" style="max-width:340px;flex:1" onchange="mfRentaSetBien(this.value)">
+        ${biensAchetes.map(b => `<option value="${b.id}" ${b.id === bien.id ? 'selected' : ''}>${esc(b.titre || 'Sans titre')} — ${esc(b.ville || '')}</option>`).join('')}
+      </select>
+      <div class="mfr-year-nav">
+        <button onclick="mfRentaChangeYear(-1)" title="Année précédente">‹</button>
+        <span>${annee}</span>
+        <button onclick="mfRentaChangeYear(1)" title="Année suivante">›</button>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="mfOpenBilanFeedModal()">🏦 Alimenter le bilan SCI ${annee}</button>
+    </div>`;
+
+  if(nbMois === 0) {
+    c.innerHTML = selectorHtml + `
+      <div class="mfb-empty" style="padding:40px 32px">
+        <div class="mfb-empty-icon">📅</div>
+        <div class="mfb-empty-title">Exercice ${annee} pas encore commencé</div>
+        <div class="mfb-empty-desc">Aucune donnée réelle pour une année future. Revenez sur ${now.getFullYear()} avec la flèche ‹.</div>
+      </div>`;
+    return;
+  }
+
+  c.innerHTML = selectorHtml + `
+    <div class="mfb-hero-kpis">
+      <div class="mfb-kpi-card">
+        <div class="mfb-kpi-label">Cashflow réel ${annee}</div>
+        <div class="mfb-kpi-value ${cfReelAnnee >= 0 ? 'pos' : 'neg'}">${cfReelAnnee >= 0 ? '+' : ''}${fmt(cfReelAnnee)} €</div>
+        <div class="mfb-kpi-sub">sur ${nbMois} mois écoulé${nbMois > 1 ? 's' : ''}</div>
+      </div>
+      <div class="mfb-kpi-card">
+        <div class="mfb-kpi-label">Prévisionnel (simulation)</div>
+        <div class="mfb-kpi-value ${cfPrevAnnee >= 0 ? 'pos' : 'neg'}">${cfPrevAnnee >= 0 ? '+' : ''}${fmt(cfPrevAnnee)} €</div>
+        <div class="mfb-kpi-sub">${cfPrevMensuel >= 0 ? '+' : ''}${fmt(cfPrevMensuel)} €/mois × ${nbMois} mois</div>
+      </div>
+      <div class="mfb-kpi-card">
+        <div class="mfb-kpi-label">Écart réel − prévisionnel</div>
+        <div class="mfb-kpi-value ${ecart >= 0 ? 'pos' : 'neg'}">${ecart >= 0 ? '+' : ''}${fmt(ecart)} €</div>
+        <div class="mfb-kpi-sub">${ecartPct === null ? 'prévisionnel nul' : (ecartPct >= 0 ? '+' : '') + ecartPct.toFixed(1) + '% vs simulation'}</div>
+      </div>
+      <div class="mfb-kpi-card">
+        <div class="mfb-kpi-label">Taux d'impayés ${annee}</div>
+        <div class="mfb-kpi-value ${tauxImpayes === null ? '' : (tauxImpayes <= 0.5 ? 'pos' : 'neg')}">${tauxImpayes === null ? '—' : tauxImpayes.toFixed(1) + '%'}</div>
+        <div class="mfb-kpi-sub">${duTotal > 0 ? fmt(manque) + ' € non encaissés sur ' + fmt(duTotal) + ' € dus' : 'aucun loyer dû saisi'}</div>
+      </div>
+    </div>
+
+    <div class="mfo-charts">
+      <div class="mfo-chart-card">
+        <div class="mfo-chart-title">📊 Cashflow mensuel : réel vs prévisionnel</div>
+        <div class="mfo-chart-sub">Barres = réel constaté · ligne pointillée = simulation</div>
+        <div class="mfo-canvas-wrap"><canvas id="mfr-chart-mensuel"></canvas></div>
+      </div>
+      <div class="mfo-chart-card">
+        <div class="mfo-chart-title">📈 Cumul sur l'exercice</div>
+        <div class="mfo-chart-sub">Trajectoire réelle vs trajectoire prévisionnelle (projetée sur 12 mois)</div>
+        <div class="mfo-canvas-wrap"><canvas id="mfr-chart-cumul"></canvas></div>
+      </div>
+    </div>
+
+    <div class="mfo-chart-card">
+      <div class="mfo-chart-title">🚫 Loyers non soldés en ${annee}</div>
+      <div class="mfo-chart-sub">Mois où l'encaissé est inférieur au dû · cliquez pour ouvrir le suivi mensuel</div>
+      ${problemes.length === 0 ? `
+        <div style="padding:14px 6px;font-size:13px;color:var(--positive);font-weight:600">✅ Aucun impayé ni retard sur les loyers saisis en ${annee}.</div>` :
+        problemes.map(l => {
+          const loc = allLocataires.find(x => x.id === l.locataire_id);
+          const du = parseFloat(l.loyer_du) || 0;
+          const enc = (l.statut === 'Payé' || l.statut === 'Partiel') ? (parseFloat(l.montant_encaisse) || 0) : 0;
+          return `
+          <div class="mfr-impaye-row" onclick="mfSuiviYear=${annee};mfBienGoToSuivi('${bien.id}')">
+            <div class="mfr-impaye-mois">${MOIS_LONGS[l.mois - 1]}</div>
+            <div class="mfr-impaye-loc">${loc ? esc([loc.prenom, loc.nom].filter(Boolean).join(' ')) : '—'}</div>
+            <span class="mfr-impaye-badge">${esc(l.statut || '—')}</span>
+            <div class="mfr-impaye-montants">${fmt(enc)} € <span>/ ${fmt(du)} € dus</span></div>
+            <div class="mfr-impaye-manque">−${fmt(du - enc)} €</div>
+          </div>`;
+        }).join('')}
+    </div>
+  `;
+
+  setTimeout(() => initMfRentaCharts(serieReel, cfPrevMensuel, serieCumulReel, serieCumulPrev), 0);
+}
+
+function mfRentaSetBien(id) { mfRentaBienId = id; const c = document.getElementById('mf-content'); if(c) { Object.values(mfbCharts).forEach(ch => { try{ ch.destroy(); }catch(e){} }); mfbCharts = {}; renderMfRenta(c); } }
+function mfRentaChangeYear(d) { mfRentaYear += d; const c = document.getElementById('mf-content'); if(c) { Object.values(mfbCharts).forEach(ch => { try{ ch.destroy(); }catch(e){} }); mfbCharts = {}; renderMfRenta(c); } }
+
+function initMfRentaCharts(serieReel, cfPrevMensuel, serieCumulReel, serieCumulPrev) {
+  if(typeof Chart === 'undefined') return;
+  const euroTip = {
+    backgroundColor: 'rgba(15,23,42,0.95)', titleFont: { size: 11 },
+    bodyFont: { size: 12, weight: 'bold' }, padding: 8, cornerRadius: 6,
+    callbacks: { label: (ctx) => (ctx.dataset.label ? ctx.dataset.label + ' : ' : '')
+      + (ctx.parsed.y >= 0 ? '+' : '') + Math.round(ctx.parsed.y).toLocaleString('fr-FR') + ' €' }
+  };
+  const euroAxis = { ticks: { font: { size: 10 }, callback: v => Math.round(v).toLocaleString('fr-FR') + ' €' },
+    grid: { color: 'rgba(100,116,139,0.12)' } };
+
+  const cvM = document.getElementById('mfr-chart-mensuel');
+  if(cvM) {
+    try {
+      mfbCharts['renta-mensuel'] = new Chart(cvM, {
+        type: 'bar',
+        data: { labels: MOIS_LABELS, datasets: [
+          { label: 'Réel', data: serieReel,
+            backgroundColor: serieReel.map(v => (v ?? 0) >= 0 ? 'rgba(22,163,74,0.75)' : 'rgba(220,38,38,0.75)'),
+            borderRadius: 4, maxBarThickness: 24, order: 2 },
+          { label: 'Prévisionnel', type: 'line', data: Array(12).fill(Math.round(cfPrevMensuel)),
+            borderColor: '#6366f1', borderWidth: 2, borderDash: [6, 4],
+            pointRadius: 0, pointHoverRadius: 3, fill: false, order: 1 },
+        ]},
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { intersect: false, mode: 'index' },
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, font: { size: 11 } } }, tooltip: euroTip },
+          scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: euroAxis }
+        }
+      });
+    } catch(e) { console.warn('[mfr] Erreur chart mensuel', e); }
+  }
+
+  const cvC = document.getElementById('mfr-chart-cumul');
+  if(cvC) {
+    try {
+      mfbCharts['renta-cumul'] = new Chart(cvC, {
+        type: 'line',
+        data: { labels: MOIS_LABELS, datasets: [
+          { label: 'Cumul réel', data: serieCumulReel,
+            borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,0.10)',
+            borderWidth: 2.5, fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 4 },
+          { label: 'Cumul prévisionnel', data: serieCumulPrev,
+            borderColor: '#6366f1', borderWidth: 2, borderDash: [6, 4],
+            fill: false, tension: 0.3, pointRadius: 0, pointHoverRadius: 4 },
+        ]},
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { intersect: false, mode: 'index' },
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, font: { size: 11 } } }, tooltip: euroTip },
+          scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: euroAxis }
+        }
+      });
+    } catch(e) { console.warn('[mfr] Erreur chart cumul', e); }
+  }
+}
+
+// ═════════════════════════════════════════════════════
+//  ALIMENTATION DU BILAN SCI (IR + IS) — depuis les données réelles
+// ═════════════════════════════════════════════════════
+// Libellés des lignes Cerfa 2044 utilisées par CERFA_MAPPING
+const CERFA_LIGNE_LABELS = {
+  '221': 'Frais d\'administration et de gestion',
+  '222': 'Autres frais de gestion',
+  '223': 'Primes d\'assurance',
+  '224': 'Réparation, entretien, amélioration',
+  '227': 'Taxes foncières et annexes',
+  '229': 'Provisions pour charges de copropriété',
+  '250': 'Intérêts d\'emprunt',
+};
+
+let bilanFeedCtx = null;
+
+async function mfOpenBilanFeedModal() {
+  const annee = mfRentaYear;
+  const bienSel = allBiens.find(b => b.id === mfRentaBienId);
+  document.getElementById('detail-titre').textContent = `🏦 Alimenter le bilan SCI — Exercice ${annee}`;
+  document.getElementById('detail-content').innerHTML = '<div class="loading" style="padding:30px"><div class="spinner"></div>Chargement…</div>';
+  openModal('modal-detail');
+  try {
+    const [scisRes, bilansRes] = await Promise.all([
+      db.from('sci').select('id,nom_sci').eq('user_id', currentUser.id).order('nom_sci'),
+      db.from('bilans_comptables').select('*').eq('user_id', currentUser.id).eq('exercice', annee),
+    ]);
+    if(scisRes.error) throw scisRes.error;
+    if(bilansRes.error) throw bilansRes.error;
+    const scis = scisRes.data || [];
+    if(!scis.length) {
+      document.getElementById('detail-content').innerHTML = `
+        <div style="padding:24px;text-align:center">
+          <div style="font-size:40px;margin-bottom:10px">🏛️</div>
+          <div style="font-size:15px;font-weight:700;margin-bottom:6px">Aucune SCI créée</div>
+          <div style="font-size:13px;color:var(--c-muted)">Créez d'abord votre SCI dans <strong>Administration › SCI</strong>, puis associez-lui vos biens.</div>
+        </div>`;
+      return;
+    }
+    const defaultSci = scis.find(s => s.id === bienSel?.sci_id)?.id || scis[0].id;
+    bilanFeedCtx = { annee, scis, bilans: bilansRes.data || [], sciId: defaultSci, regime: null };
+    mfBilanFeedRender();
+  } catch(e) {
+    document.getElementById('detail-content').innerHTML =
+      `<div style="padding:24px;color:var(--negative);font-size:13px">Erreur de chargement : ${esc(e.message || 'inconnue')}</div>`;
+  }
+}
+
+// Agrégats de l'exercice pour les biens d'une SCI (comptabilité de trésorerie :
+// loyers ENCAISSÉS, charges PAYÉES dans l'année, montants réels non lissés,
+// charges récupérables sur le locataire exclues)
+function mfBilanFeedCompute(biens, annee) {
+  const ids = new Set(biens.map(b => b.id));
+  let loyers = 0;
+  for(const l of allLoyers) {
+    if(l.annee === annee && ids.has(l.bien_id) && (l.statut === 'Payé' || l.statut === 'Partiel'))
+      loyers += parseFloat(l.montant_encaisse) || 0;
+  }
+  const parLigne = {}, parPcg = {};
+  let chargesTotal = 0, recuperablesExclues = 0;
+  for(const ch of allCharges) {
+    if(!ids.has(ch.bien_id)) continue;
+    if(new Date(ch.date_charge).getFullYear() !== annee) continue;
+    const m = parseFloat(ch.montant) || 0;
+    if(ch.recuperable_locataire) { recuperablesExclues += m; continue; }
+    chargesTotal += m;
+    const ligne = (CERFA_MAPPING[ch.categorie] || CERFA_MAPPING['Autre']).ligne;
+    parLigne[ligne] = (parLigne[ligne] || 0) + m;
+    const pcg = CAT_TO_PCG[ch.categorie] || 'autres';
+    parPcg[pcg] = (parPcg[pcg] || 0) + m;
+  }
+  return { loyers, chargesTotal, recuperablesExclues, parLigne, parPcg, bienIds: [...ids] };
+}
+
+function mfBilanFeedRender() {
+  const ctx = bilanFeedCtx;
+  const { annee, scis } = ctx;
+  const bilan = ctx.bilans.find(b => b.sci_id === ctx.sciId) || null;
+  const regime = bilan ? bilan.regime : (ctx.regime || 'IR');
+  ctx.regime = regime;
+  const biensSci = allBiens.filter(b => b.statut === 'Acheté' && b.sci_id === ctx.sciId);
+  const d = mfBilanFeedCompute(biensSci, annee);
+  ctx.computed = d;
+  const dotations = bilan ? bilanDotations(bilan) : { immeuble: 0, travaux: 0, mobilier: 0 };
+
+  const sciSelect = `
+    <div class="form-group" style="margin-bottom:12px">
+      <label class="form-label">SCI</label>
+      <select class="form-select" onchange="bilanFeedCtx.sciId=this.value;bilanFeedCtx.regime=null;mfBilanFeedRender()">
+        ${scis.map(s => `<option value="${s.id}" ${s.id === ctx.sciId ? 'selected' : ''}>${esc(s.nom_sci)}</option>`).join('')}
+      </select>
+    </div>`;
+
+  const regimeHtml = bilan ? `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12.5px">
+      <span>Bilan ${annee} existant :</span>
+      <span class="bilan-badge ${regime.toLowerCase()}">${regime}</span>
+      <span style="color:var(--c-muted)">· statut ${esc(bilan.statut || 'Brouillon')}</span>
+    </div>
+    ${bilanEstAlimente(bilan) ? `<div class="bilanfeed-warn">⚠️ Ce bilan contient déjà des données : l'écriture les remplacera.</div>` : ''}` : `
+    <div class="form-group" style="margin-bottom:12px">
+      <label class="form-label">Régime fiscal (le bilan ${annee} sera créé en Brouillon)</label>
+      <div style="display:flex;gap:14px;font-size:13px;margin-top:4px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="bf-regime" value="IR" ${regime === 'IR' ? 'checked' : ''} onchange="bilanFeedCtx.regime='IR';mfBilanFeedRender()"> <span class="bilan-badge ir">IR</span> Déclaration 2044</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="bf-regime" value="IS" ${regime === 'IS' ? 'checked' : ''} onchange="bilanFeedCtx.regime='IS';mfBilanFeedRender()"> <span class="bilan-badge is">IS</span> Compte de résultat PCG</label>
+      </div>
+    </div>`;
+
+  let apercuHtml;
+  if(!biensSci.length) {
+    apercuHtml = `
+      <div class="bilanfeed-warn" style="margin-top:4px">
+        🏷️ Aucun bien acquis n'est rattaché à cette SCI.<br>
+        <span style="font-weight:400">Ouvrez la fiche de vos biens et renseignez le champ <strong>« SCI associée »</strong>, puis revenez ici.</span>
+      </div>`;
+  } else if(regime === 'IR') {
+    const lignesTriees = Object.keys(d.parLigne).sort();
+    apercuHtml = `
+      <div class="bilanfeed-src">📦 Sources : ${biensSci.length} bien${biensSci.length > 1 ? 's' : ''} · loyers encaissés et charges payées en ${annee}${d.recuperablesExclues > 0 ? ` · ${fmt(d.recuperablesExclues)} € de charges récupérables exclues` : ''}</div>
+      <div class="bilan-resume-row"><span>Loyers perçus (encaissés)</span><span>${fmt(d.loyers)} €</span></div>
+      ${lignesTriees.map(l => `<div class="bilan-resume-row sub"><span>L.${l} — ${CERFA_LIGNE_LABELS[l] || 'Autres'}</span><span>−${fmt(d.parLigne[l])} €</span></div>`).join('')}
+      ${lignesTriees.length === 0 ? `<div class="bilan-resume-row sub"><span>Charges déductibles</span><span>0 €</span></div>` : ''}
+      <div class="bilan-resume-row total"><span>Résultat foncier estimé</span><span id="bf-resultat" style="color:${(d.loyers - d.chargesTotal) >= 0 ? 'var(--positive)' : 'var(--negative)'}">${(d.loyers - d.chargesTotal) >= 0 ? '+' : ''}${fmt(d.loyers - d.chargesTotal)} €</span></div>`;
+  } else {
+    const pcgTries = Object.keys(d.parPcg).sort((a, b) => (PCG_CR_LABELS.charges[a] || '').localeCompare(PCG_CR_LABELS.charges[b] || ''));
+    apercuHtml = `
+      <div class="bilanfeed-src">📦 Sources : ${biensSci.length} bien${biensSci.length > 1 ? 's' : ''} · trésorerie ${annee}${d.recuperablesExclues > 0 ? ` · ${fmt(d.recuperablesExclues)} € de charges récupérables exclues` : ''}</div>
+      <div class="bilan-resume-row"><span>${PCG_CR_LABELS.produits.loyers}</span><span>${fmt(d.loyers)} €</span></div>
+      ${pcgTries.map(k => `<div class="bilan-resume-row sub"><span>${PCG_CR_LABELS.charges[k] || k}</span><span>−${fmt(d.parPcg[k])} €</span></div>`).join('')}
+      <div style="font-size:11px;font-weight:700;color:var(--c-muted);margin:10px 0 4px">DOTATIONS AUX AMORTISSEMENTS (6811) — à saisir</div>
+      <div class="bilanfeed-dot-grid">
+        <div><label>Immeuble</label><input type="number" class="form-input" id="bf-am-imm" value="${dotations.immeuble || ''}" min="0" step="0.01" placeholder="0" oninput="mfBilanFeedResultat()"></div>
+        <div><label>Travaux</label><input type="number" class="form-input" id="bf-am-trav" value="${dotations.travaux || ''}" min="0" step="0.01" placeholder="0" oninput="mfBilanFeedResultat()"></div>
+        <div><label>Mobilier</label><input type="number" class="form-input" id="bf-am-mob" value="${dotations.mobilier || ''}" min="0" step="0.01" placeholder="0" oninput="mfBilanFeedResultat()"></div>
+      </div>
+      <div class="bilan-resume-row total"><span>Résultat net estimé</span><span id="bf-resultat"></span></div>`;
+  }
+
+  document.getElementById('detail-content').innerHTML = `
+    <div style="padding:12px 16px 8px">
+      ${sciSelect}
+      ${regimeHtml}
+      ${apercuHtml}
+      <div style="font-size:11px;color:var(--c-dim);margin-top:12px;line-height:1.5">
+        ⚖️ Comptabilité de trésorerie : loyers effectivement encaissés et charges payées sur l'exercice, montants non lissés.
+        Faites valider par un expert-comptable avant tout dépôt officiel.
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--c-border)">
+        <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Annuler</button>
+        <button class="btn btn-primary" id="bf-write" onclick="mfBilanFeedWrite()" ${!biensSci.length ? 'disabled' : ''}>✍️ Écrire dans le bilan ${annee}</button>
+      </div>
+    </div>`;
+
+  if(regime === 'IS' && biensSci.length) mfBilanFeedResultat();
+}
+
+// Résultat net estimé IS, recalculé quand les dotations changent
+function mfBilanFeedResultat() {
+  const el = document.getElementById('bf-resultat');
+  const d = bilanFeedCtx?.computed;
+  if(!el || !d) return;
+  const dot = (parseFloat(document.getElementById('bf-am-imm')?.value) || 0)
+            + (parseFloat(document.getElementById('bf-am-trav')?.value) || 0)
+            + (parseFloat(document.getElementById('bf-am-mob')?.value) || 0);
+  const r = d.loyers - d.chargesTotal - dot;
+  el.textContent = (r >= 0 ? '+' : '') + fmt(r) + ' €';
+  el.style.color = r >= 0 ? 'var(--positive)' : 'var(--negative)';
+}
+
+async function mfBilanFeedWrite() {
+  const ctx = bilanFeedCtx;
+  if(!ctx?.computed) return;
+  const { annee } = ctx;
+  const bilan = ctx.bilans.find(b => b.sci_id === ctx.sciId) || null;
+  const regime = bilan ? bilan.regime : ctx.regime;
+  const d = ctx.computed;
+
+  if(bilan && bilanEstAlimente(bilan)) {
+    if(!confirm(`Le bilan ${annee} de cette SCI contient déjà des données. Les remplacer par les valeurs calculées ?`)) return;
+  }
+
+  const payload = { source_bien_ids: d.bienIds };
+  if(regime === 'IR') {
+    payload.ir_loyers_percus = d.loyers;
+    payload.ir_charges_deductibles = d.parLigne;
+  } else {
+    payload.is_compte_resultat = {
+      produits:  { loyers: d.loyers, charges_recuperees: 0, autres: 0 },
+      charges:   d.parPcg,
+      dotations: {
+        immeuble: parseFloat(document.getElementById('bf-am-imm')?.value) || 0,
+        travaux:  parseFloat(document.getElementById('bf-am-trav')?.value) || 0,
+        mobilier: parseFloat(document.getElementById('bf-am-mob')?.value) || 0,
+      },
+    };
+    // FND-015 : les colonnes plates dépréciées sont vidées, is_compte_resultat fait foi
+    payload.amortissement_immeuble = null;
+    payload.amortissement_travaux = null;
+    payload.amortissement_mobilier = null;
+  }
+
+  const btn = document.getElementById('bf-write');
+  if(btn) { btn.disabled = true; btn.textContent = 'Écriture…'; }
+  try {
+    let res;
+    if(bilan) {
+      res = await db.from('bilans_comptables').update(payload).eq('id', bilan.id);
+    } else {
+      res = await db.from('bilans_comptables').insert({
+        ...payload, sci_id: ctx.sciId, exercice: annee, regime,
+        statut: 'Brouillon', user_id: currentUser.id,
+      });
+    }
+    if(res.error) throw res.error;
+    showNotif(`✅ Bilan ${annee} alimenté (régime ${regime})`);
+    closeModal('modal-detail');
+  } catch(e) {
+    showNotif('Erreur : ' + e.message, true);
+    if(btn) { btn.disabled = false; btn.textContent = `✍️ Écrire dans le bilan ${annee}`; }
+  }
 }
 
 // ═════════════════════════════════════════════════════
@@ -6264,6 +6679,58 @@ function renderAdmEcheances(c) {
 // ─────────────────────────────────────────────
 // ONGLET 4 — BILANS COMPTABLES
 // ─────────────────────────────────────────────
+// ─── FND-015 : modèle canonique du compte de résultat IS (PCG) ───
+// is_compte_resultat (jsonb) = {
+//   produits:  { loyers, charges_recuperees, autres },
+//   charges:   { copro, assurances, taxes, entretien, honoraires, frais_bancaires, interets, autres },
+//   dotations: { immeuble, travaux, mobilier }   // 6811 — les amortissements vivent ICI
+// }
+// Les colonnes plates amortissement_* de bilans_comptables sont dépréciées : lues en
+// fallback legacy, remises à null à la prochaine alimentation du bilan.
+const PCG_CR_LABELS = {
+  produits: { loyers:'706 · Loyers encaissés', charges_recuperees:'708 · Charges récupérées', autres:'75 · Autres produits' },
+  charges:  { copro:'614 · Charges de copropriété', entretien:'615 · Entretien et réparations',
+              assurances:'616 · Primes d\'assurance', honoraires:'622 · Honoraires',
+              frais_bancaires:'627 · Services bancaires', autres:'628 · Autres charges externes',
+              taxes:'635 · Impôts et taxes', interets:'661 · Intérêts d\'emprunt' },
+  dotations:{ immeuble:'6811 · Amortissement immeuble', travaux:'6811 · Amortissement travaux', mobilier:'6811 · Amortissement mobilier' },
+};
+
+// Catégorie de charge réelle (Module Financier) → poste PCG du compte de résultat
+const CAT_TO_PCG = {
+  'Copropriété':'copro', 'Assurance PNO':'assurances', 'Taxe foncière':'taxes', 'CFE':'taxes',
+  'Travaux entretien':'entretien', 'Travaux amélioration':'entretien',
+  'Honoraires gestion':'honoraires', 'Honoraires comptable':'honoraires',
+  'Frais bancaires':'frais_bancaires', 'Intérêts emprunt':'interets', 'Autre':'autres',
+};
+
+function bilanSumObj(o) { return Object.values(o || {}).reduce((s, v) => s + (parseFloat(v) || 0), 0); }
+
+// Dotations : is_compte_resultat prioritaire, fallback colonnes plates legacy
+function bilanDotations(b) {
+  const d = b.is_compte_resultat?.dotations;
+  if(d && bilanSumObj(d) > 0) return d;
+  return {
+    immeuble: parseFloat(b.amortissement_immeuble) || 0,
+    travaux:  parseFloat(b.amortissement_travaux)  || 0,
+    mobilier: parseFloat(b.amortissement_mobilier) || 0,
+  };
+}
+
+function bilanEstAlimente(b) {
+  if(b.regime === 'IR') return b.ir_loyers_percus != null || bilanSumObj(b.ir_charges_deductibles) > 0;
+  const cr = b.is_compte_resultat || {};
+  return bilanSumObj(cr.produits) > 0 || bilanSumObj(cr.charges) > 0 || bilanSumObj(bilanDotations(b)) > 0;
+}
+
+// Résultat net d'un bilan, sur le VRAI schéma (fix : l'ancien code lisait des
+// colonnes plates inexistantes → NaN dès qu'un bilan avait des données)
+function bilanResultatNet(b) {
+  if(b.regime === 'IR') return (parseFloat(b.ir_loyers_percus) || 0) - bilanSumObj(b.ir_charges_deductibles);
+  const cr = b.is_compte_resultat || {};
+  return bilanSumObj(cr.produits) - bilanSumObj(cr.charges) - bilanSumObj(bilanDotations(b));
+}
+
 function renderAdmBilans(c) {
   c.innerHTML = `
     <div class="adm-toolbar">
@@ -6292,9 +6759,8 @@ function renderAdmBilans(c) {
 
     `<div class="bilan-list">
       ${allBilans.map(b => {
-        const resultat = (b.loyers_percus + b.charges_recup + b.autres_produits)
-                       - (b.interets_emprunt + b.assurances + b.taxe_fonciere + b.charges_copro + b.travaux_entretien + b.honoraires + b.autres_charges)
-                       - (b.regime==='IS' ? (b.amortissement_immeuble||0)+(b.amortissement_travaux||0)+(b.amortissement_mobilier||0) : 0);
+        const alimente = bilanEstAlimente(b);
+        const resultat = bilanResultatNet(b);
         const statutColor = {Brouillon:'var(--c-muted)',Validé:'var(--positive)',Déposé:'var(--accent)'}[b.statut]||'var(--c-muted)';
         return `
         <div class="bilan-card" onclick="openBilanModal('${b.id}')">
@@ -6305,8 +6771,11 @@ function renderAdmBilans(c) {
             </div>
             <div style="text-align:right">
               <div style="font-size:11px;color:${statutColor};font-weight:600">${b.statut}</div>
+              ${alimente ? `
               <div style="font-size:18px;font-weight:800;color:${resultat>=0?'var(--positive)':'var(--negative)'};margin-top:2px">${resultat>=0?'+':''}${fmt(resultat)} €</div>
-              <div style="font-size:10px;color:var(--c-muted)">Résultat net</div>
+              <div style="font-size:10px;color:var(--c-muted)">Résultat net</div>` : `
+              <div style="font-size:13px;font-weight:600;color:var(--c-muted);margin-top:4px">Non alimenté</div>
+              <div style="font-size:10px;color:var(--c-dim)">via Module financier › Rentabilité</div>`}
             </div>
           </div>
           <div class="bilan-card-footer">
@@ -6498,11 +6967,35 @@ function openBilanModal(id) {
   document.getElementById('adm-modal-save').onclick = saveBilan;
   document.getElementById('adm-modal-del').onclick = deleteBilan;
   const anneeActuelle = new Date().getFullYear();
+  // Résumé lecture seule des données alimentées (FND-015 : lecture sur le vrai schéma)
+  let resumeHtml = '';
+  if(b && bilanEstAlimente(b)) {
+    const resultat = bilanResultatNet(b);
+    let lignes = '';
+    if(b.regime === 'IR') {
+      lignes = `
+        <div class="bilan-resume-row"><span>Loyers perçus</span><span>${fmt(parseFloat(b.ir_loyers_percus)||0)} €</span></div>
+        <div class="bilan-resume-row"><span>Charges déductibles (2044)</span><span>−${fmt(bilanSumObj(b.ir_charges_deductibles))} €</span></div>`;
+    } else {
+      const cr = b.is_compte_resultat || {};
+      lignes = `
+        <div class="bilan-resume-row"><span>Produits</span><span>${fmt(bilanSumObj(cr.produits))} €</span></div>
+        <div class="bilan-resume-row"><span>Charges</span><span>−${fmt(bilanSumObj(cr.charges))} €</span></div>
+        <div class="bilan-resume-row"><span>Dotations amortissements (6811)</span><span>−${fmt(bilanSumObj(bilanDotations(b)))} €</span></div>`;
+    }
+    resumeHtml = `
+      <div class="bilan-info-box" style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--c-muted);margin-bottom:8px">📊 Données de l'exercice</div>
+        ${lignes}
+        <div class="bilan-resume-row total"><span>Résultat net</span><span style="color:${resultat>=0?'var(--positive)':'var(--negative)'}">${resultat>=0?'+':''}${fmt(resultat)} €</span></div>
+      </div>`;
+  }
   document.getElementById('adm-modal-body').innerHTML = `
+    ${resumeHtml}
     <div class="bilan-info-box" style="margin-bottom:16px">
       <div style="font-size:12px;color:var(--c-muted);line-height:1.6">
-        💡 La saisie des données comptables sera activée avec le <strong>Module Financier</strong> (bientôt disponible). 
-        Pour l'instant, vous pouvez créer la structure du bilan et son régime fiscal.
+        💡 Les données comptables s'alimentent depuis <strong>Module financier › Rentabilité</strong>
+        (bouton « Alimenter le bilan SCI »), à partir des loyers encaissés et charges réelles de l'exercice.
       </div>
     </div>
     <div class="sci-form-row">
