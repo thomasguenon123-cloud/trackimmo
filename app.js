@@ -2556,6 +2556,7 @@ function inlineEditField(span) {
 let currentBienId = null;
 let bienDetailTab = 'infos';
 let bienDetailBack = 'biens';
+let bdPhotos = [];    // URLs résolues de la fiche courante (galerie)
 
 // Point d'entrée historique — appelé depuis les cartes, le kanban, le dashboard.
 function openDetail(id) {
@@ -2632,6 +2633,33 @@ async function renderBienDetail(el) {
   const chargesAnnee = allCharges.filter(c => c.bien_id === b.id && new Date(c.date_charge).getFullYear() === annee);
   const reel12 = mfCashflowReel12M(b);
 
+  bdPhotos = photos;   // consultées par la galerie au clic sur la vignette
+  const prixM2 = (b.prix_affiche && b.surface_m2) ? Math.round(b.prix_affiche / b.surface_m2) : null;
+  const acquis = b.statut === 'Acheté';
+  const cfLab = dHero.mode === 'reel' ? 'Cashflow réel /mois' : 'Cashflow prévi /mois';
+  const cfVal = dHero.value != null ? (dHero.value>0?'+':'')+fmt(dHero.value)+' €'
+              : (dHero.mode==='sans-loyers' ? 'Non calculé' : '—');
+  const cfSub = dHero.mode === 'reel' && dHero.hasPrev ? `prévi ${dHero.prev>0?'+':''}${fmt(dHero.prev)} €`
+              : dHero.mode === 'sans-loyers' ? 'aucun loyer saisi'
+              : dHero.hasPrev ? 'sur données estimées' : 'données incomplètes';
+
+  // Ordre des onglets selon l'étape du cycle de vie : en prospection le locatif
+  // et la SCI n'ont rien à dire, une fois acquis ils passent devant.
+  const TAB_DEFS = {
+    infos:       { lab:'📋 Informations', badge:'' },
+    fin:         { lab:'💰 Finances', badge:'' },
+    financement: { lab:'🏦 Financement', badge: sims.length ? `<span class="bd-badge">${sims.length}</span>` : '' },
+    visites:     { lab:'📓 Visites', badge: visites.length ? `<span class="bd-badge">${visites.length}</span>` : '' },
+    actions:     { lab:'📅 Actions', badge: actions.length ? `<span class="bd-badge">${actions.length}</span>` : '' },
+    locatif:     { lab:'🔑 Locatif &amp; loyers', badge: locActif ? '<span class="bd-badge on">1</span>' : '' },
+    sci:         { lab:'🏛️ SCI &amp; bilan', badge: sciBien ? '<span class="bd-badge on">✓</span>' : '' },
+  };
+  const tabOrder = acquis
+    ? ['infos','locatif','fin','financement','actions','visites','sci']
+    : ['infos','fin','financement','visites','actions','locatif','sci'];
+  const dimTabs = acquis ? [] : ['locatif','sci'];
+  if(!TAB_DEFS[bienDetailTab]) bienDetailTab = 'infos';
+
   el.innerHTML = `
   <div class="bd-page">
     <div class="bd-topbar">
@@ -2648,67 +2676,60 @@ async function renderBienDetail(el) {
       </div>
     </div>
 
-    <!-- Hero cashflow — P2 : réel en principal si le bien est acheté -->
-    <div class="bien-detail-hero">
-      <div>
-        <div class="bien-detail-cf-label">${dHero.mode==='reel' ? 'Cashflow réel · moyenne 12 mois' : 'Cashflow prévisionnel'}</div>
-        <div class="bien-detail-cf" style="color:${dHero.value==null?'rgba(255,255,255,0.5)':dHero.value>=0?'#bbf7d0':'#fecdd3'}">${dHero.value!=null?fmt(dHero.value)+' €/mois':(dHero.mode==='sans-loyers'?'Loyers non saisis':'—')}</div>
-        <div style="font-size:11px;opacity:0.65;margin-top:6px">
-          ${dHero.mode==='reel' && dHero.hasPrev ? `Prévisionnel : ${dHero.prev>0?'+':''}${fmt(dHero.prev)} €/mois · ` : ''}
-          ${dHero.mode==='sans-loyers' ? 'Saisissez les loyers dans Module financier › Suivi mensuel · ' : ''}
-          Acquisition totale : ${emprunt?fmt(emprunt)+' €':'—'}
+    <!-- Bandeau de KPIs : les chiffres qu'on vient chercher en premier -->
+    <div class="bd-kpis">
+      <div class="bd-kpi"><span class="l">Prix affiché</span><span class="v">${b.prix_affiche?fmt(b.prix_affiche)+' €':'—'}</span></div>
+      <div class="bd-kpi"><span class="l">Prix au m²</span><span class="v">${prixM2?fmt(prixM2)+' €':'—'}</span><span class="s">${b.surface_m2?b.surface_m2+' m²':'surface non renseignée'}</span></div>
+      <div class="bd-kpi"><span class="l">Rendement brut</span><span class="v ${rendement!=='—'&&parseFloat(rendement)>=userPrefs.seuil_rentabilite?'pos':''}">${rendement}</span><span class="s">${rendement==='—'?'loyer non renseigné':'seuil : '+userPrefs.seuil_rentabilite+' %'}</span></div>
+      <div class="bd-kpi hi"><span class="l">${cfLab}</span><span class="v ${dHero.value==null?'':dHero.value>=0?'pos':'neg'}">${cfVal}</span><span class="s">${cfSub}</span></div>
+      <div class="bd-kpi"><span class="l">Total acquisition</span><span class="v">${emprunt?fmt(emprunt)+' €':'—'}</span><span class="s">prix + notaire + travaux</span></div>
+    </div>
+
+    <div class="bd-body">
+      <!-- Rail : identité et propriétés du bien, fixe au scroll -->
+      <aside class="bd-rail">
+        ${photos.length ? `
+          <button class="bd-thumb" onclick="bdOpenGallery()" style="background-image:url('${photos[0]}')" title="Voir les ${photos.length} photos">
+            <span class="bd-thumb-count">🖼 ${photos.length} photo${photos.length>1?'s':''}</span>
+          </button>` : `
+          <div class="bd-thumb empty"><span>🏠</span><span class="t">Aucune photo</span></div>`}
+
+        <div class="bd-rail-block">
+          <div class="bd-rail-lab">Statut</div>
+          <span class="inline-edit" data-id="${b.id}" data-field="statut" data-type="select-statut" data-value="${(b.statut||'').replace(/"/g,'&quot;')}" onclick="inlineEditField(this)"><span class="statut-pill phase-${phase}">${b.statut||'—'}</span></span>
         </div>
-      </div>
-      <div class="bien-detail-meta">
-        <div>${b.type_bien||'—'} ${b.surface_m2?'· '+b.surface_m2+' m²':''}</div>
-        <div>📍 ${[b.ville,b.code_postal].filter(Boolean).join(' ')}</div>
-        <div style="margin-top:6px"><span class="statut-pill phase-${phase}" style="background:rgba(255,255,255,0.2);color:white">${b.statut||'—'}</span></div>
-      </div>
-    </div>
+        <div class="bd-rail-block">
+          <div class="bd-rail-lab">Balise</div>
+          <span class="inline-edit" data-id="${b.id}" data-field="balise" data-type="select-balise" data-value="${(b.balise||'').replace(/"/g,'&quot;')}" onclick="inlineEditField(this)">${b.balise && bmap[b.balise] ? `<span class="tag-pill ${bmap[b.balise]}">${baliseEmoji[b.balise]||''} ${b.balise}</span>` : '<span class="bd-rail-none">— Sans balise —</span>'}</span>
+        </div>
+        <div class="bd-rail-block">
+          <div class="bd-rail-lab">SCI détentrice</div>
+          ${sciBien ? `<div class="bd-rail-val">🏛️ ${esc(sciBien.nom_sci)}</div>`
+                    : `<div class="bd-rail-none">Aucune — <button class="bd-link" onclick="editBien('${b.id}')">associer</button></div>`}
+        </div>
+        <div class="bd-rail-block">
+          <div class="bd-rail-lab">Dernière action</div>
+          ${actions.length ? `<div class="bd-rail-val">${esc(actions[0].type_action)}</div><div class="bd-rail-sub">${fmtActionDate(actions[0].date_action)}</div>`
+                           : `<div class="bd-rail-none">Aucune — <button class="bd-link" onclick="openActionModal('${b.id}')">en ajouter</button></div>`}
+        </div>
+        ${docs.length ? `
+        <div class="bd-rail-block">
+          <div class="bd-rail-lab">Documents · ${docs.length}</div>
+          ${docs.map(d=>`<div class="bd-rail-doc" onclick="openDoc('${d.url||''}')" title="${esc(d.name||'Document')}">📄 ${esc(d.name||'Document')}</div>`).join('')}
+        </div>` : ''}
+      </aside>
 
-    <!-- Photos -->
-    ${photos.length ? `
-    <div style="margin-bottom:16px">
-      <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--c-muted);margin-bottom:8px">📸 Photos (${photos.length})</div>
-      <div class="bien-gallery">
-        ${photos.map(p=>`<img src="${p}" onclick="openLightbox('${p}')" title="Cliquer pour agrandir">`).join('')}
-      </div>
-    </div>` : ''}
-
-    <!-- Documents -->
-    ${docs.length ? `
-    <div style="margin-bottom:16px">
-      <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--c-muted);margin-bottom:8px">📄 Documents (${docs.length})</div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        ${docs.map(d=>`
-          <div class="bien-doc-item" onclick="openDoc('${d.url||''}')">
-            <span style="font-size:20px">📄</span>
-            <div>
-              <div style="font-size:13px;font-weight:600;color:var(--c-text)">${d.name||'Document'}</div>
-              <div style="font-size:11px;color:var(--c-muted)">Cliquer pour ouvrir</div>
-            </div>
-          </div>`).join('')}
-      </div>
-    </div>` : ''}
-
-    <!-- Onglets : une entrée par famille de données reliée au bien -->
-    <div class="bd-tabs">
-      <button class="bd-tab" data-tab="infos"   onclick="switchBienTab('infos')">📋 Informations</button>
-      <button class="bd-tab" data-tab="fin"     onclick="switchBienTab('fin')">💰 Finances</button>
-      <button class="bd-tab" data-tab="locatif" onclick="switchBienTab('locatif')">🔑 Locatif &amp; loyers${locActif ? ' <span class="bd-badge on">1</span>' : ''}</button>
-      <button class="bd-tab" data-tab="actions" onclick="switchBienTab('actions')">📅 Actions${actions.length ? ` <span class="bd-badge">${actions.length}</span>` : ''}</button>
-      <button class="bd-tab" data-tab="visites" onclick="switchBienTab('visites')">📓 Visites${visites.length ? ` <span class="bd-badge">${visites.length}</span>` : ''}</button>
-      <button class="bd-tab" data-tab="financement" onclick="switchBienTab('financement')">🏦 Financement${sims.length ? ` <span class="bd-badge">${sims.length}</span>` : ''}</button>
-      <button class="bd-tab" data-tab="sci"     onclick="switchBienTab('sci')">🏛️ SCI &amp; bilan${sciBien ? ' <span class="bd-badge on">✓</span>' : ''}</button>
-    </div>
+      <div class="bd-main">
+        <!-- Onglets : une entrée par famille de données reliée au bien -->
+        <div class="bd-tabs">
+          ${tabOrder.map(k => `<button class="bd-tab${dimTabs.includes(k)?' dim':''}" data-tab="${k}" onclick="switchBienTab('${k}')">${TAB_DEFS[k].lab}${TAB_DEFS[k].badge}</button>`).join('')}
+        </div>
 
     <div class="bd-pane" data-pane="infos">
       <div style="font-size:10.5px;color:var(--c-muted);margin-bottom:10px;font-style:italic">💡 Cliquez sur une valeur pour la modifier directement</div>
       <div class="detail-grid">
         <div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">${ie(b.id,'type_bien',b.type_bien,'select-type')}</div></div>
         <div class="detail-item"><div class="detail-label">Surface</div><div class="detail-value">${ie(b.id,'surface_m2',b.surface_m2 ? b.surface_m2 + ' m²' : '',(b.surface_m2 ? 'number' : 'number'))}</div></div>
-        <div class="detail-item"><div class="detail-label">Statut</div><div class="detail-value"><span class="inline-edit" data-id="${b.id}" data-field="statut" data-type="select-statut" data-value="${(b.statut||'').replace(/"/g,'&quot;')}" onclick="inlineEditField(this)"><span class="statut-pill phase-${phase}">${b.statut||'—'}</span></span></div></div>
-        <div class="detail-item"><div class="detail-label">Balise</div><div class="detail-value"><span class="inline-edit" data-id="${b.id}" data-field="balise" data-type="select-balise" data-value="${(b.balise||'').replace(/"/g,'&quot;')}" onclick="inlineEditField(this)">${b.balise && bmap[b.balise] ? `<span class="tag-pill ${bmap[b.balise]}">${baliseEmoji[b.balise]||''} ${b.balise}</span>` : '— Sans balise —'}</span></div></div>
         <div class="detail-item"><div class="detail-label">Intermédiaire</div><div class="detail-value">${ie(b.id,'intermediaire',b.intermediaire,'text')}</div></div>
         <div class="detail-item"><div class="detail-label">Téléphone</div><div class="detail-value">${ie(b.id,'telephone',b.telephone,'tel')}</div></div>
         <div class="detail-item" style="grid-column:1/-1"><div class="detail-label">Mail</div><div class="detail-value">${ie(b.id,'mail',b.mail,'email')}</div></div>
@@ -2911,9 +2932,29 @@ async function renderBienDetail(el) {
       </div>` : ''}
     </div>
 
+      </div><!-- /bd-main -->
+    </div><!-- /bd-body -->
   </div>`;
 
   switchBienTab(bienDetailTab);
+}
+
+// Galerie photos du bien : ouverte depuis la vignette du rail
+function bdOpenGallery() {
+  if(!bdPhotos.length) return;
+  const b = allBiens.find(x => x.id === currentBienId);
+  document.getElementById('detail-titre').textContent =
+    `📸 ${bdPhotos.length} photo${bdPhotos.length>1?'s':''} — ${b?.titre || 'Bien'}`;
+  document.getElementById('detail-content').innerHTML = `
+    <div style="padding:12px 16px 18px">
+      <div class="bien-gallery">
+        ${bdPhotos.map(p => `<img src="${p}" onclick="openLightbox('${p}')" title="Cliquer pour agrandir">`).join('')}
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Fermer</button>
+      </div>
+    </div>`;
+  openModal('modal-detail');
 }
 
 function openDoc(dataUrl) {
