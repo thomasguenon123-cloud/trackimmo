@@ -886,7 +886,9 @@ async function init() {
 }
 
 async function loadAndStart() {
-  await loadBiens();
+  // P2 : loyers, charges et locataires chargés dès le démarrage — le cashflow
+  // réel s'affiche dans tout le pipeline, plus seulement dans le Module financier
+  await Promise.all([loadBiens(), loadLocataires(), loadMfFinancialData()]);
   // Routage hash au démarrage : #parametres ou #parametres/section
   if (window.location.hash.startsWith('#parametres')) {
     navigate('parametres');
@@ -917,10 +919,29 @@ async function loadBiens() {
 
 
 // ── CASHFLOW ──
+// Cashflow PRÉVISIONNEL mensuel — seule formule de prévisionnel de l'app (P2).
+// mfCashflowPrevisionnel délègue ici : ne jamais réintroduire de copie.
 function computeCF(b) {
   const loyer = (parseFloat(b.loyer_en_etat)||0) + (parseFloat(b.charges_locataire_etat)||0);
   const ch = (parseFloat(b.mensualite_credit)||0)+(parseFloat(b.charge_copro)||0)+(parseFloat(b.assurance_logement)||0)+(parseFloat(b.taxe_fonciere)||0);
   return loyer - ch;
+}
+
+// ── P2 : quel cashflow afficher pour un bien ──
+// « Acheté » avec loyers saisis → réel (moyenne mensuelle sur 12 mois), prévisionnel en rappel.
+// « Acheté » sans aucun loyer   → état explicite, pas un faux chiffre négatif.
+// Autres statuts               → prévisionnel, étiqueté comme tel.
+function cfDisplayData(b) {
+  const prev = computeCF(b);
+  const hasPrev = !!(b.mensualite_credit || b.loyer_en_etat);
+  if(b.statut === 'Acheté') {
+    const hasLoyers = allLoyers.some(l =>
+      l.bien_id === b.id && (l.statut === 'Payé' || l.statut === 'Partiel')
+      && (parseFloat(l.montant_encaisse) || 0) > 0);
+    if(hasLoyers) return { mode: 'reel', value: mfCashflowReel12M(b).cashflow / 12, prev, hasPrev };
+    return { mode: 'sans-loyers', value: null, prev, hasPrev };
+  }
+  return { mode: 'previsionnel', value: hasPrev ? prev : null, prev, hasPrev };
 }
 function fmt(n){return Math.round(n).toLocaleString('fr-FR');}
 function cfCls(cf){return cf>0?'positive':cf<0?'negative':'neutral';}
@@ -1099,7 +1120,7 @@ function renderBiens(el) {
       <div class="biens-kpi-col">
         <div class="biens-kpi-title">Synthèse</div>
         <div class="biens-kpi-card"><div class="bk-label">Nombre de fiches</div><div class="bk-value">${total}</div></div>
-        <div class="biens-kpi-card"><div class="bk-label">Cashflow total</div><div class="bk-value ${cfCls(totalCF)}">${fmt(totalCF)} €</div></div>
+        <div class="biens-kpi-card"><div class="bk-label">Cashflow prévi total</div><div class="bk-value ${cfCls(totalCF)}">${fmt(totalCF)} €</div></div>
         <div class="biens-kpi-card"><div class="bk-label">Biens rentables</div><div class="bk-value positive">${positifs} / ${total}</div></div>
         <div class="biens-kpi-card"><div class="bk-label">Meilleur cashflow</div><div class="bk-value positive">${fmt(best)} €</div></div>
         <div class="biens-kpi-card"><div class="bk-label">Pire cashflow</div><div class="bk-value ${worst<0?'negative':''}">${fmt(worst)} €</div></div>
@@ -1355,10 +1376,12 @@ function renderKanban(biens) {
 }
 
 function renderKanbanCard(b, draggable=true) {
-  const cf = computeCF(b);
-  const has = b.mensualite_credit||b.loyer_en_etat;
-  const cfC = has ? cfCls(cf) : 'neutral';
-  const cfTxt = has ? (cf>0?'+':'')+fmt(cf)+'€' : '—';
+  // P2 : même logique d'affichage que les cartes grille
+  const d = cfDisplayData(b);
+  const cfC = d.value == null ? 'neutral' : cfCls(d.value);
+  const cfTxt = d.value != null
+    ? (d.value>0?'+':'')+fmt(d.value)+'€'+(d.mode==='reel'?' réel':'')
+    : (d.mode==='sans-loyers' ? '⏳' : '—');
   const bmap = {'Veille':'tag-veille','Négociation':'tag-negociation','Dossier banque':'tag-dossier-banque','Coup de cœur':'tag-coup-de-coeur'};
   const dept = getDept(b);
   const locParts = [];
@@ -1506,23 +1529,29 @@ function goToPage(p) {
 }
 
 function renderCard(b) {
-  const cf=computeCF(b), has=b.mensualite_credit||b.loyer_en_etat;
-  const cfC=has?cfCls(cf):'neutral';
+  // P2 : réel en principal pour un bien acheté, prévisionnel étiqueté sinon
+  const d = cfDisplayData(b);
+  const cfC = d.value == null ? 'neutral' : cfCls(d.value);
   const bmap={'Veille':'tag-veille','Négociation':'tag-negociation','Dossier banque':'tag-dossier-banque','Coup de cœur':'tag-coup-de-coeur'};
   const rend=b.prix_affiche&&b.loyer_en_etat?((b.loyer_en_etat*12/b.prix_affiche)*100).toFixed(1)+'%':'—';
   const date=b.created_at?new Date(b.created_at).toLocaleDateString('fr-FR'):'—';
   const cfIcon = cfC==='positive' ? '📈' : cfC==='negative' ? '📉' : '➖';
-  const cfDisplay = has ? (cf>0?'+':'')+fmt(cf)+' €/m' : 'Non calculé';
-  const acqTotal = (parseFloat(b.prix_affiche)||0)+(parseFloat(b.frais_notaire)||0)+(parseFloat(b.travaux)||0)+(parseFloat(b.frais_agence)||0)+(parseFloat(b.creation_sci)||0);
+  const cfLabel = d.mode==='reel' ? 'Cashflow réel · moy. 12 mois' : 'Cashflow prévisionnel';
+  const cfDisplay = d.value != null ? (d.value>0?'+':'')+fmt(d.value)+' €/m' : (d.mode==='sans-loyers' ? '—' : 'Non calculé');
+  const cfSub = d.mode==='reel' && d.hasPrev ? `<div class="card-cf-sub">prévi ${d.prev>0?'+':''}${fmt(d.prev)} €/m</div>` : '';
+  const cfBadge = d.mode==='reel' ? `${cfIcon} Réel`
+    : d.mode==='sans-loyers' ? '⏳ Loyers non saisis'
+    : `${cfIcon} ${cfC==='positive'?'Rentable':cfC==='negative'?'Déficitaire':'—'}`;
   return `<div class="bien-card ${cfC}" onclick="openDetail('${b.id}')">
     ${b.is_test?'<div class="test-ribbon">TEST</div>':''}
     <!-- Bandeau cashflow -->
     <div class="card-cf-banner ${cfC}">
       <div class="card-cf-left">
-        <div class="card-cf-label">Cashflow mensuel</div>
+        <div class="card-cf-label">${cfLabel}</div>
         <div class="card-cf-amount ${cfC}">${cfDisplay}</div>
+        ${cfSub}
       </div>
-      <span class="card-cf-badge ${cfC}">${cfIcon} ${cfC==='positive'?'Rentable':cfC==='negative'?'Déficitaire':'—'}</span>
+      <span class="card-cf-badge ${cfC}">${cfBadge}</span>
     </div>
     <div class="card-body">
       <!-- Ligne tags + type -->
@@ -2480,6 +2509,7 @@ async function openDetail(id) {
   const b=allBiens.find(x=>x.id===id);
   if(!b)return;
   const cf=computeCF(b),has=b.mensualite_credit||b.loyer_en_etat;
+  const dHero = cfDisplayData(b);   // P2 : réel vs prévisionnel selon le statut
   const{data:actions}=await db.from('actions').select('*').eq('bien_id',id).order('date_action',{ascending:false});
   // Photos/docs : Storage prioritaire (signed URLs), fallback base64 legacy
   const photoItems = await tiResolveMedia(b.photos_paths, b.photos, 'biens-photos');
@@ -2495,12 +2525,16 @@ async function openDetail(id) {
 
   document.getElementById('detail-titre').textContent=b.titre;
   document.getElementById('detail-content').innerHTML=`
-    <!-- Hero cashflow -->
+    <!-- Hero cashflow — P2 : réel en principal si le bien est acheté -->
     <div class="bien-detail-hero">
       <div>
-        <div class="bien-detail-cf-label">Cashflow mensuel</div>
-        <div class="bien-detail-cf" style="color:${!has?'rgba(255,255,255,0.5)':cf>=0?'#bbf7d0':'#fecdd3'}">${has?fmt(cf)+' €/mois':'—'}</div>
-        <div style="font-size:11px;opacity:0.65;margin-top:6px">Acquisition totale : ${emprunt?fmt(emprunt)+' €':'—'}</div>
+        <div class="bien-detail-cf-label">${dHero.mode==='reel' ? 'Cashflow réel · moyenne 12 mois' : 'Cashflow prévisionnel'}</div>
+        <div class="bien-detail-cf" style="color:${dHero.value==null?'rgba(255,255,255,0.5)':dHero.value>=0?'#bbf7d0':'#fecdd3'}">${dHero.value!=null?fmt(dHero.value)+' €/mois':(dHero.mode==='sans-loyers'?'Loyers non saisis':'—')}</div>
+        <div style="font-size:11px;opacity:0.65;margin-top:6px">
+          ${dHero.mode==='reel' && dHero.hasPrev ? `Prévisionnel : ${dHero.prev>0?'+':''}${fmt(dHero.prev)} €/mois · ` : ''}
+          ${dHero.mode==='sans-loyers' ? 'Saisissez les loyers dans Module financier › Suivi mensuel · ' : ''}
+          Acquisition totale : ${emprunt?fmt(emprunt)+' €':'—'}
+        </div>
       </div>
       <div class="bien-detail-meta">
         <div>${b.type_bien||'—'} ${b.surface_m2?'· '+b.surface_m2+' m²':''}</div>
@@ -6088,15 +6122,9 @@ function mfCashflowMensuel12M(bien) {
   });
 }
 
-// Cashflow prévisionnel mensuel (formule TrackImmo)
-function mfCashflowPrevisionnel(bien) {
-  const loyer = (parseFloat(bien.loyer_en_etat)||0) + (parseFloat(bien.charges_locataire_etat)||0);
-  const charges = (parseFloat(bien.mensualite_credit)||0)
-                + (parseFloat(bien.charge_copro)||0)
-                + (parseFloat(bien.assurance_logement)||0)
-                + (parseFloat(bien.taxe_fonciere)||0);
-  return loyer - charges;
-}
+// Cashflow prévisionnel mensuel — P2 : délègue à computeCF, la formule unique.
+// (Avant, la formule était dupliquée ici mot pour mot : divergence garantie.)
+function mfCashflowPrevisionnel(bien) { return computeCF(bien); }
 
 // Statut occupation d'un bien
 function mfStatutOccupation(bienId) {
