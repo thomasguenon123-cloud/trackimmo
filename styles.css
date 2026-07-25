@@ -1846,6 +1846,14 @@ body{background:var(--sb-bg);color:var(--c-text);font-family:var(--font);font-si
 /* P2 : rappel du prévisionnel sous le cashflow réel des cartes */
 .card-cf-sub{font-size:10px;opacity:.72;margin-top:2px;font-weight:500;}
 
+/* P3 : tableau de bord en deux blocs */
+.dash-link{font-size:12px;font-weight:600;color:var(--accent);cursor:pointer;text-decoration:none;}
+.dash-link:hover{text-decoration:underline;}
+.dash-pat-empty{
+  background:var(--c-surface);border:1px dashed var(--c-border);border-radius:12px;
+  padding:18px 22px;font-size:13px;color:var(--c-muted);line-height:1.6;
+}
+
 /* ═══ MF · VUE D'ENSEMBLE ═══ */
 .mfo-charts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
 .mfo-chart-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:12px;padding:16px;box-shadow:var(--c-shadow);min-width:0;}

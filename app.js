@@ -952,16 +952,32 @@ function fmtActionDate(d){ if(!d) return '—'; const dt=new Date(d+'T12:00:00')
 
 // ── ACCUEIL ──
 function renderAccueil(el) {
-  const cfs = allBiens.map(b => computeCF(b));
-  const total = allBiens.length;
+  // P3 : deux mondes distincts — Prospection (prévisionnel) et Patrimoine (réel).
+  // Avant, tous les indicateurs mélangeaient prospects, abandonnés et biens acquis.
+  const prospection = allBiens.filter(b => b.statut !== 'Acheté' && b.statut !== 'Abandonné');
+  const achetes = allBiens.filter(b => b.statut === 'Acheté');
+
+  const cfs = prospection.map(b => computeCF(b));
+  const total = prospection.length;
   const totalCF = cfs.reduce((a,b)=>a+b,0);
   const positifs = cfs.filter(c=>c>0).length;
   const best = cfs.length ? Math.max(...cfs) : 0;
   const worst = cfs.length ? Math.min(...cfs) : 0;
-  const bAvecPrix = allBiens.filter(b=>b.prix_affiche);
+  const bAvecPrix = prospection.filter(b=>b.prix_affiche);
   const avgPrix = bAvecPrix.length ? bAvecPrix.reduce((a,b)=>a+(parseFloat(b.prix_affiche)||0),0)/bAvecPrix.length : 0;
-  const rends = allBiens.filter(b=>b.prix_affiche&&b.loyer_en_etat).map(b=>(b.loyer_en_etat*12/b.prix_affiche)*100);
+  const rends = prospection.filter(b=>b.prix_affiche&&b.loyer_en_etat).map(b=>(b.loyer_en_etat*12/b.prix_affiche)*100);
   const avgRend = rends.length ? (rends.reduce((a,b)=>a+b,0)/rends.length).toFixed(1) : null;
+
+  // ── Patrimoine : chiffres réels (mêmes helpers que le Module financier) ──
+  let patCF = 0, patLoyers = 0, patAcq = 0, occupes = 0;
+  for(const b of achetes) {
+    const r = mfCashflowReel12M(b);
+    patCF += r.cashflow;
+    patLoyers += r.loyer_encaisse;
+    patAcq += mfMontantAcquisition(b);
+    if(mfStatutOccupation(b.id).type === 'occup') occupes++;
+  }
+  const patRendNet = patAcq > 0 ? (patCF / patAcq) * 100 : 0;
 
   const statutGroups = {};
   allBiens.forEach(b => { statutGroups[b.statut||'—'] = (statutGroups[b.statut||'—']||0)+1; });
@@ -972,29 +988,55 @@ function renderAccueil(el) {
   const phaseFin   = allBiens.filter(b=>['Compromis signé','Acheté','Administratifs'].includes(b.statut)).length;
   const phaseAband = allBiens.filter(b=>b.statut==='Abandonné').length;
 
-  const sorted = [...allBiens].sort((a,b)=>computeCF(b)-computeCF(a));
+  // Chart et top : périmètre prospection uniquement (le réel vit dans le bloc Patrimoine)
+  const sorted = [...prospection].sort((a,b)=>computeCF(b)-computeCF(a));
   const top3 = sorted.slice(0,3);
-  const biensAvecCF = allBiens.filter(b=>b.mensualite_credit||b.loyer_en_etat);
+  const biensAvecCF = prospection.filter(b=>b.mensualite_credit||b.loyer_en_etat);
 
   el.innerHTML = `
     <div>
       <div class="page-title">Tableau de bord</div>
-      <div class="page-sub">Vue synthétique de votre pipeline immobilier</div>
+      <div class="page-sub">Patrimoine réel d'un côté, pipeline de prospection de l'autre</div>
     </div>
 
+    <!-- ── PATRIMOINE : ce que vous possédez (chiffres réels) ── -->
+    <div>
+      <div class="section-header">
+        <div class="section-title">🏛️ Patrimoine — réel sur 12 mois</div>
+        <a class="dash-link" onclick="navigate('module-financier')">Module financier →</a>
+      </div>
+      ${achetes.length === 0 ? `
+      <div class="dash-pat-empty">
+        Aucun bien au statut « Acheté » pour l'instant — le patrimoine réel (loyers encaissés,
+        charges payées, occupation) apparaîtra ici dès la première acquisition.
+      </div>` : `
+      <div class="kpi-row">
+        <div class="kpi-card"><div class="kpi-icon-w">🔑</div><div class="kpi-label">Biens acquis</div><div class="kpi-value">${achetes.length}</div><div class="kpi-sub">acquisition : ${fmt(patAcq)} €</div></div>
+        <div class="kpi-card"><div class="kpi-icon-w">💶</div><div class="kpi-label">Cashflow réel / mois</div><div class="kpi-value ${cfCls(patCF)}">${patCF>0?'+':''}${fmt(patCF/12)} €</div><div class="kpi-sub">moyenne 12 derniers mois</div></div>
+        <div class="kpi-card"><div class="kpi-icon-w">🧾</div><div class="kpi-label">Loyers encaissés 12M</div><div class="kpi-value">${fmt(patLoyers)} €</div><div class="kpi-sub">tous biens acquis</div></div>
+        <div class="kpi-card"><div class="kpi-icon-w">📈</div><div class="kpi-label">Rendement net réel</div><div class="kpi-value ${patRendNet>=0?'positive':'negative'}">${patRendNet.toFixed(2)}%</div><div class="kpi-sub">cashflow / acquisition</div></div>
+        <div class="kpi-card"><div class="kpi-icon-w">👥</div><div class="kpi-label">Occupation</div><div class="kpi-value">${occupes}/${achetes.length}</div><div class="kpi-sub">locataires actifs</div></div>
+      </div>`}
+    </div>
+
+    <!-- ── PROSPECTION : le pipeline (chiffres prévisionnels, hors abandonnés) ── -->
+    <div class="section-header" style="margin-top:6px">
+      <div class="section-title">🔍 Prospection — prévisionnel</div>
+      <span class="count-pill">${total} fiche${total>1?'s':''} en cours</span>
+    </div>
     <div class="kpi-row"${dashVisibility.kpi===false?' style="display:none"':''}>
-      <div class="kpi-card"><div class="kpi-icon-w">🏠</div><div class="kpi-label">Fiches actives</div><div class="kpi-value">${total}</div><div class="kpi-sub">${positifs} rentable${positifs>1?'s':''} · ${total-positifs} à surveiller</div></div>
-      <div class="kpi-card"><div class="kpi-icon-w">💶</div><div class="kpi-label">Cashflow total / mois</div><div class="kpi-value ${cfCls(totalCF)}">${fmt(totalCF)} €</div><div class="kpi-sub">Cumul de tous les biens</div></div>
-      <div class="kpi-card"><div class="kpi-icon-w">⭐</div><div class="kpi-label">Meilleur cashflow</div><div class="kpi-value positive">${fmt(best)} €</div><div class="kpi-sub">par mois</div></div>
-      <div class="kpi-card"><div class="kpi-icon-w">⚠️</div><div class="kpi-label">Pire cashflow</div><div class="kpi-value ${worst<0?'negative':''}">${fmt(worst)} €</div><div class="kpi-sub">par mois</div></div>
+      <div class="kpi-card"><div class="kpi-icon-w">🏠</div><div class="kpi-label">Fiches en cours</div><div class="kpi-value">${total}</div><div class="kpi-sub">${positifs} rentable${positifs>1?'s':''} · ${total-positifs} à surveiller</div></div>
+      <div class="kpi-card"><div class="kpi-icon-w">💶</div><div class="kpi-label">Cashflow prévi cumulé</div><div class="kpi-value ${cfCls(totalCF)}">${fmt(totalCF)} €</div><div class="kpi-sub">si tout était acquis</div></div>
+      <div class="kpi-card"><div class="kpi-icon-w">⭐</div><div class="kpi-label">Meilleur potentiel</div><div class="kpi-value positive">${fmt(best)} €</div><div class="kpi-sub">par mois (prévi)</div></div>
+      <div class="kpi-card"><div class="kpi-icon-w">⚠️</div><div class="kpi-label">Pire potentiel</div><div class="kpi-value ${worst<0?'negative':''}">${fmt(worst)} €</div><div class="kpi-sub">par mois (prévi)</div></div>
       <div class="kpi-card"><div class="kpi-icon-w">🏷️</div><div class="kpi-label">Prix moyen</div><div class="kpi-value">${fmt(avgPrix)} €</div><div class="kpi-sub">des biens prospectés</div></div>
       <div class="kpi-card"><div class="kpi-icon-w">📈</div><div class="kpi-label">Rendement brut moy.</div><div class="kpi-value ${avgRend&&parseFloat(avgRend)>userPrefs.seuil_rentabilite?'positive':''}">${avgRend?avgRend+'%':'—'}</div><div class="kpi-sub">loyer annuel / prix</div></div>
     </div>
 
     <div class="charts-row">
       <div class="chart-card"${dashVisibility.cf===false?' style="display:none"':''}>
-        <div class="chart-title">Cashflow par bien</div>
-        <div class="chart-sub">Résultat mensuel en €</div>
+        <div class="chart-title">Cashflow prévisionnel par bien</div>
+        <div class="chart-sub">Prospection en cours · résultat mensuel estimé en €</div>
         <div style="height:140px" id="chart-cf-wrap"><canvas id="chart-cf"></canvas></div>
       </div>
       <div class="chart-card"${dashVisibility.st===false?' style="display:none"':''}>
@@ -1019,8 +1061,8 @@ function renderAccueil(el) {
     ${top3.length ? `
     <div>
       <div class="section-header">
-        <div class="section-title">Top biens</div>
-        <span class="count-pill">Par cashflow</span>
+        <div class="section-title">Top potentiels</div>
+        <span class="count-pill">Par cashflow prévisionnel</span>
       </div>
       <div class="top-list">
         ${top3.map((b,i)=>{
