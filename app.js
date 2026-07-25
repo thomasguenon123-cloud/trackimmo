@@ -2651,9 +2651,22 @@ async function renderBienDetail(el) {
     financement: { lab:'🏦 Financement', badge: sims.length ? `<span class="bd-badge">${sims.length}</span>` : '' },
     visites:     { lab:'📓 Visites', badge: visites.length ? `<span class="bd-badge">${visites.length}</span>` : '' },
     actions:     { lab:'📅 Actions', badge: actions.length ? `<span class="bd-badge">${actions.length}</span>` : '' },
-    locatif:     { lab:'🔑 Locatif &amp; loyers', badge: locActif ? '<span class="bd-badge on">1</span>' : '' },
-    sci:         { lab:'🏛️ SCI &amp; bilan', badge: sciBien ? '<span class="bd-badge on">✓</span>' : '' },
+    locatif:     { lab:'🔑 Locatif', badge: locActif ? '<span class="bd-badge on">1</span>' : '' },
+    sci:         { lab:'🏛️ SCI', badge: sciBien ? '<span class="bd-badge on">✓</span>' : '' },
   };
+  // Onglet Financement : décomposition de l'acquisition et poids du crédit
+  const finSplit = [
+    { lab:'Prix',     val: parseFloat(b.prix_affiche)||0,  col:'var(--accent)' },
+    { lab:'Notaire',  val: parseFloat(b.frais_notaire)||0, col:'#6b7280' },
+    { lab:'Travaux',  val: parseFloat(b.travaux)||0,       col:'var(--warning)' },
+    { lab:'Agence',   val: parseFloat(b.frais_agence)||0,  col:'#0ea5e9' },
+    { lab:'SCI',      val: parseFloat(b.creation_sci)||0,  col:'#a855f7' },
+  ].filter(s => s.val > 0).map(s => ({ ...s, pct: emprunt ? (s.val / emprunt) * 100 : 0 }));
+  const mensu        = parseFloat(b.mensualite_credit) || 0;
+  const loyerAttendu = (parseFloat(b.loyer_en_etat)||0) + (parseFloat(b.charges_locataire_etat)||0);
+  const chargesFixes = (parseFloat(b.charge_copro)||0) + (parseFloat(b.assurance_logement)||0) + (parseFloat(b.taxe_fonciere)||0);
+  const gaugeMax     = Math.max(mensu, loyerAttendu, chargesFixes, 1);
+
   const tabOrder = acquis
     ? ['infos','locatif','fin','financement','actions','visites','sci']
     : ['infos','fin','financement','visites','actions','locatif','sci'];
@@ -2680,7 +2693,7 @@ async function renderBienDetail(el) {
     <div class="bd-kpis">
       <div class="bd-kpi"><span class="l">Prix affiché</span><span class="v">${b.prix_affiche?fmt(b.prix_affiche)+' €':'—'}</span></div>
       <div class="bd-kpi"><span class="l">Prix au m²</span><span class="v">${prixM2?fmt(prixM2)+' €':'—'}</span><span class="s">${b.surface_m2?b.surface_m2+' m²':'surface non renseignée'}</span></div>
-      <div class="bd-kpi"><span class="l">Rendement brut</span><span class="v ${rendement!=='—'&&parseFloat(rendement)>=userPrefs.seuil_rentabilite?'pos':''}">${rendement}</span><span class="s">${rendement==='—'?'loyer non renseigné':'seuil : '+userPrefs.seuil_rentabilite+' %'}</span></div>
+      <div class="bd-kpi"><span class="l">Rendement brut</span><span class="v ${rendement==='—'?'':parseFloat(rendement)>=userPrefs.seuil_rentabilite?'pos':'neg'}">${rendement}</span><span class="s">${rendement==='—'?'loyer non renseigné':(parseFloat(rendement)>=userPrefs.seuil_rentabilite?'≥ ':'< ')+'votre seuil de '+userPrefs.seuil_rentabilite+' %'}</span></div>
       <div class="bd-kpi hi"><span class="l">${cfLab}</span><span class="v ${dHero.value==null?'':dHero.value>=0?'pos':'neg'}">${cfVal}</span><span class="s">${cfSub}</span></div>
       <div class="bd-kpi"><span class="l">Total acquisition</span><span class="v">${emprunt?fmt(emprunt)+' €':'—'}</span><span class="s">prix + notaire + travaux</span></div>
     </div>
@@ -2770,7 +2783,14 @@ async function renderBienDetail(el) {
       <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
         <button class="btn btn-primary" style="padding:7px 14px;font-size:12px" onclick="openActionModal('${b.id}')">＋ Ajouter une action</button>
       </div>
-      ${actions?.length?`<div class="action-list">${actions.map(a=>`<div class="action-item action-item-clickable" data-action-id="${a.id}" data-bien-id="${b.id}" onclick="openActionModal('${b.id}','${a.id}')" title="Cliquer pour modifier"><div class="action-date">${fmtActionDate(a.date_action)}</div><div style="flex:1"><div class="action-type">${esc(a.type_action)}</div>${a.commentaire?`<div class="action-comment">${esc(a.commentaire)}</div>`:''}</div><span class="action-edit-hint">✏️</span></div>`).join('')}</div>`:'<p style="text-align:center;color:var(--c-muted);padding:24px;font-size:12px">Aucune action enregistrée — cliquez sur « Ajouter une action » pour commencer le suivi.</p>'}
+      ${actions?.length
+        ? `<div class="action-list">${actions.map(a=>`<div class="action-item action-item-clickable" data-action-id="${a.id}" data-bien-id="${b.id}" onclick="openActionModal('${b.id}','${a.id}')" title="Cliquer pour modifier"><div class="action-date">${fmtActionDate(a.date_action)}</div><div style="flex:1"><div class="action-type">${esc(a.type_action)}</div>${a.commentaire?`<div class="action-comment">${esc(a.commentaire)}</div>`:''}</div><span class="action-edit-hint">✏️</span></div>`).join('')}</div>`
+        : `<div class="bd-empty-state">
+             <div class="bd-empty-ic">📅</div>
+             <div class="bd-empty-ttl">Aucune action enregistrée</div>
+             <div class="bd-empty-txt">Consignez vos appels, offres, relances et rendez-vous : c'est l'historique qui vous rappellera où vous en êtes avec ce vendeur dans trois semaines.</div>
+             <button class="btn btn-primary" onclick="openActionModal('${b.id}')">＋ Enregistrer la première action</button>
+           </div>`}
     </div>
 
     <!-- ── LOCATIF & LOYERS ── -->
@@ -2859,7 +2879,12 @@ async function renderBienDetail(el) {
         <button class="btn btn-primary" style="padding:7px 14px;font-size:12px" onclick="openNouvelleVisite('${b.id}')">＋ Nouveau compte rendu</button>
       </div>
       ${visites.length === 0
-        ? `<p class="bd-empty-block">Aucun compte rendu rattaché à ce bien. Créez-en un pour garder trace de vos visites.</p>`
+        ? `<div class="bd-empty-state">
+             <div class="bd-empty-ic">📓</div>
+             <div class="bd-empty-ttl">Aucune visite enregistrée</div>
+             <div class="bd-empty-txt">Gardez une trace de chaque visite : impressions, points de vigilance, travaux à prévoir et photos. Les comptes rendus se retrouvent ensuite ici et dans la section Outils.</div>
+             <button class="btn btn-primary" onclick="openNouvelleVisite('${b.id}')">＋ Créer le premier compte rendu</button>
+           </div>`
         : `<div class="bd-list">${visites.map(v=>`
             <div class="bd-list-row" onclick="openDetailVisite('${v.id}')">
               <div class="bd-list-date">${fmtActionDate(v.date_visite)}</div>
@@ -2873,19 +2898,60 @@ async function renderBienDetail(el) {
 
     <!-- ── FINANCEMENT ── -->
     <div class="bd-pane" data-pane="financement">
-      <div class="bd-block">
-        <div class="bd-block-title">Montant à financer</div>
-        <div class="bd-stats">
-          <div><span class="l">Prix affiché</span><span class="v">${b.prix_affiche?fmt(b.prix_affiche)+' €':'—'}</span></div>
-          <div><span class="l">Frais de notaire</span><span class="v">${fmt(b.frais_notaire||0)} €</span></div>
-          <div><span class="l">Travaux</span><span class="v">${fmt(b.travaux||0)} €</span></div>
-          <div class="tot"><span class="l">Total acquisition</span><span class="v">${emprunt?fmt(emprunt)+' €':'—'}</span></div>
+      <div class="bd-grid-2">
+        <div class="bd-block">
+          <div class="bd-block-title">Montant à financer</div>
+          <div class="bd-stats">
+            <div><span class="l">Prix affiché</span><span class="v">${b.prix_affiche?fmt(b.prix_affiche)+' €':'—'}</span></div>
+            <div><span class="l">Frais de notaire</span><span class="v">${fmt(b.frais_notaire||0)} €</span></div>
+            <div><span class="l">Travaux</span><span class="v">${fmt(b.travaux||0)} €</span></div>
+            <div><span class="l">Frais d'agence</span><span class="v">${fmt(b.frais_agence||0)} €</span></div>
+            ${(parseFloat(b.creation_sci)||0) > 0 ? `<div><span class="l">Création SCI</span><span class="v">${fmt(b.creation_sci)} €</span></div>` : ''}
+            <div class="tot"><span class="l">Total acquisition</span><span class="v">${emprunt?fmt(emprunt)+' €':'—'}</span></div>
+          </div>
+          ${emprunt ? `
+          <div style="margin-top:14px">
+            <div class="bd-split">
+              ${finSplit.map(s => `<div class="bd-split-seg" style="width:${s.pct}%;background:${s.col}" title="${s.lab} : ${fmt(s.val)} €">${s.pct >= 9 ? Math.round(s.pct)+'%' : ''}</div>`).join('')}
+            </div>
+            <div class="bd-split-leg">
+              ${finSplit.map(s => `<span><i style="background:${s.col}"></i>${s.lab} <b>${fmt(s.val)} €</b></span>`).join('')}
+            </div>
+          </div>` : ''}
+        </div>
+
+        <div class="bd-block">
+          <div class="bd-block-title">Effort mensuel</div>
+          ${(mensu || loyerAttendu) ? `
+            <div class="bd-gauge">
+              <div class="bd-gauge-row">
+                <span class="lab">Loyer attendu</span>
+                <div class="bd-gauge-bar"><div class="bd-gauge-fill" style="width:${gaugeMax?Math.round(loyerAttendu/gaugeMax*100):0}%;background:var(--positive)"></div></div>
+                <span class="amt">${fmt(loyerAttendu)} €</span>
+              </div>
+              <div class="bd-gauge-row">
+                <span class="lab">Mensualité crédit</span>
+                <div class="bd-gauge-bar"><div class="bd-gauge-fill" style="width:${gaugeMax?Math.round(mensu/gaugeMax*100):0}%;background:var(--negative)"></div></div>
+                <span class="amt">${fmt(mensu)} €</span>
+              </div>
+              <div class="bd-gauge-row">
+                <span class="lab">Charges</span>
+                <div class="bd-gauge-bar"><div class="bd-gauge-fill" style="width:${gaugeMax?Math.round(chargesFixes/gaugeMax*100):0}%;background:var(--warning)"></div></div>
+                <span class="amt">${fmt(chargesFixes)} €</span>
+              </div>
+            </div>
+            <div class="bd-stats" style="margin-top:14px">
+              <div class="tot"><span class="l">${cf>=0?"Excédent mensuel":"Effort d'épargne"}</span><span class="v ${cf>=0?'pos':'neg'}">${cf>=0?'+':''}${fmt(cf)} €</span></div>
+              ${b.prix_affiche&&loyerAttendu ? `<div><span class="l">Loyer couvrant la mensualité</span><span class="v">${mensu?Math.round(loyerAttendu/mensu*100):0} %</span></div>` : ''}
+            </div>`
+          : `<div class="bd-empty-inline">Renseignez la mensualité de crédit et le loyer estimé dans l'onglet Finances pour visualiser l'effort mensuel.</div>`}
         </div>
       </div>
+
       <div class="bd-block" style="margin-top:12px">
         <div class="bd-block-title">Simulations de crédit rattachées</div>
         ${sims.length === 0
-          ? `<div class="bd-empty-inline">Aucune simulation rattachée à ce bien. <button class="bd-link" onclick="navigate('simulateur')">Ouvrir le simulateur →</button></div>`
+          ? `<div class="bd-empty-inline">Aucune simulation rattachée à ce bien. <button class="bd-link" onclick="navigate('simulateur')">🏦 Ouvrir le simulateur</button></div>`
           : `<div class="bd-list">${sims.map(s=>`
               <div class="bd-list-row" onclick="openReadSimulation('${s.id}')">
                 <div style="flex:1;min-width:0">
@@ -9630,13 +9696,22 @@ function toggleDashChart(key) {
 }
 
 
+// Applique la couleur d'accent et ses teintes dérivées. Source unique :
+// appelée par setAccent, la restauration localStorage et le chargement DB.
+function applyAccentVars(color, colorDark) {
+  const r = document.documentElement.style;
+  r.setProperty('--accent', color);
+  r.setProperty('--accent2', colorDark);
+  r.setProperty('--accent-g', `linear-gradient(135deg, ${color}, ${colorDark})`);
+  // Sans ces teintes, les bandeaux et bordures resteraient indigo alors que
+  // l'utilisateur a choisi une autre couleur dans les Paramètres.
+  r.setProperty('--accent-wash',   color + '14');
+  r.setProperty('--accent-wash-2', color + '24');
+  r.setProperty('--accent-border', color + '47');
+}
+
 function setAccent(color, colorDark, el) {
-  // Update CSS variable
-  document.documentElement.style.setProperty('--accent', color);
-  document.documentElement.style.setProperty('--accent2', colorDark);
-  // Build gradient
-  const grad = `linear-gradient(135deg, ${color}, ${colorDark})`;
-  document.documentElement.style.setProperty('--accent-g', grad);
+  applyAccentVars(color, colorDark);
   // Update swatches UI
   document.querySelectorAll('.color-swatch').forEach(s => {
     s.classList.remove('active');
@@ -9702,10 +9777,7 @@ function loadPreferences() {
   try {
     const savedAccent = JSON.parse(localStorage.getItem('ti_accent')||'null');
     if(savedAccent?.color) {
-      document.documentElement.style.setProperty('--accent', savedAccent.color);
-      document.documentElement.style.setProperty('--accent2', savedAccent.colorDark);
-      const grad = `linear-gradient(135deg, ${savedAccent.color}, ${savedAccent.colorDark})`;
-      document.documentElement.style.setProperty('--accent-g', grad);
+      applyAccentVars(savedAccent.color, savedAccent.colorDark);
       currentAccent = { color: savedAccent.color, colorDark: savedAccent.colorDark };
     }
   } catch(e){}
@@ -9725,9 +9797,7 @@ async function applyAppearanceFromPrefs() {
     // La DB a une apparence enregistrée → elle fait autorité
     const color = userPrefs.accent_color;
     const colorDark = userPrefs.accent_color2 || color;
-    document.documentElement.style.setProperty('--accent', color);
-    document.documentElement.style.setProperty('--accent2', colorDark);
-    document.documentElement.style.setProperty('--accent-g', `linear-gradient(135deg, ${color}, ${colorDark})`);
+    applyAccentVars(color, colorDark);
     currentAccent = { color, colorDark };
     localStorage.setItem('ti_accent', JSON.stringify({color, colorDark}));
     // Toggles dashboard depuis la DB
