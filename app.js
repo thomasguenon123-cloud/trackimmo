@@ -2635,8 +2635,10 @@ async function renderBienDetail(el) {
   el.innerHTML = `
   <div class="bd-page">
     <div class="bd-topbar">
-      <button class="bd-back" onclick="navigate(bienDetailBack)" title="Retour">←</button>
       <div class="bd-title-wrap">
+        <button class="bd-back" onclick="navigate(bienDetailBack)">
+          <span class="bd-back-ic">←</span> ${esc(PAGE_LABELS[bienDetailBack] || 'Retour')}
+        </button>
         <div class="bd-title">${esc(b.titre || 'Sans titre')}</div>
         <div class="bd-sub">${[b.ville, b.code_postal, b.type_bien, b.surface_m2 ? b.surface_m2+' m²' : null].filter(Boolean).map(esc).join(' · ')}</div>
       </div>
@@ -4053,8 +4055,18 @@ function navigate(page) {
   });
   // La fiche bien n'a pas d'entrée de menu : on garde « Mes biens » surligné
   if(page === 'bien-detail') document.getElementById('nav-biens')?.classList.add('active');
-  document.getElementById('bc-cur').textContent = PAGE_LABELS[page]||page;
-  document.getElementById('bc-section').textContent = PAGE_SECTIONS[page]||'Recherche';
+  const bcCur = document.getElementById('bc-cur'), bcSec = document.getElementById('bc-section');
+  bcCur.textContent = PAGE_LABELS[page]||page;
+  bcSec.textContent = PAGE_SECTIONS[page]||'Recherche';
+  // Fiche bien : le fil d'Ariane nomme le bien et ramène à la page d'origine
+  bcSec.classList.toggle('bc-nav', page === 'bien-detail');
+  bcSec.onclick = null;
+  if(page === 'bien-detail') {
+    const bien = allBiens.find(x => x.id === currentBienId);
+    bcCur.textContent = bien?.titre || 'Fiche bien';
+    bcSec.textContent = PAGE_LABELS[bienDetailBack] || 'Mes biens';
+    bcSec.onclick = () => navigate(bienDetailBack);
+  }
   const subnavPipeline = document.getElementById('subnav-pipeline');
   const subnavOutils = document.getElementById('subnav-outils');
   if(subnavPipeline) subnavPipeline.style.display = PIPELINE_PAGES.includes(page)?'flex':'none';
