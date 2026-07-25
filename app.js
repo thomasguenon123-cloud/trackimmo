@@ -3949,7 +3949,8 @@ async function renderModuleFinancier(el) {
 
   // Chargement parallèle des données nécessaires (biens déjà chargés via init, locataires à charger)
   if(!allBiens.length && currentUser) await loadBiens();
-  await Promise.all([loadLocataires(), loadMfFinancialData()]);
+  // allSCI alimente le rappel « SCI associée » de l'onglet Rentabilité
+  await Promise.all([loadLocataires(), loadMfFinancialData(), allSCI.length ? null : loadSCIList()]);
 
   switchMfTab(mfTab);
 }
@@ -5510,17 +5511,31 @@ function renderMfRenta(c) {
     .filter(l => (parseFloat(l.loyer_du) || 0) > ((l.statut === 'Payé' || l.statut === 'Partiel') ? (parseFloat(l.montant_encaisse) || 0) : 0))
     .sort((a, b) => a.mois - b.mois);
 
+  const sciBien = allSCI.find(s => s.id === bien.sci_id);
   const selectorHtml = `
     <div class="mfr-toolbar">
-      <select class="form-select" style="max-width:340px;flex:1" onchange="mfRentaSetBien(this.value)">
-        ${biensAchetes.map(b => `<option value="${b.id}" ${b.id === bien.id ? 'selected' : ''}>${esc(b.titre || 'Sans titre')} — ${esc(b.ville || '')}</option>`).join('')}
-      </select>
-      <div class="mfr-year-nav">
-        <button onclick="mfRentaChangeYear(-1)" title="Année précédente">‹</button>
-        <span>${annee}</span>
-        <button onclick="mfRentaChangeYear(1)" title="Année suivante">›</button>
+      <div class="mfr-field mfr-field-grow">
+        <label class="mfr-field-lab">Bien analysé</label>
+        <select class="mfr-select" onchange="mfRentaSetBien(this.value)">
+          ${biensAchetes.map(b => `<option value="${b.id}" ${b.id === bien.id ? 'selected' : ''}>${esc(b.titre || 'Sans titre')}${b.ville ? ' — ' + esc(b.ville) : ''}</option>`).join('')}
+        </select>
+        <div class="mfr-sci-hint">
+          ${sciBien
+            ? `🏛️ ${esc(sciBien.nom_sci)} <button class="mfr-sci-link" onclick="mfOpenBilanFeedModal(true)">changer</button>`
+            : `<span class="warn">🏷️ Aucune SCI associée</span> <button class="mfr-sci-link" onclick="mfOpenBilanFeedModal(true)">rattacher</button>`}
+        </div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="mfOpenBilanFeedModal()">🏦 Alimenter le bilan SCI ${annee}</button>
+      <div class="mfr-field">
+        <label class="mfr-field-lab">Exercice</label>
+        <div class="mfr-year-nav">
+          <button onclick="mfRentaChangeYear(-1)" title="Année précédente">‹</button>
+          <span>${annee}</span>
+          <button onclick="mfRentaChangeYear(1)" title="Année suivante">›</button>
+        </div>
+      </div>
+      <div class="mfr-field">
+        <button class="mfr-feed-btn" onclick="mfOpenBilanFeedModal()">🏦 Alimenter le bilan SCI ${annee}</button>
+      </div>
     </div>`;
 
   if(nbMois === 0) {
@@ -5594,8 +5609,16 @@ function renderMfRenta(c) {
   setTimeout(() => initMfRentaCharts(serieReel, cfPrevMensuel, serieCumulReel, serieCumulPrev), 0);
 }
 
-function mfRentaSetBien(id) { mfRentaBienId = id; const c = document.getElementById('mf-content'); if(c) { Object.values(mfbCharts).forEach(ch => { try{ ch.destroy(); }catch(e){} }); mfbCharts = {}; renderMfRenta(c); } }
-function mfRentaChangeYear(d) { mfRentaYear += d; const c = document.getElementById('mf-content'); if(c) { Object.values(mfbCharts).forEach(ch => { try{ ch.destroy(); }catch(e){} }); mfbCharts = {}; renderMfRenta(c); } }
+function mfRentaRefresh() {
+  if(mfTab !== 'renta') return;
+  const c = document.getElementById('mf-content');
+  if(!c) return;
+  Object.values(mfbCharts).forEach(ch => { try{ ch.destroy(); }catch(e){} });
+  mfbCharts = {};
+  renderMfRenta(c);
+}
+function mfRentaSetBien(id) { mfRentaBienId = id; mfRentaRefresh(); }
+function mfRentaChangeYear(d) { mfRentaYear += d; mfRentaRefresh(); }
 
 function initMfRentaCharts(serieReel, cfPrevMensuel, serieCumulReel, serieCumulPrev) {
   if(typeof Chart === 'undefined') return;
@@ -5633,13 +5656,21 @@ function initMfRentaCharts(serieReel, cfPrevMensuel, serieCumulReel, serieCumulP
 
   const cvC = document.getElementById('mfr-chart-cumul');
   if(cvC) {
+    // Couleur de base = signe du dernier cumul connu, pour que la pastille de
+    // légende corresponde à la couleur réellement affichée en fin de trajectoire
+    const dernierCumul = [...serieCumulReel].reverse().find(v => v != null) ?? 0;
+    const couleurCumul = dernierCumul < 0 ? '#dc2626' : '#16a34a';
     try {
       mfbCharts['renta-cumul'] = new Chart(cvC, {
         type: 'line',
         data: { labels: MOIS_LABELS, datasets: [
+          // Le cumul change de couleur selon son signe : vert au-dessus de zéro,
+          // rouge en dessous (sinon une trajectoire déficitaire s'affiche en vert)
           { label: 'Cumul réel', data: serieCumulReel,
-            borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,0.10)',
-            borderWidth: 2.5, fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 4 },
+            borderColor: couleurCumul,
+            segment: { borderColor: ctx => ((ctx.p0.parsed.y < 0 || ctx.p1.parsed.y < 0) ? '#dc2626' : '#16a34a') },
+            fill: { target: 'origin', above: 'rgba(22,163,74,0.10)', below: 'rgba(220,38,38,0.08)' },
+            borderWidth: 2.5, tension: 0.3, pointRadius: 0, pointHoverRadius: 4 },
           { label: 'Cumul prévisionnel', data: serieCumulPrev,
             borderColor: '#6366f1', borderWidth: 2, borderDash: [6, 4],
             fill: false, tension: 0.3, pointRadius: 0, pointHoverRadius: 4 },
@@ -5671,7 +5702,7 @@ const CERFA_LIGNE_LABELS = {
 
 let bilanFeedCtx = null;
 
-async function mfOpenBilanFeedModal() {
+async function mfOpenBilanFeedModal(focusAttach) {
   const annee = mfRentaYear;
   const bienSel = allBiens.find(b => b.id === mfRentaBienId);
   document.getElementById('detail-titre').textContent = `🏦 Alimenter le bilan SCI — Exercice ${annee}`;
@@ -5695,7 +5726,7 @@ async function mfOpenBilanFeedModal() {
       return;
     }
     const defaultSci = scis.find(s => s.id === bienSel?.sci_id)?.id || scis[0].id;
-    bilanFeedCtx = { annee, scis, bilans: bilansRes.data || [], sciId: defaultSci, regime: null };
+    bilanFeedCtx = { annee, scis, bilans: bilansRes.data || [], sciId: defaultSci, regime: null, showAttach: !!focusAttach };
     mfBilanFeedRender();
   } catch(e) {
     document.getElementById('detail-content').innerHTML =
@@ -5748,6 +5779,32 @@ function mfBilanFeedRender() {
       </select>
     </div>`;
 
+  // ── Rattachement rapide bien ↔ SCI (évite de passer par l'édition complète du bien) ──
+  const biensAcquis = allBiens.filter(b => b.statut === 'Acheté');
+  const attachOpen = ctx.showAttach || biensSci.length === 0;
+  const attachHtml = `
+    <div class="bf-attach">
+      <button class="bf-attach-toggle" onclick="bilanFeedCtx.showAttach=${attachOpen ? 'false' : 'true'};mfBilanFeedRender()">
+        <span>🏛️ Biens rattachés à cette SCI · <strong>${biensSci.length}</strong></span>
+        <span class="chev">${attachOpen ? '▲' : '▼'}</span>
+      </button>
+      ${attachOpen ? `
+        <div class="bf-attach-body">
+          ${biensAcquis.length === 0
+            ? `<div class="bf-attach-empty">Aucun bien au statut « Acheté » à rattacher.</div>`
+            : biensAcquis.map(b => {
+                const autre = (b.sci_id && b.sci_id !== ctx.sciId) ? scis.find(s => s.id === b.sci_id) : null;
+                return `
+                <label class="bf-bien-row">
+                  <input type="checkbox" class="bf-bien-check" data-bien-id="${b.id}" ${b.sci_id === ctx.sciId ? 'checked' : ''}>
+                  <span class="bf-bien-name">${esc(b.titre || 'Sans titre')}${b.ville ? `<span class="ville">${esc(b.ville)}</span>` : ''}</span>
+                  ${autre ? `<span class="bf-bien-tag">rattaché à ${esc(autre.nom_sci)}</span>` : ''}
+                </label>`;
+              }).join('')}
+          ${biensAcquis.length ? `<button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="mfBilanFeedSaveBiens()">💾 Enregistrer les rattachements</button>` : ''}
+        </div>` : ''}
+    </div>`;
+
   const regimeHtml = bilan ? `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12.5px">
       <span>Bilan ${annee} existant :</span>
@@ -5768,7 +5825,7 @@ function mfBilanFeedRender() {
     apercuHtml = `
       <div class="bilanfeed-warn" style="margin-top:4px">
         🏷️ Aucun bien acquis n'est rattaché à cette SCI.<br>
-        <span style="font-weight:400">Ouvrez la fiche de vos biens et renseignez le champ <strong>« SCI associée »</strong>, puis revenez ici.</span>
+        <span style="font-weight:400">Cochez les biens concernés ci-dessus, puis enregistrez : l'aperçu se calculera aussitôt.</span>
       </div>`;
   } else if(regime === 'IR') {
     const lignesTriees = Object.keys(d.parLigne).sort();
@@ -5796,6 +5853,7 @@ function mfBilanFeedRender() {
   document.getElementById('detail-content').innerHTML = `
     <div style="padding:12px 16px 8px">
       ${sciSelect}
+      ${attachHtml}
       ${regimeHtml}
       ${apercuHtml}
       <div style="font-size:11px;color:var(--c-dim);margin-top:12px;line-height:1.5">
@@ -5822,6 +5880,35 @@ function mfBilanFeedResultat() {
   const r = d.loyers - d.chargesTotal - dot;
   el.textContent = (r >= 0 ? '+' : '') + fmt(r) + ' €';
   el.style.color = r >= 0 ? 'var(--positive)' : 'var(--negative)';
+}
+
+// Enregistre les cases cochées : rattache / détache les biens de la SCI courante
+async function mfBilanFeedSaveBiens() {
+  const ctx = bilanFeedCtx;
+  if(!ctx) return;
+  const updates = [];
+  document.querySelectorAll('.bf-bien-check').forEach(cb => {
+    const bien = allBiens.find(b => b.id === cb.dataset.bienId);
+    if(!bien) return;
+    const rattacheIci = bien.sci_id === ctx.sciId;
+    if(cb.checked && !rattacheIci)       updates.push({ bien, sci_id: ctx.sciId });
+    else if(!cb.checked && rattacheIci)  updates.push({ bien, sci_id: null });
+  });
+  if(!updates.length) { showNotif('Aucun changement de rattachement'); return; }
+  try {
+    const res = await Promise.all(updates.map(u =>
+      db.from('biens').update({ sci_id: u.sci_id }).eq('id', u.bien.id)));
+    const err = res.find(r => r.error);
+    if(err) throw err.error;
+    updates.forEach(u => { u.bien.sci_id = u.sci_id; });
+    const nb = updates.filter(u => u.sci_id).length, nd = updates.length - nb;
+    showNotif(`✅ ${[nb ? nb + ' bien(s) rattaché(s)' : '', nd ? nd + ' détaché(s)' : ''].filter(Boolean).join(' · ')}`);
+    ctx.showAttach = false;
+    mfBilanFeedRender();
+    mfRentaRefresh();   // met à jour le rappel « SCI » sous le sélecteur de bien
+  } catch(e) {
+    showNotif('Erreur : ' + e.message, true);
+  }
 }
 
 async function mfBilanFeedWrite() {
