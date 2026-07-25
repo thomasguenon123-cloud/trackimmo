@@ -2547,15 +2547,72 @@ function inlineEditField(span) {
   }
 }
 
-async function openDetail(id) {
-  const b=allBiens.find(x=>x.id===id);
-  if(!b)return;
+// ═══════════════════════════════════════════════════════════
+//   FICHE BIEN 360° — page plein écran (P1)
+// ═══════════════════════════════════════════════════════════
+// Le bien est le pivot du modèle : six tables pointent vers lui. Cette page
+// les expose toutes, au lieu d'obliger à savoir dans quelle section chaque
+// information a été rangée.
+let currentBienId = null;
+let bienDetailTab = 'infos';
+let bienDetailBack = 'biens';
+
+// Point d'entrée historique — appelé depuis les cartes, le kanban, le dashboard.
+function openDetail(id) {
+  const b = allBiens.find(x => x.id === id);
+  if(!b) { showNotif('Bien introuvable', true); return; }
+  if(currentPage !== 'bien-detail') bienDetailBack = currentPage;
+  currentBienId = id;
+  bienDetailTab = _reopenDetailTab || 'infos';
+  _reopenDetailTab = null;
+  navigate('bien-detail');
+}
+
+function switchBienTab(tab) {
+  bienDetailTab = tab;
+  document.querySelectorAll('.bd-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.bd-pane').forEach(p => { p.style.display = (p.dataset.pane === tab) ? 'block' : 'none'; });
+}
+
+// Re-rendu de la fiche courante (après ajout d'action, rattachement SCI…)
+function bdRefresh() {
+  if(currentPage !== 'bien-detail') return;
+  const el = document.getElementById('content');
+  if(el) renderBienDetail(el);
+}
+
+// Ponts vers le Module financier en conservant le contexte du bien
+function bdGoToSuivi(bienId) {
+  mfSuiviBienFilter = bienId; mfSuiviPreviousBienId = bienId; mfTab = 'suivi';
+  navigate('module-financier');
+}
+function bdGoToRenta(bienId) {
+  mfRentaBienId = bienId; mfTab = 'renta';
+  navigate('module-financier');
+}
+
+async function renderBienDetail(el) {
+  const b = allBiens.find(x => x.id === currentBienId);
+  if(!b) { navigate('biens'); return; }
+  el.innerHTML = `<div class="loading"><div class="spinner"></div>Chargement de la fiche…</div>`;
+
   const cf=computeCF(b),has=b.mensualite_credit||b.loyer_en_etat;
   const dHero = cfDisplayData(b);   // P2 : réel vs prévisionnel selon le statut
-  const{data:actions}=await db.from('actions').select('*').eq('bien_id',id).order('date_action',{ascending:false});
-  // Photos/docs : Storage prioritaire (signed URLs), fallback base64 legacy
-  const photoItems = await tiResolveMedia(b.photos_paths, b.photos, 'biens-photos');
-  const docItems = await tiResolveDocs(b.documents_paths, b.documents, 'biens-documents');
+  // Tout ce qui pointe vers ce bien, chargé en parallèle
+  const [actRes, visRes, simRes, photoItems, docItems] = await Promise.all([
+    db.from('actions').select('*').eq('bien_id', b.id).order('date_action', {ascending:false}),
+    db.from('visites').select('*').eq('bien_id', b.id).order('date_visite', {ascending:false}),
+    db.from('simulations_credit').select('*').eq('bien_id', b.id).order('created_at', {ascending:false}),
+    tiResolveMedia(b.photos_paths, b.photos, 'biens-photos'),
+    tiResolveDocs(b.documents_paths, b.documents, 'biens-documents'),
+  ]);
+  if(!allSCI.length && currentUser) await loadSCIList();
+  // L'utilisateur a pu naviguer ailleurs pendant les requêtes
+  if(currentPage !== 'bien-detail' || currentBienId !== b.id) return;
+
+  const actions = actRes.data || [];
+  const visites = visRes.data || [];
+  const sims    = simRes.data || [];
   const photos = photoItems.map(x=>x.url);
   const docs = docItems;
   const rendement = b.prix_affiche&&b.loyer_en_etat ? ((b.loyer_en_etat*12/b.prix_affiche)*100).toFixed(1)+'%' : '—';
@@ -2565,8 +2622,30 @@ async function openDetail(id) {
   const baliseEmoji = {'Veille':'🔍','Négociation':'💬','Dossier banque':'🏦','Coup de cœur':'⭐'};
   const bmap = {'Veille':'tag-veille','Négociation':'tag-negociation','Dossier banque':'tag-dossier-banque','Coup de cœur':'tag-coup-de-coeur'};
 
-  document.getElementById('detail-titre').textContent=b.titre;
-  document.getElementById('detail-content').innerHTML=`
+  // Données locatives (déjà en mémoire depuis le démarrage — P2)
+  const locataires = allLocataires.filter(l => l.bien_id === b.id);
+  const locActif   = locataires.find(l => l.statut === 'Actif') || null;
+  const occupation = mfStatutOccupation(b.id);
+  const sciBien    = allSCI.find(s => s.id === b.sci_id) || null;
+  const annee      = new Date().getFullYear();
+  const loyersAnnee  = allLoyers.filter(l => l.bien_id === b.id && l.annee === annee);
+  const chargesAnnee = allCharges.filter(c => c.bien_id === b.id && new Date(c.date_charge).getFullYear() === annee);
+  const reel12 = mfCashflowReel12M(b);
+
+  el.innerHTML = `
+  <div class="bd-page">
+    <div class="bd-topbar">
+      <button class="bd-back" onclick="navigate(bienDetailBack)" title="Retour">←</button>
+      <div class="bd-title-wrap">
+        <div class="bd-title">${esc(b.titre || 'Sans titre')}</div>
+        <div class="bd-sub">${[b.ville, b.code_postal, b.type_bien, b.surface_m2 ? b.surface_m2+' m²' : null].filter(Boolean).map(esc).join(' · ')}</div>
+      </div>
+      <div class="bd-topbar-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openDossierModal('${b.id}')">📄 Dossier banque</button>
+        <button class="btn btn-primary btn-sm" onclick="editBien('${b.id}')">✏️ Édition complète</button>
+      </div>
+    </div>
+
     <!-- Hero cashflow — P2 : réel en principal si le bien est acheté -->
     <div class="bien-detail-hero">
       <div>
@@ -2610,14 +2689,18 @@ async function openDetail(id) {
       </div>
     </div>` : ''}
 
-    <!-- Tabs -->
-    <div class="tab-nav">
-      <button class="tab-btn active" onclick="switchTab(this,'dt-infos')">📋 Informations</button>
-      <button class="tab-btn" onclick="switchTab(this,'dt-fin')">💰 Finances</button>
-      <button class="tab-btn" onclick="switchTab(this,'dt-act')">📅 Actions (${actions?.length||0})</button>
+    <!-- Onglets : une entrée par famille de données reliée au bien -->
+    <div class="bd-tabs">
+      <button class="bd-tab" data-tab="infos"   onclick="switchBienTab('infos')">📋 Informations</button>
+      <button class="bd-tab" data-tab="fin"     onclick="switchBienTab('fin')">💰 Finances</button>
+      <button class="bd-tab" data-tab="locatif" onclick="switchBienTab('locatif')">🔑 Locatif &amp; loyers${locActif ? ' <span class="bd-badge on">1</span>' : ''}</button>
+      <button class="bd-tab" data-tab="actions" onclick="switchBienTab('actions')">📅 Actions${actions.length ? ` <span class="bd-badge">${actions.length}</span>` : ''}</button>
+      <button class="bd-tab" data-tab="visites" onclick="switchBienTab('visites')">📓 Visites${visites.length ? ` <span class="bd-badge">${visites.length}</span>` : ''}</button>
+      <button class="bd-tab" data-tab="financement" onclick="switchBienTab('financement')">🏦 Financement${sims.length ? ` <span class="bd-badge">${sims.length}</span>` : ''}</button>
+      <button class="bd-tab" data-tab="sci"     onclick="switchBienTab('sci')">🏛️ SCI &amp; bilan${sciBien ? ' <span class="bd-badge on">✓</span>' : ''}</button>
     </div>
 
-    <div id="dt-infos">
+    <div class="bd-pane" data-pane="infos">
       <div style="font-size:10.5px;color:var(--c-muted);margin-bottom:10px;font-style:italic">💡 Cliquez sur une valeur pour la modifier directement</div>
       <div class="detail-grid">
         <div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">${ie(b.id,'type_bien',b.type_bien,'select-type')}</div></div>
@@ -2632,7 +2715,7 @@ async function openDetail(id) {
       <div style="margin-top:10px"><div class="detail-label" style="margin-bottom:4px">Notes</div>${ie(b.id,'notes',b.notes,'textarea')}</div>
     </div>
 
-    <div id="dt-fin" style="display:none">
+    <div class="bd-pane" data-pane="fin">
       <div style="font-size:10.5px;color:var(--c-muted);margin-bottom:10px;font-style:italic">💡 Cliquez sur un montant pour le modifier — frais notaire et cashflow recalculés automatiquement</div>
       <div class="detail-grid">
         <div class="detail-item"><div class="detail-label">Prix affiché</div><div class="detail-value" style="font-size:16px;font-weight:700">${ie(b.id,'prix_affiche',b.prix_affiche?fmt(b.prix_affiche)+' €':'','number')}</div></div>
@@ -2660,27 +2743,175 @@ async function openDetail(id) {
       </div>` : ''}
     </div>
 
-    <div id="dt-act" style="display:none">
+    <div class="bd-pane" data-pane="actions">
       <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
         <button class="btn btn-primary" style="padding:7px 14px;font-size:12px" onclick="openActionModal('${b.id}')">＋ Ajouter une action</button>
       </div>
       ${actions?.length?`<div class="action-list">${actions.map(a=>`<div class="action-item action-item-clickable" data-action-id="${a.id}" data-bien-id="${b.id}" onclick="openActionModal('${b.id}','${a.id}')" title="Cliquer pour modifier"><div class="action-date">${fmtActionDate(a.date_action)}</div><div style="flex:1"><div class="action-type">${esc(a.type_action)}</div>${a.commentaire?`<div class="action-comment">${esc(a.commentaire)}</div>`:''}</div><span class="action-edit-hint">✏️</span></div>`).join('')}</div>`:'<p style="text-align:center;color:var(--c-muted);padding:24px;font-size:12px">Aucune action enregistrée — cliquez sur « Ajouter une action » pour commencer le suivi.</p>'}
     </div>
 
-    <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="openDossierModal('${b.id}')">📄 Dossier banque</button>
-      <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Fermer</button>
-      <button class="btn btn-primary" onclick="closeModal('modal-detail');editBien('${b.id}')">✏️ Édition complète</button>
+    <!-- ── LOCATIF & LOYERS ── -->
+    <div class="bd-pane" data-pane="locatif">
+      ${b.statut !== 'Acheté' ? `
+        <div class="bd-note">🔑 Ce bien n'est pas encore au statut « Acheté ». Le suivi locatif (locataire, loyers encaissés, charges réelles) s'activera dès que vous le passerez en acquis.</div>` : ''}
+
+      <div class="bd-grid-2">
+        <div class="bd-block">
+          <div class="bd-block-title">Locataire</div>
+          ${locActif ? `
+            <div class="bd-loc" onclick="openLocataireModal('${locActif.id}')">
+              <div class="bd-loc-av">${((locActif.prenom?.[0]||'')+(locActif.nom?.[0]||'')||'?').toUpperCase()}</div>
+              <div style="min-width:0">
+                <div class="bd-loc-name">${esc([locActif.prenom,locActif.nom].filter(Boolean).join(' ')||'—')}</div>
+                <div class="bd-loc-sub">${esc(locActif.email||locActif.telephone||'')}${locActif.loyer_bail_hc?` · ${fmt(locActif.loyer_bail_hc)} €/mois HC`:''}</div>
+              </div>
+              <span class="bd-occ ${occupation.type}">${occupation.label}</span>
+            </div>` : `
+            <div class="bd-empty-inline">
+              Aucun locataire actif.
+              <button class="bd-link" onclick="openLocataireModal(null)">＋ Créer un locataire</button>
+            </div>`}
+          ${locataires.length > (locActif?1:0) ? `<div class="bd-hist">${locataires.filter(l=>l!==locActif).map(l=>`<div class="bd-hist-row" onclick="openLocataireModal('${l.id}')"><span>${esc([l.prenom,l.nom].filter(Boolean).join(' '))}</span><span class="st">${esc(l.statut||'')}</span></div>`).join('')}</div>` : ''}
+        </div>
+
+        ${b.statut === 'Acheté' ? `
+        <div class="bd-block">
+          <div class="bd-block-title">Réel sur 12 mois</div>
+          <div class="bd-stats">
+            <div><span class="l">Loyers encaissés</span><span class="v">${fmt(reel12.loyer_encaisse)} €</span></div>
+            <div><span class="l">Charges payées</span><span class="v">${fmt(reel12.charges_payees)} €</span></div>
+            <div><span class="l">Mensualités crédit</span><span class="v">${fmt(reel12.mensualites_credit)} €</span></div>
+            <div class="tot"><span class="l">Cashflow réel</span><span class="v ${reel12.cashflow>=0?'pos':'neg'}">${reel12.cashflow>=0?'+':''}${fmt(reel12.cashflow)} €</span></div>
+          </div>
+        </div>` : `
+        <div class="bd-block">
+          <div class="bd-block-title">Prévisionnel</div>
+          <div class="bd-stats">
+            <div><span class="l">Loyer estimé</span><span class="v">${fmt((parseFloat(b.loyer_en_etat)||0)+(parseFloat(b.charges_locataire_etat)||0))} €</span></div>
+            <div><span class="l">Charges + crédit</span><span class="v">${fmt((parseFloat(b.mensualite_credit)||0)+(parseFloat(b.charge_copro)||0)+(parseFloat(b.assurance_logement)||0)+(parseFloat(b.taxe_fonciere)||0))} €</span></div>
+            <div class="tot"><span class="l">Cashflow prévisionnel</span><span class="v ${cf>=0?'pos':'neg'}">${cf>=0?'+':''}${fmt(cf)} €/mois</span></div>
+          </div>
+        </div>`}
+      </div>
+
+      ${b.statut === 'Acheté' ? `
+      <div class="bd-block" style="margin-top:12px">
+        <div class="bd-block-title">Loyers ${annee}</div>
+        ${loyersAnnee.length === 0
+          ? `<div class="bd-empty-inline">Aucun loyer saisi pour ${annee}. <button class="bd-link" onclick="bdGoToSuivi('${b.id}')">Ouvrir le suivi mensuel →</button></div>`
+          : `<div class="bd-months">
+              ${MOIS_LABELS.map((lab,i) => {
+                const l = loyersAnnee.find(x => x.mois === i+1);
+                const st = !l ? 'none' : (l.statut==='Payé' ? 'ok' : l.statut==='Partiel' ? 'part' : 'ko');
+                const tip = !l ? `${lab} : rien de saisi` : `${lab} : ${esc(l.statut||'')} — ${fmt(l.montant_encaisse||0)} € / ${fmt(l.loyer_du||0)} € dus`;
+                return `<div class="bd-month ${st}" title="${tip}"><span>${lab}</span></div>`;
+              }).join('')}
+             </div>
+             <div class="bd-month-legend"><span><i class="ok"></i>Payé</span><span><i class="part"></i>Partiel</span><span><i class="ko"></i>Impayé</span><span><i class="none"></i>Non saisi</span></div>`}
+      </div>
+
+      <div class="bd-block" style="margin-top:12px">
+        <div class="bd-block-title">Charges ${annee}${chargesAnnee.length?` · ${fmt(chargesAnnee.reduce((s,c)=>s+(parseFloat(c.montant)||0),0))} €`:''}</div>
+        ${chargesAnnee.length === 0
+          ? `<div class="bd-empty-inline">Aucune charge enregistrée cette année.</div>`
+          : `<div class="bd-charges">${chargesAnnee.slice(0,8).map(c=>`
+              <div class="bd-charge-row">
+                <span class="cat">${esc(c.categorie||'Autre')}</span>
+                <span class="lib">${esc(c.libelle||'')}</span>
+                <span class="dt">${fmtActionDate(c.date_charge)}</span>
+                <span class="mt">${fmt(c.montant)} €</span>
+              </div>`).join('')}</div>
+             ${chargesAnnee.length>8?`<div class="bd-more">+ ${chargesAnnee.length-8} autre(s)</div>`:''}`}
+      </div>
+
+      <div class="bd-cta-row">
+        <button class="btn btn-secondary btn-sm" onclick="bdGoToSuivi('${b.id}')">📅 Suivi mensuel</button>
+        <button class="btn btn-secondary btn-sm" onclick="bdGoToRenta('${b.id}')">💶 Rentabilité</button>
+      </div>` : ''}
     </div>
-  `;
-  openModal('modal-detail');
-  // Si une réouverture sur un onglet précis est demandée (ex: après ajout d'action)
-  if(_reopenDetailTab) {
-    const tabId = _reopenDetailTab; _reopenDetailTab = null;
-    const btn = Array.from(document.querySelectorAll('#modal-detail .tab-btn'))
-      .find(b => b.getAttribute('onclick')?.includes(`'${tabId}'`));
-    if(btn) switchTab(btn, tabId);
-  }
+
+    <!-- ── VISITES ── -->
+    <div class="bd-pane" data-pane="visites">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+        <button class="btn btn-primary" style="padding:7px 14px;font-size:12px" onclick="openNouvelleVisite('${b.id}')">＋ Nouveau compte rendu</button>
+      </div>
+      ${visites.length === 0
+        ? `<p class="bd-empty-block">Aucun compte rendu rattaché à ce bien. Créez-en un pour garder trace de vos visites.</p>`
+        : `<div class="bd-list">${visites.map(v=>`
+            <div class="bd-list-row" onclick="openDetailVisite('${v.id}')">
+              <div class="bd-list-date">${fmtActionDate(v.date_visite)}</div>
+              <div style="flex:1;min-width:0">
+                <div class="bd-list-main">${v.type_visite==='locataire'?'👤 Visite locataire':'🏠 Visite achat'}${v.adresse?` — ${esc(v.adresse)}`:''}</div>
+                ${v.notes?`<div class="bd-list-sub">${esc(v.notes.slice(0,110))}${v.notes.length>110?'…':''}</div>`:''}
+              </div>
+              ${v.note_sur_5?`<span class="bd-rating">${'⭐'.repeat(v.note_sur_5)}</span>`:''}
+            </div>`).join('')}</div>`}
+    </div>
+
+    <!-- ── FINANCEMENT ── -->
+    <div class="bd-pane" data-pane="financement">
+      <div class="bd-block">
+        <div class="bd-block-title">Montant à financer</div>
+        <div class="bd-stats">
+          <div><span class="l">Prix affiché</span><span class="v">${b.prix_affiche?fmt(b.prix_affiche)+' €':'—'}</span></div>
+          <div><span class="l">Frais de notaire</span><span class="v">${fmt(b.frais_notaire||0)} €</span></div>
+          <div><span class="l">Travaux</span><span class="v">${fmt(b.travaux||0)} €</span></div>
+          <div class="tot"><span class="l">Total acquisition</span><span class="v">${emprunt?fmt(emprunt)+' €':'—'}</span></div>
+        </div>
+      </div>
+      <div class="bd-block" style="margin-top:12px">
+        <div class="bd-block-title">Simulations de crédit rattachées</div>
+        ${sims.length === 0
+          ? `<div class="bd-empty-inline">Aucune simulation rattachée à ce bien. <button class="bd-link" onclick="navigate('simulateur')">Ouvrir le simulateur →</button></div>`
+          : `<div class="bd-list">${sims.map(s=>`
+              <div class="bd-list-row" onclick="openReadSimulation('${s.id}')">
+                <div style="flex:1;min-width:0">
+                  <div class="bd-list-main">${esc(s.nom_simulation||'Simulation')}</div>
+                  <div class="bd-list-sub">${fmt(s.montant_emprunte||0)} € sur ${s.duree_ans||20} ans · ${(s.taux_interet||0).toFixed(2)} %</div>
+                </div>
+                <div class="bd-list-amount">${fmt(s.mensualite_calculee||0)} €/mois</div>
+              </div>`).join('')}</div>`}
+      </div>
+      <div class="bd-cta-row">
+        <button class="btn btn-secondary btn-sm" onclick="openDossierModal('${b.id}')">📄 Générer le dossier banque</button>
+        <button class="btn btn-secondary btn-sm" onclick="navigate('simulateur')">🏦 Simulateur crédit</button>
+      </div>
+    </div>
+
+    <!-- ── SCI & BILAN ── -->
+    <div class="bd-pane" data-pane="sci">
+      <div class="bd-block">
+        <div class="bd-block-title">Société détentrice</div>
+        ${sciBien ? `
+          <div class="bd-sci">
+            <div class="bd-sci-ic">🏛️</div>
+            <div style="flex:1;min-width:0">
+              <div class="bd-loc-name">${esc(sciBien.nom_sci)}</div>
+              <div class="bd-loc-sub">${sciBien.siret?`SIRET ${esc(sciBien.siret)}`:'SIRET non renseigné'}${sciBien.capital_social?` · capital ${fmt(sciBien.capital_social)} €`:''}</div>
+            </div>
+            <button class="bd-link" onclick="navigate('administration')">Administration →</button>
+          </div>` : `
+          <div class="bd-note warn">
+            🏷️ Aucune SCI associée à ce bien.<br>
+            <span style="font-weight:400">Le rattachement est nécessaire pour alimenter un bilan comptable depuis les loyers et charges réels.</span>
+          </div>
+          <div class="bd-cta-row" style="margin-top:10px">
+            <button class="btn btn-secondary btn-sm" onclick="editBien('${b.id}')">✏️ Associer une SCI</button>
+          </div>`}
+      </div>
+      ${sciBien ? `
+      <div class="bd-block" style="margin-top:12px">
+        <div class="bd-block-title">Alimentation du bilan</div>
+        <div class="bd-empty-inline">
+          Les loyers encaissés et charges payées de ce bien alimentent le bilan de <strong>${esc(sciBien.nom_sci)}</strong>.
+          <button class="bd-link" onclick="bdGoToRenta('${b.id}')">Aller à Rentabilité →</button>
+        </div>
+      </div>` : ''}
+    </div>
+
+  </div>`;
+
+  switchBienTab(bienDetailTab);
 }
 
 function openDoc(dataUrl) {
@@ -2783,8 +3014,8 @@ async function saveAction() {
     if(res.error) throw res.error;
     showNotif(editingActionId ? 'Action mise à jour ✓' : 'Action ajoutée ✓');
     closeAdmModal();
-    _reopenDetailTab = 'dt-act';
-    await openDetail(actionModalBienId);
+    _reopenDetailTab = 'actions';
+    openDetail(actionModalBienId);
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
   } finally {
@@ -2799,8 +3030,8 @@ async function deleteAction() {
   showNotif('Action supprimée');
   const bienId = actionModalBienId;
   closeAdmModal();
-  _reopenDetailTab = 'dt-act';
-  await openDetail(bienId);
+  _reopenDetailTab = 'actions';
+  openDetail(bienId);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3314,18 +3545,11 @@ async function bkdocGenerate(){
 }
 
 
-function switchTab(btn,tabId) {
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  ['dt-infos','dt-fin','dt-act'].forEach(id=>{
-    const el=document.getElementById(id);if(el)el.style.display=id===tabId?'block':'none';
-  });
-}
 
 let visitPhotos = [], visitRating = 0, simEditId = null;
 
-const PAGE_LABELS = {accueil:'Tableau de bord',biens:'Mes biens',nouveau:'Ajouter un bien',simulateur:'Simulateur crédit',visites:'Comptes rendus',portails:'Portails immo',administration:'Administration','module-financier':'Module financier','admin-users':'Gestion utilisateurs','marche-recherche':'Recherche par ville','marche-carte':'Carte de France',parametres:'Paramètres'};
-const PAGE_SECTIONS = {accueil:'Pipeline',biens:'Pipeline',nouveau:'Pipeline',simulateur:'Outils',visites:'Outils',portails:'Outils',administration:'Gestion','module-financier':'Gestion','admin-users':'Admin','marche-recherche':'Marché','marche-carte':'Marché',parametres:'Compte'};
+const PAGE_LABELS = {accueil:'Tableau de bord',biens:'Mes biens',nouveau:'Ajouter un bien','bien-detail':'Fiche bien',simulateur:'Simulateur crédit',visites:'Comptes rendus',portails:'Portails immo',administration:'Administration','module-financier':'Module financier','admin-users':'Gestion utilisateurs','marche-recherche':'Recherche par ville','marche-carte':'Carte de France',parametres:'Paramètres'};
+const PAGE_SECTIONS = {accueil:'Pipeline',biens:'Pipeline',nouveau:'Pipeline','bien-detail':'Pipeline',simulateur:'Outils',visites:'Outils',portails:'Outils',administration:'Gestion','module-financier':'Gestion','admin-users':'Admin','marche-recherche':'Marché','marche-carte':'Marché',parametres:'Compte'};
 const PIPELINE_PAGES = ['accueil','biens','nouveau'];
 
 // ═══════════════════════════════════════════════════════════
@@ -3827,6 +4051,8 @@ function navigate(page) {
     document.getElementById('nav-'+p)?.classList.toggle('active', p === page);
     document.getElementById('sub-'+p)?.classList.toggle('active', p === page);
   });
+  // La fiche bien n'a pas d'entrée de menu : on garde « Mes biens » surligné
+  if(page === 'bien-detail') document.getElementById('nav-biens')?.classList.add('active');
   document.getElementById('bc-cur').textContent = PAGE_LABELS[page]||page;
   document.getElementById('bc-section').textContent = PAGE_SECTIONS[page]||'Recherche';
   const subnavPipeline = document.getElementById('subnav-pipeline');
@@ -3842,6 +4068,7 @@ function navigate(page) {
   const el=document.getElementById('content');
   if(page==='accueil') renderAccueil(el);
   else if(page==='biens') renderBiens(el);
+  else if(page==='bien-detail') renderBienDetail(el);
   else if(page==='nouveau') renderNouveau(el,null); // async - pas besoin d'await ici
   else if(page==='simulateur') renderSimulateur(el);
   else if(page==='admin') renderAdmin(el);
@@ -6507,6 +6734,8 @@ async function saveLocataire() {
     await loadLocataires();
     const c = document.getElementById('mf-content');
     if(c && mfTab === 'locataires') renderMfLocataires(c);
+    // Créé depuis la fiche d'un bien : recharger loyers générés puis rafraîchir
+    if(currentPage === 'bien-detail') { await loadMfFinancialData(); bdRefresh(); }
   } catch(e) {
     showNotif('Erreur : '+e.message, true);
   } finally {
@@ -8477,10 +8706,12 @@ function renderVisiteCard(v) {
   </div>`;
 }
 
-function openNouvelleVisite() {
+function openNouvelleVisite(bienId) {
   visitPhotos=[]; visitRating=0;
   document.getElementById('detail-titre').textContent = 'Nouvelle visite';
   document.getElementById('detail-content').innerHTML = visiteForm(null);
+  // Pré-sélection quand on arrive depuis la fiche d'un bien
+  if(bienId) { const s = document.getElementById('v-bien'); if(s) s.value = bienId; }
   refreshPhotosPreview();
   openModal('modal-detail');
 }
