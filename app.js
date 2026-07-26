@@ -7051,6 +7051,7 @@ async function saveLocataire() {
     if(savedId && Array.isArray(locataireDocsPending) && locataireDocsPending.length){
       let needUpdate = false;
       const migratedDocs = [];
+      const echecsUpload = [];
       for(const doc of locataireDocsPending){
         if(doc.storage_path){
           migratedDocs.push(doc); // déjà sur Storage
@@ -7060,10 +7061,20 @@ async function saveLocataire() {
             // On garde les métadonnées, on remplace data par storage_path
             migratedDocs.push({ name:doc.name, type:doc.type, mime:doc.mime, size:doc.size, uploaded_at:doc.uploaded_at, storage_path:up.path, data:null });
             needUpdate = true;
-          } catch(e){ migratedDocs.push(doc); /* garde le base64 en secours */ }
+          } catch(e){
+            // Repli : le document est conservé dans la fiche plutôt que perdu,
+            // mais il alourdit la ligne en base — l'utilisateur doit le savoir
+            // au lieu de croire son fichier rangé sur Storage.
+            migratedDocs.push(doc);
+            echecsUpload.push(doc.name || 'document');
+            console.warn('[locataires] upload Storage échoué, repli base64 :', doc.name, e?.message);
+          }
         } else {
           migratedDocs.push(doc);
         }
+      }
+      if(echecsUpload.length){
+        showNotif(`⚠️ ${echecsUpload.length} document${echecsUpload.length>1?'s':''} n'${echecsUpload.length>1?'ont':'a'} pas pu être envoyé${echecsUpload.length>1?'s':''} (${echecsUpload.slice(0,2).join(', ')}${echecsUpload.length>2?'…':''}) — conservé${echecsUpload.length>1?'s':''} dans la fiche, à réimporter`, true);
       }
       if(needUpdate){
         await db.from('locataires').update({ documents: migratedDocs }).eq('id', savedId);
@@ -7877,82 +7888,7 @@ function renderMarcheRecherche(el) {
 
 
 
-// ── Parsing CSV minimal ──────────────────────────────────────
-function parseCSV(text) {
-  // Parser CSV robuste avec gestion des guillemets RFC 4180
-  function parseLine(line) {
-    const fields = [];
-    let cur = '', inQuote = false;
-    for (let i = 0; i < line.length; i++) {
-      const c = line[i];
-      if (c === '"') {
-        if (inQuote && line[i+1] === '"') { cur += '"'; i++; }
-        else inQuote = !inQuote;
-      } else if (c === ',' && !inQuote) {
-        fields.push(cur.trim()); cur = '';
-      } else {
-        cur += c;
-      }
-    }
-    fields.push(cur.trim());
-    return fields;
-  }
-  const lines = text.trim().split('\n');
-  if (lines.length < 2) return [];
-  const headers = parseLine(lines[0]);
-  return lines.slice(1).map(line => {
-    const cols = parseLine(line);
-    const obj = {};
-    headers.forEach((h, i) => { obj[h] = (cols[i]||''); });
-    return obj;
-  }).filter(r => Object.values(r).some(v => v));
-}
 
-// ── Agréger les transactions DVF CSV par année ───────────────
-function aggregateDVF(rows, typeBien) {
-  const byYear = {};
-  rows.forEach(r => {
-    const prix = parseFloat(r.valeur_fonciere?.replace(',','.'));
-    const surf = parseFloat(r.surface_reelle_bati?.replace(',','.'));
-    const type = r.type_local || '';
-    const date = r.date_mutation || '';
-    const year = date.substring(0, 4);
-    const nature = r.nature_mutation || '';
-
-    // Filtres : ventes seulement, surface et prix valides
-    if (!['Vente', "Vente en l'état futur d'achèvement", 'Adjudication'].includes(nature)) return;
-    if (!prix || !surf || surf < 9 || surf > 1000) return;
-    const prix_m2 = prix / surf;
-    if (prix_m2 < 300 || prix_m2 > 50000) return;
-    if (!year || parseInt(year) < 2018) return;
-
-    // Filtre type de bien
-    if (typeBien === 'appartement' && type !== 'Appartement') return;
-    if (typeBien === 'maison' && type !== 'Maison') return;
-    if (typeBien === '' && !['Maison', 'Appartement'].includes(type)) return;
-
-    if (!byYear[year]) byYear[year] = { prix: [], nb: 0 };
-    byYear[year].prix.push(prix_m2);
-    byYear[year].nb++;
-  });
-
-  return Object.entries(byYear).sort().map(([annee, d]) => {
-    const sorted = [...d.prix].sort((a,b) => a-b);
-    const mid = Math.floor(sorted.length / 2);
-    const median = sorted.length % 2 === 0
-      ? (sorted[mid-1] + sorted[mid]) / 2
-      : sorted[mid];
-    const mean = d.prix.reduce((s,v)=>s+v,0) / d.prix.length;
-    return {
-      annee: parseInt(annee),
-      prix_median: Math.round(median),
-      prix_moyen: Math.round(mean),
-      nb_ventes: d.nb
-    };
-  });
-}
-
-// ── Autocomplete communes ────────────────────────────────────
 // ── P5 : ponts entre le Marché et le Pipeline ────────────────
 let nouveauPrefill = null;   // {ville, code_postal} consommé par renderNouveau
 
@@ -9917,11 +9853,6 @@ const dashVisibility = { cf: true, st: true, kpi: true };
 // Couleur d'accent active (suivie pour la persistance DB). Défaut = indigo.
 let currentAccent = { color: '#6366f1', colorDark: '#4f46e5' };
 
-function openSettings() {
-  // Redirige vers la nouvelle page Paramètres (Lot A)
-  navigate('parametres');
-}
-
 function closeSettings() {
   // No-op : l'ancien panneau slide-in n'existe plus, conservé pour compat des appels existants
 }
@@ -9937,21 +9868,6 @@ function applyTheme(name) {
     s.classList.toggle('active', s.dataset.theme === name);
   });
   localStorage.setItem('ti_theme', name);
-}
-
-function toggleDashChart(key) {
-  dashVisibility[key] = !dashVisibility[key];
-  const tog = document.getElementById('tog-chart-'+key) || document.getElementById('tog-'+key);
-  if(tog) tog.classList.toggle('on', dashVisibility[key]);
-  // Show/hide the chart section
-  const targets = {
-    cf: 'dash-chart-cf',
-    st: 'dash-chart-st',
-    top: 'dash-top-biens'
-  };
-  const el = document.getElementById(targets[key]);
-  if(el) el.style.display = dashVisibility[key] ? '' : 'none';
-  localStorage.setItem('ti_dash_'+key, dashVisibility[key] ? '1' : '0');
 }
 
 
