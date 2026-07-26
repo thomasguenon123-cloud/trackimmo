@@ -3096,6 +3096,9 @@ function bdRenderMiseEnGestion(bienId) {
   if(!b) return;
   const etapes = bdEtapesGestion(b);
   const restants = etapes.filter(e => !e.fait).length;
+  // Locataires réutilisables : tous sauf ceux déjà sur ce bien et les sortis.
+  // Ceux rattachés ailleurs restent proposés, simplement signalés.
+  const locDispos = allLocataires.filter(l => l.bien_id !== b.id && l.statut !== 'Sorti');
   document.getElementById('detail-titre').textContent = `🔑 Mise en gestion — ${b.titre || 'Bien'}`;
   document.getElementById('detail-content').innerHTML = `
     <div style="padding:14px 18px 18px">
@@ -3115,18 +3118,33 @@ function bdRenderMiseEnGestion(bienId) {
               <div class="bd-step-sub">${e.fait && e.valeur ? esc(e.valeur) : e.sub}</div>
               ${!e.fait && e.k === 'sci' ? (allSCI.length ? `
                 <div class="bd-step-act">
-                  <select class="form-select" id="mg-sci" style="max-width:260px">
+                  <select class="ti-select" id="mg-sci" style="max-width:270px">
                     ${allSCI.map(s => `<option value="${s.id}">${esc(s.nom_sci)}</option>`).join('')}
                   </select>
-                  <button class="bd-link" onclick="bdSaveSciGestion('${b.id}')">Rattacher</button>
+                  <button class="bd-link" onclick="bdSaveSciGestion('${b.id}')">🏛️ Rattacher</button>
                 </div>` : `
                 <div class="bd-step-act">
                   <span style="font-size:12.5px;color:var(--c-dim)">Aucune SCI créée.</span>
                   <button class="bd-link" onclick="closeModal('modal-detail');navigate('administration')">Créer une SCI</button>
                 </div>`) : ''}
               ${!e.fait && e.k === 'loc' ? `
+                ${locDispos.length ? `
                 <div class="bd-step-act">
-                  <button class="bd-link" onclick="closeModal('modal-detail');openLocataireModal(null,'${b.id}')">＋ Créer le locataire</button>
+                  <select class="ti-select" id="mg-loc" style="max-width:270px">
+                    ${locDispos.map(l => {
+                      const nom = [l.prenom, l.nom].filter(Boolean).join(' ') || 'Sans nom';
+                      const autre = l.bien_id ? allBiens.find(x => x.id === l.bien_id) : null;
+                      const t = autre ? (autre.titre || 'un bien') : '';
+                      const suffixe = autre ? ` · déjà sur ${t.length > 24 ? t.slice(0,24)+'…' : t}`
+                                            : (l.statut && l.statut !== 'Actif' ? ` · ${l.statut}` : '');
+                      return `<option value="${l.id}">${esc(nom)}${esc(suffixe)}</option>`;
+                    }).join('')}
+                  </select>
+                  <button class="bd-link" onclick="bdAttachLocataire('${b.id}')">👤 Rattacher</button>
+                </div>
+                <div class="bd-step-or">ou</div>` : ''}
+                <div class="bd-step-act">
+                  <button class="bd-link" onclick="closeModal('modal-detail');openLocataireModal(null,'${b.id}')">＋ Créer un nouveau locataire</button>
                 </div>` : ''}
               ${!e.fait && e.k === 'loyers' ? (e.bloquePar ? `
                 <div class="bd-step-act"><span style="font-size:12.5px;color:var(--c-dim)">Disponible une fois ${e.bloquePar} enregistré.</span></div>` : `
@@ -3153,6 +3171,32 @@ async function bdSaveSciGestion(bienId) {
     const b = allBiens.find(x => x.id === bienId);
     if(b) b.sci_id = sciId;
     showNotif('✅ SCI rattachée');
+    bdRenderMiseEnGestion(bienId);
+    bdRefresh();
+  } catch(e) { showNotif('Erreur : ' + e.message, true); }
+}
+
+// Rattache un locataire existant au bien. Un locataire déjà pris ailleurs
+// n'est pas bloqué : on demande confirmation avant de le déplacer.
+async function bdAttachLocataire(bienId) {
+  const locId = document.getElementById('mg-loc')?.value;
+  const loc = allLocataires.find(l => l.id === locId);
+  if(!loc) { showNotif('Choisissez un locataire', true); return; }
+  const nom = [loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Ce locataire';
+
+  if(loc.bien_id && loc.bien_id !== bienId) {
+    const autre = allBiens.find(x => x.id === loc.bien_id);
+    if(!confirm(`${nom} est actuellement rattaché à « ${autre?.titre || 'un autre bien'} ».\n\nLe déplacer vers ce bien ?`)) return;
+  }
+  const patch = { bien_id: bienId };
+  const activation = loc.statut !== 'Actif';
+  if(activation) patch.statut = 'Actif';   // le suivi locatif s'appuie sur le locataire actif
+
+  try {
+    const { error } = await db.from('locataires').update(patch).eq('id', loc.id);
+    if(error) throw error;
+    Object.assign(loc, patch);
+    showNotif(`✅ ${nom} rattaché${activation ? ' et passé en Actif' : ''}`);
     bdRenderMiseEnGestion(bienId);
     bdRefresh();
   } catch(e) { showNotif('Erreur : ' + e.message, true); }
