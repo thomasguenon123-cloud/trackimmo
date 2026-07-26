@@ -934,14 +934,15 @@ function computeCF(b) {
 function cfDisplayData(b) {
   const prev = computeCF(b);
   const hasPrev = !!(b.mensualite_credit || b.loyer_en_etat);
-  if(b.statut === 'Acheté') {
-    const hasLoyers = allLoyers.some(l =>
-      l.bien_id === b.id && (l.statut === 'Payé' || l.statut === 'Partiel')
-      && (parseFloat(l.montant_encaisse) || 0) > 0);
-    if(hasLoyers) return { mode: 'reel', value: mfCashflowReel12M(b).cashflow / 12, prev, hasPrev };
-    return { mode: 'sans-loyers', value: null, prev, hasPrev };
-  }
-  return { mode: 'previsionnel', value: hasPrev ? prev : null, prev, hasPrev };
+  const acquis = b.statut === 'Acheté';
+  const hasLoyers = acquis && allLoyers.some(l =>
+    l.bien_id === b.id && (l.statut === 'Payé' || l.statut === 'Partiel')
+    && (parseFloat(l.montant_encaisse) || 0) > 0);
+  if(hasLoyers) return { mode: 'reel', value: mfCashflowReel12M(b).cashflow / 12, prev, hasPrev, attenteReel: false };
+  // Bien acquis sans loyer encaissé saisi : on affiche le PRÉVISIONNEL, qui reste
+  // calculable, plutôt qu'un « Non calculé » qui contredisait la fiche complète.
+  // attenteReel signale que le réel prendra le relais dès la première saisie.
+  return { mode: 'previsionnel', value: hasPrev ? prev : null, prev, hasPrev, attenteReel: acquis };
 }
 function fmt(n){return Math.round(n).toLocaleString('fr-FR');}
 function cfCls(cf){return cf>0?'positive':cf<0?'negative':'neutral';}
@@ -1423,7 +1424,7 @@ function renderKanbanCard(b, draggable=true) {
   const cfC = d.value == null ? 'neutral' : cfCls(d.value);
   const cfTxt = d.value != null
     ? (d.value>0?'+':'')+fmt(d.value)+'€'+(d.mode==='reel'?' réel':'')
-    : (d.mode==='sans-loyers' ? '⏳' : '—');
+    : '—';
   const bmap = {'Veille':'tag-veille','Négociation':'tag-negociation','Dossier banque':'tag-dossier-banque','Coup de cœur':'tag-coup-de-coeur'};
   const dept = getDept(b);
   const locParts = [];
@@ -1579,10 +1580,11 @@ function renderCard(b) {
   const date=b.created_at?new Date(b.created_at).toLocaleDateString('fr-FR'):'—';
   const cfIcon = cfC==='positive' ? '📈' : cfC==='negative' ? '📉' : '➖';
   const cfLabel = d.mode==='reel' ? 'Cashflow réel · moy. 12 mois' : 'Cashflow prévisionnel';
-  const cfDisplay = d.value != null ? (d.value>0?'+':'')+fmt(d.value)+' €/m' : (d.mode==='sans-loyers' ? '—' : 'Non calculé');
-  const cfSub = d.mode==='reel' && d.hasPrev ? `<div class="card-cf-sub">prévi ${d.prev>0?'+':''}${fmt(d.prev)} €/m</div>` : '';
+  const cfDisplay = d.value != null ? (d.value>0?'+':'')+fmt(d.value)+' €/m' : 'Non calculé';
+  const cfSub = d.mode==='reel' && d.hasPrev ? `<div class="card-cf-sub">prévi ${d.prev>0?'+':''}${fmt(d.prev)} €/m</div>`
+    : d.attenteReel ? `<div class="card-cf-sub">réel dès la saisie des loyers</div>` : '';
   const cfBadge = d.mode==='reel' ? `${cfIcon} Réel`
-    : d.mode==='sans-loyers' ? '⏳ Loyers non saisis'
+    : d.attenteReel ? '⏳ Réel en attente'
     : `${cfIcon} ${cfC==='positive'?'Rentable':cfC==='negative'?'Déficitaire':'—'}`;
   return `<div class="bien-card ${cfC}" onclick="openDetail('${b.id}')">
     ${b.is_test?'<div class="test-ribbon">TEST</div>':''}
@@ -2637,11 +2639,10 @@ async function renderBienDetail(el) {
   const prixM2 = (b.prix_affiche && b.surface_m2) ? Math.round(b.prix_affiche / b.surface_m2) : null;
   const acquis = b.statut === 'Acheté';
   const cfLab = dHero.mode === 'reel' ? 'Cashflow réel /mois' : 'Cashflow prévi /mois';
-  const cfVal = dHero.value != null ? (dHero.value>0?'+':'')+fmt(dHero.value)+' €'
-              : (dHero.mode==='sans-loyers' ? 'Non calculé' : '—');
+  const cfVal = dHero.value != null ? (dHero.value>0?'+':'')+fmt(dHero.value)+' €' : 'Non calculé';
   const cfSub = dHero.mode === 'reel' && dHero.hasPrev ? `prévi ${dHero.prev>0?'+':''}${fmt(dHero.prev)} €`
-              : dHero.mode === 'sans-loyers' ? 'aucun loyer saisi'
-              : dHero.hasPrev ? 'sur données estimées' : 'données incomplètes';
+              : dHero.attenteReel ? 'réel dès la saisie des loyers'
+              : dHero.hasPrev ? 'sur données estimées' : 'loyer ou mensualité manquant';
 
   // Ordre des onglets selon l'étape du cycle de vie : en prospection le locatif
   // et la SCI n'ont rien à dire, une fois acquis ils passent devant.
