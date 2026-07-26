@@ -1487,9 +1487,11 @@ async function kanbanDrop(e, colEl) {
   const content = document.getElementById('biens-content');
   if(content) content.innerHTML = renderKanban(getFilteredBiens());
 
+  const bienIdDeplace = draggedBienId;
   const {error} = await db.from('biens')
     .update({statut:newStatut, updated_at:new Date().toISOString()})
     .eq('id', draggedBienId);
+  if(!error && newStatut === 'Acheté') bdCheckMiseEnGestion(bienIdDeplace);   // P4
   if(error) {
     console.error('Erreur update kanban:', error);
     const {data} = await db.from('biens').select('*').order('created_at',{ascending:false});
@@ -2417,6 +2419,8 @@ async function inlineSaveBienField(span, newValue) {
     if(['prix_affiche','frais_notaire','travaux','frais_agence','creation_sci','mensualite_credit','loyer_en_etat','charges_locataire_etat','charge_copro','assurance_logement','taxe_fonciere'].includes(field)) {
       inlineRefreshHero(id);
     }
+    // P4 : le bien vient de basculer en gestion → proposer les gestes qui suivent
+    if(field === 'statut' && newValue === 'Acheté') bdCheckMiseEnGestion(id);
     return true;
   } catch(e) {
     span.classList.remove('saving');
@@ -2655,6 +2659,8 @@ async function renderBienDetail(el) {
     locatif:     { lab:'🔑 Locatif', badge: locActif ? '<span class="bd-badge on">1</span>' : '' },
     sci:         { lab:'🏛️ SCI', badge: sciBien ? '<span class="bd-badge on">✓</span>' : '' },
   };
+  const etapesGestion = bdEtapesGestion(b);   // P4 : SCI, locataire, loyers
+
   // Complétude : les champs sans lesquels les indicateurs de la fiche sont faux
   // ou absents. « cle » = bloquant pour le rendement et le cashflow.
   const BD_CHAMPS = [
@@ -2827,6 +2833,20 @@ async function renderBienDetail(el) {
     <div class="bd-pane" data-pane="locatif">
       ${b.statut !== 'Acheté' ? `
         <div class="bd-note">🔑 Ce bien n'est pas encore au statut « Acheté ». Le suivi locatif (locataire, loyers encaissés, charges réelles) s'activera dès que vous le passerez en acquis.</div>` : ''}
+
+      ${acquis && etapesGestion.some(e => !e.fait) ? `
+      <div class="bd-gestion">
+        <div class="bd-gestion-head">
+          <div>
+            <div class="bd-gestion-ttl">🔑 Mise en gestion incomplète</div>
+            <div class="bd-gestion-sub">${etapesGestion.filter(e=>!e.fait).length} étape${etapesGestion.filter(e=>!e.fait).length>1?'s':''} avant que le suivi de ce bien soit opérationnel</div>
+          </div>
+          <button class="bd-link" onclick="bdOpenMiseEnGestion('${b.id}')">Reprendre</button>
+        </div>
+        <div class="bd-gestion-chips">
+          ${etapesGestion.map(e => `<span class="bd-chip ${e.fait?'done':''}">${e.fait?'✓':'○'} ${esc(e.lab)}</span>`).join('')}
+        </div>
+      </div>` : ''}
 
       <div class="bd-grid-2">
         <div class="bd-block">
@@ -3033,6 +3053,133 @@ async function renderBienDetail(el) {
   </div>`;
 
   switchBienTab(bienDetailTab);
+}
+
+// ═══════════════════════════════════════════════════════════
+//   P4 — MISE EN GESTION AU PASSAGE « ACHETÉ »
+// ═══════════════════════════════════════════════════════════
+// Passer un bien en « Acheté » le fait basculer du pipeline vers la gestion :
+// il apparaît alors dans quatre onglets du Module financier. Sans SCI, sans
+// locataire et sans loyers, il y reste vide. Ces trois gestes sont désormais
+// proposés au moment exact où ils deviennent nécessaires.
+function bdEtapesGestion(b) {
+  const locActif = allLocataires.find(l => l.bien_id === b.id && l.statut === 'Actif') || null;
+  const annee = new Date().getFullYear();
+  const loyersAn = allLoyers.filter(l => l.bien_id === b.id && l.annee === annee);
+  return [
+    { k:'sci', ic:'🏛️', lab:'Rattacher une SCI',
+      sub:"Nécessaire pour alimenter un bilan comptable depuis les loyers et charges réels.",
+      fait: !!b.sci_id,
+      valeur: allSCI.find(s => s.id === b.sci_id)?.nom_sci || null },
+    { k:'loc', ic:'👤', lab:'Enregistrer le locataire',
+      sub:"Bail, loyer hors charges et date d'entrée : la base de tout le suivi locatif.",
+      fait: !!locActif,
+      valeur: locActif ? ([locActif.prenom, locActif.nom].filter(Boolean).join(' ') || 'Locataire actif') : null },
+    { k:'loyers', ic:'📅', lab:`Générer les loyers ${annee}`,
+      sub:"Une ligne par mois, à pointer au fil des encaissements.",
+      fait: loyersAn.length > 0,
+      valeur: loyersAn.length ? `${loyersAn.length} mois créés` : null,
+      bloquePar: locActif ? null : 'le locataire' },
+  ];
+}
+
+async function bdOpenMiseEnGestion(bienId) {
+  const b = allBiens.find(x => x.id === bienId);
+  if(!b) return;
+  if(!allSCI.length && currentUser) await loadSCIList();
+  bdRenderMiseEnGestion(bienId);
+  openModal('modal-detail');
+}
+
+function bdRenderMiseEnGestion(bienId) {
+  const b = allBiens.find(x => x.id === bienId);
+  if(!b) return;
+  const etapes = bdEtapesGestion(b);
+  const restants = etapes.filter(e => !e.fait).length;
+  document.getElementById('detail-titre').textContent = `🔑 Mise en gestion — ${b.titre || 'Bien'}`;
+  document.getElementById('detail-content').innerHTML = `
+    <div style="padding:14px 18px 18px">
+      <div class="bd-note" style="margin-bottom:16px">
+        Ce bien est passé en <strong>« Acheté »</strong> : il alimente désormais le Module financier.
+        ${restants === 0
+          ? 'Tout est en place, vous pouvez suivre ses loyers dès maintenant.'
+          : `Il reste <strong>${restants} étape${restants>1?'s':''}</strong> pour que son suivi soit opérationnel.`}
+      </div>
+
+      <div class="bd-steps">
+        ${etapes.map(e => `
+          <div class="bd-step ${e.fait ? 'done' : ''}">
+            <div class="bd-step-ic">${e.fait ? '✓' : e.ic}</div>
+            <div class="bd-step-body">
+              <div class="bd-step-lab">${e.lab}</div>
+              <div class="bd-step-sub">${e.fait && e.valeur ? esc(e.valeur) : e.sub}</div>
+              ${!e.fait && e.k === 'sci' ? (allSCI.length ? `
+                <div class="bd-step-act">
+                  <select class="form-select" id="mg-sci" style="max-width:260px">
+                    ${allSCI.map(s => `<option value="${s.id}">${esc(s.nom_sci)}</option>`).join('')}
+                  </select>
+                  <button class="bd-link" onclick="bdSaveSciGestion('${b.id}')">Rattacher</button>
+                </div>` : `
+                <div class="bd-step-act">
+                  <span style="font-size:12.5px;color:var(--c-dim)">Aucune SCI créée.</span>
+                  <button class="bd-link" onclick="closeModal('modal-detail');navigate('administration')">Créer une SCI</button>
+                </div>`) : ''}
+              ${!e.fait && e.k === 'loc' ? `
+                <div class="bd-step-act">
+                  <button class="bd-link" onclick="closeModal('modal-detail');openLocataireModal(null,'${b.id}')">＋ Créer le locataire</button>
+                </div>` : ''}
+              ${!e.fait && e.k === 'loyers' ? (e.bloquePar ? `
+                <div class="bd-step-act"><span style="font-size:12.5px;color:var(--c-dim)">Disponible une fois ${e.bloquePar} enregistré.</span></div>` : `
+                <div class="bd-step-act">
+                  <button class="bd-link" onclick="bdGenererLoyers('${b.id}')">📅 Générer les loyers</button>
+                </div>`) : ''}
+            </div>
+          </div>`).join('')}
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:14px;border-top:1px solid var(--c-border)">
+        <button class="btn btn-secondary" onclick="closeModal('modal-detail')">${restants === 0 ? 'Fermer' : 'Plus tard'}</button>
+        <button class="btn btn-primary" onclick="closeModal('modal-detail');bdGoToSuivi('${b.id}')">📅 Ouvrir le suivi mensuel</button>
+      </div>
+    </div>`;
+}
+
+async function bdSaveSciGestion(bienId) {
+  const sciId = document.getElementById('mg-sci')?.value;
+  if(!sciId) return;
+  try {
+    const { error } = await db.from('biens').update({ sci_id: sciId }).eq('id', bienId);
+    if(error) throw error;
+    const b = allBiens.find(x => x.id === bienId);
+    if(b) b.sci_id = sciId;
+    showNotif('✅ SCI rattachée');
+    bdRenderMiseEnGestion(bienId);
+    bdRefresh();
+  } catch(e) { showNotif('Erreur : ' + e.message, true); }
+}
+
+async function bdGenererLoyers(bienId) {
+  const loc = allLocataires.find(l => l.bien_id === bienId && l.statut === 'Actif');
+  if(!loc) { showNotif('Aucun locataire actif sur ce bien', true); return; }
+  if(!loc.date_entree) { showNotif("Renseignez la date d'entrée du locataire", true); return; }
+  const n = await autoGenerateLoyers(loc);
+  if(n > 0) {
+    await loadMfFinancialData();
+    showNotif(`✅ ${n} loyer${n>1?'s':''} généré${n>1?'s':''}`);
+    bdRenderMiseEnGestion(bienId);
+    bdRefresh();
+  } else {
+    showNotif('Aucun loyer à générer pour cette période', true);
+  }
+}
+
+// Appelé après tout passage au statut « Acheté ». N'ouvre la fenêtre que si
+// la mise en gestion est réellement incomplète.
+function bdCheckMiseEnGestion(bienId) {
+  const b = allBiens.find(x => x.id === bienId);
+  if(!b || b.statut !== 'Acheté') return;
+  if(bdEtapesGestion(b).every(e => e.fait)) return;
+  setTimeout(() => bdOpenMiseEnGestion(bienId), 350);
 }
 
 // Galerie photos du bien : ouverte depuis la vignette du rail
@@ -6615,7 +6762,7 @@ function mfFmtSize(bytes) {
 }
 
 // ─── Modal Locataire ───
-function openLocataireModal(id) {
+function openLocataireModal(id, presetBienId) {
   editingLocataireId = id;
   const l = id ? allLocataires.find(x => x.id === id) : null;
   locataireDocsPending = l ? JSON.parse(JSON.stringify(l.documents || [])) : [];
@@ -6676,7 +6823,7 @@ function openLocataireModal(id) {
     <div class="sci-form-group"><label class="sci-form-label">Bien rattaché ${biensAchetes.length===0?'<span style="font-size:11px;color:var(--c-muted)">(aucun bien acheté pour l\'instant)</span>':''}</label>
       <select class="sci-form-input" id="loc-bien">
         <option value="">— Aucun bien rattaché —</option>
-        ${biensAchetes.map(b => `<option value="${b.id}" ${l?.bien_id===b.id?'selected':''}>${b.titre} — ${b.ville||''}</option>`).join('')}
+        ${biensAchetes.map(b => `<option value="${b.id}" ${(l?.bien_id||presetBienId)===b.id?'selected':''}>${b.titre} — ${b.ville||''}</option>`).join('')}
       </select></div>
     <div class="sci-form-row">
       <div class="sci-form-group"><label class="sci-form-label">Type de bail</label>
