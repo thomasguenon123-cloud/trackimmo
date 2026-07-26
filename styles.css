@@ -2109,6 +2109,32 @@ body{background:var(--sb-bg);color:var(--c-text);font-family:var(--font);font-si
   .bd-kpi .v{font-size:17px;}
 }
 
+/* P5 — ponts Marché ↔ Pipeline */
+.marche-ponts{
+  background:var(--accent-wash);border:1px solid var(--accent-border);border-left-width:3px;
+  border-radius:12px;padding:15px 18px;margin-bottom:16px;
+  display:flex;flex-direction:column;gap:11px;
+}
+.marche-ponts-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+.marche-ponts-title{font-size:var(--fs-section);font-weight:700;color:var(--c-text);}
+.marche-ponts-empty{font-size:12.5px;color:var(--c-dim);line-height:1.55;}
+.marche-ponts-list{display:flex;flex-direction:column;gap:6px;}
+.marche-pont-bien{
+  display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;
+  background:var(--c-surface);border:1px solid var(--c-border);border-radius:9px;
+  padding:9px 13px;cursor:pointer;transition:all .15s;font-size:13px;
+}
+.marche-pont-bien:hover{border-color:var(--accent);transform:translateX(2px);}
+.marche-pont-bien .t{font-weight:700;color:var(--c-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.marche-pont-bien .st{font-size:11.5px;color:var(--c-muted);white-space:nowrap;}
+.marche-pont-bien .cf{font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.marche-pont-bien .cf.pos{color:var(--positive);}
+.marche-pont-bien .cf.neg{color:var(--negative);}
+@media(max-width:600px){
+  .marche-pont-bien{grid-template-columns:1fr auto;}
+  .marche-pont-bien .st{display:none;}
+}
+
 /* P3 : tableau de bord en deux blocs */
 .dash-link{font-size:12px;font-weight:600;color:var(--accent);cursor:pointer;text-decoration:none;}
 .dash-link:hover{text-decoration:underline;}

@@ -1874,6 +1874,15 @@ async function renderNouveau(el, bien) {
       </div>
     </div>
   `;
+  // P5 : arrivée depuis « Créer une fiche bien ici » (section Marché)
+  if(!bien && nouveauPrefill) {
+    const v = document.getElementById('f-ville'), c = document.getElementById('f-cp');
+    if(v) v.value = nouveauPrefill.ville || '';
+    if(c) c.value = nouveauPrefill.code_postal || '';
+    showNotif(`📍 ${nouveauPrefill.ville} pré-rempli depuis l'analyse de marché`);
+    nouveauPrefill = null;
+    document.getElementById('f-titre')?.focus();
+  }
   updatePrev();
 }
 
@@ -2708,6 +2717,7 @@ async function renderBienDetail(el) {
         <div class="bd-sub">${[b.ville, b.code_postal, b.type_bien, b.surface_m2 ? b.surface_m2+' m²' : null].filter(Boolean).map(esc).join(' · ')}</div>
       </div>
       <div class="bd-topbar-actions">
+        ${b.ville ? `<button class="btn btn-secondary btn-sm" onclick="bdVoirMarche('${(b.ville||'').replace(/'/g,"\\'")}')">📍 Marché de ${esc(b.ville)}</button>` : ''}
         <button class="btn btn-secondary btn-sm" onclick="openDossierModal('${b.id}')">📄 Dossier banque</button>
         <button class="btn btn-primary btn-sm" onclick="editBien('${b.id}')">✏️ Édition complète</button>
       </div>
@@ -7943,6 +7953,24 @@ function aggregateDVF(rows, typeBien) {
 }
 
 // ── Autocomplete communes ────────────────────────────────────
+// ── P5 : ponts entre le Marché et le Pipeline ────────────────
+let nouveauPrefill = null;   // {ville, code_postal} consommé par renderNouveau
+
+// Marché → formulaire « Ajouter un bien » pré-rempli
+function marcheCreerBien(ville, cp) {
+  nouveauPrefill = { ville, code_postal: cp || '' };
+  navigate('nouveau');
+}
+
+// Fiche bien → analyse de marché de sa commune, recherche lancée d'office
+function bdVoirMarche(ville) {
+  navigate('marche-recherche');
+  setTimeout(() => {
+    const input = document.getElementById('marche-ville-input');
+    if(input) { input.value = ville; marcheSearch(); }
+  }, 80);
+}
+
 async function marcheSuggest(val) {
   clearTimeout(marcheTimer);
   const box = document.getElementById('marche-suggest-list');
@@ -8644,8 +8672,35 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
       Consultez <a href="https://dataviz.cerema.fr/dynmark/" target="_blank" style="color:#0891b2">Dynmark (Cerema)</a> pour les prix au m².
     </div>`;
 
+  // ── P5 : ponts Marché → Pipeline ─────────────────────────────
+  // L'analyse ne doit plus être une impasse : on montre les biens déjà
+  // suivis dans cette commune et on peut créer une fiche pré-remplie.
+  const normVille = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[-\s']+/g,' ').trim();
+  const biensIci = allBiens.filter(x =>
+    normVille(x.ville) === normVille(commune) || (cp && x.code_postal && x.code_postal === cp));
+  const ponts = `
+    <div class="marche-ponts">
+      <div class="marche-ponts-head">
+        <div class="marche-ponts-title">🏘️ Votre pipeline à ${esc(commune)}</div>
+        <button class="bd-link" onclick="marcheCreerBien('${commune.replace(/'/g,"\\'")}','${cp||''}')">➕ Créer une fiche bien ici</button>
+      </div>
+      ${biensIci.length ? `
+      <div class="marche-ponts-list">
+        ${biensIci.map(x => {
+          const d = cfDisplayData(x);
+          return `
+          <div class="marche-pont-bien" onclick="openDetail('${x.id}')">
+            <span class="t">${esc(x.titre || 'Sans titre')}</span>
+            <span class="st">${esc(x.statut || '—')}</span>
+            <span class="cf ${d.value==null?'':d.value>=0?'pos':'neg'}">${d.value!=null?(d.value>0?'+':'')+fmt(d.value)+' €/m':'—'}</span>
+          </div>`;
+        }).join('')}
+      </div>` : `
+      <div class="marche-ponts-empty">Aucun bien suivi dans cette commune pour l'instant — si l'analyse vous convainc, la fiche se crée en un clic, ville et code postal déjà remplis.</div>`}
+    </div>`;
+
   // ── Assemblage final ──────────────────────────────────────────
-  el.innerHTML = header + sec1 + sec2 + sec3 + sec4 + sec5 + sec6 + dvfNote;
+  el.innerHTML = header + ponts + sec1 + sec2 + sec3 + sec4 + sec5 + sec6 + dvfNote;
 
   // ── Dessiner les graphiques ───────────────────────────────────
   setTimeout(() => {
