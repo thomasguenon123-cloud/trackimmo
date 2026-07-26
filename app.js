@@ -2654,6 +2654,23 @@ async function renderBienDetail(el) {
     locatif:     { lab:'🔑 Locatif', badge: locActif ? '<span class="bd-badge on">1</span>' : '' },
     sci:         { lab:'🏛️ SCI', badge: sciBien ? '<span class="bd-badge on">✓</span>' : '' },
   };
+  // Complétude : les champs sans lesquels les indicateurs de la fiche sont faux
+  // ou absents. « cle » = bloquant pour le rendement et le cashflow.
+  const BD_CHAMPS = [
+    { k:'prix_affiche',       lab:'Prix affiché',      tab:'fin',   cle:true  },
+    { k:'loyer_en_etat',      lab:'Loyer estimé',      tab:'fin',   cle:true  },
+    { k:'mensualite_credit',  lab:'Mensualité crédit', tab:'fin',   cle:true  },
+    { k:'surface_m2',         lab:'Surface',           tab:'infos', cle:false },
+    { k:'taxe_fonciere',      lab:'Taxe foncière',     tab:'fin',   cle:false },
+    { k:'charge_copro',       lab:'Charges copro',     tab:'fin',   cle:false },
+    { k:'assurance_logement', lab:'Assurance',         tab:'fin',   cle:false },
+  ];
+  const manquants    = BD_CHAMPS.filter(c => !((parseFloat(b[c.k]) || 0) > 0));
+  const manquantsCle = manquants.filter(c => c.cle);
+  const pctComplet   = Math.round((BD_CHAMPS.length - manquants.length) / BD_CHAMPS.length * 100);
+  const compCls      = manquantsCle.length ? 'ko' : manquants.length ? 'warn' : 'ok';
+  const tabCible     = (manquantsCle[0] || manquants[0])?.tab || 'fin';
+
   // Onglet Financement : décomposition de l'acquisition et poids du crédit
   const finSplit = [
     { lab:'Prix',     val: parseFloat(b.prix_affiche)||0,  col:'var(--accent)' },
@@ -2724,6 +2741,18 @@ async function renderBienDetail(el) {
           <div class="bd-rail-lab">Dernière action</div>
           ${actions.length ? `<div class="bd-rail-val">${esc(actions[0].type_action)}</div><div class="bd-rail-sub">${fmtActionDate(actions[0].date_action)}</div>`
                            : `<div class="bd-rail-none">Aucune — <button class="bd-link" onclick="openActionModal('${b.id}')">en ajouter</button></div>`}
+        </div>
+        <div class="bd-rail-block">
+          <div class="bd-rail-lab">Complétude de la fiche</div>
+          <div class="bd-prog"><div class="bd-prog-fill ${compCls}" style="width:${pctComplet}%"></div></div>
+          ${manquants.length === 0
+            ? `<div class="bd-prog-txt ok">✓ Tous les champs sont renseignés</div>`
+            : `<div class="bd-prog-txt ${compCls}">
+                 <strong>${manquants.length} champ${manquants.length>1?'s':''} manquant${manquants.length>1?'s':''}</strong>
+                 ${manquantsCle.length ? ' pour calculer la rentabilité' : ' pour affiner le cashflow'}
+               </div>
+               <div class="bd-prog-list">${manquants.slice(0,3).map(c=>`<span>· ${c.lab}</span>`).join('')}${manquants.length>3?`<span>· +${manquants.length-3} autre${manquants.length-3>1?'s':''}</span>`:''}</div>
+               <button class="bd-link" style="margin-top:2px" onclick="switchBienTab('${tabCible}')">✏️ Compléter</button>`}
         </div>
         ${docs.length ? `
         <div class="bd-rail-block">
