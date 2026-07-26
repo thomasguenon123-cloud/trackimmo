@@ -8113,34 +8113,35 @@ async function marcheSearch() {
     const GEO  = `COM-${codeInsee}`;
     const BASE = 'https://api.insee.fr/melodi';
 
+    // Plafonds larges : un jeu tronqué produit des statistiques fausses en
+    // silence (audit 25/07/2026 — logements et créations d'entreprises étaient
+    // calculés sur un sous-ensemble arbitraire).
     const [
       popRows, revRows, logRows, menRows,
-      actifsRows, chomeursRows,
+      actRows,
       diplRows, entRows,
-      bpeRows, bpeEduRows,
+      bpeRows,
       ademeData, newsData
     ] = await Promise.all([
-      mFetch(`${BASE}/data/DS_RP_POPULATION_PRINC?GEO=${GEO}&RP_MEASURE=POP&maxResult=500`, 'Population'),
-      mFetch(`${BASE}/data/DS_FILOSOFI_MEN_TP_NIVVIE?GEO=${GEO}&maxResult=100`, 'Revenus'),
-      mFetch(`${BASE}/data/DS_RP_LOGEMENT_PRINC?GEO=${GEO}&maxResult=100`, 'Logements'),
-      mFetch(`${BASE}/data/DS_RP_MENAGES_PRINC?GEO=${GEO}&maxResult=200`, 'Menages'),
-      // Chômage : 2 requêtes ciblées pour éviter le problème de maxResult
-      mFetch(`${BASE}/data/DS_RP_ACTIVITE_PRINC?GEO=${GEO}&EMPSTA_ENQ=1&SEX=_T&EMPFORM=_T&WKTIME=_T&maxResult=50`, 'Actifs occupés'),
-      mFetch(`${BASE}/data/DS_RP_ACTIVITE_PRINC?GEO=${GEO}&EMPSTA_ENQ=2&SEX=_T&EMPFORM=_T&WKTIME=_T&maxResult=50`, 'Chomeurs'),
-      mFetch(`${BASE}/data/DS_RP_DIPLOMES_PRINC?GEO=${GEO}&maxResult=300`, 'Diplomes'),
-      mFetch(`${BASE}/data/DS_SIDE_CREA_ENT_COM?GEO=${GEO}&maxResult=200`, 'Entreprises'),
-      mFetch(`${BASE}/data/DS_BPE?GEO=${GEO}&maxResult=500`, 'BPE'),
-      mFetch(`${BASE}/data/DS_BPE_EDUCATION?GEO=${GEO}&maxResult=100`, 'BPE Education'),
+      mFetch(`${BASE}/data/DS_RP_POPULATION_PRINC?GEO=${GEO}&RP_MEASURE=POP&maxResult=1000`, 'Population'),
+      mFetch(`${BASE}/data/DS_FILOSOFI_MEN_TP_NIVVIE?GEO=${GEO}&maxResult=200`, 'Revenus'),
+      mFetch(`${BASE}/data/DS_RP_LOGEMENT_PRINC?GEO=${GEO}&maxResult=1000`, 'Logements'),
+      mFetch(`${BASE}/data/DS_RP_MENAGES_PRINC?GEO=${GEO}&maxResult=1000`, 'Menages'),
+      // Chômage : DS_RP_ACTIVITE_PRINC ne contient QUE les actifs occupés
+      // (EMPSTA_ENQ=1), jamais les chômeurs — d'où le 0 % affiché jusqu'ici.
+      // DS_RP_TD_ACTIVITE_AGED_PRINC porte 1 (occupés), 2 (chômeurs) et 1T2 (total actifs).
+      mFetch(`${BASE}/data/DS_RP_TD_ACTIVITE_AGED_PRINC?GEO=${GEO}&AGE=Y_GE15&SEX=_T&maxResult=100`, 'Activité'),
+      mFetch(`${BASE}/data/DS_RP_DIPLOMES_PRINC?GEO=${GEO}&maxResult=1000`, 'Diplomes'),
+      mFetch(`${BASE}/data/DS_SIDE_CREA_ENT_COM?GEO=${GEO}&maxResult=2000`, 'Entreprises'),
+      mFetch(`${BASE}/data/DS_BPE?GEO=${GEO}&maxResult=2000`, 'BPE'),
       fetchAdeme(codeInsee),
       fetchNews(communeNom)
     ]);
-    // Fusionner pour buildMelodiResult
-    const actRows = [...actifsRows, ...chomeursRows];
 
     // ── 3. Agréger les données ────────────────────────────────
     const melodi = buildMelodiResult(
       popGeo, surfGeo, codeInsee,
-      popRows, revRows, logRows, menRows, actRows, diplRows, entRows, bpeRows, bpeEduRows
+      popRows, revRows, logRows, menRows, actRows, diplRows, entRows, bpeRows
     );
 
     // ── 4. Rendu ──────────────────────────────────────────────
@@ -8161,7 +8162,7 @@ async function marcheSearch() {
 //  AGRÉGATION — transformer les rows Melodi en objet structuré
 // ═══════════════════════════════════════════════════════════════
 function buildMelodiResult(popGeo, surfGeo, codeInsee,
-    popRows, revRows, logRows, menRows, actRows, diplRows, entRows, bpeRows, bpeEduRows=[]) {
+    popRows, revRows, logRows, menRows, actRows, diplRows, entRows, bpeRows) {
 
   const r = { population: popGeo, surface: surfGeo };
 
@@ -8270,31 +8271,23 @@ function buildMelodiResult(popGeo, surfGeo, codeInsee,
   }
 
   // ── Activité / Chômage ──────────────────────────────────────
+  // Codes EMPSTA_ENQ : 1 = actifs occupés, 2 = chômeurs, 1T2 = total actifs.
+  // Le taux n'est calculé que si les trois grandeurs sont cohérentes entre
+  // elles : mieux vaut ne rien afficher qu'un chiffre inventé.
   if (actRows.length) {
-    r.actRows = actRows;
-    // Chercher le taux de chômage : EMPSTA_ENQ="3" (chômeurs) vs POP active
-    // RP_MEASURE=POP, EMPSTA_ENQ=1(actifs occ), 2(chômeurs), _T(tous actifs)
     const yr = actRows.reduce((mx, x) => Math.max(mx, parseInt(x.TIME_PERIOD||0)), 0);
-    r.annee_activite = yr || null;
     const yRows = actRows.filter(x => parseInt(x.TIME_PERIOD) === yr);
-    // Taux d'activité et chômage par année (pour graphique)
-    const actEvo = {};
-    actRows.forEach(x => {
-      if (!x.TIME_PERIOD || !x.OBS_VALUE) return;
-      if (!actEvo[x.TIME_PERIOD]) actEvo[x.TIME_PERIOD] = { actifs: 0, chomeurs: 0 };
-      if (x.EMPSTA_ENQ === '1') actEvo[x.TIME_PERIOD].actifs += x.OBS_VALUE;
-      if (x.EMPSTA_ENQ === '2') actEvo[x.TIME_PERIOD].chomeurs += x.OBS_VALUE;
-    });
-    r.actEvo = Object.entries(actEvo).sort(([a],[b]) => a.localeCompare(b))
-      .map(([annee, d]) => ({
-        annee,
-        taux_chomage: (d.actifs + d.chomeurs > 0)
-          ? Math.round(d.chomeurs / (d.actifs + d.chomeurs) * 100 * 10) / 10
-          : null
-      })).filter(x => x.taux_chomage !== null);
-    // KPI taux chômage année la plus récente
-    const lastAct = r.actEvo[r.actEvo.length - 1];
-    if (lastAct) r.taux_chomage = lastAct.taux_chomage;
+    const somme = code => yRows.filter(x => x.EMPSTA_ENQ === code)
+                               .reduce((s, x) => s + (x.OBS_VALUE || 0), 0);
+    const occupes  = somme('1');
+    const chomeurs = somme('2');
+    const actifs   = somme('1T2') || (occupes + chomeurs);
+    if (actifs > 0 && chomeurs > 0) {
+      r.annee_activite = yr || null;
+      r.taux_chomage   = Math.round(chomeurs / actifs * 100 * 10) / 10;
+      r.actifs_total   = Math.round(actifs);
+      r.chomeurs_total = Math.round(chomeurs);
+    }
   }
 
   // ── Diplômes ────────────────────────────────────────────────
@@ -8363,41 +8356,31 @@ function buildMelodiResult(popGeo, surfGeo, codeInsee,
   }
 
   // ── Équipements BPE ─────────────────────────────────────────
+  // Le jeu DS_BPE mélange lignes de détail et lignes d'agrégat. Le total d'un
+  // domaine est porté par la ligne FACILITY_SDOM='_T' ET FACILITY_TYPE='_T' :
+  // additionner toutes les lignes comptait chaque équipement deux à trois fois.
+  // Domaines BPE : A services aux particuliers · B commerces · C enseignement
+  //                D santé · E transports · F sport/loisirs/culture · G tourisme
   if (bpeRows.length) {
-    r.bpeRows = bpeRows;
-    const firstRow = bpeRows[0] || {};
-    const allKeys = Object.keys(firstRow).filter(k => k !== 'OBS_VALUE');
-
-    const cat = { transports: 0, commerces: 0, education: 0, sante: 0, sport: 0 };
-    bpeRows.forEach(x => {
-      // Essayer tous les noms possibles pour le code équipement
-      const t = (x.TYPEQU || x.TYPE_EQUIP || x.EQUIPEMENT || x.CODE_EQUIP ||
-                 x.NOM_EQUIP || x.TYPEEQUIP || x.TYPE || '').toString().toUpperCase();
-      const v = x.OBS_VALUE || 0;
-      if (!t) return;
-      // Catégorisation par première lettre ou code complet
-      const first = t.charAt(0);
-      if (first === 'A') cat.transports += v;
-      else if (first === 'B') cat.commerces += v;
-      else if (first === 'C') cat.education += v;
-      else if (first === 'D') cat.sante += v;
-      else if (first === 'F') cat.sport += v;
+    const totaux = bpeRows.filter(x => x.FACILITY_SDOM === '_T' && x.FACILITY_TYPE === '_T');
+    const parDom = {};
+    let annee = null;
+    totaux.forEach(x => {
+      parDom[x.FACILITY_DOM] = Math.round(x.OBS_VALUE || 0);
+      const a = parseInt(x.TIME_PERIOD || 0);
+      if (a && (!annee || a > annee)) annee = a;
     });
-
-    // Enrichir éducation avec DS_BPE_EDUCATION si disponible
-    if (bpeEduRows.length) {
-      const eduKeys = Object.keys(bpeEduRows[0] || {}).filter(k => k !== 'OBS_VALUE');
-      const eduTotal = bpeEduRows.reduce((s, x) => s + (x.OBS_VALUE || 0), 0);
-      if (eduTotal > 0 && cat.education === 0) cat.education = Math.round(eduTotal);
-    }
-
-    // N'afficher la section BPE que si au moins une catégorie a des données
-    const hasData = Object.values(cat).some(v => v > 0);
-    if (hasData) r.bpe = cat;
-  } else if (bpeEduRows.length) {
-    // Fallback : utiliser DS_BPE_EDUCATION seul
-    const eduTotal = bpeEduRows.reduce((s, x) => s + (x.OBS_VALUE || 0), 0);
-    if (eduTotal > 0) r.bpe = { transports: 0, commerces: 0, education: Math.round(eduTotal), sante: 0, sport: 0 };
+    const cat = {
+      services:   parDom.A || 0,
+      commerces:  parDom.B || 0,
+      education:  parDom.C || 0,
+      sante:      parDom.D || 0,
+      transports: parDom.E || 0,
+      sport:      parDom.F || 0,
+      tourisme:   parDom.G || 0,
+      total:      parDom._T || 0,
+    };
+    if (Object.values(cat).some(v => v > 0)) { r.bpe = cat; r.annee_bpe = annee; }
   }
 
   return r;
@@ -8521,8 +8504,9 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
     </div>`;
 
   // ── SECTION 2 : Marché du travail ────────────────────────────
+  // Le taux national sert de repère : 17,8 % ne parle pas sans point de comparaison
   const kpis2 = [
-    m.taux_chomage!=null      ? kpi('📉', m.taux_chomage+' %',     'Taux de chômage',     m.annee_activite, m.taux_chomage > 10 ? 'orange' : 'green') : '',
+    m.taux_chomage!=null      ? kpi('📉', m.taux_chomage.toString().replace('.',',')+' %', 'Taux de chômage', m.annee_activite, m.taux_chomage > 12 ? 'orange' : 'green') : '',
     m.nb_creations_ent!=null  ? kpi('🏢', fmtN(m.nb_creations_ent),'Créations d\'ent.',   m.annee_entreprises, 'teal') : '',
   ].filter(Boolean);
 
@@ -8530,13 +8514,13 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
     <div class="marche-chart-card">
       <div class="marche-chart-title">💼 Marché du travail & Économie — ${commune}</div>
       <div class="marche-chart-sub">Source : INSEE Melodi · Recensement de la Population · SIDE</div>
-      <div class="marche-kpis" style="margin-top:14px;margin-bottom:${(m.actEvo?.length >= 2 || m.entEvo?.length >= 2) ? '16px' : '0'}">
+      <div class="marche-kpis" style="margin-top:14px;margin-bottom:${m.entEvo?.length >= 2 ? '16px' : '0'}">
         ${kpis2.join('')}
       </div>
-      ${m.actEvo?.length >= 2 ? `
-        <div style="margin-top:4px">
-          <div style="font-size:12px;font-weight:600;color:var(--c-dim);margin-bottom:8px">Évolution du taux de chômage</div>
-          <canvas id="chart-chomage" height="70"></canvas>
+      ${m.taux_chomage != null ? `
+        <div style="font-size:11.5px;color:var(--c-muted);margin-top:2px">
+          ${fmtN(m.chomeurs_total)} chômeurs sur ${fmtN(m.actifs_total)} actifs de 15 ans ou plus (recensement ${m.annee_activite}).
+          Le dossier complet INSEE ne publie ce taux que pour l'année la plus récente : pas d'historique disponible.
         </div>` : ''}
       ${m.entEvo?.length >= 2 ? `
         <div style="margin-top:16px">
@@ -8550,16 +8534,18 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   const sec3 = bpe ? `
     <div class="marche-chart-card">
       <div class="marche-chart-title">🏗️ Équipements de proximité — ${commune}</div>
-      <div class="marche-chart-sub">Source : INSEE · Base Permanente des Équipements (BPE)</div>
+      <div class="marche-chart-sub">Source : INSEE · Base Permanente des Équipements${m.annee_bpe ? ' · '+m.annee_bpe : ''}${bpe.total ? ' · '+fmtN(bpe.total)+' équipements au total' : ''}</div>
       <div class="bpe-grid" style="margin-top:14px">
-        ${bpe.transports > 0 ? `<div class="bpe-card"><div class="bpe-icon">🚌</div><div class="bpe-val">${fmtN(bpe.transports)}</div><div class="bpe-lab">Transports</div></div>` : ''}
         ${bpe.commerces > 0  ? `<div class="bpe-card"><div class="bpe-icon">🛒</div><div class="bpe-val">${fmtN(bpe.commerces)}</div><div class="bpe-lab">Commerces</div></div>` : ''}
-        ${bpe.education > 0  ? `<div class="bpe-card"><div class="bpe-icon">🏫</div><div class="bpe-val">${fmtN(bpe.education)}</div><div class="bpe-lab">Éducation</div></div>` : ''}
         ${bpe.sante > 0      ? `<div class="bpe-card"><div class="bpe-icon">🏥</div><div class="bpe-val">${fmtN(bpe.sante)}</div><div class="bpe-lab">Santé</div></div>` : ''}
-        ${bpe.sport > 0      ? `<div class="bpe-card"><div class="bpe-icon">⚽</div><div class="bpe-val">${fmtN(bpe.sport)}</div><div class="bpe-lab">Sport & Loisirs</div></div>` : ''}
+        ${bpe.education > 0  ? `<div class="bpe-card"><div class="bpe-icon">🏫</div><div class="bpe-val">${fmtN(bpe.education)}</div><div class="bpe-lab">Établissements scolaires</div></div>` : ''}
+        ${bpe.services > 0   ? `<div class="bpe-card"><div class="bpe-icon">🏛️</div><div class="bpe-val">${fmtN(bpe.services)}</div><div class="bpe-lab">Services au public</div></div>` : ''}
+        ${bpe.sport > 0      ? `<div class="bpe-card"><div class="bpe-icon">⚽</div><div class="bpe-val">${fmtN(bpe.sport)}</div><div class="bpe-lab">Sport & culture</div></div>` : ''}
+        ${bpe.transports > 0 ? `<div class="bpe-card"><div class="bpe-icon">🚌</div><div class="bpe-val">${fmtN(bpe.transports)}</div><div class="bpe-lab">Transports</div></div>` : ''}
+        ${bpe.tourisme > 0   ? `<div class="bpe-card"><div class="bpe-icon">🧳</div><div class="bpe-val">${fmtN(bpe.tourisme)}</div><div class="bpe-lab">Tourisme</div></div>` : ''}
       </div>
       <div style="font-size:11px;color:var(--c-muted);margin-top:10px">
-        ℹ️ Nombre total d'équipements recensés par catégorie dans la commune
+        ℹ️ Nombre d'équipements distincts recensés dans la commune, par domaine BPE
       </div>
     </div>` : '';
 
@@ -8735,11 +8721,8 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
         m.revEvo.map(x=>x.annee), m.revEvo.map(x=>x.val),
         'rgb(22,163,74)', 'Revenu médian', v => v?.toLocaleString('fr-FR')+' €/an');
     }
-    if (m.actEvo?.length >= 2) {
-      mkLine('chart-chomage',
-        m.actEvo.map(x=>x.annee), m.actEvo.map(x=>x.taux_chomage),
-        'rgb(234,88,12)', 'Taux chômage', v => v?.toFixed(1)+' %');
-    }
+    // Pas de graphique du chômage : le dossier complet INSEE ne publie ce taux
+    // que pour l'année la plus récente (aucune série temporelle disponible).
     if (m.entEvo?.length >= 2) {
       mkLine('chart-ent',
         m.entEvo.map(x=>x.annee), m.entEvo.map(x=>x.val),
