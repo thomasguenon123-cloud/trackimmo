@@ -8573,8 +8573,8 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
             </a>`).join('')}
         </div>
         <div style="font-size:11px;color:var(--c-muted);margin-top:12px;padding-top:10px;border-top:1px solid var(--c-border)">
-          💡 Les actualités NewsAPI s'affichent automatiquement si votre clé est configurée dans les Paramètres.
-          La clé <strong>ba1e5711...</strong> est déjà enregistrée — elle sera active à la prochaine recherche.
+          💡 Le fil d'actualités locales est momentanément indisponible. En attendant, ces liens ouvrent
+          une recherche ciblée sur ${commune}.
         </div>
       </div>`;
   }
@@ -9818,7 +9818,8 @@ function showNotif(msg,isError=false){
   setTimeout(()=>el.classList.remove('show'),3000);
 }
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
-// FND-001 : nettoyer la clé NewsAPI qui était hardcodée en localStorage (security: clé compromise, rotée).
+// FND-006 : purge de l'ancienne clé NewsAPI stockée en localStorage. La clé vit désormais
+// uniquement dans le secret Supabase NEWSAPI_KEY, lu par l'Edge Function news-proxy.
 localStorage.removeItem('ti_newsapi_key');
 document.addEventListener('DOMContentLoaded', init);
 
