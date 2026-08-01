@@ -8353,8 +8353,13 @@ async function fetchAdeme(codeInsee) {
 async function fetchNews(communeNom) {
   // FND-001 : la clé NewsAPI vit côté serveur (Edge Function news-proxy).
   // Le client n'appelle plus newsapi.org directement, ni de proxies CORS tiers.
-  const queryEco = `${communeNom} économie emploi entreprise`;
-  const queryImmo = `${communeNom} immobilier logement`;
+  // La commune reste obligatoire (AND), les thèmes deviennent alternatifs (OR).
+  // L'ancienne forme cumulait 4 termes implicitement liés — « Poitiers économie
+  // emploi entreprise » ne matchait quasiment jamais, ce qui rendait le repli sur
+  // les liens permanent alors même que la clé NewsAPI était valide.
+  // Les parenthèses supposent news-proxy en version >= 4 (regex élargi).
+  const queryEco = `${communeNom} AND (économie OR emploi OR entreprise)`;
+  const queryImmo = `${communeNom} AND (immobilier OR logement)`;
 
   try {
     // 1. Tentative : actualités économie locale
