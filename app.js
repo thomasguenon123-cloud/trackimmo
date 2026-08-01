@@ -484,6 +484,127 @@ const PHASES = [
   {key:'administratif',label:'📋 Administratif',dot:'phase-administratif',defaultStatut:'Administratifs'},
   {key:'finalise',label:'✅ Finalisé',dot:'phase-finalise',defaultStatut:'Acheté'},
 ];
+
+// Regroupement propre au tableau de bord et au filtre par phase. Il diverge
+// VOLONTAIREMENT de PHASE_MAP : « Accord trouve ! » compte ici en negociation
+// (l'accord se decroche au terme de la negociation) alors que PHASE_MAP le
+// range en banque, et « Abandonne » y est isole au lieu d'etre noye dans
+// « finalise ». Cette liste etait ecrite deux fois a l'identique — accueil et
+// filterByPhase — et rien ne garantissait qu'elles restent d'accord.
+const PHASES_ACCUEIL = {
+  info:  b => [null,'Renseignements Web','Vendeur contacté (1ère)','Vendeur contacté (2ème)','Vendeur contacté (3ème)'].includes(b.statut),
+  nego:  b => (b.statut||'').includes('offre') || (b.statut||'').includes('Contre') || b.statut === 'Accord trouvé !',
+  banq:  b => ['Rendez-vous banque','Dossier déposé','Obtention crédit','Dossier non déposé'].includes(b.statut),
+  fin:   b => ['Compromis signé','Acheté','Administratifs'].includes(b.statut),
+  aband: b => b.statut === 'Abandonné',
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  TI_BIENS — REGISTRE DES CHAMPS « BIENS », SOURCE UNIQUE
+// ═══════════════════════════════════════════════════════════════
+// Avant ce registre (01/08/2026), la connaissance des champs vivait dispersee
+// dans ~10 000 lignes : la liste des statuts etait recopiee a 4 endroits, la
+// correspondance balise -> classe CSS a 4 endroits, la table des emojis a 3,
+// les types de bien a 4. Ces copies avaient DIVERGE, avec une consequence
+// silencieuse : le formulaire de creation/edition n'offrait que 17 des 19
+// statuts. Ouvrir un bien en « Contre offre - Refusee » ou « Dossier non
+// depose » puis l'enregistrer le faisait retomber sur la 1ere option de la
+// liste — le bien perdait sa position dans le pipeline sans aucun message.
+//
+// Regle : toute nouvelle lecture de ces listes passe par TI_BIENS. Ne jamais
+// recopier une enumeration en dur.
+const TI_BIENS = {
+  // Derive de PHASE_MAP : un statut sans phase n'existe pas, et l'inverse non
+  // plus. Les deux listes ne peuvent donc plus diverger par construction.
+  get STATUTS() { return Object.keys(PHASE_MAP); },
+
+  TYPES: ['Studio','T1','T2','T3','T4+','Immeuble','Parking','Autre'],
+
+  SOURCES: ['SeLoger','LeBonCoin','PAP','Logic-Immo','Bien\'ici','Jinka','Réseau agence','Particulier','Autre'],
+
+  // Une balise porte sa valeur, son emoji et sa classe CSS au meme endroit.
+  BALISES: [
+    { v:'Veille',         emoji:'🔍', cls:'tag-veille' },
+    { v:'Négociation',    emoji:'💬', cls:'tag-negociation' },
+    { v:'Dossier banque', emoji:'🏦', cls:'tag-dossier-banque' },
+    { v:'Coup de cœur',   emoji:'⭐', cls:'tag-coup-de-coeur' },
+  ],
+
+  // Les 27 champs metier de la table biens (hors technique : id, user_id,
+  // timestamps, is_test, sci_id, photos*, documents*).
+  //   k          nom de colonne Supabase
+  //   lab        libelle court, celui affiche dans l'app
+  //   type       gouverne le formatage et, a terme, la coercion a l'ecriture
+  //   groupe     section metier — sert au regroupement d'un futur export
+  //   tab        onglet de la fiche bien ou le champ se saisit
+  //   completude rang du champ dans l'indicateur de completude (absent = exclu).
+  //              L'ordre est une decision produit — il pilote les 3 noms cites
+  //              dans le rail — et non un effet de bord de l'ordre du schema.
+  //   cle        son absence empeche tout calcul de rentabilite
+  CHAMPS: [
+    { k:'titre',                     lab:"Titre de l'annonce",   type:'texte',     groupe:'bien',        tab:'infos', requis:true },
+    { k:'ville',                     lab:'Ville',                type:'texte',     groupe:'bien',        tab:'infos' },
+    { k:'code_postal',               lab:'Code postal',          type:'texte',     groupe:'bien',        tab:'infos' },
+    { k:'type_bien',                 lab:'Type de bien',         type:'enum',      groupe:'bien',        tab:'infos', valeurs:'TYPES' },
+    { k:'surface_m2',                lab:'Surface',              type:'m2',        groupe:'bien',        tab:'infos', completude:4, cle:false },
+    { k:'statut',                    lab:'Statut',               type:'enum',      groupe:'bien',        tab:'infos', valeurs:'STATUTS' },
+    { k:'balise',                    lab:'Balise',               type:'enum',      groupe:'bien',        tab:'infos', valeurs:'BALISES' },
+    { k:'source',                    lab:'Source',               type:'enum',      groupe:'bien',        tab:'infos', valeurs:'SOURCES' },
+    { k:'lien_annonce',              lab:"Lien de l'annonce",    type:'url',       groupe:'bien',        tab:'infos' },
+
+    { k:'prix_affiche',              lab:'Prix affiché',         type:'euro',      groupe:'acquisition', tab:'fin',   completude:1, cle:true },
+    { k:'frais_notaire',             lab:'Frais de notaire',     type:'euro',      groupe:'acquisition', tab:'fin',   calcule:true },
+    { k:'travaux',                   lab:'Travaux',              type:'euro',      groupe:'acquisition', tab:'fin' },
+    { k:'frais_agence',              lab:"Frais d'agence",       type:'euro',      groupe:'acquisition', tab:'fin' },
+    { k:'creation_sci',              lab:'Création SCI',         type:'euro',      groupe:'acquisition', tab:'fin' },
+
+    { k:'mensualite_credit',         lab:'Mensualité crédit',    type:'euro_mois', groupe:'credit',      tab:'fin',   completude:3, cle:true },
+    { k:'duree_credit_ans',          lab:'Durée du crédit',      type:'annees',    groupe:'credit',      tab:'fin' },
+
+    { k:'charge_copro',              lab:'Charges copro',        type:'euro_mois', groupe:'charges',     tab:'fin',   completude:6, cle:false },
+    { k:'assurance_logement',        lab:'Assurance',            type:'euro_mois', groupe:'charges',     tab:'fin',   completude:7, cle:false },
+    { k:'taxe_fonciere',             lab:'Taxe foncière',        type:'euro_mois', groupe:'charges',     tab:'fin',   completude:5, cle:false },
+
+    { k:'loyer_en_etat',             lab:'Loyer estimé',         type:'euro_mois', groupe:'loyers',      tab:'fin',   completude:2, cle:true },
+    { k:'charges_locataire_etat',    lab:'Charges locataire',    type:'euro_mois', groupe:'loyers',      tab:'fin' },
+    { k:'loyer_apres_travaux',       lab:'Loyer après travaux',  type:'euro_mois', groupe:'loyers',      tab:'fin' },
+    { k:'charges_locataire_travaux', lab:'Charges loc. après travaux', type:'euro_mois', groupe:'loyers', tab:'fin' },
+
+    { k:'intermediaire',             lab:'Intermédiaire',        type:'texte',     groupe:'contact',     tab:'infos' },
+    { k:'telephone',                 lab:'Téléphone',            type:'tel',       groupe:'contact',     tab:'infos' },
+    { k:'mail',                      lab:'Mail',                 type:'email',     groupe:'contact',     tab:'infos' },
+    { k:'notes',                     lab:'Notes',                type:'notes',     groupe:'contact',     tab:'infos' },
+  ],
+
+  champ(k) { return this.CHAMPS.find(c => c.k === k) || null; },
+  balise(v) { return this.BALISES.find(b => b.v === v) || null; },
+
+  // Options d'un <select>, marquage de la valeur courante inclus. Remplace les
+  // .map(...) recopies dans chaque formulaire.
+  options(liste, courant, vide) {
+    const vals = (liste === 'BALISES') ? this.BALISES.map(b => b.v) : this[liste];
+    const tete = vide ? `<option value="">${vide}</option>` : '';
+    return tete + vals.map(v =>
+      `<option value="${v}"${v === courant ? ' selected' : ''}>${v}</option>`).join('');
+  },
+};
+
+// Formate une valeur de bien pour l'affichage ou l'export. Une valeur absente
+// rend '' et jamais 0 : un loyer non saisi n'est pas un loyer nul (regle issue
+// de l'audit Marche).
+function tiFormatChamp(bien, k) {
+  const c = TI_BIENS.champ(k);
+  if (!c) return '';
+  const brut = bien?.[k];
+  if (brut === null || brut === undefined || brut === '') return '';
+  switch (c.type) {
+    case 'euro':      return `${fmt(parseFloat(brut) || 0)} €`;
+    case 'euro_mois': return `${fmt(parseFloat(brut) || 0)} €/mois`;
+    case 'm2':        return `${fmt(parseFloat(brut) || 0)} m²`;
+    case 'annees':    { const n = parseInt(brut, 10) || 0; return `${n} an${n > 1 ? 's' : ''}`; }
+    default:          return String(brut);
+  }
+}
 let sciOui = false;
 
 
@@ -983,11 +1104,11 @@ function renderAccueil(el) {
   const statutGroups = {};
   allBiens.forEach(b => { statutGroups[b.statut||'—'] = (statutGroups[b.statut||'—']||0)+1; });
 
-  const phaseInfo  = allBiens.filter(b=>[null,'Renseignements Web','Vendeur contacté (1ère)','Vendeur contacté (2ème)','Vendeur contacté (3ème)'].includes(b.statut)).length;
-  const phaseNego  = allBiens.filter(b=>(b.statut||'').includes('offre')||(b.statut||'').includes('Contre')||b.statut==='Accord trouvé !').length;
-  const phaseBanq  = allBiens.filter(b=>['Rendez-vous banque','Dossier déposé','Obtention crédit','Dossier non déposé'].includes(b.statut)).length;
-  const phaseFin   = allBiens.filter(b=>['Compromis signé','Acheté','Administratifs'].includes(b.statut)).length;
-  const phaseAband = allBiens.filter(b=>b.statut==='Abandonné').length;
+  const phaseInfo  = allBiens.filter(PHASES_ACCUEIL.info).length;
+  const phaseNego  = allBiens.filter(PHASES_ACCUEIL.nego).length;
+  const phaseBanq  = allBiens.filter(PHASES_ACCUEIL.banq).length;
+  const phaseFin   = allBiens.filter(PHASES_ACCUEIL.fin).length;
+  const phaseAband = allBiens.filter(PHASES_ACCUEIL.aband).length;
 
   // Chart et top : périmètre prospection uniquement (le réel vit dans le bloc Patrimoine)
   const sorted = [...prospection].sort((a,b)=>computeCF(b)-computeCF(a));
@@ -1175,18 +1296,14 @@ function renderBiens(el) {
         <div class="filter-bar">
           <span class="filter-bar-label">Filtres</span>
           <div class="filter-sep"></div>
+          <!-- Le filtre n'offrait que 10 statuts sur 19 et oubliait le type
+               « Autre » : on ne pouvait pas filtrer sur un bien range dans un
+               statut absent de la liste. Les deux listes viennent du registre. -->
           <select class="filter-select" id="f-statut" onchange="applyFilters()">
-            <option value="">Tous les statuts</option>
-            <option>Renseignements Web</option><option>Vendeur contacté (1ère)</option>
-            <option>Vendeur contacté (2ème)</option><option>1ère offre - Envoyée</option>
-            <option>Accord trouvé !</option><option>Rendez-vous banque</option>
-            <option>Dossier déposé</option><option>Compromis signé</option>
-            <option>Acheté</option><option>Abandonné</option>
+            ${TI_BIENS.options('STATUTS', null, 'Tous les statuts')}
           </select>
           <select class="filter-select" id="f-type" onchange="applyFilters()" style="min-width:110px">
-            <option value="">Tous types</option>
-            <option>Studio</option><option>T1</option><option>T2</option>
-            <option>T3</option><option>T4+</option><option>Immeuble</option><option>Parking</option>
+            ${TI_BIENS.options('TYPES', null, 'Tous types')}
           </select>
           <input class="filter-input" id="f-ville" placeholder="Ville..." oninput="applyFilters()">
           <select class="filter-select" id="f-rent" onchange="applyFilters()" style="min-width:110px">
@@ -1372,8 +1489,7 @@ function renderKanban(biens) {
     });
 
   } else if(kanbanGroup === 'type') {
-    const TYPES = ['Studio','T1','T2','T3','T4+','Immeuble','Parking','Autre'];
-    const presentTypes = TYPES.filter(t => biens.some(b=>b.type_bien===t));
+    const presentTypes = TI_BIENS.TYPES.filter(t => biens.some(b=>b.type_bien===t));
     if(!presentTypes.length) return '<div class="empty-state"><h3>Aucun type renseigné</h3><p>Ajoutez des types à vos biens pour utiliser ce regroupement.</p></div>';
     columns = presentTypes.map(t => ({
       key: t, label: '🏠 '+t, dot: 'phase-generic', biens: biens.filter(b=>b.type_bien===t)
@@ -1425,7 +1541,7 @@ function renderKanbanCard(b, draggable=true) {
   const cfTxt = d.value != null
     ? (d.value>0?'+':'')+fmt(d.value)+'€'+(d.mode==='reel'?' réel':'')
     : '—';
-  const bmap = {'Veille':'tag-veille','Négociation':'tag-negociation','Dossier banque':'tag-dossier-banque','Coup de cœur':'tag-coup-de-coeur'};
+  const bmap = Object.fromEntries(TI_BIENS.BALISES.map(b => [b.v, b.cls]));
   const dept = getDept(b);
   const locParts = [];
   if(b.ville) locParts.push(b.ville);
@@ -1577,7 +1693,7 @@ function renderCard(b) {
   // P2 : réel en principal pour un bien acheté, prévisionnel étiqueté sinon
   const d = cfDisplayData(b);
   const cfC = d.value == null ? 'neutral' : cfCls(d.value);
-  const bmap={'Veille':'tag-veille','Négociation':'tag-negociation','Dossier banque':'tag-dossier-banque','Coup de cœur':'tag-coup-de-coeur'};
+  const bmap = Object.fromEntries(TI_BIENS.BALISES.map(b => [b.v, b.cls]));
   const rend=b.prix_affiche&&b.loyer_en_etat?((b.loyer_en_etat*12/b.prix_affiche)*100).toFixed(1)+'%':'—';
   const date=b.created_at?new Date(b.created_at).toLocaleDateString('fr-FR'):'—';
   const cfIcon = cfC==='positive' ? '📈' : cfC==='negative' ? '📉' : '➖';
@@ -1672,25 +1788,19 @@ async function renderNouveau(el, bien) {
             <div class="form-group"><label class="req">Ville</label><input type="text" id="f-ville" value="${bien?.ville||''}" placeholder="Paris"></div>
             <div class="form-group"><label>Code postal</label><input type="text" id="f-cp" value="${bien?.code_postal||''}" placeholder="75018"></div>
             <div class="form-group"><label>Type de bien</label>
-              <select id="f-type">${['Studio','T1','T2','T3','T4+','Immeuble','Parking','Autre'].map(t=>`<option ${bien?.type_bien===t?'selected':''}>${t}</option>`).join('')}</select>
+              <select id="f-type">${TI_BIENS.options('TYPES', bien?.type_bien)}</select>
             </div>
             <div class="form-group"><label>Surface (m²)</label><input type="number" id="f-surface" value="${bien?.surface_m2||''}" placeholder="45"></div>
             <div class="form-group"><label>Prix affiché (€)</label><input type="number" id="f-prix" value="${bien?.prix_affiche||''}" oninput="updatePrev()" placeholder="300 000"></div>
             <div class="form-group"><label>Statut</label>
-              <select id="f-statut">${['Renseignements Web','Vendeur contacté (1ère)','Vendeur contacté (2ème)','Vendeur contacté (3ème)','1ère offre - Envoyée','1ère offre - Acceptée','1ère offre - Refusée','Contre offre - Envoyée','Contre offre - Acceptée','Accord trouvé !','Rendez-vous banque','Dossier déposé','Obtention crédit','Administratifs','Compromis signé','Acheté','Abandonné'].map(s=>`<option ${bien?.statut===s?'selected':''}>${s}</option>`).join('')}</select>
+              <select id="f-statut">${TI_BIENS.options('STATUTS', bien?.statut)}</select>
             </div>
             <div class="form-group form-full"><label>Lien de l'annonce</label><input type="url" id="f-lien" value="${bien?.lien_annonce||''}" placeholder="https://www.seloger.com/..."></div>
             <div class="form-group"><label>Source</label>
-              <select id="f-source">
-                <option value="">—</option>
-                ${['SeLoger','LeBonCoin','PAP','Logic-Immo','Bien\'ici','Jinka','Réseau agence','Particulier','Autre'].map(s=>`<option ${bien?.source===s?'selected':''}>${s}</option>`).join('')}
-              </select>
+              <select id="f-source">${TI_BIENS.options('SOURCES', bien?.source, '—')}</select>
             </div>
             <div class="form-group"><label>Balise</label>
-              <select id="f-balise">
-                <option value="">— Sans balise —</option>
-                ${['Veille','Négociation','Dossier banque','Coup de cœur'].map(b=>`<option ${bien?.balise===b?'selected':''}>${b}</option>`).join('')}
-              </select>
+              <select id="f-balise">${TI_BIENS.options('BALISES', bien?.balise, '— Sans balise —')}</select>
             </div>
             <div class="form-group"><label>SCI associée</label>
               <select id="f-sci-id">
@@ -2296,13 +2406,7 @@ async function deleteBienPage(id) {
 // ── DETAIL ──
 // ── LIGHTBOX ──
 function filterByPhase(phase) {
-  const phaseMap = {
-    info: b=>[null,'Renseignements Web','Vendeur contacté (1ère)','Vendeur contacté (2ème)','Vendeur contacté (3ème)'].includes(b.statut),
-    nego: b=>(b.statut||'').includes('offre')||(b.statut||'').includes('Contre')||b.statut==='Accord trouvé !',
-    banq: b=>['Rendez-vous banque','Dossier déposé','Obtention crédit','Dossier non déposé'].includes(b.statut),
-    fin:  b=>['Compromis signé','Acheté','Administratifs'].includes(b.statut),
-    aband:b=>b.statut==='Abandonné',
-  };
+  const phaseMap = PHASES_ACCUEIL;
   const labels = {info:'🔍 Prospection',nego:'🤝 Négociation',banq:'🏦 Banque',fin:'✅ Finalisé',aband:'❌ Abandonné'};
   const el = document.getElementById('pipeline-filter-results');
   if(!el)return;
@@ -2478,17 +2582,16 @@ function inlineEditField(span) {
   } else if(type === 'select-statut') {
     inputEl = document.createElement('select');
     inputEl.className = 'inline-edit-input';
-    const statuts = ['Renseignements Web','Vendeur contacté (1ère)','Vendeur contacté (2ème)','Vendeur contacté (3ème)','1ère offre - Envoyée','1ère offre - Acceptée','1ère offre - Refusée','Contre offre - Envoyée','Contre offre - Acceptée','Contre offre - Refusée','Accord trouvé !','Rendez-vous banque','Dossier déposé','Obtention crédit','Dossier non déposé','Administratifs','Compromis signé','Acheté','Abandonné'];
-    inputEl.innerHTML = statuts.map(s => `<option value="${s}" ${s===currentValue?'selected':''}>${s}</option>`).join('');
+    inputEl.innerHTML = TI_BIENS.options('STATUTS', currentValue);
   } else if(type === 'select-type') {
     inputEl = document.createElement('select');
     inputEl.className = 'inline-edit-input';
-    const types = ['Studio','T1','T2','T3','T4+','Immeuble','Parking','Autre'];
-    inputEl.innerHTML = types.map(t => `<option value="${t}" ${t===currentValue?'selected':''}>${t}</option>`).join('');
+    inputEl.innerHTML = TI_BIENS.options('TYPES', currentValue);
   } else if(type === 'select-balise') {
     inputEl = document.createElement('select');
     inputEl.className = 'inline-edit-input';
-    const balises = [{v:'',l:'— Sans balise —'},{v:'Veille',l:'🔍 Veille'},{v:'Négociation',l:'💬 Négociation'},{v:'Dossier banque',l:'🏦 Dossier banque'},{v:'Coup de cœur',l:'⭐ Coup de cœur'}];
+    const balises = [{v:'',l:'— Sans balise —'},
+      ...TI_BIENS.BALISES.map(b => ({ v:b.v, l:`${b.emoji} ${b.v}` }))];
     inputEl.innerHTML = balises.map(b => `<option value="${b.v}" ${b.v===currentValue?'selected':''}>${b.l}</option>`).join('');
   } else {
     inputEl = document.createElement('input');
@@ -2520,9 +2623,9 @@ function inlineEditField(span) {
             span.innerHTML = `<span class="statut-pill phase-${phase}">${newVal}</span>`;
           } else if(type === 'select-balise') {
             span.dataset.value = newVal;
-            const bmap = {'Veille':'tag-veille','Négociation':'tag-negociation','Dossier banque':'tag-dossier-banque','Coup de cœur':'tag-coup-de-coeur'};
+            const bmap = Object.fromEntries(TI_BIENS.BALISES.map(b => [b.v, b.cls]));
             if(newVal && bmap[newVal]) {
-              const emoji = {'Veille':'🔍','Négociation':'💬','Dossier banque':'🏦','Coup de cœur':'⭐'}[newVal];
+              const emoji = Object.fromEntries(TI_BIENS.BALISES.map(b => [b.v, b.emoji]))[newVal];
               span.innerHTML = `<span class="tag-pill ${bmap[newVal]}">${emoji} ${newVal}</span>`;
             } else {
               span.innerHTML = '— Sans balise —';
@@ -2635,8 +2738,8 @@ async function renderBienDetail(el) {
   const emprunt = (b.prix_affiche||0)+(b.frais_notaire||0)+(b.travaux||0)+(b.frais_agence||0)+(b.creation_sci||0);
 
   const phase = getStatutPhase(b.statut || 'Renseignements Web');
-  const baliseEmoji = {'Veille':'🔍','Négociation':'💬','Dossier banque':'🏦','Coup de cœur':'⭐'};
-  const bmap = {'Veille':'tag-veille','Négociation':'tag-negociation','Dossier banque':'tag-dossier-banque','Coup de cœur':'tag-coup-de-coeur'};
+  const baliseEmoji = Object.fromEntries(TI_BIENS.BALISES.map(b => [b.v, b.emoji]));
+  const bmap = Object.fromEntries(TI_BIENS.BALISES.map(b => [b.v, b.cls]));
 
   // Données locatives (déjà en mémoire depuis le démarrage — P2)
   const locataires = allLocataires.filter(l => l.bien_id === b.id);
@@ -2672,15 +2775,11 @@ async function renderBienDetail(el) {
 
   // Complétude : les champs sans lesquels les indicateurs de la fiche sont faux
   // ou absents. « cle » = bloquant pour le rendement et le cashflow.
-  const BD_CHAMPS = [
-    { k:'prix_affiche',       lab:'Prix affiché',      tab:'fin',   cle:true  },
-    { k:'loyer_en_etat',      lab:'Loyer estimé',      tab:'fin',   cle:true  },
-    { k:'mensualite_credit',  lab:'Mensualité crédit', tab:'fin',   cle:true  },
-    { k:'surface_m2',         lab:'Surface',           tab:'infos', cle:false },
-    { k:'taxe_fonciere',      lab:'Taxe foncière',     tab:'fin',   cle:false },
-    { k:'charge_copro',       lab:'Charges copro',     tab:'fin',   cle:false },
-    { k:'assurance_logement', lab:'Assurance',         tab:'fin',   cle:false },
-  ];
+  // Derivee du registre TI_BIENS : les libelles et les onglets ne peuvent plus
+  // diverger de ceux du formulaire. Les champs cles d'abord, pour que le bouton
+  // « Completer » ouvre en priorite ce qui bloque la rentabilite.
+  const BD_CHAMPS = TI_BIENS.CHAMPS.filter(c => c.completude)
+    .sort((a, b) => a.completude - b.completude);
   const manquants    = BD_CHAMPS.filter(c => !((parseFloat(b[c.k]) || 0) > 0));
   const manquantsCle = manquants.filter(c => c.cle);
   const pctComplet   = Math.round((BD_CHAMPS.length - manquants.length) / BD_CHAMPS.length * 100);
