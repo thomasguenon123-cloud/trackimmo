@@ -2460,6 +2460,9 @@ body{background:var(--sb-bg);color:var(--c-text);font-family:var(--font);font-si
 .sci-form-input{width:100%;padding:9px 12px;border:1px solid var(--c-border);border-radius:8px;background:var(--c-bg);color:var(--c-text);font-size:13px;outline:none;transition:border-color .15s;}
 .sci-form-input:focus{border-color:var(--accent);}
 .sci-form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+/* Aide sous un champ : explique une contrainte non evidente plutot que de
+   laisser l'utilisateur la decouvrir au moment de l'erreur. */
+.sci-form-hint{font-size:var(--fs-label);color:var(--c-muted);margin-top:4px;line-height:1.4;}
 .sci-section-title{font-size:13px;font-weight:700;color:var(--c-text);margin:20px 0 10px;display:flex;align-items:center;gap:8px;}
 .sci-section-title::after{content:'';flex:1;height:1px;background:var(--c-border);}
 

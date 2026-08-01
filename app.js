@@ -3206,7 +3206,10 @@ async function bdAttachLocataire(bienId) {
     const { error } = await db.from('locataires').update(patch).eq('id', loc.id);
     if(error) throw error;
     Object.assign(loc, patch);
-    showNotif(`✅ ${nom} rattaché${activation ? ' et passé en Actif' : ''}`);
+    // Sans date d'entree, l'etape 3 (generer les loyers) refusera de tourner.
+    // Autant le dire ici plutot que de laisser l'utilisateur buter dessus.
+    showNotif(`✅ ${nom} rattaché${activation ? ' et passé en Actif' : ''}`
+      + (loc.date_entree ? '' : " · date d'entrée à renseigner pour générer les loyers"));
     bdRenderMiseEnGestion(bienId);
     bdRefresh();
   } catch(e) { showNotif('Erreur : ' + e.message, true); }
@@ -6889,8 +6892,9 @@ function openLocataireModal(id, presetBienId) {
         <input class="sci-form-input" id="loc-jour-paiement" type="number" min="1" max="31" value="${l?.jour_paiement||5}"></div>
     </div>
     <div class="sci-form-row">
-      <div class="sci-form-group"><label class="sci-form-label">Date d'entrée</label>
-        <input class="sci-form-input" id="loc-date-entree" type="date" value="${l?.date_entree||''}"></div>
+      <div class="sci-form-group"><label class="sci-form-label">Date d'entrée <span style="color:#dc2626">*</span></label>
+        <input class="sci-form-input" id="loc-date-entree" type="date" value="${l?.date_entree||''}">
+        <div class="sci-form-hint">Requise dès qu'un locataire actif est rattaché à un bien : c'est elle qui détermine les loyers générés.</div></div>
       <div class="sci-form-group"><label class="sci-form-label">Date de sortie</label>
         <input class="sci-form-input" id="loc-date-sortie" type="date" value="${l?.date_sortie||''}"></div>
     </div>
@@ -7016,6 +7020,19 @@ async function saveLocataire() {
   const data = getLocataireFormData();
   if(!data.nom) { showNotif('Le nom est obligatoire', true); return; }
 
+  // Un locataire actif rattache a un bien SANS date d'entree est un piege :
+  // autoGenerateLoyers sort en return 0 sans rien dire, aucun loyer n'est cree,
+  // et tout le pan "reel" du Module Financier (cashflow 12M, Rentabilite, Suivi
+  // mensuel, bilan SCI) reste vide sans que rien ne le signale. Constate le
+  // 01/08/2026 : 1 locataire actif a 830 EUR/mois, 0 ligne dans loyers_mensuels.
+  // bdGenererLoyers (voir plus haut) controlait deja cette date ; ce chemin-ci
+  // ne le faisait pas. On aligne les deux.
+  if(data.statut === 'Actif' && data.bien_id && !data.date_entree) {
+    showNotif("Renseignez la date d'entrée : elle détermine les loyers à générer", true);
+    document.getElementById('loc-date-entree')?.focus();
+    return;
+  }
+
   // Vérification : un seul "Actif" par bien à la fois
   if(data.statut === 'Actif' && data.bien_id) {
     const conflit = allLocataires.find(l =>
@@ -7088,9 +7105,15 @@ async function saveLocataire() {
       });
     }
 
-    showNotif(editingLocataireId
-      ? `✓ Locataire mis à jour${loyersGenes ? ` · ${loyersGenes} loyer${loyersGenes>1?'s':''} généré${loyersGenes>1?'s':''}`:''}`
-      : `✓ Locataire créé${loyersGenes ? ` · ${loyersGenes} loyer${loyersGenes>1?'s':''} généré${loyersGenes>1?'s':''}`:''}`);
+    // Le cas "actif sur un bien mais aucun loyer genere" reste possible apres
+    // la validation ci-dessus : autoGenerateLoyers ne genere rien pour une
+    // entree prevue l'annee prochaine, et rien de neuf si les lignes existent
+    // deja. On le dit, au lieu de laisser croire que des loyers ont ete crees.
+    const attenduDesLoyers = data.statut === 'Actif' && data.bien_id;
+    const suffixe = loyersGenes
+      ? ` · ${loyersGenes} loyer${loyersGenes>1?'s':''} généré${loyersGenes>1?'s':''}`
+      : (attenduDesLoyers ? ' · aucun nouveau loyer à générer' : '');
+    showNotif(`✓ Locataire ${editingLocataireId ? 'mis à jour' : 'créé'}${suffixe}`);
     closeAdmModal();
     await loadLocataires();
     const c = document.getElementById('mf-content');
