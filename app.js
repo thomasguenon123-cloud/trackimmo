@@ -8347,9 +8347,30 @@ async function fetchAdeme(codeInsee) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  FETCH NEWS (GNews.io — CORS ok — plan gratuit 100 req/jour)
-//  Fallback : lien Google News si CORS bloqué
+//  FETCH NEWS (NewsAPI via l'Edge Function news-proxy)
+//  Plan Developer : 100 req/jour, articles du dernier mois seulement.
+//  Repli : liens de recherche si aucun article pertinent.
 // ═══════════════════════════════════════════════════════════════
+
+// Normalisation pour recherche plein texte : minuscules, accents retirés,
+// toute ponctuation ramenée à une espace. Permet de tester l'appartenance
+// d'un nom de commune à un titre avec de vraies frontières de mots
+// (« Poitiers, » et « à Poitiers. » matchent, « Barentin » ne matche pas « Bar »).
+const tiNormTexte = s => (s || '').toLowerCase().normalize('NFD')
+  .replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+// NewsAPI cherche dans le titre ET le corps de l'article. Un long papier qui
+// cite la commune au détour d'un paragraphe et « économie » ailleurs remonte
+// donc alors qu'il ne traite pas du tout de la commune (constaté sur Poitiers
+// le 01/08/2026 : un article d'histoire sur une rescapée d'Auschwitz).
+// On ne garde que les articles dont le titre ou le chapô nomme la commune.
+function newsArticlesPertinents(articles, communeNom) {
+  const cible = tiNormTexte(communeNom);
+  if (!cible) return [];
+  return (articles || []).filter(a =>
+    ` ${tiNormTexte(`${a.title || ''} ${a.description || ''}`)} `.includes(` ${cible} `));
+}
+
 async function fetchNews(communeNom) {
   // FND-001 : la clé NewsAPI vit côté serveur (Edge Function news-proxy).
   // Le client n'appelle plus newsapi.org directement, ni de proxies CORS tiers.
@@ -8361,21 +8382,26 @@ async function fetchNews(communeNom) {
   const queryEco = `${communeNom} AND (économie OR emploi OR entreprise)`;
   const queryImmo = `${communeNom} AND (immobilier OR logement)`;
 
+  // pageSize au plafond serveur (20) : le tri de pertinence écarte une bonne
+  // part des résultats, il faut de la matière. Ne coûte aucun appel de quota
+  // supplémentaire, celui-ci se compte en requêtes et non en articles.
   try {
     // 1. Tentative : actualités économie locale
     const { data: ecoData, error: ecoErr } = await db.functions.invoke('news-proxy', {
-      body: { q: queryEco, pageSize: 8 }
+      body: { q: queryEco, pageSize: 20 }
     });
-    if (!ecoErr && ecoData?.articles?.length) {
-      return { source: 'newsapi', articles: ecoData.articles.slice(0, 6) };
+    if (!ecoErr) {
+      const pertinents = newsArticlesPertinents(ecoData?.articles, communeNom);
+      if (pertinents.length) return { source: 'newsapi', articles: pertinents.slice(0, 6) };
     }
 
     // 2. Fallback : actualités immobilier
     const { data: immoData, error: immoErr } = await db.functions.invoke('news-proxy', {
-      body: { q: queryImmo, pageSize: 6 }
+      body: { q: queryImmo, pageSize: 20 }
     });
-    if (!immoErr && immoData?.articles?.length) {
-      return { source: 'newsapi', articles: immoData.articles.slice(0, 6) };
+    if (!immoErr) {
+      const pertinents = newsArticlesPertinents(immoData?.articles, communeNom);
+      if (pertinents.length) return { source: 'newsapi', articles: pertinents.slice(0, 6) };
     }
   } catch (e) {
     console.warn('news-proxy indisponible:', e?.message);
@@ -8538,15 +8564,20 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
 
   // ── SECTION 6 : Actualités ────────────────────────────────────
   let sec6 = '';
-  // Chaque lien doit aboutir a des resultats reellement filtres sur la commune.
-  // Les Echos (moteur de resultats non alimente malgre une URL conforme a leur
-  // JSON-LD) et SeLoger (page d'actualites nationale, commune jamais transmise)
-  // ont ete retires le 01/08/2026 : un bouton qui ne tient pas sa promesse est
-  // pire que pas de bouton.
+  // Chaque lien doit aboutir a des resultats reellement filtres sur la commune
+  // ET reellement cliquables. Trois moteurs de presse ont ete retires le
+  // 01/08/2026 apres verification en navigation reelle :
+  //  - Les Echos : URL conforme a leur propre JSON-LD, mais moteur de resultats
+  //    qui ne s'alimente pas.
+  //  - SeLoger : page d'actualites nationale, la commune n'etait jamais transmise.
+  //  - La Tribune : la recherche fonctionne (parametre lt_prod_CONTENT[query]),
+  //    mais leur page de resultats emet des href relatifs SANS barre oblique
+  //    initiale ("article/economie/...") qui se resolvent depuis /recherche/ en
+  //    /recherche/article/... — soit un 404 sur chaque resultat. Bug de leur
+  //    cote, irreparable depuis TrackImmo.
+  // Ne restent que les liens verifies comme aboutissant a du contenu lisible.
   const newsLinks = [
     { label: '📰 Google News', url: `https://news.google.com/search?q=${encodeURIComponent(commune+' économie emploi')}&hl=fr&gl=FR`, desc: 'Actu économique locale' },
-    // La Tribune attend lt_prod_CONTENT[query] ; un ?q= est ignore silencieusement.
-    { label: '🏭 La Tribune', url: `https://www.latribune.fr/recherche/?${encodeURIComponent('lt_prod_CONTENT[query]')}=${encodeURIComponent(commune)}`, desc: 'Économie & entreprises' },
     { label: '🔍 Google Immo', url: `https://news.google.com/search?q=${encodeURIComponent(commune+' immobilier logement')}&hl=fr&gl=FR`, desc: 'Actu immobilier local' },
   ];
 
