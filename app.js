@@ -8060,7 +8060,9 @@ async function marcheSearch() {
       ademeData, newsData
     ] = await Promise.all([
       mFetch(`${BASE}/data/DS_RP_POPULATION_PRINC?GEO=${GEO}&RP_MEASURE=POP&maxResult=1000`, 'Population'),
-      mFetch(`${BASE}/data/DS_FILOSOFI_MEN_TP_NIVVIE?GEO=${GEO}&maxResult=200`, 'Revenus'),
+      // DS_FILOSOFI_MEN_TP_NIVVIE n'existe plus : il renvoyait 0 observation pour
+      // toutes les communes, donc le KPI revenus ne s'affichait jamais (FND-005).
+      mFetch(`${BASE}/data/DS_FILOSOFI_CC?GEO=${GEO}&maxResult=500`, 'Revenus'),
       mFetch(`${BASE}/data/DS_RP_LOGEMENT_PRINC?GEO=${GEO}&maxResult=1000`, 'Logements'),
       mFetch(`${BASE}/data/DS_RP_MENAGES_PRINC?GEO=${GEO}&maxResult=1000`, 'Menages'),
       // Chômage : DS_RP_ACTIVITE_PRINC ne contient QUE les actifs occupés
@@ -8154,26 +8156,20 @@ function buildMelodiResult(popGeo, surfGeo, codeInsee,
       .filter(x => x.val > 0);
   }
 
-  // ── Revenus ─────────────────────────────────────────────────
+  // ── Revenus (Filosofi) ──────────────────────────────────────
+  // MED_SL  = niveau de vie médian, en euros par an et par unité de consommation
+  // PR_MD60 = taux de pauvreté (part sous 60 % du niveau de vie médian national)
+  // Sur les petites communes, l'INSEE masque certaines valeurs pour raison de
+  // confidentialité : parseMelodiJSON les écarte, on n'affiche alors rien.
   if (revRows.length) {
-    r.revRows = revRows;
     const yr = revRows.reduce((mx, x) => Math.max(mx, parseInt(x.TIME_PERIOD||0)), 0);
-    r.annee_revenus = yr || null;
-    const medRow = revRows.find(x =>
-      parseInt(x.TIME_PERIOD) === yr &&
-      (x.FILOSOFI_MEASURE === 'MED_SL' || (x.FILOSOFI_MEASURE||'').includes('MED'))
-    ) || revRows.find(x => (x.FILOSOFI_MEASURE||'').includes('MED'));
-    if (medRow) r.revenu_median = Math.round(medRow.OBS_VALUE);
-    // Évolution
-    const revEvo = {};
-    revRows.forEach(x => {
-      if (!x.TIME_PERIOD || !x.OBS_VALUE) return;
-      if (x.FILOSOFI_MEASURE === 'MED_SL' || (x.FILOSOFI_MEASURE||'').includes('MED')) {
-        if (!revEvo[x.TIME_PERIOD]) revEvo[x.TIME_PERIOD] = Math.round(x.OBS_VALUE);
-      }
-    });
-    r.revEvo = Object.entries(revEvo).sort(([a],[b]) => a.localeCompare(b))
-      .map(([annee, val]) => ({ annee, val }));
+    const yRows = revRows.filter(x => parseInt(x.TIME_PERIOD) === yr);
+    const mesure = code => yRows.find(x => x.FILOSOFI_MEASURE === code)?.OBS_VALUE;
+    const med = mesure('MED_SL');
+    const pau = mesure('PR_MD60');
+    if (med != null || pau != null) r.annee_revenus = yr || null;
+    if (med != null) r.niveau_vie_median = Math.round(med);
+    if (pau != null) r.taux_pauvrete = Math.round(pau * 10) / 10;
   }
 
   // ── Logements ───────────────────────────────────────────────
@@ -8424,7 +8420,8 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
     pop                   ? kpi('👥', fmtN(pop),                  'Population',          m.annee_population, 'teal') : '',
     dens                  ? kpi('🗺️', fmtN(dens),                 'Hab/km²',             m.annee_population) : '',
     m.surface             ? kpi('📐', Math.round(m.surface/100)+' km²', 'Superficie') : '',
-    m.revenu_median       ? kpi('💶', fmtE(m.revenu_median),       'Revenu médian ménage',m.annee_revenus, 'green') : '',
+    m.niveau_vie_median   ? kpi('💶', fmtE(m.niveau_vie_median),   'Niveau de vie médian',m.annee_revenus, 'green') : '',
+    m.taux_pauvrete!=null ? kpi('📊', m.taux_pauvrete.toString().replace('.',',')+' %', 'Taux de pauvreté', m.annee_revenus, m.taux_pauvrete > 20 ? 'orange' : 'green') : '',
     m.pct_locataires!=null? kpi('🔑', m.pct_locataires+' %',       'Taux de locataires',  m.annee_logements) : '',
     tailMen               ? kpi('🏠', tailMen,                     'Pers. par ménage',    m.annee_population) : '',
     m.pct_bac_plus!=null  ? kpi('🎓', m.pct_bac_plus+' %',         'Part Bac+',           m.annee_diplomes) : '',
@@ -8524,20 +8521,15 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
     </div>` : '';
 
   // ── SECTION 5 : Graphiques évolution ─────────────────────────
+  // Pas de courbe de revenus : Filosofi ne publie qu'un millésime par commune.
   const hasPopEvo = (m.popEvo?.length || 0) >= 2;
-  const hasRevEvo = (m.revEvo?.length || 0) >= 2;
 
-  const sec5 = (hasPopEvo || hasRevEvo) ? `
-    ${hasPopEvo ? `<div class="marche-chart-card">
+  const sec5 = hasPopEvo ? `
+    <div class="marche-chart-card">
       <div class="marche-chart-title">📈 Évolution de la population — ${commune}</div>
       <div class="marche-chart-sub">Source : INSEE · Recensement · ${m.popEvo[0].annee}–${m.popEvo[m.popEvo.length-1].annee}</div>
       <canvas id="chart-pop" height="80"></canvas>
-    </div>` : ''}
-    ${hasRevEvo ? `<div class="marche-chart-card">
-      <div class="marche-chart-title">💶 Évolution du revenu médian — ${commune}</div>
-      <div class="marche-chart-sub">Source : INSEE · Filosophi · ${m.revEvo[0].annee}–${m.revEvo[m.revEvo.length-1].annee}</div>
-      <canvas id="chart-rev" height="80"></canvas>
-    </div>` : ''}` : '';
+    </div>` : '';
 
   // ── SECTION 6 : Actualités ────────────────────────────────────
   let sec6 = '';
@@ -8651,11 +8643,6 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
       marcheChart = mkLine('chart-pop',
         m.popEvo.map(x=>x.annee), m.popEvo.map(x=>x.val),
         'rgb(8,145,178)', 'Population', v => v?.toLocaleString('fr-FR')+' hab.');
-    }
-    if (m.revEvo?.length >= 2) {
-      mkLine('chart-rev',
-        m.revEvo.map(x=>x.annee), m.revEvo.map(x=>x.val),
-        'rgb(22,163,74)', 'Revenu médian', v => v?.toLocaleString('fr-FR')+' €/an');
     }
     // Pas de graphique du chômage : le dossier complet INSEE ne publie ce taux
     // que pour l'année la plus récente (aucune série temporelle disponible).
