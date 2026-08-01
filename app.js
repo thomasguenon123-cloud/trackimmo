@@ -4630,6 +4630,19 @@ function switchMfTab(tab) {
   else if(tab === 'renta')       renderMfRenta(c);
 }
 
+// L'écart réel/prévisionnel doit s'afficher en EUROS. Le pourcentage n'a de sens
+// que si la base ne frôle pas zéro : constaté le 01/08/2026 en prod, un
+// prévisionnel de +2 328 € sur 12 mois face à un réel de −87 930 € donnait
+// « −3877,1 % » — exact, mais inexploitable, et un utilisateur y lit une panne.
+// Au-delà de 500 % on cesse d'afficher un ratio et on en nomme la cause.
+// Même principe que l'onglet Rentabilité, qui montrait déjà l'écart en euros.
+function ecartPrevSousTitre(ecart, base, ref = 'prévisionnel') {
+  if (!base) return `aucun ${ref} de référence`;
+  const pct = (ecart / Math.abs(base)) * 100;
+  if (Math.abs(pct) > 500) return `${ref} de référence trop faible (${base >= 0 ? '+' : ''}${fmt(base)} €)`;
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}% vs ${ref}`;
+}
+
 function renderMfOverview(c) {
   const biensAchetes = allBiens.filter(b => b.statut === 'Acheté');
 
@@ -4668,7 +4681,7 @@ function renderMfOverview(c) {
     if(occ === 'impaye') impayes++;
   }
   const rendementNetMoyen = mtAcquisitionTotal > 0 ? (cfReelTotal / mtAcquisitionTotal) * 100 : 0;
-  const ecartPct = cfPrevTotal !== 0 ? ((cfReelTotal - cfPrevTotal) / Math.abs(cfPrevTotal)) * 100 : 0;
+  const ecartTotal = cfReelTotal - cfPrevTotal;
   const tauxOccupation = (occupes / biensAchetes.length) * 100;
 
   // ── Séries mensuelles consolidées (12 mois) ──
@@ -4698,8 +4711,8 @@ function renderMfOverview(c) {
         <div class="mfb-kpi-sub">patrimoine acquis : ${fmt(mtAcquisitionTotal)} €</div>
       </div>
       <div class="mfb-kpi-card">
-        <div class="mfb-kpi-label">Écart prévisionnel / réel</div>
-        <div class="mfb-kpi-value ${ecartPct >= 0 ? 'pos' : 'neg'}">${ecartPct >= 0 ? '+' : ''}${ecartPct.toFixed(1)}%</div>
+        <div class="mfb-kpi-label">Écart réel − prévisionnel</div>
+        <div class="mfb-kpi-value ${ecartTotal >= 0 ? 'pos' : 'neg'}">${ecartTotal >= 0 ? '+' : ''}${fmt(ecartTotal)} €</div>
         <div class="mfb-kpi-sub">prévi ${cfPrevTotal >= 0 ? '+' : ''}${fmt(cfPrevTotal)} € · réel ${cfReelTotal >= 0 ? '+' : ''}${fmt(cfReelTotal)} €</div>
       </div>
       <div class="mfb-kpi-card">
@@ -4838,7 +4851,7 @@ function renderMfBiens(c) {
   }
   const rendementNetMoyen = mtAcquisitionTotal > 0 ? (cfReelTotal / mtAcquisitionTotal) * 100 : 0;
   const tauxOccupation = biensAchetes.length > 0 ? (occupes / biensAchetes.length) * 100 : 0;
-  const ecartPct = cfPrevTotal !== 0 ? ((cfReelTotal - cfPrevTotal) / Math.abs(cfPrevTotal)) * 100 : 0;
+  const ecartTotal = cfReelTotal - cfPrevTotal;
   const cfMensuelMoy = cfReelTotal / 12;
 
   // ── Application filtres ──
@@ -4886,9 +4899,9 @@ function renderMfBiens(c) {
         <div class="mfb-kpi-sub">${biensAchetes.length} bien${biensAchetes.length > 1 ? 's' : ''} acquis</div>
       </div>
       <div class="mfb-kpi-card">
-        <div class="mfb-kpi-label">Écart prévisionnel</div>
-        <div class="mfb-kpi-value ${ecartPct >= 0 ? 'pos' : 'neg'}">${ecartPct >= 0 ? '+' : ''}${ecartPct.toFixed(1)}%</div>
-        <div class="mfb-kpi-sub">réel vs prévisionnel</div>
+        <div class="mfb-kpi-label">Écart réel − prévisionnel</div>
+        <div class="mfb-kpi-value ${ecartTotal >= 0 ? 'pos' : 'neg'}">${ecartTotal >= 0 ? '+' : ''}${fmt(ecartTotal)} €</div>
+        <div class="mfb-kpi-sub">${ecartPrevSousTitre(ecartTotal, cfPrevTotal)}</div>
       </div>
       <div class="mfb-kpi-card">
         <div class="mfb-kpi-label">Taux d'occupation</div>
@@ -6155,7 +6168,6 @@ function renderMfRenta(c) {
   const cfReelAnnee = cumR;
   const cfPrevAnnee = cfPrevMensuel * nbMois;
   const ecart = cfReelAnnee - cfPrevAnnee;
-  const ecartPct = cfPrevAnnee !== 0 ? (ecart / Math.abs(cfPrevAnnee)) * 100 : null;
 
   // ── Impayés : lignes de loyer de l'exercice ──
   const lignes = allLoyers.filter(l => l.bien_id === bien.id && l.annee === annee);
@@ -6219,7 +6231,7 @@ function renderMfRenta(c) {
       <div class="mfb-kpi-card">
         <div class="mfb-kpi-label">Écart réel − prévisionnel</div>
         <div class="mfb-kpi-value ${ecart >= 0 ? 'pos' : 'neg'}">${ecart >= 0 ? '+' : ''}${fmt(ecart)} €</div>
-        <div class="mfb-kpi-sub">${ecartPct === null ? 'prévisionnel nul' : (ecartPct >= 0 ? '+' : '') + ecartPct.toFixed(1) + '% vs simulation'}</div>
+        <div class="mfb-kpi-sub">${ecartPrevSousTitre(ecart, cfPrevAnnee, 'simulation')}</div>
       </div>
       <div class="mfb-kpi-card">
         <div class="mfb-kpi-label">Taux d'impayés ${annee}</div>
