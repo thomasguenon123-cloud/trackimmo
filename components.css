@@ -1,0 +1,315 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   STONEFOLIO — BIBLIOTHEQUE DE COMPOSANTS
+   Phase 3 de la refonte visuelle · 01/08/2026
+   ═══════════════════════════════════════════════════════════════════════════
+
+   S'appuie exclusivement sur les jetons --sf-* de tokens.css. Aucune valeur
+   de couleur, de taille ou d'espacement n'est ecrite en dur ici : si une
+   valeur manque, c'est un jeton qui manque, pas une exception a creer.
+
+   REGLE DE NON-CONTAMINATION — toutes les regles sont portees par une classe
+   prefixee .sf-. Aucun selecteur d'element nu (button, input, table...), donc
+   aucun effet de bord sur les ecrans existants tant qu'ils n'adoptent pas ces
+   classes. La migration se fait ecran par ecran en phase 5.
+
+   CE QUE CETTE BIBLIOTHEQUE REMPLACE (mesures de l'audit du 01/08/2026) :
+     40 classes de bouton   -> 5 variantes x 2 tailles
+     15 familles d'etat vide -> 1
+     17 rayons               -> 5 jetons
+     38 ombres portees       -> 4 jetons, differencies par theme
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   BOUTONS
+   ───────────────────────────────────────────────────────────────────────────
+   Le bouton principal N'A PAS DE TEINTE (regle 2 de la planche de marque) :
+   blanc sur fond sombre, vert profond sur fond clair. On choisit une marque
+   verte et on s'interdit les boutons verts, pour que le seul vert lumineux de
+   l'ecran reste celui qui porte une valeur.                                  */
+
+.sf-btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:var(--sf-space-3);
+  font-family:var(--sf-font-ui); font-size:var(--sf-font-body);
+  font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-snug);
+  line-height:1; white-space:nowrap; text-decoration:none;
+  height:var(--sf-control-h); padding:0 var(--sf-space-6);
+  border:var(--sf-border-width) solid transparent; border-radius:var(--sf-radius-sm);
+  cursor:pointer; transition:background-color var(--sf-dur) var(--sf-ease),
+                             border-color var(--sf-dur) var(--sf-ease),
+                             color var(--sf-dur) var(--sf-ease);
+}
+.sf-btn:focus-visible{
+  outline:var(--sf-focus-width) solid var(--sf-focus);
+  outline-offset:var(--sf-focus-offset);
+}
+.sf-btn:disabled,.sf-btn[aria-disabled="true"]{ opacity:.45; cursor:not-allowed; }
+
+/* Variante 1 — action principale, une seule par ecran */
+.sf-btn--primary{ background:var(--sf-action-bg); color:var(--sf-action-text); }
+.sf-btn--primary:hover:not(:disabled){ background:var(--sf-action-bg-hover); }
+
+/* Variante 2 — action secondaire, contour */
+.sf-btn--secondary{
+  background:var(--sf-action-2-bg); color:var(--sf-action-2-text);
+  border-color:var(--sf-action-2-border);
+}
+.sf-btn--secondary:hover:not(:disabled){ background:var(--sf-surface-3); }
+
+/* Variante 3 — action tertiaire, sans contour */
+.sf-btn--ghost{ background:transparent; color:var(--sf-text-2); }
+.sf-btn--ghost:hover:not(:disabled){ background:var(--sf-surface-3); color:var(--sf-text); }
+
+/* Variante 4 — destructif. Discret au repos : la couleur d'alerte se merite
+   au survol, elle ne doit pas crier en permanence dans une barre d'outils. */
+.sf-btn--danger{
+  background:var(--sf-loss-wash); color:var(--sf-loss);
+  border-color:transparent;
+}
+.sf-btn--danger:hover:not(:disabled){ background:var(--sf-loss); color:var(--sf-bg); }
+
+/* Variante 5 — icone seule. Le libelle passe en aria-label, jamais absent. */
+.sf-btn--icon{ width:var(--sf-control-h); padding:0; }
+
+/* Tailles */
+.sf-btn--sm{ height:var(--sf-control-h-sm); padding:0 var(--sf-space-5); font-size:var(--sf-font-body-sm); }
+.sf-btn--sm.sf-btn--icon{ width:var(--sf-control-h-sm); padding:0; }
+.sf-btn--lg{ height:var(--sf-control-h-lg); padding:0 var(--sf-space-8); font-size:var(--sf-font-lead); }
+
+.sf-btn--block{ width:100%; }
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   CHAMPS DE FORMULAIRE
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.sf-field{ display:flex; flex-direction:column; gap:var(--sf-space-3); }
+
+.sf-label{
+  font-family:var(--sf-font-ui); font-size:var(--sf-font-label);
+  font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-caps);
+  text-transform:uppercase; color:var(--sf-text-3);
+}
+.sf-label__req{ color:var(--sf-loss); margin-left:2px; }
+
+.sf-input{
+  width:100%; height:var(--sf-control-h); padding:0 var(--sf-space-5);
+  font-family:var(--sf-font-ui); font-size:var(--sf-font-body); color:var(--sf-text);
+  background:var(--sf-surface-2);
+  border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); outline:none;
+  transition:border-color var(--sf-dur) var(--sf-ease), background-color var(--sf-dur) var(--sf-ease);
+}
+.sf-input::placeholder{ color:var(--sf-text-3); }
+.sf-input:hover:not(:disabled){ border-color:var(--sf-border-strong); }
+.sf-input:focus{
+  border-color:var(--sf-focus);
+  box-shadow:0 0 0 var(--sf-focus-ring) var(--sf-gain-wash);
+}
+.sf-input:disabled{ opacity:.5; cursor:not-allowed; }
+.sf-input--invalid{ border-color:var(--sf-loss); }
+.sf-input--invalid:focus{ box-shadow:0 0 0 var(--sf-focus-ring) var(--sf-loss-wash); }
+
+textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(--sf-space-5);
+                   line-height:var(--sf-lh-normal); resize:vertical; }
+
+/* Liste deroulante — chevron en data-URI pour ne dependre d'aucun fichier.
+   currentColor n'etant pas utilisable dans une data-URI, le trait est neutre
+   et lisible sur les deux themes. */
+.sf-select{
+  appearance:none;
+  padding-right:var(--sf-space-9);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%238A9A91' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right var(--sf-space-5) center;
+}
+
+/* Aide sous un champ : explique une contrainte avant qu'elle ne devienne une
+   erreur. Le message d'erreur remplace l'aide, il ne s'y ajoute pas. */
+.sf-hint{ font-size:var(--sf-font-caption); color:var(--sf-text-3); line-height:var(--sf-lh-snug); }
+.sf-hint--error{ color:var(--sf-loss); }
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   CARTE
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.sf-card{
+  background:var(--sf-surface);
+  border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-md);
+  box-shadow:var(--sf-elev-1);
+}
+.sf-card--flat{ box-shadow:var(--sf-elev-0); }
+.sf-card--raised{ box-shadow:var(--sf-elev-2); }
+.sf-card__head{
+  display:flex; align-items:center; gap:var(--sf-space-4);
+  padding:var(--sf-space-5) var(--sf-space-6);
+  border-bottom:var(--sf-border-width) solid var(--sf-border);
+}
+.sf-card__title{
+  font-family:var(--sf-font-display); font-size:var(--sf-font-h3);
+  font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-snug);
+  color:var(--sf-text); margin:0;
+}
+.sf-card__body{ padding:var(--sf-space-6); }
+.sf-card__actions{ margin-left:auto; display:flex; gap:var(--sf-space-3); }
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   INDICATEUR CHIFFRE (KPI)
+   ───────────────────────────────────────────────────────────────────────────
+   La valeur porte la couleur semantique, jamais la carte : un fond colore
+   ferait concurrence au chiffre et diluerait le signal.                      */
+
+.sf-kpi{
+  display:flex; flex-direction:column; gap:var(--sf-space-2);
+  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-md); padding:var(--sf-space-6);
+}
+.sf-kpi__label{
+  font-size:var(--sf-font-label); font-weight:var(--sf-weight-semibold);
+  letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-3);
+}
+.sf-kpi__value{
+  font-family:var(--sf-font-display); font-size:var(--sf-font-kpi);
+  font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-tight);
+  line-height:var(--sf-lh-tight); color:var(--sf-text);
+  font-variant-numeric:tabular-nums;
+}
+.sf-kpi__value--gain{ color:var(--sf-gain); }
+.sf-kpi__value--loss{ color:var(--sf-loss); }
+/* Une valeur absente n'est pas une valeur nulle : elle se dit, elle ne
+   s'invente pas. Regle issue de l'audit Marche. */
+.sf-kpi__value--none{ color:var(--sf-text-3); font-family:var(--sf-font-ui);
+                      font-size:var(--sf-font-lead); font-weight:var(--sf-weight-regular); }
+.sf-kpi__sub{ font-size:var(--sf-font-caption); color:var(--sf-text-3);
+              line-height:var(--sf-lh-snug); }
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   PASTILLES ET BADGES
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.sf-pill{
+  display:inline-flex; align-items:center; gap:var(--sf-space-2);
+  font-family:var(--sf-font-ui); font-size:var(--sf-font-caption);
+  font-weight:var(--sf-weight-semibold); line-height:1; white-space:nowrap;
+  padding:var(--sf-space-3) var(--sf-space-4);
+  border-radius:var(--sf-radius-full);
+  background:var(--sf-surface-3); color:var(--sf-text-2);
+}
+.sf-pill--brand{ background:var(--sf-brand-wash); color:var(--sf-brand-vivid); }
+.sf-pill--gain { background:var(--sf-gain-wash);  color:var(--sf-gain); }
+.sf-pill--loss { background:var(--sf-loss-wash);  color:var(--sf-loss); }
+.sf-pill--alert{ background:var(--sf-alert-wash); color:var(--sf-alert); }
+.sf-pill--info { background:var(--sf-info-wash);  color:var(--sf-info); }
+
+/* Point d'etat : la couleur ne porte jamais seule (regle 4), le libelle
+   adjacent reste obligatoire. */
+.sf-dot{ width:7px; height:7px; border-radius:var(--sf-radius-full);
+         background:currentColor; flex-shrink:0; }
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   TABLEAU
+   ───────────────────────────────────────────────────────────────────────────
+   Stonefolio aligne des tableaux de chiffres sur douze colonnes : les nombres
+   passent en chasse fixe et en chiffres tabulaires, sans quoi les colonnes ne
+   s'alignent pas verticalement.                                              */
+
+.sf-table-wrap{ overflow-x:auto; border:var(--sf-border-width) solid var(--sf-border);
+                border-radius:var(--sf-radius-md); background:var(--sf-surface); }
+.sf-table{ width:100%; border-collapse:collapse; font-family:var(--sf-font-ui);
+           font-size:var(--sf-font-body-sm); }
+.sf-table th{
+  text-align:left; padding:var(--sf-space-4) var(--sf-space-5);
+  font-size:var(--sf-font-label); font-weight:var(--sf-weight-semibold);
+  letter-spacing:var(--sf-track-caps); text-transform:uppercase;
+  color:var(--sf-text-3); white-space:nowrap;
+  border-bottom:var(--sf-border-width) solid var(--sf-border);
+  background:var(--sf-surface-2);
+}
+.sf-table td{
+  padding:var(--sf-space-4) var(--sf-space-5); color:var(--sf-text);
+  border-bottom:var(--sf-border-width) solid var(--sf-border);
+  vertical-align:middle;
+}
+.sf-table tbody tr:last-child td{ border-bottom:0; }
+.sf-table tbody tr:hover td{ background:var(--sf-surface-2); }
+.sf-table__num{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
+                text-align:right; white-space:nowrap; }
+.sf-table__num--gain{ color:var(--sf-gain); }
+.sf-table__num--loss{ color:var(--sf-loss); }
+.sf-table--compact td,.sf-table--compact th{ padding:var(--sf-space-3) var(--sf-space-4); }
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   ETAT VIDE
+   ───────────────────────────────────────────────────────────────────────────
+   Un seul composant, contre 15 familles relevees a l'audit. C'est le premier
+   ecran que voit un nouvel utilisateur : il doit expliquer ce qui manque ET
+   proposer l'action qui le comble, jamais se contenter d'un « aucune donnee ».*/
+
+.sf-empty{
+  display:flex; flex-direction:column; align-items:center; text-align:center;
+  gap:var(--sf-space-4); padding:var(--sf-space-11) var(--sf-space-7);
+}
+.sf-empty__icon{
+  width:var(--sf-space-11); height:var(--sf-space-11); display:grid; place-items:center;
+  border-radius:var(--sf-radius-md);
+  background:var(--sf-brand-wash); color:var(--sf-brand-vivid);
+  font-size:var(--sf-font-h2); margin-bottom:var(--sf-space-1);
+}
+.sf-empty__title{
+  font-family:var(--sf-font-display); font-size:var(--sf-font-h3);
+  font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-snug);
+  color:var(--sf-text); margin:0;
+}
+.sf-empty__text{
+  font-size:var(--sf-font-body); color:var(--sf-text-2);
+  line-height:var(--sf-lh-normal); max-width:46ch; margin:0;
+}
+.sf-empty__actions{ display:flex; gap:var(--sf-space-4); margin-top:var(--sf-space-2);
+                    flex-wrap:wrap; justify-content:center; }
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   BARRE DE NAVIGATION — prepare la phase 4
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.sf-nav{
+  display:flex; align-items:center; gap:var(--sf-space-2);
+  height:var(--sf-nav-h); padding:0 var(--sf-space-6);
+  background:var(--sf-surface); border-bottom:var(--sf-border-width) solid var(--sf-border);
+}
+.sf-nav__item{
+  display:inline-flex; align-items:center; gap:var(--sf-space-3);
+  font-family:var(--sf-font-ui); font-size:var(--sf-font-body);
+  font-weight:var(--sf-weight-medium); color:var(--sf-text-2);
+  padding:var(--sf-space-4) var(--sf-space-5); border-radius:var(--sf-radius-sm);
+  background:none; border:0; cursor:pointer; text-decoration:none;
+  transition:background-color var(--sf-dur) var(--sf-ease), color var(--sf-dur) var(--sf-ease);
+}
+.sf-nav__item:hover{ background:var(--sf-surface-3); color:var(--sf-text); }
+/* L'onglet actif utilise un vert de MARQUE (sombre, de la matiere), pas le
+   vert lumineux reserve aux valeurs. */
+.sf-nav__item--active{ background:var(--sf-brand-wash-2); color:var(--sf-brand-vivid); }
+.sf-nav__item:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus);
+                             outline-offset:var(--sf-focus-offset); }
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   UTILITAIRES MINIMAUX
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.sf-num{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums; }
+.sf-gain{ color:var(--sf-gain); }
+.sf-loss{ color:var(--sf-loss); }
+.sf-muted{ color:var(--sf-text-3); }
+
+/* Masque visuellement sans retirer aux lecteurs d'ecran. */
+.sf-sr-only{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
