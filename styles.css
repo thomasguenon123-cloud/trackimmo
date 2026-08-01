@@ -873,6 +873,19 @@ body{background:var(--sb-bg);color:var(--c-text);font-family:var(--font);font-si
 
 /* ════ TRI & PAGINATION ════ */
 .sort-sep{width:1px;height:24px;background:var(--c-border);flex-shrink:0;margin:0 2px;}
+
+/* Action compacte de niveau page, pensee pour cohabiter avec .view-toggle :
+   meme hauteur, meme rayon, meme poids visuel. Icone + libelle court plutot
+   qu'icone seule — un pictogramme nu se devine, il ne se lit pas. */
+.icon-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  height:34px;padding:0 12px;
+  background:var(--c-card);border:1px solid var(--c-border);border-radius:10px;
+  font-size:12px;font-weight:600;color:var(--c-dim);
+  cursor:pointer;white-space:nowrap;transition:all 0.18s;
+}
+.icon-btn:hover{background:var(--accent-wash);border-color:var(--accent-border);color:var(--accent);}
+.icon-btn:active{transform:translateY(1px);}
 .sort-label{font-size:10px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--c-muted);white-space:nowrap;}
 
 /* Header biens — 3 zones flex */

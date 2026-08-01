@@ -1462,8 +1462,6 @@ function renderBiens(el) {
             <option value="rend_desc">Rendement ↓</option>
             <option value="nom_az">Nom A → Z</option>
           </select>
-          <div class="sort-sep"></div>
-          <button class="bd-link" onclick="exportBiensCSV()" title="Exporte les biens actuellement affichés, filtres et tri compris">⬇ Exporter CSV</button>
         </div>
 
         <!-- Header : titre | pagination | toggle -->
@@ -1489,6 +1487,10 @@ function renderBiens(el) {
                 <option value="type" ${kanbanGroup==='type'?'selected':''}>Type de bien</option>
               </select>
             </div>
+            <!-- Action de niveau page : elle vit avec le toggle de vue, pas dans
+                 la barre de filtres qui est en flex-wrap et la rejetait seule
+                 sur une deuxieme ligne. -->
+            <button class="icon-btn" onclick="exportBiensCSV()" title="Exporte les biens actuellement affichés, filtres et tri compris" aria-label="Exporter les biens affichés au format CSV">⬇ CSV</button>
           </div>
         </div>
 
