@@ -1,0 +1,292 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   STONEFOLIO — SOCLE DE JETONS DE DESIGN
+   Phase 2 de la refonte visuelle · 01/08/2026
+   ═══════════════════════════════════════════════════════════════════════════
+
+   COUCHE PARALLELE, VOLONTAIREMENT SANS EFFET A CE STADE.
+
+   Ce fichier ne declare QUE des proprietes personnalisees. Il ne peint rien,
+   ne selectionne aucun element, et n'entre donc en conflit avec aucune regle
+   existante. Tant qu'aucun composant ne consomme un jeton `--sf-*`, la
+   plateforme reste strictement identique a l'ecran.
+
+   Pourquoi ce detour plutot qu'une bascule directe : styles.css contient
+   104 valeurs indigo ecrites en dur et aucun composant n'est pense pour un
+   fond sombre. Rebasculer les anciennes variables produirait un ecran a
+   moitie migre, pire que l'etat actuel. Les composants migrent un a un en
+   phase 3 et 5 ; l'ancienne couche (--c-*, --accent, --fs-*, --sb-*, --tb-*)
+   sera supprimee quand le dernier aura bascule.
+
+   REGLE DE COULEUR HERITEE DE LA PLANCHE DE MARQUE — a ne pas contourner :
+     1. Les verts de marque sont SOMBRES. Ils font la matiere (fonds, bordures,
+        onglet actif), jamais une valeur.
+     2. Le bouton principal N'A PAS DE TEINTE : blanc sur fond sombre, vert
+        profond sur fond clair. Marque verte, mais pas de bouton vert.
+     3. Un SEUL vert lumineux, --sf-gain, reserve aux valeurs positives.
+        Jamais un fond, jamais une icone decorative, jamais un bouton.
+     4. La couleur ne porte jamais seule : le signe + reste (8 % des hommes
+        sont daltoniens).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   1. JETONS INVARIANTS — identiques dans les deux themes
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+
+  /* ── Familles typographiques ──────────────────────────────────────────────
+     Satoshi et JetBrains Mono ne sont pas encore deposes dans /fonts : les
+     piles de repli ci-dessous s'appliquent en attendant, sans rien casser.
+     Voir le bloc @font-face commente en fin de fichier. */
+  --sf-font-display: "Satoshi", "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
+  --sf-font-ui:      "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --sf-font-num:     "JetBrains Mono", ui-monospace, "Cascadia Mono", "SF Mono", Menlo, monospace;
+
+  /* ── Echelle typographique ────────────────────────────────────────────────
+     Source unique. L'audit avait releve 36 tailles distinctes en dur, dont des
+     ecarts d'un demi-pixel qui empechaient tout rythme vertical. Dix valeurs
+     suffisent ; toute taille hors de cette echelle est un bug. */
+  --sf-size-100:  11px;
+  --sf-size-200:  12px;
+  --sf-size-300:  13px;
+  --sf-size-400:  14px;   /* base de l'interface */
+  --sf-size-500:  16px;
+  --sf-size-600:  18px;
+  --sf-size-700:  22px;
+  --sf-size-800:  28px;
+  --sf-size-900:  36px;
+  --sf-size-1000: 48px;
+
+  /* Roles — on ecrit le role dans le composant, jamais la taille brute.
+     Changer l'echelle se fait alors ici, en un seul endroit. */
+  --sf-font-label:    var(--sf-size-100);  /* etiquette en capitales */
+  --sf-font-caption:  var(--sf-size-200);  /* legende, mention secondaire */
+  --sf-font-body-sm:  var(--sf-size-300);  /* tableaux denses */
+  --sf-font-body:     var(--sf-size-400);  /* texte courant, champs */
+  --sf-font-lead:     var(--sf-size-500);  /* chapo, sous-titre */
+  --sf-font-h3:       var(--sf-size-600);
+  --sf-font-h2:       var(--sf-size-700);
+  --sf-font-kpi:      var(--sf-size-800);  /* valeur chiffree d'un KPI */
+  --sf-font-h1:       var(--sf-size-900);
+  --sf-font-hero:     var(--sf-size-1000);
+
+  /* ── Graisses ─────────────────────────────────────────────────────────── */
+  --sf-weight-regular:  400;
+  --sf-weight-medium:   500;
+  --sf-weight-semibold: 600;
+  --sf-weight-bold:     700;
+
+  /* ── Interlignes ──────────────────────────────────────────────────────── */
+  --sf-lh-tight:  1.12;   /* grands titres, KPI */
+  --sf-lh-snug:   1.32;   /* titres courants */
+  --sf-lh-normal: 1.55;   /* texte courant */
+
+  /* ── Approches ────────────────────────────────────────────────────────────
+     Les references du secteur serrent nettement les grandes tailles : Revolut
+     affiche -0,025 em a 85 px. TrackImmo n'avait aucun reglage d'approche. */
+  --sf-track-hero:  -0.035em;
+  --sf-track-tight: -0.022em;
+  --sf-track-snug:  -0.012em;
+  --sf-track-none:   0;
+  --sf-track-caps:   0.085em;  /* etiquettes en capitales */
+
+  /* ── Espacement — base 4 px ───────────────────────────────────────────────
+     Aucune grille n'existait : marges et paddings etaient poses au cas par cas. */
+  --sf-space-0:  0;
+  --sf-space-1:  2px;
+  --sf-space-2:  4px;
+  --sf-space-3:  6px;
+  --sf-space-4:  8px;
+  --sf-space-5:  12px;
+  --sf-space-6:  16px;
+  --sf-space-7:  20px;
+  --sf-space-8:  24px;
+  --sf-space-9:  32px;
+  --sf-space-10: 40px;
+  --sf-space-11: 48px;
+  --sf-space-12: 64px;
+
+  /* ── Rayons ───────────────────────────────────────────────────────────────
+     17 valeurs distinctes relevees a l'audit, de 2 px a 24 px. Cinq suffisent. */
+  --sf-radius-xs:   4px;   /* pastille, badge */
+  --sf-radius-sm:   8px;   /* bouton, champ */
+  --sf-radius-md:   12px;  /* carte */
+  --sf-radius-lg:   16px;  /* panneau, fenetre */
+  --sf-radius-full: 999px; /* pilule, avatar */
+
+  /* ── Epaisseurs de trait ──────────────────────────────────────────────── */
+  --sf-border-width: 1px;
+  --sf-focus-width:  2px;
+  --sf-focus-offset: 2px;
+
+  /* ── Mouvement ────────────────────────────────────────────────────────── */
+  --sf-dur-fast: 120ms;
+  --sf-dur:      180ms;
+  --sf-dur-slow: 280ms;
+  --sf-ease:     cubic-bezier(0.2, 0, 0.2, 1);
+
+  /* ── Plans de superposition ───────────────────────────────────────────── */
+  --sf-z-base:    0;
+  --sf-z-sticky:  100;
+  --sf-z-nav:     200;
+  --sf-z-dropdown:300;
+  --sf-z-modal:   400;
+  --sf-z-toast:   500;
+}
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   2. THEME SOMBRE — le defaut, conformement a l'arbitrage du 01/08/2026
+   ───────────────────────────────────────────────────────────────────────────
+   Le fond n'est pas un gris neutre mais un noir TEINTE DE VERT. C'est ce
+   detail qui fait que le mode sombre appartient a la marque au lieu d'etre
+   le sombre generique de n'importe quel produit.                            */
+:root {
+
+  /* Surfaces — de la plus profonde a la plus haute */
+  --sf-bg:          #0A100C;
+  --sf-surface:     #111A15;
+  --sf-surface-2:   #16221B;
+  --sf-surface-3:   #1C2A22;   /* survol */
+  --sf-border:      #22332A;
+  --sf-border-strong:#2E4438;
+
+  /* Texte */
+  --sf-text:        #EAF0EC;
+  --sf-text-2:      #9BAEA4;
+  --sf-text-3:      #6E8177;
+  --sf-text-on-brand:#EAF0EC;
+
+  /* Marque — SOMBRE, c'est de la matiere (regle 1) */
+  --sf-brand:       #1E4630;   /* Eden        · 19-6050 */
+  --sf-brand-2:     #1A5A4C;   /* Green Jacket· 19-6027 */
+  --sf-brand-3:     #127A44;   /* First Tee   · 18-6031 */
+  --sf-brand-vivid: #17A06B;   /* Jelly Bean  · 17-6030 — identite seulement */
+  --sf-brand-wash:  rgba(23,160,107,.10);
+  --sf-brand-wash-2:rgba(23,160,107,.18);
+
+  /* Action principale — SANS TEINTE (regle 2) */
+  --sf-action-bg:       #EAF0EC;
+  --sf-action-text:     #0A100C;
+  --sf-action-bg-hover: #FFFFFF;
+  --sf-action-2-bg:     transparent;
+  --sf-action-2-text:   #EAF0EC;
+  --sf-action-2-border: #2E4438;
+
+  /* Signal — hors gamme de marque, reserve au sens (regle 3) */
+  --sf-gain:       #4ADE80;
+  --sf-gain-wash:  rgba(74,222,128,.12);
+  --sf-loss:       #FF7A6B;   /* corail : un cashflow negatif n'est pas une erreur */
+  --sf-loss-wash:  rgba(255,122,107,.12);
+  --sf-alert:      #F0B429;
+  --sf-alert-wash: rgba(240,180,41,.12);
+  --sf-info:       #6BB8E0;
+  --sf-info-wash:  rgba(107,184,224,.12);
+
+  /* Focus — visible sur les deux fonds, jamais supprime */
+  --sf-focus: #4ADE80;
+
+  /* Elevations — sur fond sombre une ombre ne se voit pas : c'est la surface
+     qui monte, l'ombre ne fait qu'asseoir les couches flottantes. */
+  --sf-elev-0: none;
+  --sf-elev-1: 0 1px 2px rgba(0,0,0,.40);
+  --sf-elev-2: 0 4px 12px rgba(0,0,0,.45);
+  --sf-elev-3: 0 12px 32px rgba(0,0,0,.55);
+
+  /* Trames de graphique */
+  --sf-chart-grid: rgba(234,240,236,.07);
+  --sf-chart-axis: #6E8177;
+}
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   3. THEME CLAIR
+   ───────────────────────────────────────────────────────────────────────────
+   Meme fond legerement verdi, pour la meme raison. Le bouton principal reste
+   sans teinte au sens de la regle 2 : il prend le vert le plus profond, celui
+   qui fait office de neutre fonce dans cette gamme — jamais un vert lumineux.  */
+:root[data-theme="light"] {
+
+  --sf-bg:          #F5F8F6;
+  --sf-surface:     #FFFFFF;
+  --sf-surface-2:   #EDF3EF;
+  --sf-surface-3:   #E3EDE7;
+  --sf-border:      #D6E2DA;
+  --sf-border-strong:#B9CDC1;
+
+  --sf-text:        #0C1710;
+  --sf-text-2:      #3D5145;
+  --sf-text-3:      #6E8177;
+  --sf-text-on-brand:#FFFFFF;
+
+  --sf-brand:       #1E4630;
+  --sf-brand-2:     #1A5A4C;
+  --sf-brand-3:     #127A44;
+  --sf-brand-vivid: #17A06B;
+  --sf-brand-wash:  rgba(18,122,68,.08);
+  --sf-brand-wash-2:rgba(18,122,68,.15);
+
+  --sf-action-bg:       #1E4630;
+  --sf-action-text:     #FFFFFF;
+  --sf-action-bg-hover: #163524;
+  --sf-action-2-bg:     transparent;
+  --sf-action-2-text:   #1E4630;
+  --sf-action-2-border: #B9CDC1;
+
+  /* Sur fond clair, les memes teintes de signal passeraient sous le seuil de
+     contraste : elles sont assombries, pas simplement reprises. */
+  --sf-gain:       #0E7C4A;
+  --sf-gain-wash:  rgba(14,124,74,.10);
+  --sf-loss:       #C2401F;
+  --sf-loss-wash:  rgba(194,64,31,.09);
+  --sf-alert:      #9A6B00;
+  --sf-alert-wash: rgba(154,107,0,.11);
+  --sf-info:       #1E6F97;
+  --sf-info-wash:  rgba(30,111,151,.10);
+
+  --sf-focus: #127A44;
+
+  --sf-elev-0: none;
+  --sf-elev-1: 0 1px 2px rgba(12,23,16,.06);
+  --sf-elev-2: 0 4px 14px rgba(12,23,16,.09);
+  --sf-elev-3: 0 14px 36px rgba(12,23,16,.14);
+
+  --sf-chart-grid: rgba(12,23,16,.08);
+  --sf-chart-axis: #6E8177;
+}
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   4. ACCESSIBILITE
+   ─────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --sf-dur-fast: 0ms;
+    --sf-dur:      0ms;
+    --sf-dur-slow: 0ms;
+  }
+}
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   5. POLICES AUTO-HEBERGEES — a activer une fois les fichiers deposes
+   ───────────────────────────────────────────────────────────────────────────
+   A faire par Thomas, une seule fois :
+     1. Telecharger Satoshi sur fontshare.com/fonts/satoshi (licence libre,
+        usage commercial autorise) et JetBrains Mono sur jetbrains.com/lp/mono
+        (licence OFL). Recuperer aussi Inter au format woff2 (rsms.me/inter).
+     2. Deposer les .woff2 dans un dossier /fonts a la racine du depot.
+     3. Decommenter le bloc ci-dessous.
+   Tant que ce bloc dort, les piles de repli declarees en section 1
+   s'appliquent : rien ne casse, l'affichage est simplement moins caracterise.
+
+   Auto-heberger supprime au passage la dependance a Google Fonts, qui est
+   aujourd'hui un point de defaillance externe pour toute la plateforme.
+
+@font-face{font-family:"Satoshi";src:url("fonts/Satoshi-Variable.woff2") format("woff2-variations");
+           font-weight:300 900;font-display:swap;font-style:normal;}
+@font-face{font-family:"Inter";src:url("fonts/Inter-Variable.woff2") format("woff2-variations");
+           font-weight:100 900;font-display:swap;font-style:normal;}
+@font-face{font-family:"JetBrains Mono";src:url("fonts/JetBrainsMono-Variable.woff2") format("woff2-variations");
+           font-weight:100 800;font-display:swap;font-style:normal;}
+   ─────────────────────────────────────────────────────────────────────────── */
