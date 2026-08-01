@@ -8533,11 +8533,15 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
 
   // ── SECTION 6 : Actualités ────────────────────────────────────
   let sec6 = '';
+  // Chaque lien doit aboutir a des resultats reellement filtres sur la commune.
+  // Les Echos (moteur de resultats non alimente malgre une URL conforme a leur
+  // JSON-LD) et SeLoger (page d'actualites nationale, commune jamais transmise)
+  // ont ete retires le 01/08/2026 : un bouton qui ne tient pas sa promesse est
+  // pire que pas de bouton.
   const newsLinks = [
     { label: '📰 Google News', url: `https://news.google.com/search?q=${encodeURIComponent(commune+' économie emploi')}&hl=fr&gl=FR`, desc: 'Actu économique locale' },
-    { label: '📊 Les Échos', url: `https://www.lesechos.fr/recherche?q=${encodeURIComponent(commune)}`, desc: 'Presse économique' },
-    { label: '🏭 La Tribune', url: `https://www.latribune.fr/recherche/?q=${encodeURIComponent(commune)}`, desc: 'Économie & entreprises' },
-    { label: '🏠 SeLoger', url: `https://www.seloger.com/actualites/`, desc: 'Marché immobilier' },
+    // La Tribune attend lt_prod_CONTENT[query] ; un ?q= est ignore silencieusement.
+    { label: '🏭 La Tribune', url: `https://www.latribune.fr/recherche/?${encodeURIComponent('lt_prod_CONTENT[query]')}=${encodeURIComponent(commune)}`, desc: 'Économie & entreprises' },
     { label: '🔍 Google Immo', url: `https://news.google.com/search?q=${encodeURIComponent(commune+' immobilier logement')}&hl=fr&gl=FR`, desc: 'Actu immobilier local' },
   ];
 
