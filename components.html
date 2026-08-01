@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Stonefolio — bibliothèque de composants</title>
+<link rel="stylesheet" href="tokens.css?v=31">
+<link rel="stylesheet" href="components.css?v=31">
+<style>
+  /* Mise en page de cette page de documentation uniquement.
+     Aucun style de composant ici : tout vient de components.css. */
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--sf-bg);color:var(--sf-text);font-family:var(--sf-font-ui);
+       font-size:var(--sf-font-body);line-height:var(--sf-lh-normal);
+       padding:0 var(--sf-space-7) var(--sf-space-12);}
+  .doc{max-width:1080px;margin:0 auto;}
+  .doc-head{display:flex;align-items:center;gap:var(--sf-space-6);flex-wrap:wrap;
+            padding:var(--sf-space-11) 0 var(--sf-space-8);
+            border-bottom:1px solid var(--sf-border);margin-bottom:var(--sf-space-10);}
+  .doc-head h1{font-family:var(--sf-font-display);font-size:var(--sf-font-h1);
+               letter-spacing:var(--sf-track-hero);line-height:var(--sf-lh-tight);
+               font-weight:var(--sf-weight-bold);}
+  .doc-head p{color:var(--sf-text-2);max-width:56ch;margin-top:var(--sf-space-3);}
+  .doc-sec{margin-bottom:var(--sf-space-12);}
+  .doc-sec > h2{font-family:var(--sf-font-display);font-size:var(--sf-font-h2);
+                letter-spacing:var(--sf-track-tight);font-weight:var(--sf-weight-semibold);
+                padding-bottom:var(--sf-space-4);border-bottom:1px solid var(--sf-border);
+                margin-bottom:var(--sf-space-6);display:flex;align-items:baseline;gap:var(--sf-space-5);}
+  .doc-sec > h2 small{font-family:var(--sf-font-num);font-size:var(--sf-font-caption);
+                      font-weight:var(--sf-weight-regular);color:var(--sf-text-3);
+                      letter-spacing:var(--sf-track-none);margin-left:auto;}
+  .doc-note{border-left:2px solid var(--sf-brand-vivid);padding-left:var(--sf-space-5);
+            color:var(--sf-text-2);font-size:var(--sf-font-body);margin:var(--sf-space-6) 0;
+            max-width:64ch;}
+  .row{display:flex;gap:var(--sf-space-5);flex-wrap:wrap;align-items:center;}
+  .grid{display:grid;gap:var(--sf-space-5);}
+  .grid--3{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}
+  .grid--2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));}
+  .lbl{font-family:var(--sf-font-num);font-size:var(--sf-font-caption);
+       color:var(--sf-text-3);margin-bottom:var(--sf-space-4);display:block;}
+  .demo-box{background:var(--sf-surface);border:1px solid var(--sf-border);
+            border-radius:var(--sf-radius-md);padding:var(--sf-space-7);}
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <header class="doc-head">
+    <div style="flex:1;min-width:260px">
+      <h1>Bibliothèque de composants</h1>
+      <p>Phase 3. Chaque composant s'appuie exclusivement sur les jetons de
+         <code class="sf-num">tokens.css</code>. Bascule le thème pour vérifier les deux.</p>
+    </div>
+    <div class="row" role="group" aria-label="Thème">
+      <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="setTheme('dark')">Sombre</button>
+      <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="setTheme('light')">Clair</button>
+    </div>
+  </header>
+
+  <!-- BOUTONS -->
+  <section class="doc-sec">
+    <h2>Boutons <small>40 classes → 5 variantes</small></h2>
+    <div class="doc-note">L'action principale n'a <strong>pas de teinte</strong> : blanc sur fond
+      sombre, vert profond sur fond clair. C'est ce qui laisse le vert lumineux disponible pour les
+      valeurs. Une seule action principale par écran.</div>
+    <div class="demo-box">
+      <span class="lbl">Variantes</span>
+      <div class="row" style="margin-bottom:var(--sf-space-8)">
+        <button class="sf-btn sf-btn--primary" type="button">Enregistrer</button>
+        <button class="sf-btn sf-btn--secondary" type="button">Annuler</button>
+        <button class="sf-btn sf-btn--ghost" type="button">Voir le détail</button>
+        <button class="sf-btn sf-btn--danger" type="button">Supprimer</button>
+        <button class="sf-btn sf-btn--secondary sf-btn--icon" type="button" aria-label="Exporter en CSV">↓</button>
+      </div>
+      <span class="lbl">Tailles</span>
+      <div class="row" style="margin-bottom:var(--sf-space-8)">
+        <button class="sf-btn sf-btn--primary sf-btn--sm" type="button">Petit</button>
+        <button class="sf-btn sf-btn--primary" type="button">Normal</button>
+        <button class="sf-btn sf-btn--primary sf-btn--lg" type="button">Grand</button>
+      </div>
+      <span class="lbl">États — le focus est visible au clavier, jamais supprimé</span>
+      <div class="row">
+        <button class="sf-btn sf-btn--primary" type="button" disabled>Désactivé</button>
+        <button class="sf-btn sf-btn--secondary" type="button" disabled>Désactivé</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHAMPS -->
+  <section class="doc-sec">
+    <h2>Champs de formulaire</h2>
+    <div class="demo-box">
+      <div class="grid grid--2">
+        <div class="sf-field">
+          <label class="sf-label" for="d1">Prix affiché</label>
+          <input class="sf-input" id="d1" value="199 499" inputmode="numeric">
+          <span class="sf-hint">Prix demandé par le vendeur, hors frais.</span>
+        </div>
+        <div class="sf-field">
+          <label class="sf-label" for="d2">Date d'entrée <span class="sf-label__req">*</span></label>
+          <input class="sf-input sf-input--invalid" id="d2" type="date" aria-describedby="d2e">
+          <span class="sf-hint sf-hint--error" id="d2e">Requise dès qu'un locataire actif est rattaché à un bien.</span>
+        </div>
+        <div class="sf-field">
+          <label class="sf-label" for="d3">Statut</label>
+          <select class="sf-input sf-select" id="d3">
+            <option>Renseignements Web</option>
+            <option>Contre offre - Refusée</option>
+            <option>Dossier non déposé</option>
+          </select>
+        </div>
+        <div class="sf-field">
+          <label class="sf-label" for="d4">Champ désactivé</label>
+          <input class="sf-input" id="d4" value="Frais de notaire calculés" disabled>
+          <span class="sf-hint">Calculé automatiquement.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- KPI -->
+  <section class="doc-sec">
+    <h2>Indicateurs chiffrés</h2>
+    <div class="doc-note">La couleur porte sur <strong>la valeur</strong>, jamais sur la carte : un
+      fond coloré ferait concurrence au chiffre. Et le signe <code class="sf-num">+</code> reste,
+      pour que l'information se lise sans la couleur.</div>
+    <div class="grid grid--3">
+      <div class="sf-kpi">
+        <span class="sf-kpi__label">Cashflow réel</span>
+        <span class="sf-kpi__value sf-kpi__value--gain sf-num">+312 €</span>
+        <span class="sf-kpi__sub">moyenne sur 12 mois</span>
+      </div>
+      <div class="sf-kpi">
+        <span class="sf-kpi__label">Cashflow réel</span>
+        <span class="sf-kpi__value sf-kpi__value--loss sf-num">−2 233 €</span>
+        <span class="sf-kpi__sub">moyenne sur 12 mois</span>
+      </div>
+      <div class="sf-kpi">
+        <span class="sf-kpi__label">Loyers encaissés</span>
+        <span class="sf-kpi__value sf-num">7 470 €</span>
+        <span class="sf-kpi__sub">tous biens acquis</span>
+      </div>
+      <div class="sf-kpi">
+        <span class="sf-kpi__label">Rendement net</span>
+        <span class="sf-kpi__value sf-kpi__value--none">non disponible</span>
+        <span class="sf-kpi__sub">loyer non renseigné</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- PASTILLES -->
+  <section class="doc-sec">
+    <h2>Pastilles et badges</h2>
+    <div class="demo-box">
+      <div class="row">
+        <span class="sf-pill">Neutre</span>
+        <span class="sf-pill sf-pill--brand"><span class="sf-dot"></span>Acheté</span>
+        <span class="sf-pill sf-pill--gain">Rentable</span>
+        <span class="sf-pill sf-pill--loss">Déficitaire</span>
+        <span class="sf-pill sf-pill--alert">Impayé</span>
+        <span class="sf-pill sf-pill--info">Bientôt</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- TABLEAU -->
+  <section class="doc-sec">
+    <h2>Tableau <small>chiffres en chasse fixe</small></h2>
+    <div class="doc-note">Les nombres passent en chasse fixe et en chiffres tabulaires. Sans cela,
+      les colonnes du suivi mensuel ne s'alignent pas verticalement — un défaut aujourd'hui visible
+      sur douze colonnes.</div>
+    <div class="sf-table-wrap">
+      <table class="sf-table">
+        <thead>
+          <tr><th>Bien</th><th>Ville</th><th class="sf-table__num">Prix</th>
+              <th class="sf-table__num">Loyer</th><th class="sf-table__num">Cashflow</th><th>Statut</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Immeuble Paris 18e</td><td>Paris 18e</td>
+              <td class="sf-table__num">650 000 €</td><td class="sf-table__num">4 200 €</td>
+              <td class="sf-table__num sf-table__num--gain">+1 073 €</td>
+              <td><span class="sf-pill sf-pill--brand">Acheté</span></td></tr>
+          <tr><td>T2 Bordeaux</td><td>Bordeaux</td>
+              <td class="sf-table__num">175 000 €</td><td class="sf-table__num">850 €</td>
+              <td class="sf-table__num sf-table__num--gain">+57 €</td>
+              <td><span class="sf-pill sf-pill--brand">Acheté</span></td></tr>
+          <tr><td>T4+ Paris 16e</td><td>Paris 16e</td>
+              <td class="sf-table__num">850 000 €</td><td class="sf-table__num">2 800 €</td>
+              <td class="sf-table__num sf-table__num--loss">−1 029 €</td>
+              <td><span class="sf-pill sf-pill--brand">Acheté</span></td></tr>
+          <tr><td>Achat immeuble 66 m²</td><td>Châtellerault</td>
+              <td class="sf-table__num">199 499 €</td><td class="sf-table__num sf-muted">—</td>
+              <td class="sf-table__num sf-muted">—</td>
+              <td><span class="sf-pill">Renseignements Web</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ETAT VIDE -->
+  <section class="doc-sec">
+    <h2>État vide <small>15 familles → 1</small></h2>
+    <div class="doc-note">C'est le premier écran que voit un nouvel utilisateur. Il doit dire ce qui
+      manque <em>et</em> proposer l'action qui le comble — jamais se contenter d'un « aucune donnée ».</div>
+    <div class="sf-card">
+      <div class="sf-empty">
+        <div class="sf-empty__icon" aria-hidden="true">▤</div>
+        <h3 class="sf-empty__title">Aucun bien pour le moment</h3>
+        <p class="sf-empty__text">Ajoutez votre première annonce pour suivre son rendement, son
+          cashflow et son avancement jusqu'à la signature.</p>
+        <div class="sf-empty__actions">
+          <button class="sf-btn sf-btn--primary" type="button">Ajouter un bien</button>
+          <button class="sf-btn sf-btn--ghost" type="button">Explorer le marché</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CARTE + NAV -->
+  <section class="doc-sec">
+    <h2>Carte et navigation</h2>
+    <div class="sf-card" style="margin-bottom:var(--sf-space-6)">
+      <div class="sf-card__head">
+        <h3 class="sf-card__title">Suivi mensuel</h3>
+        <div class="sf-card__actions">
+          <button class="sf-btn sf-btn--ghost sf-btn--sm" type="button">Exporter</button>
+          <button class="sf-btn sf-btn--primary sf-btn--sm" type="button">Ajouter une charge</button>
+        </div>
+      </div>
+      <div class="sf-card__body">
+        <p style="color:var(--sf-text-2)">Corps de la carte. L'en-tête porte le titre et les actions ;
+          les actions secondaires y sont en variante fantôme pour ne pas concurrencer l'action principale.</p>
+      </div>
+    </div>
+    <nav class="sf-nav" style="border-radius:var(--sf-radius-md);border:1px solid var(--sf-border)">
+      <a class="sf-nav__item sf-nav__item--active" href="#">Pipeline</a>
+      <a class="sf-nav__item" href="#">Marché</a>
+      <a class="sf-nav__item" href="#">Gestion</a>
+      <a class="sf-nav__item" href="#">Outils</a>
+      <a class="sf-nav__item" href="#" style="margin-left:auto">Paramètres</a>
+    </nav>
+  </section>
+
+</div>
+
+<script>
+  function setTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    try{ localStorage.setItem('sf_doc_theme', t); }catch(e){}
+  }
+  try{
+    var t = localStorage.getItem('sf_doc_theme');
+    if(t) document.documentElement.setAttribute('data-theme', t);
+  }catch(e){}
+</script>
+</body>
+</html>

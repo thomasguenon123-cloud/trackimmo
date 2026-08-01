@@ -118,6 +118,17 @@
   --sf-border-width: 1px;
   --sf-focus-width:  2px;
   --sf-focus-offset: 2px;
+  --sf-focus-ring:   3px;   /* halo interne au focus d'un champ */
+
+  /* ── Hauteurs de controle ─────────────────────────────────────────────────
+     Un bouton et un champ places cote a cote DOIVENT faire la meme hauteur.
+     Les laisser en dur dans chaque composant, c'est laisser cet alignement au
+     hasard : il tient tant que personne n'y touche. Ces trois jetons le
+     rendent structurel. */
+  --sf-control-h-sm: 30px;
+  --sf-control-h:    38px;
+  --sf-control-h-lg: 46px;
+  --sf-nav-h:        58px;   /* bandeau haut, phase 4 */
 
   /* ── Mouvement ────────────────────────────────────────────────────────── */
   --sf-dur-fast: 120ms;
