@@ -605,6 +605,146 @@ function tiFormatChamp(bien, k) {
     default:          return String(brut);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════
+//  EXPORT CSV
+// ═══════════════════════════════════════════════════════════════
+// Cible assumee : Excel en francais. Trois choix qui n'ont rien d'anodin :
+//   - separateur ';'  Excel FR attend le point-virgule, pas la virgule
+//   - decimale ','    idem, sinon les montants sont lus comme du texte
+//   - BOM UTF-8       sans lui, Excel rend les accents en mojibake
+// Et surtout : les nombres sortent BRUTS. Ne jamais passer un montant par
+// fmt() ou tiFormatChamp() ici — ils produisent un separateur de milliers
+// U+202F (espace insecable etroite) qu'Excel refuse de lire comme un nombre.
+
+const TI_CSV_UNITES = { euro:' (€)', euro_mois:' (€/mois)', m2:' (m²)', annees:' (ans)' };
+
+function tiCsvValeur(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'number') return Number.isFinite(v) ? String(v).replace('.', ',') : '';
+  const s = String(v);
+  // Guillemets, separateur ou saut de ligne dans la valeur -> on encadre et on
+  // double les guillemets internes (RFC 4180).
+  return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function tiCsv(entetes, lignes) {
+  return [entetes, ...lignes].map(l => l.map(tiCsvValeur).join(';')).join('\r\n');
+}
+
+function tiTelechargerCsv(base, contenu) {
+  const nom = `trackimmo-${base}-${new Date().toISOString().slice(0, 10)}.csv`;
+  const blob = new Blob(['﻿' + contenu], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: nom });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return nom;
+}
+
+// Valeur d'un champ de bien destinee au CSV : numerique quand le type l'est,
+// chaine vide quand la donnee est absente — jamais 0, un loyer non saisi
+// n'etant pas un loyer nul (regle de l'audit Marche).
+function tiCsvChamp(bien, c) {
+  const brut = bien?.[c.k];
+  if (brut === null || brut === undefined || brut === '') return '';
+  if (c.type === 'euro' || c.type === 'euro_mois' || c.type === 'm2') {
+    const n = parseFloat(brut); return Number.isNaN(n) ? '' : n;
+  }
+  if (c.type === 'annees') { const n = parseInt(brut, 10); return Number.isNaN(n) ? '' : n; }
+  return String(brut);
+}
+
+function tiDateFr(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  return isNaN(dt) ? String(d) : dt.toLocaleDateString('fr-FR');
+}
+
+// ── Export des fiches biens ──────────────────────────────────────
+// Exporte ce que l'utilisateur a sous les yeux : getFilteredBiens() applique
+// les filtres et le tri courants. Exporter tout le portefeuille alors que
+// l'ecran en montre trois serait une mauvaise surprise.
+function exportBiensCSV() {
+  const biens = getFilteredBiens();
+  if (!biens.length) { showNotif('Aucun bien à exporter avec ces filtres', true); return; }
+
+  const champs = TI_BIENS.CHAMPS;
+  const entetes = [
+    ...champs.map(c => c.lab + (TI_CSV_UNITES[c.type] || '')),
+    'Cashflow prévisionnel (€/mois)', 'Rendement brut (%)', "Date d'ajout",
+  ];
+
+  const lignes = biens.map(b => {
+    const prix = parseFloat(b.prix_affiche) || 0;
+    const loyer = parseFloat(b.loyer_en_etat) || 0;
+    // Un cashflow n'a de sens que si au moins une mensualite ou un loyer est
+    // saisi ; un rendement, que si prix ET loyer le sont. Sinon on laisse vide.
+    const cfCalculable = !!(b.mensualite_credit || b.loyer_en_etat);
+    return [
+      ...champs.map(c => tiCsvChamp(b, c)),
+      cfCalculable ? Math.round(computeCF(b) * 100) / 100 : '',
+      (prix > 0 && loyer > 0) ? Math.round((loyer * 12 / prix) * 1000) / 10 : '',
+      tiDateFr(b.created_at),
+    ];
+  });
+
+  const nom = tiTelechargerCsv('biens', tiCsv(entetes, lignes));
+  showNotif(`✓ ${biens.length} bien${biens.length > 1 ? 's' : ''} exporté${biens.length > 1 ? 's' : ''} · ${nom}`);
+}
+
+// ── Export des loyers d'une annee ────────────────────────────────
+function exportLoyersCSV(annee) {
+  const lignesAn = allLoyers.filter(l => l.annee === annee);
+  if (!lignesAn.length) { showNotif(`Aucun loyer saisi en ${annee}`, true); return; }
+
+  const entetes = ['Bien', 'Ville', 'Année', 'Mois', 'Locataire', 'Loyer dû (€)',
+    'Charges dues (€)', 'Montant encaissé (€)', 'Statut', 'Date encaissement'];
+
+  const lignes = lignesAn
+    .sort((a, b) => a.mois - b.mois)
+    .map(l => {
+      const bien = allBiens.find(x => x.id === l.bien_id);
+      const loc = allLocataires.find(x => x.id === l.locataire_id);
+      const enc = parseFloat(l.montant_encaisse);
+      return [
+        bien?.titre || '', bien?.ville || '', l.annee, MOIS_LONGS[l.mois - 1] || l.mois,
+        loc ? [loc.prenom, loc.nom].filter(Boolean).join(' ') : '',
+        parseFloat(l.loyer_du) || 0, parseFloat(l.charges_dues) || 0,
+        Number.isNaN(enc) ? '' : enc,
+        l.statut || '', tiDateFr(l.date_encaissement),
+      ];
+    });
+
+  const nom = tiTelechargerCsv(`loyers-${annee}`, tiCsv(entetes, lignes));
+  showNotif(`✓ ${lignes.length} ligne${lignes.length > 1 ? 's' : ''} de loyer exportée${lignes.length > 1 ? 's' : ''} · ${nom}`);
+}
+
+// ── Export des charges d'une annee ───────────────────────────────
+function exportChargesCSV(annee) {
+  const chargesAn = allCharges.filter(c => (c.date_charge || '').startsWith(String(annee)));
+  if (!chargesAn.length) { showNotif(`Aucune charge saisie en ${annee}`, true); return; }
+
+  const entetes = ['Bien', 'Ville', 'Date', 'Catégorie', 'Libellé', 'Montant (€)',
+    'Fréquence', 'Récupérable locataire', 'Lissable', 'Notes'];
+
+  const lignes = chargesAn
+    .sort((a, b) => (a.date_charge || '').localeCompare(b.date_charge || ''))
+    .map(c => {
+      const bien = allBiens.find(x => x.id === c.bien_id);
+      return [
+        bien?.titre || '', bien?.ville || '', tiDateFr(c.date_charge),
+        c.categorie || '', c.libelle || '', parseFloat(c.montant) || 0,
+        c.frequence || '',
+        c.recuperable_locataire ? 'Oui' : 'Non',
+        c.lissable ? 'Oui' : 'Non',
+        c.notes || '',
+      ];
+    });
+
+  const nom = tiTelechargerCsv(`charges-${annee}`, tiCsv(entetes, lignes));
+  showNotif(`✓ ${lignes.length} charge${lignes.length > 1 ? 's' : ''} exportée${lignes.length > 1 ? 's' : ''} · ${nom}`);
+}
 let sciOui = false;
 
 
@@ -1322,6 +1462,8 @@ function renderBiens(el) {
             <option value="rend_desc">Rendement ↓</option>
             <option value="nom_az">Nom A → Z</option>
           </select>
+          <div class="sort-sep"></div>
+          <button class="bd-link" onclick="exportBiensCSV()" title="Exporte les biens actuellement affichés, filtres et tri compris">⬇ Exporter CSV</button>
         </div>
 
         <!-- Header : titre | pagination | toggle -->
@@ -5349,6 +5491,12 @@ function renderMfSuivi(c) {
       <div class="mfs-actions">
         <button class="mfs-act-btn" onclick="mfGenerateMissingLoyers(${mfSuiviYear})" title="Crée les lignes loyers manquantes pour ${mfSuiviYear} en respectant le prorata loi 1989">
           🔄 Générer loyers ${mfSuiviYear}
+        </button>
+        <button class="mfs-act-btn" onclick="exportLoyersCSV(${mfSuiviYear})" title="Exporte les lignes de loyer ${mfSuiviYear} au format CSV">
+          ⬇ Loyers ${mfSuiviYear}
+        </button>
+        <button class="mfs-act-btn" onclick="exportChargesCSV(${mfSuiviYear})" title="Exporte les charges réelles ${mfSuiviYear} au format CSV">
+          ⬇ Charges ${mfSuiviYear}
         </button>
         <button class="mfs-act-btn primary" onclick="mfOpenChargeModal(null)">
           ＋ Ajouter une charge
