@@ -4136,7 +4136,9 @@ let visitPhotos = [], visitRating = 0, simEditId = null;
 
 const PAGE_LABELS = {accueil:'Tableau de bord',biens:'Mes biens',nouveau:'Ajouter un bien','bien-detail':'Fiche bien',simulateur:'Simulateur crédit',visites:'Comptes rendus',portails:'Portails immo',administration:'Administration','module-financier':'Module financier','admin-users':'Gestion utilisateurs','marche-recherche':'Recherche par ville','marche-carte':'Carte de France',parametres:'Paramètres'};
 const PAGE_SECTIONS = {accueil:'Pipeline',biens:'Pipeline',nouveau:'Pipeline','bien-detail':'Pipeline',simulateur:'Outils',visites:'Outils',portails:'Outils',administration:'Gestion','module-financier':'Gestion','admin-users':'Admin','marche-recherche':'Marché','marche-carte':'Marché',parametres:'Compte'};
-const PIPELINE_PAGES = ['accueil','biens','nouveau'];
+// PIPELINE_PAGES supprime en phase 4 : il ne servait qu'a montrer ou masquer
+// la sous-navigation de l'ancienne barre haute. SF_MENU_PAGES porte desormais
+// cette connaissance, pour surligner la section active du bandeau.
 
 // ═══════════════════════════════════════════════════════════
 //   PAGE PARAMÈTRES — Lot A
@@ -4612,17 +4614,73 @@ async function tiPurgeLegacyB64() {
 
 
 // ── Menu mobile (sidebar off-canvas) ──
-function toggleMobileSidebar() {
-  const sb = document.querySelector('.sidebar');
-  const ov = document.getElementById('mobile-sidebar-overlay');
-  const open = sb?.classList.toggle('mobile-open');
-  if(ov) ov.classList.toggle('visible', open);
+// ═══════════════════════════════════════════════════════════════
+//  BANDEAU DE NAVIGATION (phase 4)
+// ═══════════════════════════════════════════════════════════════
+// Remplace la barre laterale. Les entrees de menu conservent les identifiants
+// nav-<page> : navigate() bascule deja leur classe .active, rien de sa logique
+// n'a eu besoin d'etre reecrit.
+
+// Quelle section contient quelle page — sert a surligner le bon menu.
+const SF_MENU_PAGES = {
+  marche:   ['marche-recherche','marche-carte'],
+  pipeline: ['accueil','biens','nouveau','bien-detail'],
+  gestion:  ['module-financier','administration'],
+  outils:   ['simulateur','visites','portails'],
+  param:    ['parametres','admin-users'],
+};
+
+function sfCloseMenus() {
+  document.querySelectorAll('.sf-menu').forEach(m => {
+    m.removeAttribute('data-open');
+    m.querySelector('.sf-menu__btn')?.setAttribute('aria-expanded', 'false');
+  });
 }
+
+function sfToggleMenu(cle) {
+  const m = document.getElementById('menu-' + cle);
+  if(!m) return;
+  const ouvert = m.getAttribute('data-open') === '1';
+  sfCloseMenus();
+  if(!ouvert) {
+    m.setAttribute('data-open', '1');
+    m.querySelector('.sf-menu__btn')?.setAttribute('aria-expanded', 'true');
+  }
+}
+
+// Sous 920 px les menus ne tiennent plus : ils s'empilent sous le bandeau.
+function sfToggleMobile() {
+  const n = document.getElementById('sf-menus');
+  const b = document.getElementById('sf-burger');
+  if(!n) return;
+  const ouvert = n.getAttribute('data-mobile') === '1';
+  if(ouvert) { n.removeAttribute('data-mobile'); sfCloseMenus(); }
+  else n.setAttribute('data-mobile', '1');
+  b?.setAttribute('aria-expanded', ouvert ? 'false' : 'true');
+}
+
+// Un clic hors du bandeau, ou Echap, referme tout.
+document.addEventListener('click', e => {
+  if(!e.target.closest('.sf-topnav')) { sfCloseMenus(); }
+});
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape') {
+    sfCloseMenus();
+    const n = document.getElementById('sf-menus');
+    if(n?.getAttribute('data-mobile') === '1') sfToggleMobile();
+  }
+});
+
+// Conservees sous leur ancien nom : navigate() les appelle, et d'autres
+// chemins pourraient encore le faire. Elles referment desormais le bandeau.
+function toggleMobileSidebar() { sfToggleMobile(); }
 function closeMobileSidebar() {
-  const sb = document.querySelector('.sidebar');
-  const ov = document.getElementById('mobile-sidebar-overlay');
-  if(sb) sb.classList.remove('mobile-open');
-  if(ov) ov.classList.remove('visible');
+  sfCloseMenus();
+  const n = document.getElementById('sf-menus');
+  if(n?.getAttribute('data-mobile') === '1') {
+    n.removeAttribute('data-mobile');
+    document.getElementById('sf-burger')?.setAttribute('aria-expanded', 'false');
+  }
 }
 
 function navigate(page) {
@@ -4639,6 +4697,12 @@ function navigate(page) {
   });
   // La fiche bien n'a pas d'entrée de menu : on garde « Mes biens » surligné
   if(page === 'bien-detail') document.getElementById('nav-biens')?.classList.add('active');
+  // Le bandeau surligne aussi la SECTION qui contient la page courante, pour
+  // qu'on sache où l'on est même quand le menu est refermé.
+  Object.entries(SF_MENU_PAGES).forEach(([cle, pages]) => {
+    document.getElementById('menubtn-' + cle)
+      ?.classList.toggle('sf-menu__btn--active', pages.includes(page));
+  });
   const bcCur = document.getElementById('bc-cur'), bcSec = document.getElementById('bc-section');
   bcCur.textContent = PAGE_LABELS[page]||page;
   bcSec.textContent = PAGE_SECTIONS[page]||'Recherche';
@@ -4651,10 +4715,8 @@ function navigate(page) {
     bcSec.textContent = PAGE_LABELS[bienDetailBack] || 'Mes biens';
     bcSec.onclick = () => navigate(bienDetailBack);
   }
-  const subnavPipeline = document.getElementById('subnav-pipeline');
-  const subnavOutils = document.getElementById('subnav-outils');
-  if(subnavPipeline) subnavPipeline.style.display = PIPELINE_PAGES.includes(page)?'flex':'none';
-  if(subnavOutils) subnavOutils.style.display = ['simulateur','visites','portails'].includes(page)?'flex':'none';
+  // Les deux sous-navigations de l'ancienne barre haute ont disparu en phase 4 :
+  // les menus deroulants du bandeau portent desormais ce second niveau.
   Object.values(charts).forEach(c=>{try{c.destroy();}catch(e){}});
   charts={}; visitPhotos=[]; visitRating=0;
   if(marcheChart){try{marcheChart.destroy();}catch(e){} marcheChart=null;}
