@@ -836,7 +836,7 @@ function sfBuildParamsMenu() {
         // priverait l'utilisateur de la carte du produit.
         return `<button class="sf-menu__row" role="menuitem" type="button"
           ${soon ? 'aria-disabled="true"' : `onclick="sfGoParam('${i.id}')"`}>
-          <span class="ic" aria-hidden="true">${i.icon}</span>
+          <span class="ic" aria-hidden="true">${sfIcon(i.icon)}</span>
           <span class="lab">${esc(i.label)}</span>
           ${soon ? '<span class="sf-menu__soon">Bientôt</span>' : ''}
         </button>`;
@@ -4216,20 +4216,46 @@ const PAGE_LABELS = {accueil:'Tableau de bord',biens:'Mes biens',nouveau:'Ajoute
 // Navigation interne par familles + routage hash (#parametres/section).
 // Sections existantes migrées + nouvelles en "Bientôt disponible".
 
+// Icones de section — trait fin, comme celles du bandeau. Les emojis qui
+  // servaient jusqu'ici juraient avec le reste : leur dessin, leur couleur et
+  // leur graisse dependent du systeme d'exploitation, pas de la charte. Un jeu
+  // SVG suit la couleur du texte et se comporte pareil partout.
+  // Un seul jeu, trois consommateurs : le panneau du bandeau, la colonne de la
+  // page Parametres et le titre de section.
+  const SF_PARAM_ICONS = {
+    user:    '<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.2-5.6 7.5-5.6s7.5 2 7.5 5.6"/>',
+    lock:    '<rect x="4" y="10.5" width="16" height="10" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>',
+    bell:    '<path d="M18 8.6a6 6 0 1 0-12 0c0 5.2-2 6.4-2 6.4h16s-2-1.2-2-6.4"/><path d="M13.7 19a2 2 0 0 1-3.4 0"/>',
+    palette: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18"/><path d="M12 3a9 9 0 0 1 0 18" fill="currentColor" stroke="none" opacity=".35"/>',
+    sliders: '<path d="M5 20v-7M5 9V4M12 20v-9M12 7V4M19 20v-5M19 11V4"/><path d="M2.5 13h5M9.5 7h5M16.5 15h5"/>',
+    plug:    '<path d="M9 3v6M15 3v6"/><path d="M6.5 9h11v3a5.5 5.5 0 0 1-11 0Z"/><path d="M12 17.5V21"/>',
+    data:    '<ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6"/><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/>',
+    bank:    '<path d="M3 9.5 12 4l9 5.5"/><path d="M5.5 9.5V19M9.8 9.5V19M14.2 9.5V19M18.5 9.5V19"/><path d="M3 21h18"/>',
+    wrench:  '<path d="M15.5 4.5a5 5 0 0 0-6.4 6.4L4 16l4 4 5.1-5.1a5 5 0 0 0 6.4-6.4L16.6 9.4 14.6 7.4Z"/>',
+    info:    '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.9" r=".7" fill="currentColor" stroke="none"/>',
+  };
+  function sfIcon(nom, taille) {
+    const d = SF_PARAM_ICONS[nom];
+    if(!d) return '';
+    const t = taille || 17;
+    return '<svg width="' + t + '" height="' + t + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+           'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+  }
+
 const PARAMS_SECTIONS = [
   { family:'Mon compte', items:[
-    { id:'compte',       label:'Compte',           icon:'👤', status:'ready' },
-    { id:'securite',     label:'Sécurité',         icon:'🔒', status:'soon' },
-    { id:'notifications',label:'Notifications',    icon:'🔔', status:'soon' },
+    { id:'compte',       label:'Compte',           icon:'user', status:'ready' },
+    { id:'securite',     label:'Sécurité',         icon:'lock', status:'soon' },
+    { id:'notifications',label:'Notifications',    icon:'bell', status:'soon' },
   ]},
   { family:'Préférences', items:[
-    { id:'apparence',    label:'Apparence',        icon:'🎨', status:'ready' },
-    { id:'metier',       label:'Préférences métier',icon:'⚙️', status:'ready' },
-    { id:'integrations', label:'Intégrations',     icon:'🔌', status:'soon', adminOnly:true },
+    { id:'apparence',    label:'Apparence',        icon:'palette', status:'ready' },
+    { id:'metier',       label:'Préférences métier',icon:'sliders', status:'ready' },
+    { id:'integrations', label:'Intégrations',     icon:'plug', status:'soon', adminOnly:true },
   ]},
   { family:'Données & gestion', items:[
-    { id:'donnees',      label:'Données',          icon:'🗂️', status:'ready' },
-    { id:'sci',          label:'Mes SCI',          icon:'🏛️', status:'ready' },
+    { id:'donnees',      label:'Données',          icon:'data', status:'ready' },
+    { id:'sci',          label:'Mes SCI',          icon:'bank', status:'ready' },
   ]},
   // « Utilisateurs » a quitte les Parametres en phase 4 : la gestion des
   // comptes est une fonction d'administration, pas un reglage personnel. Elle
@@ -4237,10 +4263,10 @@ const PARAMS_SECTIONS = [
   // administrateurs. La sortir d'ici rend ce cloisonnement lisible plutot que
   // de la noyer au milieu des preferences.
   { family:'Administration', adminOnly:true, items:[
-    { id:'maintenance',  label:'Maintenance',      icon:'🔧', status:'ready', adminOnly:true },
+    { id:'maintenance',  label:'Maintenance',      icon:'wrench', status:'ready', adminOnly:true },
   ]},
   { family:'Aide', items:[
-    { id:'apropos',      label:'À propos',         icon:'ℹ️', status:'ready' },
+    { id:'apropos',      label:'À propos',         icon:'info', status:'ready' },
   ]},
 ];
 
@@ -4280,7 +4306,7 @@ function renderParametres(el) {
       <div class="params-nav-family-label">${f.family}</div>
       ${f.items.filter(i => !i.adminOnly || isAdmin).map(i => `
         <div class="params-nav-item ${i.id===currentParamsSection?'active':''}" onclick="selectParamsSection('${i.id}')">
-          <span class="pni-icon">${i.icon}</span>
+          <span class="pni-icon">${sfIcon(i.icon)}</span>
           <span>${i.label}</span>
           ${i.status==='soon'?'<span class="pni-soon">Bientôt</span>':''}
         </div>
@@ -4330,7 +4356,7 @@ function renderParamsSection() {
   // Section "soon"
   if(meta.status==='soon'){
     c.innerHTML = `
-      <div class="params-section-title">${meta.icon} ${meta.label}</div>
+      <div class="params-section-title">${sfIcon(meta.icon, 20)} ${meta.label}</div>
       <div class="params-section-sub">Cette section sera disponible prochainement.</div>
       <div class="params-soon-box">
         <div class="psb-icon">🚧</div>

@@ -1329,7 +1329,10 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 }
 .auth-logo-wrap{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:24px;}
 .auth-logo-text{font-size:22px;font-weight:800;letter-spacing:-0.5px;color:#0f172a;}
-.auth-logo-text em{font-style:normal;background:linear-gradient(135deg,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+/* « folio » en graisse legere plutot qu'en degrade colore : le degrade
+   indigo/violet appartenait a l'ancienne identite, et un texte en
+   background-clip devient invisible si la propriete n'est pas supportee. */
+.auth-logo-text em{font-style:normal;font-weight:400;color:#3D5145;}
 
 .auth-welcome{text-align:center;margin-bottom:24px;}
 .auth-welcome h2{font-size:20px;font-weight:700;color:#0f172a;margin:0 0 4px;}
@@ -2625,13 +2628,18 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 }
 .params-nav-item:hover{background:var(--c-bg);}
 .params-nav-item.active{background:var(--accent-soft,rgba(99,102,241,0.1));color:var(--accent);font-weight:600;}
-.params-nav-item .pni-icon{font-size:16px;width:20px;text-align:center;flex-shrink:0;}
+/* Les icones de section sont des SVG en trait (sfIcon) : le flex centre
+   mieux qu'un text-align pense pour les emojis d'avant. */
+.params-nav-item .pni-icon{width:20px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+.params-nav-item .pni-icon svg{display:block;}
 .params-nav-item .pni-soon{
   margin-left:auto;font-size:9px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;
   background:var(--c-border);color:var(--c-muted);padding:2px 6px;border-radius:5px;
 }
 .params-content{flex:1;min-width:0;}
-.params-section-title{font-size:22px;font-weight:700;color:var(--c-text);margin-bottom:4px;}
+.params-section-title{font-size:22px;font-weight:700;color:var(--c-text);margin-bottom:4px;
+  display:flex;align-items:center;gap:10px;}
+.params-section-title svg{flex-shrink:0;color:var(--accent);}
 .params-section-sub{font-size:13px;color:var(--c-muted);margin-bottom:20px;}
 .params-card{
   background:var(--c-surface);border:1px solid var(--c-border);border-radius:12px;

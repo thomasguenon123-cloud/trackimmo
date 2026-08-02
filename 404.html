@@ -16,7 +16,7 @@
     align-items: center;
     justify-content: center;
     /* Même dégradé que l'écran de connexion Stonefolio */
-    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+    background: linear-gradient(135deg, #0f172a 0%, #0d2419 50%, #0f172a 100%);
     color: #fff;
     padding: 20px;
     overflow: hidden;
@@ -31,8 +31,8 @@
     z-index: 0;
     pointer-events: none;
   }
-  .halo-1 { width: 420px; height: 420px; background: #6366f1; top: -120px; left: -100px; animation: drift1 14s ease-in-out infinite; }
-  .halo-2 { width: 360px; height: 360px; background: #8b5cf6; bottom: -120px; right: -80px; animation: drift2 16s ease-in-out infinite; }
+  .halo-1 { width: 420px; height: 420px; background: #127A44; top: -120px; left: -100px; animation: drift1 14s ease-in-out infinite; }
+  .halo-2 { width: 360px; height: 360px; background: #1A5A4C; bottom: -120px; right: -80px; animation: drift2 16s ease-in-out infinite; }
   @keyframes drift1 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(40px,30px); } }
   @keyframes drift2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-30px,-40px); } }
 
@@ -67,8 +67,8 @@
     animation: pulse 2.4s ease-in-out infinite;
   }
   @keyframes pulse {
-    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(99,102,241,0)); }
-    50% { transform: scale(1.08); filter: drop-shadow(0 0 18px rgba(129,140,248,0.6)); }
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(23,160,107,0)); }
+    50% { transform: scale(1.08); filter: drop-shadow(0 0 18px rgba(23,160,107,0.6)); }
   }
   .logo-text {
     font-size: 26px;
@@ -76,12 +76,12 @@
     letter-spacing: -0.5px;
     color: #fff;
   }
+  /* « folio » en graisse legere, comme sur le bandeau et l'ecran de
+     connexion. L'ancien degrade indigo appartenait a TrackImmo. */
   .logo-text em {
     font-style: normal;
-    background: linear-gradient(135deg, #818cf8, #c4b5fd);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+    font-weight: 400;
+    color: #9BAEA4;
   }
 
   /* Icône engrenage animée */
@@ -92,8 +92,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(99, 102, 241, 0.15);
-    border: 1px solid rgba(129, 140, 248, 0.3);
+    background: rgba(23, 160, 107, 0.15);
+    border: 1px solid rgba(23, 160, 107, 0.3);
     border-radius: 50%;
   }
   .gear-badge svg {
@@ -130,7 +130,7 @@
     font-weight: 800;
     letter-spacing: 2px;
     font-variant-numeric: tabular-nums;
-    background: linear-gradient(135deg, #818cf8, #c4b5fd);
+    background: linear-gradient(135deg, #17A06B, #4ADE80);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -152,7 +152,7 @@
   .progress-fill {
     height: 100%;
     width: 0%;
-    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    background: linear-gradient(90deg, #127A44, #1A5A4C);
     border-radius: 999px;
     transition: width 1s linear;
   }
@@ -177,28 +177,19 @@
   <div class="card">
     <!-- Logo Stonefolio (identique à l'app) -->
     <div class="logo-wrap">
-      <svg class="logo-icon" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs><linearGradient id="lg" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
-        <rect width="34" height="34" rx="9" fill="url(#lg)"/>
-        <rect x="6" y="14" width="8" height="12" rx="1" fill="white" opacity="0.9"/>
-        <rect x="8" y="11" width="4" height="3" rx="0.5" fill="white" opacity="0.7"/>
-        <rect x="16" y="10" width="9" height="16" rx="1" fill="white" opacity="0.95"/>
-        <rect x="8" y="19" width="2" height="2" rx="0.3" fill="#6366f1"/>
-        <rect x="17.5" y="13" width="2" height="2" rx="0.3" fill="#6366f1"/>
-        <rect x="21" y="13" width="2" height="2" rx="0.3" fill="#6366f1"/>
-        <rect x="17.5" y="17" width="2" height="2" rx="0.3" fill="#6366f1"/>
-        <rect x="21" y="17" width="2" height="2" rx="0.3" fill="#6366f1"/>
-        <path d="M6 24 L11 20 L17 22 L26 16" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="26" cy="16" r="1.5" fill="#22c55e"/>
+      <svg class="logo-icon" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="6" width="34" height="14" rx="4" fill="#17A06B"/>
+        <rect x="22" y="23" width="34" height="14" rx="4" fill="#127A44"/>
+        <rect x="4" y="40" width="34" height="14" rx="4" fill="#1A5A4C"/>
       </svg>
-      <div class="logo-text">Track<em>Immo</em></div>
+      <div class="logo-text">Stone<em>folio</em></div>
     </div>
 
     <!-- Badge engrenage animé -->
     <div class="gear-badge">
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="#818cf8" stroke-width="1.5"/>
-        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="#17A06B" stroke-width="1.5"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="#17A06B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </div>
 

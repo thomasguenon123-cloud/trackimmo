@@ -12,9 +12,9 @@
 <!-- Socle de jetons Stonefolio (phase 2). Ne declare que des variables : aucun
      effet visuel tant qu'aucun composant ne les consomme. Charge AVANT
      styles.css pour que la migration puisse s'appuyer dessus. -->
-<link rel="stylesheet" href="tokens.css?v=39">
-<link rel="stylesheet" href="components.css?v=39">
-<link rel="stylesheet" href="styles.css?v=39">
+<link rel="stylesheet" href="tokens.css?v=40">
+<link rel="stylesheet" href="components.css?v=40">
+<link rel="stylesheet" href="styles.css?v=40">
 </head>
 <body>
 
@@ -187,7 +187,7 @@
 
 <div class="notif" id="notif"></div>
 
-<script src="app.js?v=39"></script>
+<script src="app.js?v=40"></script>
 
 <!-- LIGHTBOX -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
@@ -201,20 +201,17 @@
   <div class="auth-panel">
     <div class="auth-card">
 
-      <!-- Logo -->
+      <!-- Logo — monogramme Stonefolio (l'ancien logo indigo TrackImmo avait
+           survecu au renommage : le texte etait coupe par une balise <em>,
+           invisible pour un grep sur « TrackImmo »). Couleurs en dur et non en
+           var(--sf-*) : l'ecran de connexion vit hors du theme de l'app. -->
       <div class="auth-logo-wrap">
-        <svg width="36" height="36" viewBox="0 0 34 34" fill="none">
-          <defs><linearGradient id="alg" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
-          <rect width="34" height="34" rx="9" fill="url(#alg)"/>
-          <rect x="6" y="14" width="8" height="12" rx="1" fill="white" opacity="0.9"/>
-          <rect x="8" y="11" width="4" height="3" rx="0.5" fill="white" opacity="0.7"/>
-          <rect x="16" y="10" width="9" height="16" rx="1" fill="white" opacity="0.95"/>
-          <rect x="17.5" y="13" width="2" height="2" rx="0.3" fill="#6366f1"/>
-          <rect x="21" y="13" width="2" height="2" rx="0.3" fill="#6366f1"/>
-          <path d="M6 24 L11 20 L17 22 L26 16" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="26" cy="16" r="1.5" fill="#22c55e"/>
+        <svg width="36" height="36" viewBox="0 0 60 60" fill="none" aria-hidden="true">
+          <rect x="4" y="6" width="34" height="14" rx="4" fill="#17A06B"/>
+          <rect x="22" y="23" width="34" height="14" rx="4" fill="#127A44"/>
+          <rect x="4" y="40" width="34" height="14" rx="4" fill="#1A5A4C"/>
         </svg>
-        <div class="auth-logo-text">Track<em>Immo</em></div>
+        <div class="auth-logo-text">Stone<em>folio</em></div>
       </div>
 
       <!-- Alert zone -->
