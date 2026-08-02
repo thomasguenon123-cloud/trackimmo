@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TrackImmo</title>
+<title>Stonefolio</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -12,9 +12,9 @@
 <!-- Socle de jetons Stonefolio (phase 2). Ne declare que des variables : aucun
      effet visuel tant qu'aucun composant ne les consomme. Charge AVANT
      styles.css pour que la migration puisse s'appuyer dessus. -->
-<link rel="stylesheet" href="tokens.css?v=37">
-<link rel="stylesheet" href="components.css?v=37">
-<link rel="stylesheet" href="styles.css?v=37">
+<link rel="stylesheet" href="tokens.css?v=38">
+<link rel="stylesheet" href="components.css?v=38">
+<link rel="stylesheet" href="styles.css?v=38">
 </head>
 <body>
 
@@ -121,11 +121,10 @@
       </div>
   </nav>
 
-  <div class="sf-topnav__crumb" aria-live="polite">
-    <span id="bc-section">Recherche</span>
-    <span class="sep">/</span>
-    <b id="bc-cur">Accueil</b>
-  </div>
+  <!-- Fil d'Ariane retire : il repetait une information deja portee deux fois
+       — la section active est surlignee dans le bandeau, et chaque page affiche
+       son titre. Son seul apport propre etait le retour depuis la fiche bien,
+       que le bouton « ← Retour » de la fiche assure deja (app.js). -->
 
   <!-- Trois cibles, de l'administration au personnel. « Utilisateurs » est
        sorti des Paramètres : c'est une fonction d'administration, pas un
@@ -149,27 +148,16 @@
       <span class="sf-topnav__avatar" id="sf-avatar" aria-hidden="true">—</span>
     </button>
 
-    <div class="sf-menu" id="menu-param">
-      <button class="sf-topnav__act sf-topnav__act--gear" type="button" id="menubtn-param"
-              aria-expanded="false" aria-haspopup="true" aria-controls="panel-param"
-              title="Réglages" aria-label="Réglages"
-              onclick="sfToggleMenu('param')">
+    <!-- Clic direct : la roue dentée dit déjà où elle mène, un menu
+         intermédiaire n'aurait ajouté qu'un clic. -->
+    <button class="sf-topnav__act sf-topnav__act--gear" type="button" id="nav-parametres"
+            title="Réglages" aria-label="Réglages"
+            onclick="navigate('parametres')">
         <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="3.1"/>
           <path d="M19.4 14.5a1.6 1.6 0 0 0 .32 1.77l.06.06a1.94 1.94 0 1 1-2.75 2.75l-.06-.06a1.6 1.6 0 0 0-1.77-.32 1.6 1.6 0 0 0-.97 1.47v.17a1.94 1.94 0 1 1-3.88 0v-.09a1.6 1.6 0 0 0-1.05-1.47 1.6 1.6 0 0 0-1.77.32l-.06.06a1.94 1.94 0 1 1-2.75-2.75l.06-.06a1.6 1.6 0 0 0 .32-1.77 1.6 1.6 0 0 0-1.47-.97H3.2a1.94 1.94 0 1 1 0-3.88h.09a1.6 1.6 0 0 0 1.47-1.05 1.6 1.6 0 0 0-.32-1.77l-.06-.06A1.94 1.94 0 1 1 7.13 4.2l.06.06a1.6 1.6 0 0 0 1.77.32h.08a1.6 1.6 0 0 0 .97-1.47V3.2a1.94 1.94 0 1 1 3.88 0v.09a1.6 1.6 0 0 0 .97 1.47 1.6 1.6 0 0 0 1.77-.32l.06-.06a1.94 1.94 0 1 1 2.75 2.75l-.06.06a1.6 1.6 0 0 0-.32 1.77v.08a1.6 1.6 0 0 0 1.47.97h.17a1.94 1.94 0 1 1 0 3.88h-.09a1.6 1.6 0 0 0-1.47.97Z"/>
         </svg>
-      </button>
-      <div class="sf-menu__panel sf-menu__panel--right" id="panel-param" role="menu" aria-labelledby="menubtn-param">
-        <a class="sf-menu__link" id="nav-parametres" role="menuitem" href="#" onclick="navigate('parametres');sfCloseMenus();return false;">
-          <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="1.6" fill="currentColor" stroke="none"/></svg></span>
-          <span><span class="sf-menu__t">Tous les réglages</span><span class="sf-menu__d">Apparence, préférences métier, données, SCI</span></span>
-        </a>
-        <a class="sf-menu__link" role="menuitem" href="#" onclick="sfGoCompte();return false;">
-          <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></span>
-          <span><span class="sf-menu__t">Mon compte</span><span class="sf-menu__d">Identité et déconnexion</span></span>
-        </a>
-      </div>
-    </div>
+    </button>
   </div>
 </header>
 
@@ -193,7 +181,7 @@
 
 <div class="notif" id="notif"></div>
 
-<script src="app.js?v=37"></script>
+<script src="app.js?v=38"></script>
 
 <!-- LIGHTBOX -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
@@ -339,7 +327,7 @@
 
     <!-- Astuce bas de page -->
     <div style="text-align:center;margin-top:14px;font-size:11px;color:rgba(255,255,255,0.3)">
-      TrackImmo · Vos données sont chiffrées et privées
+      Stonefolio · Vos données sont chiffrées et privées
     </div>
   </div>
 </div>

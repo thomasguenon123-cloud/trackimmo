@@ -178,7 +178,7 @@ async function doLogin() {
 
     await onAuthSuccess(data.user);
   } catch(e) {
-    console.error('[TrackImmo] Login error:', e);
+    console.error('[Stonefolio] Login error:', e);
     showAuthAlert('Erreur technique : ' + (e?.message || 'connexion impossible. Rechargez la page et réessayez.'));
   } finally {
     setBtnLoading('btn-login','btn-login-label',false,'Se connecter');
@@ -205,7 +205,7 @@ async function ensureProfileActive() {
       await db.auth.signOut();
       showAuthAlert(
         '<strong>🚫 Compte désactivé</strong><br><br>' +
-        'Votre accès à TrackImmo a été suspendu. Contactez un administrateur pour plus d\'informations.',
+        'Votre accès à Stonefolio a été suspendu. Contactez un administrateur pour plus d\'informations.',
         'error'
       );
       return false;
@@ -238,7 +238,7 @@ async function doGoogleLogin() {
     }
     // Pas de reset du bouton en cas de succès : le navigateur part vers Google.
   } catch(e) {
-    console.error('[TrackImmo] Google login error:', e);
+    console.error('[Stonefolio] Google login error:', e);
     showAuthAlert('Connexion Google impossible. Vérifiez votre accès internet et réessayez.');
     setBtnLoading('btn-google','btn-google-label',false,'');
     restoreGoogleBtnLabel();
@@ -274,7 +274,7 @@ function checkOAuthErrorInUrl() {
   const d = decodeURIComponent(desc.replace(/\+/g,' '));
   if(d.includes('TRACKIMMO_SSO_RESTREINT') || d.includes('Database error saving new user'))
     return '<strong>🚫 Connexion Google refusée</strong><br><br>' +
-      'Aucun compte TrackImmo n\'est associé à cet email Google. ' +
+      'Aucun compte Stonefolio n\'est associé à cet email Google. ' +
       'La connexion Google est réservée aux comptes existants : connectez-vous d\'abord ' +
       'avec votre email et mot de passe, ou contactez un administrateur pour être invité.';
   if(err === 'access_denied')
@@ -441,7 +441,7 @@ function checkRecoveryHash() {
           const titleEl = document.querySelector('#form-newpwd .auth-welcome h2');
           const subEl   = document.querySelector('#form-newpwd .auth-welcome p');
           if(type === 'invite') {
-            if(titleEl) titleEl.textContent = '🎉 Bienvenue sur TrackImmo';
+            if(titleEl) titleEl.textContent = '🎉 Bienvenue sur Stonefolio';
             if(subEl)   subEl.textContent   = 'Pour activer votre compte, définissez votre mot de passe.';
           } else {
             if(titleEl) titleEl.textContent = '🔐 Nouveau mot de passe';
@@ -633,7 +633,7 @@ function tiCsv(entetes, lignes) {
 }
 
 function tiTelechargerCsv(base, contenu) {
-  const nom = `trackimmo-${base}-${new Date().toISOString().slice(0, 10)}.csv`;
+  const nom = `stonefolio-${base}-${new Date().toISOString().slice(0, 10)}.csv`;
   const blob = new Blob(['﻿' + contenu], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement('a'), { href: url, download: nom });
@@ -907,7 +907,7 @@ async function renderAdmin(el) {
       <div>
         <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;opacity:0.6;margin-bottom:4px">Admin</div>
         <div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">Gestion des utilisateurs</div>
-        <div style="font-size:13px;opacity:0.65;margin-top:4px">Invitez et modérez les accès à TrackImmo</div>
+        <div style="font-size:13px;opacity:0.65;margin-top:4px">Invitez et modérez les accès à Stonefolio</div>
       </div>
       <div style="display:flex;gap:24px;flex-wrap:wrap">
         <div class="admin-hero-stat"><div class="admin-hero-num">${total}</div><div class="admin-hero-lbl">Total</div></div>
@@ -1168,7 +1168,7 @@ async function init() {
       showForm('login');
     }
   } catch(e) {
-    console.warn('[TrackImmo] Session expirée:', e?.message);
+    console.warn('[Stonefolio] Session expirée:', e?.message);
     await db.auth.signOut().catch(() => {});
     document.getElementById('auth-screen').style.display = 'flex';
     showForm('login');
@@ -3863,7 +3863,7 @@ function bkdocBuildPages(d){
     </div><div class="irule"></div>`;
   const foot = `<div class="ifoot"><div class="ifoot-logo">${logoImg}</div></div>`;
 
-  // Calculs métier (formules TrackImmo)
+  // Calculs métier (formules Stonefolio)
   const num = v => parseFloat(v) || 0;
   const loyer = num(b.loyer_en_etat), chLoc = num(b.charges_locataire_etat);
   const cred = num(b.mensualite_credit), copro = num(b.charge_copro), assur = num(b.assurance_logement), tf = num(b.taxe_fonciere);
@@ -4164,7 +4164,9 @@ async function bkdocGenerate(){
 let visitPhotos = [], visitRating = 0, simEditId = null;
 
 const PAGE_LABELS = {accueil:'Tableau de bord',biens:'Mes biens',nouveau:'Ajouter un bien','bien-detail':'Fiche bien',simulateur:'Simulateur crédit',visites:'Comptes rendus',portails:'Portails immo',administration:'Administration','module-financier':'Module financier','admin-users':'Gestion utilisateurs','marche-recherche':'Recherche par ville','marche-carte':'Carte de France',parametres:'Paramètres'};
-const PAGE_SECTIONS = {accueil:'Pipeline',biens:'Pipeline',nouveau:'Pipeline','bien-detail':'Pipeline',simulateur:'Outils',visites:'Outils',portails:'Outils',administration:'Gestion','module-financier':'Gestion','admin-users':'Admin','marche-recherche':'Marché','marche-carte':'Marché',parametres:'Compte'};
+// PAGE_SECTIONS supprime avec le fil d'Ariane du bandeau : il ne servait qu'a
+// le remplir. SF_MENU_PAGES porte desormais le rattachement page -> section,
+// pour surligner le bon menu.
 // PIPELINE_PAGES supprime en phase 4 : il ne servait qu'a montrer ou masquer
 // la sous-navigation de l'ancienne barre haute. SF_MENU_PAGES porte desormais
 // cette connaissance, pour surligner la section active du bandeau.
@@ -4511,7 +4513,7 @@ function paramsAproposHtml() {
     <div class="params-section-title">ℹ️ À propos</div>
     <div class="params-section-sub">Informations sur l'application.</div>
     <div class="params-card">
-      <div class="params-card-title">TrackImmo</div>
+      <div class="params-card-title">Stonefolio</div>
       <div class="settings-row">
         <div><div class="settings-label">Version</div><div class="settings-sub">Plateforme d'investissement immobilier locatif</div></div>
         <div style="font-weight:700;color:var(--accent)">v1</div>
@@ -4662,9 +4664,9 @@ const SF_MENU_PAGES = {
   pipeline: ['accueil','biens','nouveau','bien-detail'],
   gestion:  ['module-financier','administration'],
   outils:   ['simulateur','visites','portails'],
-  // « admin-users » n'est plus rattache aux reglages : il a sa propre icone
-  // dans le bandeau, que navigate() surligne via #nav-admin-users.
-  param:    ['parametres'],
+  // Ni « parametres » ni « admin-users » ne figurent ici : ce ne sont plus des
+  // menus deroulants mais des icones directes du bandeau, que navigate()
+  // surligne deja via #nav-parametres et #nav-admin-users.
 };
 
 function sfCloseMenus() {
@@ -4740,18 +4742,9 @@ function navigate(page) {
     document.getElementById('menubtn-' + cle)
       ?.classList.toggle('sf-menu__btn--active', pages.includes(page));
   });
-  const bcCur = document.getElementById('bc-cur'), bcSec = document.getElementById('bc-section');
-  bcCur.textContent = PAGE_LABELS[page]||page;
-  bcSec.textContent = PAGE_SECTIONS[page]||'Recherche';
-  // Fiche bien : le fil d'Ariane nomme le bien et ramène à la page d'origine
-  bcSec.classList.toggle('bc-nav', page === 'bien-detail');
-  bcSec.onclick = null;
-  if(page === 'bien-detail') {
-    const bien = allBiens.find(x => x.id === currentBienId);
-    bcCur.textContent = bien?.titre || 'Fiche bien';
-    bcSec.textContent = PAGE_LABELS[bienDetailBack] || 'Mes biens';
-    bcSec.onclick = () => navigate(bienDetailBack);
-  }
+  // Le fil d'Ariane du bandeau a ete retire : il repetait la section deja
+  // surlignee dans le bandeau et le titre deja affiche par la page. Le retour
+  // depuis la fiche bien est assure par son propre bouton « ← Retour ».
   // Les deux sous-navigations de l'ancienne barre haute ont disparu en phase 4 :
   // les menus deroulants du bandeau portent desormais ce second niveau.
   Object.values(charts).forEach(c=>{try{c.destroy();}catch(e){}});
@@ -8957,7 +8950,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   //    mais leur page de resultats emet des href relatifs SANS barre oblique
   //    initiale ("article/economie/...") qui se resolvent depuis /recherche/ en
   //    /recherche/article/... — soit un 404 sur chaque resultat. Bug de leur
-  //    cote, irreparable depuis TrackImmo.
+  //    cote, irreparable depuis Stonefolio.
   // Ne restent que les liens verifies comme aboutissant a du contenu lisible.
   const newsLinks = [
     { label: '📰 Google News', url: `https://news.google.com/search?q=${encodeURIComponent(commune+' économie emploi')}&hl=fr&gl=FR`, desc: 'Actu économique locale' },
@@ -10243,7 +10236,26 @@ function showNotif(msg,isError=false){
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 // FND-006 : purge de l'ancienne clé NewsAPI stockée en localStorage. La clé vit désormais
 // uniquement dans le secret Supabase NEWSAPI_KEY, lu par l'Edge Function news-proxy.
-localStorage.removeItem('ti_newsapi_key');
+localStorage.removeItem('sf_newsapi_key');
+localStorage.removeItem('ti_newsapi_key');   // ancien nom, purge egalement
+
+// Renommage TrackImmo -> Stonefolio : les preferences locales passent de ti_*
+// a sf_*. Migration une seule fois, sinon l'utilisateur retrouverait son theme
+// et ses reglages de tableau de bord remis a zero sans comprendre pourquoi.
+// La base reste la source de verite (applyAppearanceFromPrefs) ; ce cache
+// local ne sert qu'a eviter un clignotement au chargement.
+(function migrerClesLocales(){
+  const paires = [['ti_theme','sf_theme'], ['ti_accent','sf_accent'],
+                  ['ti_dash_cf','sf_dash_cf'], ['ti_dash_st','sf_dash_st'],
+                  ['ti_dash_kpi','sf_dash_kpi']];
+  try {
+    for(const [ancien, nouveau] of paires) {
+      const v = localStorage.getItem(ancien);
+      if(v !== null && localStorage.getItem(nouveau) === null) localStorage.setItem(nouveau, v);
+      if(v !== null) localStorage.removeItem(ancien);
+    }
+  } catch(e) { /* stockage indisponible : les defauts s'appliquent */ }
+})();
 document.addEventListener('DOMContentLoaded', init);
 
 // ═══════════════════════════════════════════════════════════
@@ -10278,7 +10290,7 @@ function applyTheme(name) {
   document.querySelectorAll('.theme-swatch').forEach(s => {
     s.classList.toggle('active', s.dataset.theme === name);
   });
-  localStorage.setItem('ti_theme', name);
+  localStorage.setItem('sf_theme', name);
 }
 
 
@@ -10306,7 +10318,7 @@ function setAccent(color, colorDark, el) {
   if(el) { el.classList.add('active'); el.textContent = '✓'; }
   // Suivi en mémoire + cache localStorage (anti-flash au prochain chargement)
   currentAccent = { color, colorDark };
-  localStorage.setItem('ti_accent', JSON.stringify({color, colorDark}));
+  localStorage.setItem('sf_accent', JSON.stringify({color, colorDark}));
   // Persistance DB (source de vérité, suit le compte partout)
   persistAppearance();
 }
@@ -10320,9 +10332,9 @@ function savePrefs() {
   dashVisibility.st  = stOn;
   dashVisibility.kpi = kpiOn;
   // Cache localStorage (anti-flash)
-  localStorage.setItem('ti_dash_cf',  cfOn  ? '1' : '0');
-  localStorage.setItem('ti_dash_st',  stOn  ? '1' : '0');
-  localStorage.setItem('ti_dash_kpi', kpiOn ? '1' : '0');
+  localStorage.setItem('sf_dash_cf',  cfOn  ? '1' : '0');
+  localStorage.setItem('sf_dash_st',  stOn  ? '1' : '0');
+  localStorage.setItem('sf_dash_kpi', kpiOn ? '1' : '0');
   // Persistance DB
   persistAppearance();
   // Re-render dashboard if on that page
@@ -10358,17 +10370,17 @@ async function persistAppearance() {
 function loadPreferences() {
   // Fast path (localStorage) : appliqué immédiatement pour éviter un flash de thème
   // avant que les préférences DB ne soient chargées (cf. applyAppearanceFromPrefs).
-  const savedTheme = localStorage.getItem('ti_theme');
+  const savedTheme = localStorage.getItem('sf_theme');
   if(savedTheme && THEMES[savedTheme]) applyTheme(savedTheme);
   try {
-    const savedAccent = JSON.parse(localStorage.getItem('ti_accent')||'null');
+    const savedAccent = JSON.parse(localStorage.getItem('sf_accent')||'null');
     if(savedAccent?.color) {
       applyAccentVars(savedAccent.color, savedAccent.colorDark);
       currentAccent = { color: savedAccent.color, colorDark: savedAccent.colorDark };
     }
   } catch(e){}
   ['cf','st','kpi'].forEach(key => {
-    const saved = localStorage.getItem('ti_dash_'+key);
+    const saved = localStorage.getItem('sf_dash_'+key);
     if(saved === '0') dashVisibility[key] = false;
   });
 }
@@ -10385,12 +10397,12 @@ async function applyAppearanceFromPrefs() {
     const colorDark = userPrefs.accent_color2 || color;
     applyAccentVars(color, colorDark);
     currentAccent = { color, colorDark };
-    localStorage.setItem('ti_accent', JSON.stringify({color, colorDark}));
+    localStorage.setItem('sf_accent', JSON.stringify({color, colorDark}));
     // Toggles dashboard depuis la DB
     dashVisibility.cf  = userPrefs.dash_show_cf  !== false;
     dashVisibility.st  = userPrefs.dash_show_st  !== false;
     dashVisibility.kpi = userPrefs.dash_show_kpi !== false;
-    ['cf','st','kpi'].forEach(k => localStorage.setItem('ti_dash_'+k, dashVisibility[k] ? '1' : '0'));
+    ['cf','st','kpi'].forEach(k => localStorage.setItem('sf_dash_'+k, dashVisibility[k] ? '1' : '0'));
   } else {
     // La DB n'a jamais reçu d'apparence → migration du localStorage (déjà appliqué
     // par loadPreferences) vers la DB, une seule fois.
