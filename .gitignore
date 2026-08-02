@@ -1,2 +1,13 @@
 .mcp.json
 .env
+
+# Skills de design installes depuis taste-skill et ui-ux-pro-max-skill (MIT).
+# Non versionnes volontairement : ce sont 2,6 Mo d'outillage tiers, et GitHub
+# Pages sert TOUT le depot — ils deviendraient publiquement accessibles sur
+# l'URL du site sans aucun benefice. Pour les reinstaller ailleurs :
+#   git clone --depth 1 https://github.com/Leonxlnx/taste-skill
+#   git clone --depth 1 https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
+# puis copier dans .claude/skills/ : redesign-skill, minimalist-skill,
+# brandkit, output-skill (taste) et design-system, brand, design,
+# ui-ux-pro-max (ui-ux-pro-max).
+.claude/skills/
