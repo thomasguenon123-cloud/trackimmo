@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Stonefolio — écran d'accueil (maquette)</title>
-<link rel="stylesheet" href="tokens.css?v=33">
-<link rel="stylesheet" href="components.css?v=33">
+<link rel="stylesheet" href="tokens.css?v=34">
+<link rel="stylesheet" href="components.css?v=34">
 <style>
   /* Mise en page de cette maquette uniquement. Les composants viennent tous
      de components.css : rien n'est restyle ici. */
@@ -112,22 +112,15 @@
       </svg>
     </span>
     <div>
-      <div class="verdict__txt">3 points demandent votre attention</div>
-      <div class="verdict__sub">Deux d'entre eux vous coûtent de l'argent chaque mois.</div>
+      <div class="verdict__txt">5 points demandent votre attention</div>
+      <div class="verdict__sub">Deux d'entre eux vous coûtent de l'argent chaque mois&nbsp;; les trois autres faussent vos chiffres.</div>
     </div>
   </div>
 
   <!-- ── À traiter + Actions ──────────────────────────────────────────── -->
   <div class="bento">
     <section>
-      <h2 class="sec-title">À traiter <span class="count">3 sur 5</span>
-        <span class="more">
-          <button class="sf-btn sf-btn--ghost sf-btn--sm" type="button">
-            Tout voir
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
-          </button>
-        </span>
-      </h2>
+      <h2 class="sec-title">À traiter <span class="count">5 points</span></h2>
       <div class="sf-card sf-card--flat">
 
         <div class="sf-alert sf-alert--loss">
@@ -175,6 +168,36 @@
           </span>
         </div>
 
+        <div class="sf-alert sf-alert--info">
+          <span class="sf-alert__icon" aria-hidden="true">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M12 20V10M18 20V4M6 20v-6"/>
+            </svg>
+          </span>
+          <div class="sf-alert__body">
+            <p class="sf-alert__title">2 fiches sans loyer estimé</p>
+            <p class="sf-alert__why">Leur rendement ne peut pas être calculé. Les deux sont à Châtellerault.</p>
+          </div>
+          <span class="sf-alert__action">
+            <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button">Compléter</button>
+          </span>
+        </div>
+
+        <div class="sf-alert sf-alert--info">
+          <span class="sf-alert__icon" aria-hidden="true">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M3 21h18M5 21V8l7-4 7 4v13"/><path d="M9 21v-6h6v6"/>
+            </svg>
+          </span>
+          <div class="sf-alert__body">
+            <p class="sf-alert__title">Bilan SCI 2026 jamais alimenté</p>
+            <p class="sf-alert__why">Aucun loyer ni charge n'y a été reporté depuis sa création.</p>
+          </div>
+          <span class="sf-alert__action">
+            <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button">Alimenter</button>
+          </span>
+        </div>
+
       </div>
     </section>
 
@@ -205,6 +228,12 @@
           </span>
           <span class="sf-quick__label">Simuler un crédit<span class="sf-quick__sub">mensualité, capacité</span></span>
         </button>
+        <button class="sf-quick" type="button">
+          <span class="sf-quick__icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7Z"/><path d="M12 11v6M9 14h6"/></svg>
+          </span>
+          <span class="sf-quick__label">Saisir une charge<span class="sf-quick__sub">taxe foncière, copropriété</span></span>
+        </button>
       </div>
     </section>
   </div>
@@ -223,9 +252,9 @@
       <span class="sf-kpi__sub">sur 12 mois</span>
     </div>
     <div class="sf-kpi">
-      <span class="sf-kpi__label">Temps loué</span>
+      <span class="sf-kpi__label">Turnover</span>
       <span class="sf-kpi__value sf-kpi__value--loss sf-num">25 %</span>
-      <span class="sf-kpi__sub">12 mois loués sur 48 possibles · plus c'est haut, mieux c'est</span>
+      <span class="sf-kpi__sub">12 mois loués sur 48 mois de détention</span>
     </div>
     <div class="sf-kpi">
       <span class="sf-kpi__label">Fiches en prospection</span>
