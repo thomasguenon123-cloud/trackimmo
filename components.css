@@ -407,6 +407,130 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 
 
 /* ───────────────────────────────────────────────────────────────────────────
+   BANDEAU DE NAVIGATION — phase 4
+   ───────────────────────────────────────────────────────────────────────────
+   Remplace la barre laterale, qui occupait 216 px en permanence sur toute la
+   hauteur. Le bandeau coute 58 px de hauteur : sur un portable de 1440x900,
+   c'est 15 % de largeur rendus au contenu contre 6 % de hauteur pris.
+
+   La chrome reste SOMBRE au-dessus d'un contenu clair, exactement comme la
+   barre laterale qu'elle remplace : la relation visuelle de l'application est
+   preservee, les ecrans non encore migres ne detonnent pas.                 */
+
+.sf-topnav{
+  position:sticky; top:0; z-index:var(--sf-z-nav);
+  display:flex; align-items:center; gap:var(--sf-space-2);
+  height:var(--sf-nav-h); padding:0 var(--sf-space-6);
+  background:var(--sf-bg); border-bottom:var(--sf-border-width) solid var(--sf-border);
+  font-family:var(--sf-font-ui);
+}
+.sf-topnav__brand{
+  display:flex; align-items:center; gap:var(--sf-space-4);
+  margin-right:var(--sf-space-7); flex-shrink:0; text-decoration:none;
+}
+.sf-topnav__name{
+  font-family:var(--sf-font-display); font-weight:var(--sf-weight-bold);
+  font-size:var(--sf-font-lead); letter-spacing:var(--sf-track-tight);
+  color:var(--sf-text); white-space:nowrap;
+}
+.sf-topnav__name em{ font-style:normal; font-weight:var(--sf-weight-regular); color:var(--sf-text-2); }
+.sf-topnav__right{ margin-left:auto; display:flex; align-items:center; gap:var(--sf-space-3); }
+
+/* Un menu et son panneau */
+.sf-menu{ position:relative; }
+.sf-menu__btn{
+  display:inline-flex; align-items:center; gap:var(--sf-space-3);
+  font-family:var(--sf-font-ui); font-size:var(--sf-font-body);
+  font-weight:var(--sf-weight-medium); color:var(--sf-text-2);
+  padding:var(--sf-space-4) var(--sf-space-5); border-radius:var(--sf-radius-sm);
+  background:none; border:0; cursor:pointer; white-space:nowrap;
+  transition:background-color var(--sf-dur) var(--sf-ease), color var(--sf-dur) var(--sf-ease);
+}
+.sf-menu__btn:hover{ background:var(--sf-surface-2); color:var(--sf-text); }
+.sf-menu__btn:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus);
+                             outline-offset:var(--sf-focus-offset); }
+/* La section active porte un vert de MARQUE (sombre), pas le vert lumineux
+   reserve aux valeurs. */
+.sf-menu__btn--active{ background:var(--sf-brand-wash-2); color:var(--sf-brand-vivid); }
+.sf-menu__car{ transition:transform var(--sf-dur) var(--sf-ease); flex-shrink:0; }
+.sf-menu__btn[aria-expanded="true"] .sf-menu__car{ transform:rotate(180deg); }
+
+.sf-menu__panel{
+  position:absolute; top:calc(100% + var(--sf-space-3)); left:0;
+  min-width:310px; padding:var(--sf-space-3);
+  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-md); box-shadow:var(--sf-elev-3);
+  display:none;
+}
+.sf-menu__panel--right{ left:auto; right:0; }
+.sf-menu[data-open="1"] .sf-menu__panel{ display:block; }
+
+.sf-menu__link{
+  display:flex; gap:var(--sf-space-4); align-items:flex-start;
+  padding:var(--sf-space-4) var(--sf-space-5); border-radius:var(--sf-radius-sm);
+  text-decoration:none; color:var(--sf-text); cursor:pointer;
+  background:none; border:0; width:100%; text-align:left;
+  font-family:var(--sf-font-ui);
+}
+.sf-menu__link:hover{ background:var(--sf-surface-2); }
+.sf-menu__link:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus);
+                              outline-offset:calc(var(--sf-focus-offset) * -1); }
+/* navigate() pose la classe .active ; le modificateur BEM est conserve pour
+   les usages statiques. Les deux doivent rendre la meme chose. */
+.sf-menu__link--active,
+.sf-menu__link.active{ background:var(--sf-brand-wash); }
+.sf-menu__link.active .sf-menu__t{ color:var(--sf-brand-vivid); }
+.sf-menu__ic{
+  width:30px; height:30px; flex-shrink:0; display:grid; place-items:center;
+  border-radius:var(--sf-radius-sm);
+  background:var(--sf-brand-wash); color:var(--sf-brand-vivid);
+}
+.sf-menu__t{ font-size:var(--sf-font-body); font-weight:var(--sf-weight-semibold); line-height:1.3; }
+.sf-menu__d{ font-size:var(--sf-font-caption); color:var(--sf-text-3);
+             line-height:var(--sf-lh-snug); margin-top:1px; display:block; }
+.sf-menu__soon{
+  font-size:var(--sf-font-label); text-transform:uppercase;
+  letter-spacing:var(--sf-track-caps); background:var(--sf-alert-wash);
+  color:var(--sf-alert); padding:1px var(--sf-space-3);
+  border-radius:var(--sf-radius-xs); margin-left:var(--sf-space-3);
+}
+
+/* Fil d'Ariane loge dans le bandeau : il dit ou l'on est sans consommer une
+   deuxieme barre. */
+.sf-topnav__crumb{
+  display:flex; align-items:center; gap:var(--sf-space-3);
+  font-size:var(--sf-font-body-sm); color:var(--sf-text-3);
+  margin-left:var(--sf-space-6); min-width:0;
+}
+.sf-topnav__crumb b{ color:var(--sf-text-2); font-weight:var(--sf-weight-medium);
+                     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sf-topnav__crumb .sep{ opacity:.45; flex-shrink:0; }
+
+/* Bouton hamburger — visible seulement quand les menus ne tiennent plus */
+.sf-topnav__burger{ display:none; }
+@media (max-width:920px){
+  .sf-topnav__menus{ display:none; }
+  .sf-topnav__burger{ display:inline-flex; }
+  .sf-topnav__crumb{ display:none; }
+  /* Ouvert, le menu mobile empile les sections sous le bandeau plutot que de
+     reproduire un tiroir lateral : moins de mecanique, meme service. */
+  .sf-topnav__menus[data-mobile="1"]{
+    display:block; position:absolute; top:var(--sf-nav-h); left:0; right:0;
+    background:var(--sf-surface); border-bottom:var(--sf-border-width) solid var(--sf-border);
+    padding:var(--sf-space-4); max-height:calc(100vh - var(--sf-nav-h));
+    overflow-y:auto; box-shadow:var(--sf-elev-3);
+  }
+  .sf-topnav__menus[data-mobile="1"] .sf-menu{ position:static; }
+  .sf-topnav__menus[data-mobile="1"] .sf-menu__panel{
+    position:static; display:block; min-width:0; border:0; box-shadow:none;
+    padding:0 0 var(--sf-space-4) var(--sf-space-6); background:transparent;
+  }
+  .sf-topnav__menus[data-mobile="1"] .sf-menu__btn{ width:100%; }
+  .sf-topnav__menus[data-mobile="1"] .sf-menu__car{ display:none; }
+}
+
+
+/* ───────────────────────────────────────────────────────────────────────────
    UTILITAIRES MINIMAUX
    ─────────────────────────────────────────────────────────────────────────── */
 

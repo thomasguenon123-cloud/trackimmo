@@ -57,7 +57,13 @@
 }
 
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--sb-bg);color:var(--c-text);font-family:var(--font);font-size:13px;min-height:100vh;display:flex;overflow:hidden;}
+/* PHASE 4 — la barre laterale a laisse place a un bandeau haut. Le corps
+   n'est donc plus une rangee de deux colonnes mais un flux vertical normal :
+   c'est la page qui defile, et le bandeau reste colle en haut (position
+   sticky, dans components.css). L'ancien modele hauteur fixe + zone interne
+   scrollable imposait overflow:hidden sur le corps, ce qui empechait le
+   defilement naturel et cassait le sticky. */
+body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-size:13px;min-height:100vh;}
 
 /* ════ SIDEBAR ════ */
 .sidebar{
@@ -122,7 +128,9 @@ body{background:var(--sb-bg);color:var(--c-text);font-family:var(--font);font-si
 .nav-divider{height:1px;background:rgba(255,255,255,0.07);margin:10px 10px;}
 
 /* ════ MAIN ════ */
-.main-wrap{flex:1;display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--c-bg);}
+/* PHASE 4 : plus de hauteur imposee ni de debordement masque — le contenu
+   dicte sa hauteur et la page defile. */
+.main-wrap{background:var(--c-bg);}
 
 /* TOPBAR */
 .topbar{
@@ -164,7 +172,10 @@ body{background:var(--sb-bg);color:var(--c-text);font-family:var(--font);font-si
 .btn-purge:hover{background:rgba(220,38,38,0.15);}
 
 /* ════ CONTENT ════ */
-.content{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:20px;background:var(--c-bg);}
+/* PHASE 4 : le flex-column et le gap servent la mise en page des ecrans, ils
+   restent. Seuls le flex:1 et l'overflow-y, qui appartenaient au modele a
+   hauteur fixe, disparaissent. */
+.content{padding:24px;display:flex;flex-direction:column;gap:20px;background:var(--c-bg);min-height:calc(100vh - var(--sf-nav-h));}
 
 /* ════ PAGE ACCUEIL ════ */
 .page-title{font-size:var(--fs-title);font-weight:800;letter-spacing:-0.5px;color:var(--c-text);}
