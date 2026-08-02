@@ -795,14 +795,53 @@ function sfRefreshTopnav() {
     av.parentElement?.setAttribute('title', nom);
     av.parentElement?.setAttribute('aria-label', 'Mon compte — ' + nom);
   }
+
+  // Le panneau des reglages depend du role : il se reconstruit ici, apres que
+  // le profil est connu, et jamais avant.
+  sfBuildParamsMenu();
 }
 
 // Raccourci vers la section Compte des Parametres. renderParametres lit le
 // hash au montage : on le pose avant de naviguer.
-function sfGoCompte() {
-  history.replaceState(null, '', '#parametres/compte');
+function sfGoCompte() { sfGoParam('compte'); }
+
+// Ouvre une section precise des Parametres depuis le bandeau.
+function sfGoParam(id) {
+  history.replaceState(null, '', '#parametres/' + id);
   sfCloseMenus();
-  navigate('parametres');
+  if(currentPage === 'parametres') renderParametres(document.getElementById('content'));
+  else navigate('parametres');
+}
+
+// Panneau de la roue dentee, CONSTRUIT DEPUIS PARAMS_SECTIONS.
+// L'ecrire en dur dans index.html aurait cree une seconde liste a maintenir,
+// qui aurait fini par diverger de la page — et, plus grave, par diverger de
+// son cloisonnement admin. Ici la meme source nourrit les deux.
+// NB : ce filtrage n'est qu'un confort de lecture. La vraie garde est dans
+// renderParamsSection(), qui refuse de rendre une section admin a un non-admin
+// meme par URL directe, et les policies RLS cote Supabase.
+function sfBuildParamsMenu() {
+  const p = document.getElementById('panel-param');
+  if(!p || typeof PARAMS_SECTIONS === 'undefined') return;
+  const isAdmin = currentProfile?.role === 'admin' || currentUser?.email === ADMIN_EMAIL;
+
+  p.innerHTML = PARAMS_SECTIONS
+    .filter(f => !f.adminOnly || isAdmin)
+    .map(f => {
+      const items = f.items.filter(i => !i.adminOnly || isAdmin);
+      if(!items.length) return '';
+      return `<div class="sf-menu__group">${esc(f.family)}</div>` + items.map(i => {
+        const soon = i.status === 'soon';
+        // Une section « Bientot » reste visible mais inerte : la masquer
+        // priverait l'utilisateur de la carte du produit.
+        return `<button class="sf-menu__row" role="menuitem" type="button"
+          ${soon ? 'aria-disabled="true"' : `onclick="sfGoParam('${i.id}')"`}>
+          <span class="ic" aria-hidden="true">${i.icon}</span>
+          <span class="lab">${esc(i.label)}</span>
+          ${soon ? '<span class="sf-menu__soon">Bientôt</span>' : ''}
+        </button>`;
+      }).join('');
+    }).join('');
 }
 
 // ───────────────────────────────────────────────────────

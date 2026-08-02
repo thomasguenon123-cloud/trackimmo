@@ -12,9 +12,9 @@
 <!-- Socle de jetons Stonefolio (phase 2). Ne declare que des variables : aucun
      effet visuel tant qu'aucun composant ne les consomme. Charge AVANT
      styles.css pour que la migration puisse s'appuyer dessus. -->
-<link rel="stylesheet" href="tokens.css?v=38">
-<link rel="stylesheet" href="components.css?v=38">
-<link rel="stylesheet" href="styles.css?v=38">
+<link rel="stylesheet" href="tokens.css?v=39">
+<link rel="stylesheet" href="components.css?v=39">
+<link rel="stylesheet" href="styles.css?v=39">
 </head>
 <body>
 
@@ -148,16 +148,22 @@
       <span class="sf-topnav__avatar" id="sf-avatar" aria-hidden="true">—</span>
     </button>
 
-    <!-- Clic direct : la roue dentée dit déjà où elle mène, un menu
-         intermédiaire n'aurait ajouté qu'un clic. -->
+    <!-- Le panneau est GÉNÉRÉ depuis PARAMS_SECTIONS (app.js), jamais écrit en
+         dur : c'est la seule façon qu'il ne diverge ni de la page Paramètres
+         ni de son cloisonnement admin. -->
+    <div class="sf-menu" id="menu-param">
     <button class="sf-topnav__act sf-topnav__act--gear" type="button" id="nav-parametres"
+            aria-expanded="false" aria-haspopup="true" aria-controls="panel-param"
             title="Réglages" aria-label="Réglages"
-            onclick="navigate('parametres')">
+            onclick="sfToggleMenu('param')">
         <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="3.1"/>
           <path d="M19.4 14.5a1.6 1.6 0 0 0 .32 1.77l.06.06a1.94 1.94 0 1 1-2.75 2.75l-.06-.06a1.6 1.6 0 0 0-1.77-.32 1.6 1.6 0 0 0-.97 1.47v.17a1.94 1.94 0 1 1-3.88 0v-.09a1.6 1.6 0 0 0-1.05-1.47 1.6 1.6 0 0 0-1.77.32l-.06.06a1.94 1.94 0 1 1-2.75-2.75l.06-.06a1.6 1.6 0 0 0 .32-1.77 1.6 1.6 0 0 0-1.47-.97H3.2a1.94 1.94 0 1 1 0-3.88h.09a1.6 1.6 0 0 0 1.47-1.05 1.6 1.6 0 0 0-.32-1.77l-.06-.06A1.94 1.94 0 1 1 7.13 4.2l.06.06a1.6 1.6 0 0 0 1.77.32h.08a1.6 1.6 0 0 0 .97-1.47V3.2a1.94 1.94 0 1 1 3.88 0v.09a1.6 1.6 0 0 0 .97 1.47 1.6 1.6 0 0 0 1.77-.32l.06-.06a1.94 1.94 0 1 1 2.75 2.75l-.06.06a1.6 1.6 0 0 0-.32 1.77v.08a1.6 1.6 0 0 0 1.47.97h.17a1.94 1.94 0 1 1 0 3.88h-.09a1.6 1.6 0 0 0-1.47.97Z"/>
         </svg>
-    </button>
+      </button>
+      <div class="sf-menu__panel sf-menu__panel--right sf-menu__panel--compact"
+           id="panel-param" role="menu" aria-labelledby="nav-parametres"></div>
+    </div>
   </div>
 </header>
 
@@ -181,7 +187,7 @@
 
 <div class="notif" id="notif"></div>
 
-<script src="app.js?v=38"></script>
+<script src="app.js?v=39"></script>
 
 <!-- LIGHTBOX -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
