@@ -364,6 +364,49 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 
 
 /* ───────────────────────────────────────────────────────────────────────────
+   AGENDA
+   ───────────────────────────────────────────────────────────────────────────
+   Echeance a venir, presentee comme une ligne de temps verticale. La date est
+   en pastille a gauche : on lit QUAND avant de lire QUOI, ce qui est l'ordre
+   dans lequel on parcourt un agenda.                                         */
+
+.sf-agenda{ display:flex; flex-direction:column; }
+.sf-ag{
+  display:flex; align-items:flex-start; gap:var(--sf-space-5);
+  padding:var(--sf-space-5) var(--sf-space-6);
+  border-bottom:var(--sf-border-width) solid var(--sf-border);
+  position:relative;
+}
+.sf-ag:last-child{ border-bottom:0; }
+.sf-ag__date{
+  flex-shrink:0; width:46px; text-align:center;
+  border-radius:var(--sf-radius-sm); padding:var(--sf-space-3) 0;
+  background:var(--sf-surface-2); border:var(--sf-border-width) solid var(--sf-border);
+}
+.sf-ag__day{
+  display:block; font-family:var(--sf-font-display); font-size:var(--sf-font-h3);
+  font-weight:var(--sf-weight-bold); line-height:1; color:var(--sf-text);
+  font-variant-numeric:tabular-nums;
+}
+.sf-ag__mon{
+  display:block; font-size:var(--sf-font-label); text-transform:uppercase;
+  letter-spacing:var(--sf-track-caps); color:var(--sf-text-3); margin-top:2px;
+}
+/* Echeance depassee : la date passe en couleur de perte, pas la ligne entiere.
+   Colorer tout le bloc transformerait un rappel en alarme. */
+.sf-ag--retard .sf-ag__date{ background:var(--sf-loss-wash); border-color:transparent; }
+.sf-ag--retard .sf-ag__day{ color:var(--sf-loss); }
+.sf-ag__body{ flex:1; min-width:0; padding-top:var(--sf-space-2); }
+.sf-ag__title{ font-size:var(--sf-font-body); font-weight:var(--sf-weight-semibold);
+               color:var(--sf-text); line-height:var(--sf-lh-snug); margin:0; }
+.sf-ag__meta{ font-size:var(--sf-font-caption); color:var(--sf-text-3);
+              margin:var(--sf-space-2) 0 0; }
+.sf-ag__amount{ flex-shrink:0; align-self:center; font-family:var(--sf-font-num);
+                font-size:var(--sf-font-body); font-variant-numeric:tabular-nums;
+                color:var(--sf-text-2); }
+
+
+/* ───────────────────────────────────────────────────────────────────────────
    UTILITAIRES MINIMAUX
    ─────────────────────────────────────────────────────────────────────────── */
 
