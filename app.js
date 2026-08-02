@@ -491,13 +491,7 @@ const PHASES = [
 // range en banque, et « Abandonne » y est isole au lieu d'etre noye dans
 // « finalise ». Cette liste etait ecrite deux fois a l'identique — accueil et
 // filterByPhase — et rien ne garantissait qu'elles restent d'accord.
-const PHASES_ACCUEIL = {
-  info:  b => [null,'Renseignements Web','Vendeur contacté (1ère)','Vendeur contacté (2ème)','Vendeur contacté (3ème)'].includes(b.statut),
-  nego:  b => (b.statut||'').includes('offre') || (b.statut||'').includes('Contre') || b.statut === 'Accord trouvé !',
-  banq:  b => ['Rendez-vous banque','Dossier déposé','Obtention crédit','Dossier non déposé'].includes(b.statut),
-  fin:   b => ['Compromis signé','Acheté','Administratifs'].includes(b.statut),
-  aband: b => b.statut === 'Abandonné',
-};
+// PHASES_ACCUEIL supprimee avec filterByPhase, son unique consommateur.
 
 // ═══════════════════════════════════════════════════════════════
 //  TI_BIENS — REGISTRE DES CHAMPS « BIENS », SOURCE UNIQUE
@@ -1281,200 +1275,317 @@ function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g
 function fmtActionDate(d){ if(!d) return '—'; const dt=new Date(d+'T12:00:00'); return isNaN(dt)?d:dt.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}); }
 
 // ── ACCUEIL ──
-function renderAccueil(el) {
-  // P3 : deux mondes distincts — Prospection (prévisionnel) et Patrimoine (réel).
-  // Avant, tous les indicateurs mélangeaient prospects, abandonnés et biens acquis.
+// ═══════════════════════════════════════════════════════════════
+//   ECRAN D'ACCUEIL — phase 5
+// ═══════════════════════════════════════════════════════════════
+// Parti arrete avec Thomas : « l'ecran du matin ». La page repond AVANT de
+// decrire — un verdict en une phrase, puis ce qui demande une action.
+// Remplace l'ancien tableau de bord et ses 11 indicateurs.
+//
+// Chaque point d'attention dit CE QUI SE PASSE, POURQUOI c'est un probleme,
+// et porte L'ACTION qui le resout. Un point sans action est une inquietude
+// sans issue : on ne l'affiche pas.
+
+// Petit jeu d'icones local a l'accueil, en trait, comme le bandeau.
+const SF_ACC_ICONS = {
+  maison:  '<path d="M3 21h18M6 21V9l6-5 6 5v12M10 21v-5h4v5"/>',
+  horloge: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  doc:     '<path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7Z"/><path d="M9 13h6M9 17h4"/>',
+  graph:   '<path d="M12 20V10M18 20V4M6 20v-6"/>',
+  banque:  '<path d="M3 9.5 12 4l9 5.5"/><path d="M5.5 9.5V19M9.8 9.5V19M14.2 9.5V19M18.5 9.5V19"/><path d="M3 21h18"/>',
+  plus:    '<path d="M12 5v14M5 12h14"/>',
+  check:   '<path d="M20 6 9 17l-5-5"/>',
+  loupe:   '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  credit:  '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
+  agenda:  '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  alerte:  '<path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/><path d="M10.3 3.6 2.5 17.2A2 2 0 0 0 4.2 20h15.6a2 2 0 0 0 1.7-2.8L13.7 3.6a2 2 0 0 0-3.4 0Z"/>',
+  ok:      '<circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-4.8"/>',
+  chevron: '<path d="m9 6 6 6-6 6"/>',
+};
+function sfAccIcon(n, t) {
+  return `<svg width="${t||17}" height="${t||17}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SF_ACC_ICONS[n]||''}</svg>`;
+}
+
+// Detecteurs. Chacun ne produit un point QUE s'il se declenche reellement :
+// le nombre affiche est donc toujours vrai, jamais une liste figee.
+function sfPointsAttention() {
+  const pts = [];
+  const acquis      = allBiens.filter(b => b.statut === 'Acheté');
   const prospection = allBiens.filter(b => b.statut !== 'Acheté' && b.statut !== 'Abandonné');
-  const achetes = allBiens.filter(b => b.statut === 'Acheté');
+  const now = new Date(), annee = now.getFullYear(), moisCourant = now.getMonth() + 1;
+  const pl = (n, s, p) => n > 1 ? p : s;
 
-  const cfs = prospection.map(b => computeCF(b));
-  const total = prospection.length;
-  const totalCF = cfs.reduce((a,b)=>a+b,0);
-  const positifs = cfs.filter(c=>c>0).length;
-  const best = cfs.length ? Math.max(...cfs) : 0;
-  const worst = cfs.length ? Math.min(...cfs) : 0;
-  const bAvecPrix = prospection.filter(b=>b.prix_affiche);
-  const avgPrix = bAvecPrix.length ? bAvecPrix.reduce((a,b)=>a+(parseFloat(b.prix_affiche)||0),0)/bAvecPrix.length : 0;
-  const rends = prospection.filter(b=>b.prix_affiche&&b.loyer_en_etat).map(b=>(b.loyer_en_etat*12/b.prix_affiche)*100);
-  const avgRend = rends.length ? (rends.reduce((a,b)=>a+b,0)/rends.length).toFixed(1) : null;
-
-  // ── Patrimoine : chiffres réels (mêmes helpers que le Module financier) ──
-  let patCF = 0, patLoyers = 0, patAcq = 0, occupes = 0;
-  for(const b of achetes) {
-    const r = mfCashflowReel12M(b);
-    patCF += r.cashflow;
-    patLoyers += r.loyer_encaisse;
-    patAcq += mfMontantAcquisition(b);
-    if(mfStatutOccupation(b.id).type === 'occup') occupes++;
+  // 1. Du capital immobilise qui ne produit rien : le plus couteux.
+  const sansLoc = acquis.filter(b => !allLocataires.some(l => l.bien_id === b.id && l.statut === 'Actif'));
+  if (sansLoc.length) {
+    const mensu = sansLoc.reduce((s, b) => s + (parseFloat(b.mensualite_credit) || 0), 0);
+    pts.push({ rang: 0, type: 'loss', icone: 'maison',
+      titre: `${sansLoc.length} bien${pl(sansLoc.length,'','s')} acquis sans locataire`,
+      enjeu: mensu > 0
+        ? `<strong class="sf-loss">−${fmt(mensu)} €</strong> de mensualités chaque mois, zéro loyer en face.`
+        : `Aucun loyer en face de ${pl(sansLoc.length,'cette acquisition','ces acquisitions')}.`,
+      action: 'Ajouter un locataire', cible: `navigate('module-financier')` });
   }
-  const patRendNet = patAcq > 0 ? (patCF / patAcq) * 100 : 0;
 
-  const statutGroups = {};
-  allBiens.forEach(b => { statutGroups[b.statut||'—'] = (statutGroups[b.statut||'—']||0)+1; });
+  // 2. Loyers deja echus mais non pointes : le cashflow reel est fausse.
+  const echus = allLoyers.filter(l =>
+    l.annee === annee && l.mois < moisCourant && l.statut !== 'Payé');
+  if (echus.length) {
+    const manque = echus.reduce((s, l) => s + (parseFloat(l.loyer_du) || 0), 0);
+    pts.push({ rang: 1, type: '', icone: 'horloge',
+      titre: `${echus.length} loyer${pl(echus.length,'','s')} échu${pl(echus.length,'','s')} non pointé${pl(echus.length,'','s')}`,
+      enjeu: `Votre cashflow est sous-estimé de <strong>${fmt(manque)} €</strong>.`,
+      action: 'Pointer', cible: `navigate('module-financier')` });
+  }
 
-  const phaseInfo  = allBiens.filter(PHASES_ACCUEIL.info).length;
-  const phaseNego  = allBiens.filter(PHASES_ACCUEIL.nego).length;
-  const phaseBanq  = allBiens.filter(PHASES_ACCUEIL.banq).length;
-  const phaseFin   = allBiens.filter(PHASES_ACCUEIL.fin).length;
-  const phaseAband = allBiens.filter(PHASES_ACCUEIL.aband).length;
+  // 3. Sans charges, le cashflow parait MEILLEUR qu'il n'est — piege inverse
+  //    du precedent, et bien plus trompeur.
+  const chargesAnnee = allCharges.filter(c => String(c.date_charge || '').startsWith(String(annee)));
+  if (acquis.length && !chargesAnnee.length) {
+    pts.push({ rang: 2, type: 'info', icone: 'doc',
+      titre: `Aucune charge saisie en ${annee}`,
+      enjeu: `Votre cashflow paraît meilleur qu'il ne l'est.`,
+      action: 'Saisir', cible: `navigate('module-financier')` });
+  }
 
-  // Chart et top : périmètre prospection uniquement (le réel vit dans le bloc Patrimoine)
-  const sorted = [...prospection].sort((a,b)=>computeCF(b)-computeCF(a));
-  const top3 = sorted.slice(0,3);
-  const biensAvecCF = prospection.filter(b=>b.mensualite_credit||b.loyer_en_etat);
+  // 4. Sans loyer estime, le rendement d'une fiche n'est pas calculable.
+  const sansLoyer = prospection.filter(b => !((parseFloat(b.loyer_en_etat) || 0) > 0));
+  if (sansLoyer.length) {
+    const villes = [...new Set(sansLoyer.map(b => b.ville).filter(Boolean))];
+    pts.push({ rang: 3, type: 'info', icone: 'graph',
+      titre: `${sansLoyer.length} fiche${pl(sansLoyer.length,'','s')} sans loyer estimé`,
+      enjeu: `Leur rendement ne peut pas être calculé.` +
+             (villes.length === 1 ? ` ${pl(sansLoyer.length,'Elle est','Elles sont')} à ${esc(villes[0])}.` : ''),
+      action: 'Compléter', cible: `navigate('biens')` });
+  }
 
-  el.innerHTML = `
-    <div>
-      <div class="page-title">Tableau de bord</div>
-      <div class="page-sub">Patrimoine réel d'un côté, pipeline de prospection de l'autre</div>
-    </div>
+  // 5. Un bien acquis sans mensualite faussee aussi le cashflow, dans l'autre sens.
+  const sansMensu = acquis.filter(b => !((parseFloat(b.mensualite_credit) || 0) > 0));
+  if (sansMensu.length) {
+    pts.push({ rang: 4, type: 'info', icone: 'banque',
+      titre: `${sansMensu.length} bien${pl(sansMensu.length,'','s')} acquis sans mensualité de crédit`,
+      enjeu: `Leur cashflow est calculé comme s'ils étaient payés comptant.`,
+      action: 'Renseigner', cible: `navigate('biens')` });
+  }
 
-    <!-- ── PATRIMOINE : ce que vous possédez (chiffres réels) ── -->
-    <div>
-      <div class="section-header">
-        <div class="section-title">🏛️ Patrimoine — réel sur 12 mois</div>
-        <a class="dash-link" onclick="navigate('module-financier')">Module financier →</a>
-      </div>
-      ${achetes.length === 0 ? `
-      <div class="dash-pat-empty">
-        Aucun bien au statut « Acheté » pour l'instant — le patrimoine réel (loyers encaissés,
-        charges payées, occupation) apparaîtra ici dès la première acquisition.
-      </div>` : `
-      <div class="kpi-row">
-        <div class="kpi-card"><div class="kpi-icon-w">🔑</div><div class="kpi-label">Biens acquis</div><div class="kpi-value">${achetes.length}</div><div class="kpi-sub">acquisition : ${fmt(patAcq)} €</div></div>
-        <div class="kpi-card"><div class="kpi-icon-w">💶</div><div class="kpi-label">Cashflow réel / mois</div><div class="kpi-value ${cfCls(patCF)}">${patCF>0?'+':''}${fmt(patCF/12)} €</div><div class="kpi-sub">moyenne 12 derniers mois</div></div>
-        <div class="kpi-card"><div class="kpi-icon-w">🧾</div><div class="kpi-label">Loyers encaissés 12M</div><div class="kpi-value">${fmt(patLoyers)} €</div><div class="kpi-sub">tous biens acquis</div></div>
-        <div class="kpi-card"><div class="kpi-icon-w">📈</div><div class="kpi-label">Rendement net réel</div><div class="kpi-value ${patRendNet>=0?'positive':'negative'}">${patRendNet.toFixed(2)}%</div><div class="kpi-sub">cashflow / acquisition</div></div>
-        <div class="kpi-card"><div class="kpi-icon-w">👥</div><div class="kpi-label">Occupation</div><div class="kpi-value">${occupes}/${achetes.length}</div><div class="kpi-sub">locataires actifs</div></div>
-      </div>`}
-    </div>
+  return pts.sort((a, b) => a.rang - b.rang);
+}
 
-    <!-- ── PROSPECTION : le pipeline (chiffres prévisionnels, hors abandonnés) ── -->
-    <div class="section-header" style="margin-top:6px">
-      <div class="section-title">🔍 Prospection — prévisionnel</div>
-      <span class="count-pill">${total} fiche${total>1?'s':''} en cours</span>
-    </div>
-    <div class="kpi-row"${dashVisibility.kpi===false?' style="display:none"':''}>
-      <div class="kpi-card"><div class="kpi-icon-w">🏠</div><div class="kpi-label">Fiches en cours</div><div class="kpi-value">${total}</div><div class="kpi-sub">${positifs} rentable${positifs>1?'s':''} · ${total-positifs} à surveiller</div></div>
-      <div class="kpi-card"><div class="kpi-icon-w">💶</div><div class="kpi-label">Cashflow prévi cumulé</div><div class="kpi-value ${cfCls(totalCF)}">${fmt(totalCF)} €</div><div class="kpi-sub">si tout était acquis</div></div>
-      <div class="kpi-card"><div class="kpi-icon-w">⭐</div><div class="kpi-label">Meilleur potentiel</div><div class="kpi-value positive">${fmt(best)} €</div><div class="kpi-sub">par mois (prévi)</div></div>
-      <div class="kpi-card"><div class="kpi-icon-w">⚠️</div><div class="kpi-label">Pire potentiel</div><div class="kpi-value ${worst<0?'negative':''}">${fmt(worst)} €</div><div class="kpi-sub">par mois (prévi)</div></div>
-      <div class="kpi-card"><div class="kpi-icon-w">🏷️</div><div class="kpi-label">Prix moyen</div><div class="kpi-value">${fmt(avgPrix)} €</div><div class="kpi-sub">des biens prospectés</div></div>
-      <div class="kpi-card"><div class="kpi-icon-w">📈</div><div class="kpi-label">Rendement brut moy.</div><div class="kpi-value ${avgRend&&parseFloat(avgRend)>userPrefs.seuil_rentabilite?'positive':''}">${avgRend?avgRend+'%':'—'}</div><div class="kpi-sub">loyer annuel / prix</div></div>
-    </div>
+// Loyers attendus des 60 prochains jours, deduits du jour de paiement du bail.
+function sfAgenda60j() {
+  const out = [];
+  const now = new Date();
+  const fin = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 60);
+  const MOIS = ['janv','févr','mars','avr','mai','juin','juil','août','sept','oct','nov','déc'];
 
-    <div class="charts-row">
-      <div class="chart-card"${dashVisibility.cf===false?' style="display:none"':''}>
-        <div class="chart-title">Cashflow prévisionnel par bien</div>
-        <div class="chart-sub">Prospection en cours · résultat mensuel estimé en €</div>
-        <div style="height:140px" id="chart-cf-wrap"><canvas id="chart-cf"></canvas></div>
-      </div>
-      <div class="chart-card"${dashVisibility.st===false?' style="display:none"':''}>
-        <div class="chart-title">Répartition par statut</div>
-        <div class="chart-sub">Distribution du pipeline</div>
-        <div style="height:210px"><canvas id="chart-st"></canvas></div>
-      </div>
-    </div>
-
-    <div>
-      <div class="section-header"><div class="section-title">Pipeline par phase</div></div>
-      <div class="pipeline-grid">
-        <div class="pipeline-item" style="cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--c-border)'" onclick="filterByPhase('info')"><div class="pipeline-count">${phaseInfo}</div><div class="pipeline-label">🔍 Prospection</div></div>
-        <div class="pipeline-item" style="cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--c-border)'" onclick="filterByPhase('nego')"><div class="pipeline-count">${phaseNego}</div><div class="pipeline-label">🤝 Négociation</div></div>
-        <div class="pipeline-item" style="cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--c-border)'" onclick="filterByPhase('banq')"><div class="pipeline-count">${phaseBanq}</div><div class="pipeline-label">🏦 Banque</div></div>
-        <div class="pipeline-item" style="cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--c-border)'" onclick="filterByPhase('fin')"><div class="pipeline-count">${phaseFin}</div><div class="pipeline-label">✅ Finalisé</div></div>
-        <div class="pipeline-item" style="cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--c-border)'" onclick="filterByPhase('aband')"><div class="pipeline-count">${phaseAband}</div><div class="pipeline-label">❌ Abandonné</div></div>
-      </div>
-      <div id="pipeline-filter-results" style="margin-top:14px"></div>
-    </div>
-
-    ${top3.length ? `
-    <div>
-      <div class="section-header">
-        <div class="section-title">Top potentiels</div>
-        <span class="count-pill">Par cashflow prévisionnel</span>
-      </div>
-      <div class="top-list">
-        ${top3.map((b,i)=>{
-          const cf=computeCF(b), has=b.mensualite_credit||b.loyer_en_etat;
-          return `<div class="top-item" onclick="openDetail('${b.id}')">
-            <div class="top-rank">${['🥇','🥈','🥉'][i]}</div>
-            <div class="top-info"><div class="top-titre">${b.titre}</div><div class="top-loc">${[b.ville,b.code_postal].filter(Boolean).join(' · ')}</div></div>
-            <div class="top-cf ${has?cfCls(cf):'neutral'}">${has?fmt(cf)+' €/m':'—'}</div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>` : ''}
-  `;
-
-  // Chart cashflow — HORIZONTAL BARS
-  if (dashVisibility.cf !== false && biensAvecCF.length) {
-    if(charts['cf']) { charts['cf'].destroy(); charts['cf'] = null; }
-    const cfWrap = document.getElementById('chart-cf-wrap');
-    const h = Math.max(140, biensAvecCF.length * 44 + 20);
-    if(cfWrap) cfWrap.style.height = h + 'px';
-    const canvas = document.getElementById('chart-cf');
-    if(canvas) {
-      charts['cf'] = new Chart(canvas, {
-        type: 'bar',
-        data: {
-          labels: biensAvecCF.map(b => {
-            const lbl = (b.ville || b.titre || '').substring(0, 18);
-            return b.type_bien ? lbl + ' (' + b.type_bien + ')' : lbl;
-          }),
-          datasets: [{
-            data: biensAvecCF.map(b => computeCF(b)),
-            backgroundColor: biensAvecCF.map(b => computeCF(b) >= 0 ? 'rgba(22,163,74,0.82)' : 'rgba(220,38,38,0.78)'),
-            borderRadius: 5,
-            borderSkipped: false,
-            barThickness: 24,
-          }]
-        },
-        options: {
-          indexAxis: 'y',
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: { duration: 500 },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                label: c => ' ' + (c.raw >= 0 ? '+' : '') + fmt(c.raw) + ' €/mois'
-              }
-            }
-          },
-          scales: {
-            x: {
-              ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => fmt(v) + '€' },
-              grid: { color: 'rgba(0,0,0,0.05)' },
-              border: { display: false }
-            },
-            y: {
-              ticks: { color: '#475569', font: { size: 11, weight: '500' } },
-              grid: { display: false },
-              border: { display: false }
-            }
-          }
-        }
+  for (const l of allLocataires) {
+    if (l.statut !== 'Actif' || !l.bien_id) continue;
+    const bien = allBiens.find(b => b.id === l.bien_id);
+    const jour = Math.min(Math.max(parseInt(l.jour_paiement, 10) || 5, 1), 28);
+    for (let i = 0; i < 3; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, jour);
+      if (d < new Date(now.getFullYear(), now.getMonth(), now.getDate()) || d > fin) continue;
+      out.push({
+        jour: d.getDate(), mois: MOIS[d.getMonth()], tri: d.getTime(),
+        titre: `Loyer attendu — ${esc(bien?.titre || 'Bien')}`,
+        meta: `${esc([l.prenom, l.nom].filter(Boolean).join(' ') || 'Locataire')} · le ${jour} de chaque mois`,
+        montant: (parseFloat(l.loyer_bail_hc) || 0),
       });
     }
   }
+  return out.sort((a, b) => a.tri - b.tri).slice(0, 6);
+}
 
-  // Chart statuts
-  const sLabels = Object.keys(statutGroups);
-  const sData = Object.values(statutGroups);
-  const ctx2 = document.getElementById('chart-st');
-  if (dashVisibility.st !== false && ctx2 && sLabels.length) charts['st'] = new Chart(ctx2, {
-    type:'doughnut',
-    data:{
-      labels:sLabels,
-      datasets:[{data:sData,backgroundColor:['#6366f1','#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899'],borderWidth:0,hoverOffset:6}]
-    },
-    options:{
-      responsive:true,maintainAspectRatio:false,cutout:'65%',
-      plugins:{legend:{position:'right',labels:{color:'#475569',font:{size:10},boxWidth:10,padding:10}}}
-    }
-  });
+function renderAccueil(el) {
+  const acquis      = allBiens.filter(b => b.statut === 'Acheté');
+  const prospection = allBiens.filter(b => b.statut !== 'Acheté' && b.statut !== 'Abandonné');
+
+  // ── Patrimoine reel, memes helpers que le Module financier ──
+  let patCF = 0, patLoyers = 0;
+  for (const b of acquis) {
+    const r = mfCashflowReel12M(b);
+    patCF += r.cashflow;
+    patLoyers += r.loyer_encaisse;
+  }
+
+  // Temps loue, en BIEN-MOIS sur 12 mois glissants : un bien loue 6 mois sur
+  // 12 ne vaut pas un bien loue toute l'annee, ce qu'un comptage a l'instant t
+  // ne saurait pas dire. Une ligne de loyer n'existe que pour un bail actif.
+  const mois12 = mf12LastMonths();
+  let bmLoues = 0;
+  for (const b of acquis)
+    for (const m of mois12)
+      if (allLoyers.some(l => l.bien_id === b.id && l.mois === m.mois && l.annee === m.annee)) bmLoues++;
+  const bmTotal = acquis.length * 12;
+  const tauxLoue = bmTotal ? Math.round((bmLoues / bmTotal) * 100) : null;
+
+  const sansLoyerProsp = prospection.filter(b => !((parseFloat(b.loyer_en_etat) || 0) > 0)).length;
+  const pts = sfPointsAttention();
+  const agenda = sfAgenda60j();
+  const coutent = pts.filter(p => p.type === 'loss').length;
+  const prenom = (currentProfile?.prenom || '').trim();
+  const dateJour = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+  const verdict = pts.length === 0
+    ? { type:'ok', icone:'ok', txt:'Rien ne demande votre attention',
+        sub:'Vos loyers sont pointés et vos fiches sont complètes.' }
+    : { type:'alerte', icone:'alerte',
+        txt:`${pts.length} point${pts.length>1?'s':''} demande${pts.length>1?'nt':''} votre attention`,
+        sub: coutent
+          ? `${coutent === 1 ? 'L\'un d\'eux vous coûte' : coutent + ' d\'entre eux vous coûtent'} de l'argent chaque mois${pts.length > coutent ? ' ; les autres faussent vos chiffres.' : '.'}`
+          : `Aucun ne vous coûte d'argent — ils faussent vos chiffres.` };
+
+  el.innerHTML = `
+    <div class="acc-hello">
+      <h1>Bonjour${prenom ? ' ' + esc(prenom) : ''}</h1>
+      <span class="acc-date sf-num">${dateJour}</span>
+    </div>
+
+    <div class="acc-verdict acc-verdict--${verdict.type}">
+      <span class="acc-verdict__ic">${sfAccIcon(verdict.icone, 20)}</span>
+      <div>
+        <div class="acc-verdict__txt">${verdict.txt}</div>
+        <div class="acc-verdict__sub">${verdict.sub}</div>
+      </div>
+    </div>
+
+    <div class="acc-bento">
+      <section>
+        <h2 class="acc-sec">À traiter <span class="acc-sec__n sf-num">${pts.length} point${pts.length>1?'s':''}</span></h2>
+        <div class="sf-card sf-card--flat">
+          ${pts.length ? pts.map(p => `
+            <div class="sf-alert${p.type ? ' sf-alert--' + p.type : ''}">
+              <span class="sf-alert__icon">${sfAccIcon(p.icone)}</span>
+              <div class="sf-alert__body">
+                <p class="sf-alert__title">${p.titre}</p>
+                <p class="sf-alert__why">${p.enjeu}</p>
+              </div>
+              <span class="sf-alert__action">
+                <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="${p.cible}">${p.action}</button>
+              </span>
+            </div>`).join('') : `
+            <div class="sf-empty">
+              <div class="sf-empty__icon">${sfAccIcon('ok', 22)}</div>
+              <h3 class="sf-empty__title">Tout est à jour</h3>
+              <p class="sf-empty__text">Aucun loyer en attente, aucune fiche incomplète. Vous pouvez prospecter l'esprit tranquille.</p>
+              <div class="sf-empty__actions">
+                <button class="sf-btn sf-btn--primary" type="button" onclick="navigate('marche-recherche')">Explorer une ville</button>
+              </div>
+            </div>`}
+        </div>
+      </section>
+
+      <section>
+        <h2 class="acc-sec">Actions</h2>
+        <div class="acc-quick">
+          <button class="sf-quick" type="button" onclick="navigate('nouveau')">
+            <span class="sf-quick__icon">${sfAccIcon('plus', 18)}</span>
+            <span class="sf-quick__label">Ajouter un bien<span class="sf-quick__sub">depuis une annonce</span></span>
+          </button>
+          <button class="sf-quick" type="button" onclick="navigate('module-financier')">
+            <span class="sf-quick__icon">${sfAccIcon('check', 18)}</span>
+            <span class="sf-quick__label">Pointer un loyer<span class="sf-quick__sub">suivi mensuel</span></span>
+          </button>
+          <button class="sf-quick" type="button" onclick="navigate('marche-recherche')">
+            <span class="sf-quick__icon">${sfAccIcon('loupe', 18)}</span>
+            <span class="sf-quick__label">Explorer une ville<span class="sf-quick__sub">prix, emploi, marché</span></span>
+          </button>
+          <button class="sf-quick" type="button" onclick="navigate('simulateur')">
+            <span class="sf-quick__icon">${sfAccIcon('credit', 18)}</span>
+            <span class="sf-quick__label">Simuler un crédit<span class="sf-quick__sub">mensualité, capacité</span></span>
+          </button>
+          <button class="sf-quick" type="button" onclick="navigate('module-financier')">
+            <span class="sf-quick__icon">${sfAccIcon('doc', 18)}</span>
+            <span class="sf-quick__label">Saisir une charge<span class="sf-quick__sub">taxe foncière, copropriété</span></span>
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <h2 class="acc-sec">Votre patrimoine
+      <span class="acc-sec__n sf-num">${acquis.length} bien${acquis.length>1?'s':''} acquis · 12 derniers mois</span></h2>
+    <div class="acc-kpis">
+      <div class="sf-kpi">
+        <span class="sf-kpi__label">Ce que ça rapporte</span>
+        ${acquis.length
+          ? `<span class="sf-kpi__value ${patCF>=0?'sf-kpi__value--gain':'sf-kpi__value--loss'}">${patCF>=0?'+':'−'}${fmt(Math.abs(patCF/12))} €</span>
+             <span class="sf-kpi__sub">par mois · loyers moins charges et crédit</span>`
+          : `<span class="sf-kpi__value sf-kpi__value--none">non disponible</span>
+             <span class="sf-kpi__sub">aucun bien acquis</span>`}
+      </div>
+      <div class="sf-kpi">
+        <span class="sf-kpi__label">Loyers encaissés</span>
+        <span class="sf-kpi__value">${fmt(patLoyers)} €</span>
+        <span class="sf-kpi__sub">sur 12 mois</span>
+      </div>
+      <div class="sf-kpi">
+        <span class="sf-kpi__label">Turnover</span>
+        ${tauxLoue === null
+          ? `<span class="sf-kpi__value sf-kpi__value--none">non disponible</span>
+             <span class="sf-kpi__sub">aucun bien acquis</span>`
+          : `<span class="sf-kpi__value ${tauxLoue>=70?'sf-kpi__value--gain':'sf-kpi__value--loss'}">${tauxLoue} %</span>
+             <span class="sf-kpi__sub">${bmLoues} mois loués sur ${bmTotal} mois de détention</span>`}
+      </div>
+      <div class="sf-kpi">
+        <span class="sf-kpi__label">Fiches en prospection</span>
+        <span class="sf-kpi__value">${prospection.length}</span>
+        <span class="sf-kpi__sub">${sansLoyerProsp ? sansLoyerProsp + ' sans loyer estimé' : 'toutes chiffrées'}</span>
+      </div>
+    </div>
+
+    <div class="acc-bento">
+      <section>
+        <h2 class="acc-sec">Agenda <span class="acc-sec__n sf-num">60 prochains jours</span></h2>
+        <div class="sf-card sf-card--flat">
+          <div class="sf-agenda">
+            ${agenda.map(a => `
+              <div class="sf-ag">
+                <span class="sf-ag__date"><span class="sf-ag__day">${a.jour}</span><span class="sf-ag__mon">${a.mois}</span></span>
+                <div class="sf-ag__body">
+                  <p class="sf-ag__title">${a.titre}</p>
+                  <p class="sf-ag__meta">${a.meta}</p>
+                </div>
+                <span class="sf-ag__amount">${fmt(a.montant)} €</span>
+              </div>`).join('')}
+            <div class="sf-empty" style="padding:var(--sf-space-8) var(--sf-space-7)">
+              <div class="sf-empty__icon">${sfAccIcon('agenda', 20)}</div>
+              <h3 class="sf-empty__title">Aucune échéance administrative programmée</h3>
+              <p class="sf-empty__text">Assurance PNO, assemblée générale de copropriété, déclaration 2044&nbsp;: les dates qui coûtent cher quand on les oublie.</p>
+              <div class="sf-empty__actions">
+                <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="navigate('administration')">Programmer une échéance</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="acc-sec">Prospection <span class="acc-sec__n sf-num">${prospection.length} fiche${prospection.length>1?'s':''}</span></h2>
+        <div class="sf-card sf-card--flat">
+          ${prospection.length ? prospection.slice(0, 5).map(b => `
+            <div class="acc-pipe" onclick="openDetail('${b.id}')">
+              <span class="sf-pill">${esc(b.statut || '—')}</span>
+              <span class="acc-pipe__t">${esc(b.titre || 'Sans titre')}</span>
+              <span class="acc-pipe__c sf-num">${b.prix_affiche ? fmt(b.prix_affiche) + ' €' : '—'}</span>
+            </div>`).join('') + `
+            <div style="padding:var(--sf-space-5) var(--sf-space-6)">
+              <button class="sf-btn sf-btn--ghost sf-btn--sm sf-btn--block" type="button" onclick="navigate('biens')">
+                Ouvrir le pipeline ${sfAccIcon('chevron', 13)}
+              </button>
+            </div>` : `
+            <div class="sf-empty">
+              <div class="sf-empty__icon">${sfAccIcon('loupe', 22)}</div>
+              <h3 class="sf-empty__title">Aucune fiche en prospection</h3>
+              <p class="sf-empty__text">Ajoutez une annonce pour suivre son rendement et son avancement jusqu'à la signature.</p>
+              <div class="sf-empty__actions">
+                <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="navigate('nouveau')">Ajouter un bien</button>
+              </div>
+            </div>`}
+        </div>
+      </section>
+    </div>
+  `;
 }
 
 // ── BIENS ──
@@ -2617,22 +2728,8 @@ async function deleteBienPage(id) {
 
 // ── DETAIL ──
 // ── LIGHTBOX ──
-function filterByPhase(phase) {
-  const phaseMap = PHASES_ACCUEIL;
-  const labels = {info:'🔍 Prospection',nego:'🤝 Négociation',banq:'🏦 Banque',fin:'✅ Finalisé',aband:'❌ Abandonné'};
-  const el = document.getElementById('pipeline-filter-results');
-  if(!el)return;
-  const filtered = allBiens.filter(phaseMap[phase]||(_=>false));
-  if(!filtered.length){el.innerHTML='';return;}
-  el.innerHTML = `
-    <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">
-      <div style="font-size:13px;font-weight:700;color:var(--c-text)">${labels[phase]} — ${filtered.length} bien${filtered.length>1?'s':''}</div>
-      <button onclick="document.getElementById('pipeline-filter-results').innerHTML=''" style="background:none;border:none;color:var(--c-muted);cursor:pointer;font-size:12px">✕ Fermer</button>
-    </div>
-    <div class="biens-grid">${filtered.map(renderCard).join('')}</div>
-  `;
-  el.scrollIntoView({behavior:'smooth',block:'nearest'});
-}
+// filterByPhase supprimee en phase 5 : elle alimentait les pastilles de
+// phase de l ancien tableau de bord, qui n existent plus.
 
 function openLightbox(src) {
   document.getElementById('lightbox-img').src = src;
@@ -4459,32 +4556,17 @@ function paramsApparenceHtml() {
         <div class="color-swatch" style="background:#ef4444" onclick="setAccent('#ef4444','#dc2626',this)" title="Rouge"></div>
       </div>
     </div>
-    <div class="params-card">
-      <div class="params-card-title">Tableau de bord</div>
-      <div class="settings-row">
-        <div><div class="settings-label">Graphique cashflow</div><div class="settings-sub">Barres par bien</div></div>
-        <label class="toggle"><input type="checkbox" id="pref-cf-chart" checked onchange="savePrefs()"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
-      </div>
-      <div class="settings-row">
-        <div><div class="settings-label">Graphique statuts</div><div class="settings-sub">Donut de répartition</div></div>
-        <label class="toggle"><input type="checkbox" id="pref-donut-chart" checked onchange="savePrefs()"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
-      </div>
-      <div class="settings-row">
-        <div><div class="settings-label">KPIs résumés</div><div class="settings-sub">6 indicateurs en haut</div></div>
-        <label class="toggle"><input type="checkbox" id="pref-kpis" checked onchange="savePrefs()"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
-      </div>
-    </div>`;
+    <!-- Carte « Tableau de bord » retiree en phase 5 : ses trois
+           interrupteurs pilotaient les graphiques de l ancien accueil, qui
+           n existent plus. Le cashflow par bien et la repartition par statut
+           restent consultables dans le Module financier. -->`;
 }
 
 // ── Section DONNÉES ──
 // Synchronise l'état des contrôles d'apparence avec les préférences chargées
 function syncAppearanceControls() {
-  // Toggles dashboard : refléter dashVisibility
-  const map = { 'pref-cf-chart':'cf', 'pref-donut-chart':'st', 'pref-kpis':'kpi' };
-  Object.entries(map).forEach(([id,key]) => {
-    const el = document.getElementById(id);
-    if(el) el.checked = dashVisibility[key] !== false;
-  });
+  // Les interrupteurs de graphiques du tableau de bord ont disparu en phase 5
+  // avec les graphiques qu'ils pilotaient : plus rien a synchroniser ici.
   // Pastille de couleur active
   const activeAccentCss = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
   document.querySelectorAll('#color-grid .color-swatch').forEach(s => {
@@ -10388,21 +10470,12 @@ function setAccent(color, colorDark, el) {
   persistAppearance();
 }
 
+// Les trois interrupteurs de graphiques ont ete retires en phase 5 : le nouvel
+// accueil n'a plus de graphiques a montrer ou masquer. Les colonnes
+// dash_show_* restent en base — inoffensives, et reutilisables si l'on
+// reintroduit un jour des blocs optionnels.
 function savePrefs() {
-  // Toggle dashboard sections based on checkboxes
-  const cfOn  = document.getElementById('pref-cf-chart')?.checked !== false;
-  const stOn  = document.getElementById('pref-donut-chart')?.checked !== false;
-  const kpiOn = document.getElementById('pref-kpis')?.checked !== false;
-  dashVisibility.cf  = cfOn;
-  dashVisibility.st  = stOn;
-  dashVisibility.kpi = kpiOn;
-  // Cache localStorage (anti-flash)
-  localStorage.setItem('sf_dash_cf',  cfOn  ? '1' : '0');
-  localStorage.setItem('sf_dash_st',  stOn  ? '1' : '0');
-  localStorage.setItem('sf_dash_kpi', kpiOn ? '1' : '0');
-  // Persistance DB
   persistAppearance();
-  // Re-render dashboard if on that page
   if(currentPage === 'accueil') renderAccueil(document.getElementById('content'));
 }
 
