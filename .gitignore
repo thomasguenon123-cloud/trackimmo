@@ -11,3 +11,6 @@
 # brandkit, output-skill (taste) et design-system, brand, design,
 # ui-ux-pro-max (ui-ux-pro-max).
 .claude/skills/
+
+# Index local de codegraph (regenerable via `codegraph init`)
+.codegraph/
