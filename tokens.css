@@ -38,8 +38,8 @@
      Satoshi et JetBrains Mono ne sont pas encore deposes dans /fonts : les
      piles de repli ci-dessous s'appliquent en attendant, sans rien casser.
      Voir le bloc @font-face commente en fin de fichier. */
-  --sf-font-display: "Satoshi", "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
-  --sf-font-ui:      "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --sf-font-display: "Outfit", "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
+  --sf-font-ui:      "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --sf-font-num:     "JetBrains Mono", ui-monospace, "Cascadia Mono", "SF Mono", Menlo, monospace;
 
   /* ── Echelle typographique ────────────────────────────────────────────────
@@ -280,24 +280,39 @@
 
 
 /* ───────────────────────────────────────────────────────────────────────────
-   5. POLICES AUTO-HEBERGEES — a activer une fois les fichiers deposes
+   5. POLICES AUTO-HEBERGEES
    ───────────────────────────────────────────────────────────────────────────
-   A faire par Thomas, une seule fois :
-     1. Telecharger Satoshi sur fontshare.com/fonts/satoshi (licence libre,
-        usage commercial autorise) et JetBrains Mono sur jetbrains.com/lp/mono
-        (licence OFL). Recuperer aussi Inter au format woff2 (rsms.me/inter).
-     2. Deposer les .woff2 dans un dossier /fonts a la racine du depot.
-     3. Decommenter le bloc ci-dessous.
-   Tant que ce bloc dort, les piles de repli declarees en section 1
-   s'appliquent : rien ne casse, l'affichage est simplement moins caracterise.
+   Trois polices VARIABLES au format woff2, servies depuis le depot. Aucune
+   dependance a Google Fonts, qui etait jusqu'ici un point de defaillance
+   externe pour toute la plateforme : CDN lent ou bloque = bascule silencieuse
+   sur une police systeme aux metriques differentes.
 
-   Auto-heberger supprime au passage la dependance a Google Fonts, qui est
-   aujourd'hui un point de defaillance externe pour toute la plateforme.
+   VARIABLES et non statiques : un seul fichier couvre toute la plage de
+   graisses. Les versions statiques disponibles ne fournissaient que Regular
+   et Bold — le navigateur aurait synthetise les graisses 500 et 600 declarees
+   plus haut, produisant de fausses graisses au rendu mou. 100 Ko au total ici
+   contre 508 Ko pour six fichiers statiques et moins de nuances.
 
-@font-face{font-family:"Satoshi";src:url("fonts/Satoshi-Variable.woff2") format("woff2-variations");
-           font-weight:300 900;font-display:swap;font-style:normal;}
-@font-face{font-family:"Inter";src:url("fonts/Inter-Variable.woff2") format("woff2-variations");
-           font-weight:100 900;font-display:swap;font-style:normal;}
-@font-face{font-family:"JetBrains Mono";src:url("fonts/JetBrainsMono-Variable.woff2") format("woff2-variations");
-           font-weight:100 800;font-display:swap;font-style:normal;}
-   ─────────────────────────────────────────────────────────────────────────── */
+   Sous-ensemble « latin » uniquement. Verifie contre le texte reel de
+   l'application : les 45 caracteres non-ASCII employes sont couverts, accents
+   francais et ligature « oe » de « Coup de coeur » compris. Les 11 exceptions
+   sont des fleches et symboles (-> <- etc.) qui tomberaient en police systeme
+   — raison de plus pour les remplacer par des icones SVG.
+
+   Licences OFL fournies dans /fonts, comme la licence l'impose.             */
+
+@font-face{
+  font-family:"Outfit";
+  src:url("fonts/Outfit-Variable.woff2") format("woff2-variations");
+  font-weight:100 900; font-style:normal; font-display:swap;
+}
+@font-face{
+  font-family:"Instrument Sans";
+  src:url("fonts/InstrumentSans-Variable.woff2") format("woff2-variations");
+  font-weight:400 700; font-style:normal; font-display:swap;
+}
+@font-face{
+  font-family:"JetBrains Mono";
+  src:url("fonts/JetBrainsMono-Variable.woff2") format("woff2-variations");
+  font-weight:100 800; font-style:normal; font-display:swap;
+}

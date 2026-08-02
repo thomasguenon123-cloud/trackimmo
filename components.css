@@ -300,6 +300,70 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 
 
 /* ───────────────────────────────────────────────────────────────────────────
+   POINT D'ATTENTION
+   ───────────────────────────────────────────────────────────────────────────
+   Brique de l'ecran d'accueil. Chaque point dit CE QUI SE PASSE, POURQUOI
+   c'est un probleme, et porte l'action qui le resout. Un point d'attention
+   sans action est une inquietude sans issue : on ne l'affiche pas.          */
+
+.sf-alert{
+  display:flex; align-items:flex-start; gap:var(--sf-space-5);
+  padding:var(--sf-space-5) var(--sf-space-6);
+  border-bottom:var(--sf-border-width) solid var(--sf-border);
+  transition:background-color var(--sf-dur) var(--sf-ease);
+}
+.sf-alert:last-child{ border-bottom:0; }
+.sf-alert:hover{ background:var(--sf-surface-2); }
+.sf-alert__icon{
+  width:34px; height:34px; flex-shrink:0; display:grid; place-items:center;
+  border-radius:var(--sf-radius-sm);
+  background:var(--sf-alert-wash); color:var(--sf-alert);
+}
+/* La severite se lit aussi dans la forme, pas seulement dans la teinte. */
+.sf-alert--loss  .sf-alert__icon{ background:var(--sf-loss-wash);  color:var(--sf-loss); }
+.sf-alert--info  .sf-alert__icon{ background:var(--sf-info-wash);  color:var(--sf-info); }
+.sf-alert--gain  .sf-alert__icon{ background:var(--sf-gain-wash);  color:var(--sf-gain); }
+.sf-alert__body{ flex:1; min-width:0; }
+.sf-alert__title{
+  font-size:var(--sf-font-body); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text); line-height:var(--sf-lh-snug); margin:0;
+}
+.sf-alert__why{
+  font-size:var(--sf-font-caption); color:var(--sf-text-2);
+  line-height:var(--sf-lh-snug); margin:var(--sf-space-2) 0 0;
+}
+.sf-alert__action{ flex-shrink:0; align-self:center; }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   ACCES RAPIDE
+   ───────────────────────────────────────────────────────────────────────────
+   Grande cible cliquable pour les gestes frequents. Icone + verbe : ce qu'on
+   va faire se lit avant d'avoir fini la phrase.                             */
+
+.sf-quick{
+  display:flex; align-items:center; gap:var(--sf-space-5);
+  width:100%; text-align:left; text-decoration:none;
+  padding:var(--sf-space-5); border-radius:var(--sf-radius-sm);
+  background:var(--sf-surface-2); border:var(--sf-border-width) solid transparent;
+  color:var(--sf-text); cursor:pointer;
+  font-family:var(--sf-font-ui); font-size:var(--sf-font-body);
+  transition:background-color var(--sf-dur) var(--sf-ease),
+             border-color var(--sf-dur) var(--sf-ease);
+}
+.sf-quick:hover{ background:var(--sf-surface-3); border-color:var(--sf-border-strong); }
+.sf-quick:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus);
+                         outline-offset:var(--sf-focus-offset); }
+.sf-quick__icon{
+  width:36px; height:36px; flex-shrink:0; display:grid; place-items:center;
+  border-radius:var(--sf-radius-sm);
+  background:var(--sf-brand-wash); color:var(--sf-brand-vivid);
+}
+.sf-quick__label{ font-weight:var(--sf-weight-semibold); line-height:1.25; }
+.sf-quick__sub{ font-size:var(--sf-font-caption); color:var(--sf-text-3);
+                display:block; margin-top:1px; font-weight:var(--sf-weight-regular); }
+
+
+/* ───────────────────────────────────────────────────────────────────────────
    UTILITAIRES MINIMAUX
    ─────────────────────────────────────────────────────────────────────────── */
 
