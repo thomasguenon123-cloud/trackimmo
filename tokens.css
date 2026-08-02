@@ -128,7 +128,11 @@
   --sf-control-h-sm: 30px;
   --sf-control-h:    38px;
   --sf-control-h-lg: 46px;
-  --sf-nav-h:        58px;   /* bandeau haut, phase 4 */
+  /* Bandeau haut. Porte a 68 px apres essai en conditions reelles : a 58 px
+     les libelles etaient a l'etroit et devaient rester en 14 px. La hauteur
+     supplementaire finance une typographie plus lisible — c'est la barre de
+     navigation, elle est lue a chaque page. */
+  --sf-nav-h:        68px;
 
   /* ── Mouvement ────────────────────────────────────────────────────────── */
   --sf-dur-fast: 120ms;

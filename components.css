@@ -424,13 +424,18 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
   background:var(--sf-bg); border-bottom:var(--sf-border-width) solid var(--sf-border);
   font-family:var(--sf-font-ui);
 }
+/* Sans display:flex, les menus sont des blocs et s'empilent verticalement.
+   Defaut constate en production apres la phase 4 : Pipeline, Gestion et
+   Outils debordaient sous le bandeau. */
+.sf-topnav__menus{ display:flex; align-items:center; gap:var(--sf-space-2); min-width:0; }
+
 .sf-topnav__brand{
   display:flex; align-items:center; gap:var(--sf-space-4);
   margin-right:var(--sf-space-7); flex-shrink:0; text-decoration:none;
 }
 .sf-topnav__name{
   font-family:var(--sf-font-display); font-weight:var(--sf-weight-bold);
-  font-size:var(--sf-font-lead); letter-spacing:var(--sf-track-tight);
+  font-size:var(--sf-font-h3); letter-spacing:var(--sf-track-tight);
   color:var(--sf-text); white-space:nowrap;
 }
 .sf-topnav__name em{ font-style:normal; font-weight:var(--sf-weight-regular); color:var(--sf-text-2); }
@@ -440,9 +445,9 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 .sf-menu{ position:relative; }
 .sf-menu__btn{
   display:inline-flex; align-items:center; gap:var(--sf-space-3);
-  font-family:var(--sf-font-ui); font-size:var(--sf-font-body);
+  font-family:var(--sf-font-ui); font-size:var(--sf-font-lead);
   font-weight:var(--sf-weight-medium); color:var(--sf-text-2);
-  padding:var(--sf-space-4) var(--sf-space-5); border-radius:var(--sf-radius-sm);
+  padding:var(--sf-space-4) var(--sf-space-6); border-radius:var(--sf-radius-sm);
   background:none; border:0; cursor:pointer; white-space:nowrap;
   transition:background-color var(--sf-dur) var(--sf-ease), color var(--sf-dur) var(--sf-ease);
 }
@@ -493,6 +498,42 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
   letter-spacing:var(--sf-track-caps); background:var(--sf-alert-wash);
   color:var(--sf-alert); padding:1px var(--sf-space-3);
   border-radius:var(--sf-radius-xs); margin-left:var(--sf-space-3);
+}
+
+/* Actions de droite — trois cibles icone, du moins au plus personnel :
+   Utilisateurs (admin), Compte, Reglages. Un pictogramme seul se devine mal :
+   chacune porte un title ET un aria-label explicites. */
+.sf-topnav__act{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:40px; height:40px; flex-shrink:0;
+  border-radius:var(--sf-radius-sm); border:0; background:none; cursor:pointer;
+  color:var(--sf-text-2);
+  transition:background-color var(--sf-dur) var(--sf-ease), color var(--sf-dur) var(--sf-ease);
+}
+.sf-topnav__act:hover{ background:var(--sf-surface-2); color:var(--sf-text); }
+.sf-topnav__act:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus);
+                               outline-offset:var(--sf-focus-offset); }
+/* navigate() pose .active sur #nav-<page> ; le modificateur BEM sert aux
+   usages statiques. Les deux doivent rendre la meme chose. */
+.sf-topnav__act--active,
+.sf-topnav__act.active{ background:var(--sf-brand-wash-2); color:var(--sf-brand-vivid); }
+
+/* Avatar : les initiales en repli tant qu'aucune photo n'est chargee. */
+.sf-topnav__avatar{
+  width:32px; height:32px; border-radius:var(--sf-radius-full);
+  display:grid; place-items:center;
+  background:var(--sf-brand-2); color:var(--sf-text);
+  font-family:var(--sf-font-display); font-size:var(--sf-font-caption);
+  font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-snug);
+}
+/* La roue dentee tourne d'un huitieme au survol — un reglage qui s'ajuste. */
+.sf-topnav__act svg{ transition:transform var(--sf-dur-slow) var(--sf-ease); }
+.sf-topnav__act--gear:hover svg{ transform:rotate(45deg); }
+
+/* Separateur : Utilisateurs releve de l'administration, pas du compte. */
+.sf-topnav__sep{
+  width:1px; height:24px; flex-shrink:0;
+  background:var(--sf-border); margin:0 var(--sf-space-2);
 }
 
 /* Fil d'Ariane loge dans le bandeau : il dit ou l'on est sans consommer une

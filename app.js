@@ -768,12 +768,41 @@ async function loadProfile() {
     const { data: prefs } = await db.rpc('get_my_preferences');
     if(prefs) userPrefs = prefs;
   } catch(e) { /* garde les défauts */ }
-  // Afficher ou masquer l'entrée Administration du sidebar (réservée aux admins)
+  sfRefreshTopnav();
+}
+
+// Etat du bandeau qui depend du profil : acces Utilisateurs et initiales.
+function sfRefreshTopnav() {
   const isAdmin = currentProfile?.role === 'admin' || currentUser?.email === ADMIN_EMAIL;
-  const adminSection = document.querySelector('[data-section="sb-admin-section"]');
-  if(adminSection) adminSection.style.display = isAdmin ? '' : 'none';
-  // NB : la section Maintenance des Paramètres est déjà gatée côté rendu
-  // (PARAMS_SECTIONS adminOnly + condition isAdmin), aucun gating DOM requis ici.
+
+  // « Utilisateurs » est sorti des Parametres en phase 4 : c'est une fonction
+  // d'administration, pas un reglage. Le masquage DOM n'est qu'un confort —
+  // la vraie barriere reste renderAdmin(), qui refuse un non-admin, et les
+  // policies RLS cote Supabase. Ne jamais compter sur ce style:none seul.
+  const btnUsers = document.getElementById('nav-admin-users');
+  const sep = document.getElementById('sf-sep-admin');
+  if(btnUsers) btnUsers.style.display = isAdmin ? '' : 'none';
+  if(sep) sep.style.display = isAdmin ? '' : 'none';
+
+  // Initiales : prenom + nom, a defaut la premiere lettre de l'e-mail.
+  const av = document.getElementById('sf-avatar');
+  if(av) {
+    const p = (currentProfile?.prenom || '').trim();
+    const n = (currentProfile?.nom || '').trim();
+    const ini = (p[0] || '') + (n[0] || '');
+    av.textContent = (ini || (currentUser?.email || '?')[0] || '?').toUpperCase();
+    const nom = [p, n].filter(Boolean).join(' ') || currentUser?.email || 'Mon compte';
+    av.parentElement?.setAttribute('title', nom);
+    av.parentElement?.setAttribute('aria-label', 'Mon compte — ' + nom);
+  }
+}
+
+// Raccourci vers la section Compte des Parametres. renderParametres lit le
+// hash au montage : on le pose avant de naviguer.
+function sfGoCompte() {
+  history.replaceState(null, '', '#parametres/compte');
+  sfCloseMenus();
+  navigate('parametres');
 }
 
 // ───────────────────────────────────────────────────────
@@ -4161,8 +4190,12 @@ const PARAMS_SECTIONS = [
     { id:'donnees',      label:'Données',          icon:'🗂️', status:'ready' },
     { id:'sci',          label:'Mes SCI',          icon:'🏛️', status:'ready' },
   ]},
+  // « Utilisateurs » a quitte les Parametres en phase 4 : la gestion des
+  // comptes est une fonction d'administration, pas un reglage personnel. Elle
+  // vit desormais dans le bandeau, derriere sa propre icone, visible des seuls
+  // administrateurs. La sortir d'ici rend ce cloisonnement lisible plutot que
+  // de la noyer au milieu des preferences.
   { family:'Administration', adminOnly:true, items:[
-    { id:'utilisateurs', label:'Utilisateurs',     icon:'👥', status:'ready', adminOnly:true },
     { id:'maintenance',  label:'Maintenance',      icon:'🔧', status:'ready', adminOnly:true },
   ]},
   { family:'Aide', items:[
@@ -4273,7 +4306,9 @@ function renderParamsSection() {
   else if(sec==='apropos') c.innerHTML = paramsAproposHtml();
   else if(sec==='donnees') c.innerHTML = paramsDonneesHtml();
   else if(sec==='sci') { c.innerHTML = paramsSciHtml(); loadSCIList(); }
-  else if(sec==='utilisateurs' && isAdmin) { c.innerHTML = '<div id="admin-users-inline"></div>'; renderAdmin(document.getElementById('admin-users-inline')); }
+  // Compatibilite : les anciens liens #parametres/utilisateurs renvoient vers
+  // la page dediee. Une seule route vers la gestion des comptes, pas deux.
+  else if(sec==='utilisateurs') { navigate('admin-users'); return; }
   else if(sec==='maintenance' && isAdmin) c.innerHTML = paramsMaintenanceHtml();
   else c.innerHTML = `<div class="params-soon-box"><div class="psb-title">Section indisponible</div></div>`;
 }
@@ -4627,7 +4662,9 @@ const SF_MENU_PAGES = {
   pipeline: ['accueil','biens','nouveau','bien-detail'],
   gestion:  ['module-financier','administration'],
   outils:   ['simulateur','visites','portails'],
-  param:    ['parametres','admin-users'],
+  // « admin-users » n'est plus rattache aux reglages : il a sa propre icone
+  // dans le bandeau, que navigate() surligne via #nav-admin-users.
+  param:    ['parametres'],
 };
 
 function sfCloseMenus() {
