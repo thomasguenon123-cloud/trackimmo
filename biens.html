@@ -8,18 +8,16 @@
 <link rel="stylesheet" href="components.css?v=44">
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
-   MAQUETTE « MES BIENS » — phase 5, iteration 3
-   Servie en production pour utiliser les VRAIS tokens.css et components.css :
-   une copie des valeurs finirait par diverger de la plateforme.
+   MAQUETTE « MES BIENS » — phase 5, iteration 4
+   Servie en production pour utiliser les VRAIS tokens.css et components.css.
    Rien ne part dans styles.css/app.js tant que ce n'est pas valide.
-   Prefixe .sfb- pour ne rien heurter.
    ═══════════════════════════════════════════════════════════════════════════ */
 body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-ui);
       margin:0; font-size:var(--sf-font-body); }
 .sfb-wrap{ padding:var(--sf-space-8); max-width:1680px; margin:0 auto; }
 
 .sfb-note{ border:1px dashed var(--sf-border-strong); border-radius:var(--sf-radius-md);
-  padding:var(--sf-space-5) var(--sf-space-6); margin-bottom:var(--sf-space-8);
+  padding:var(--sf-space-5) var(--sf-space-6); margin-bottom:var(--sf-space-7);
   font-size:var(--sf-font-caption); color:var(--sf-text-2); line-height:var(--sf-lh-normal); }
 .sfb-note b{ color:var(--sf-text); }
 
@@ -28,37 +26,49 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight); margin:0; line-height:1; }
 .sfb-head__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); color:var(--sf-text-3); }
 
-/* ── Deux sections : ce qu'on possede, ce qu'on envisage ──────────────────────
-   Additionner un bien detenu et une fiche en prospection revenait a melanger
-   un engagement et une hypothese. Chaque bloc porte donc son propre total. */
-.sfb-sec{ margin-bottom:var(--sf-space-11); }
-.sfb-sec__h{ display:flex; align-items:baseline; gap:var(--sf-space-5);
-  margin-bottom:var(--sf-space-5); flex-wrap:wrap; }
-.sfb-sec__t{ font-family:var(--sf-font-display); font-size:var(--sf-font-h2);
-  font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-snug); margin:0; }
-.sfb-sec__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); color:var(--sf-text-3); }
-.sfb-sec__d{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin:0 0 var(--sf-space-5); }
+/* ── ONGLETS ──────────────────────────────────────────────────────────────────
+   Deux sections empilees obligeaient a faire defiler toute la premiere pour
+   atteindre la seconde — insupportable des que le portefeuille grossit. En
+   onglets, chaque ensemble occupe l'ecran a son tour. La prospection est en
+   premier : c'est la qu'on agit au quotidien. */
+.sfb-tabs{ display:flex; gap:var(--sf-space-2); border-bottom:var(--sf-border-width) solid var(--sf-border);
+  margin-bottom:var(--sf-space-6); }
+.sfb-tab{ position:relative; display:inline-flex; align-items:center; gap:var(--sf-space-4);
+  padding:var(--sf-space-5) var(--sf-space-6); border:0; background:transparent; cursor:pointer;
+  font-family:var(--sf-font-display); font-size:var(--sf-font-lead); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text-3); letter-spacing:var(--sf-track-snug); }
+.sfb-tab:hover{ color:var(--sf-text-2); }
+.sfb-tab[aria-selected="true"]{ color:var(--sf-text); }
+.sfb-tab[aria-selected="true"]::after{ content:''; position:absolute; left:var(--sf-space-5);
+  right:var(--sf-space-5); bottom:-1px; height:2px; background:var(--sf-brand-vivid); border-radius:1px; }
+.sfb-tab__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
+  font-weight:var(--sf-weight-semibold); color:var(--sf-text-3);
+  background:var(--sf-surface-2); border-radius:var(--sf-radius-full); padding:1px 8px; }
+.sfb-tab[aria-selected="true"] .sfb-tab__n{ background:var(--sf-brand-wash-2); color:var(--sf-brand-vivid); }
+.sfb-tab__todo{ width:6px; height:6px; border-radius:50%; background:var(--sf-alert); }
 
-.sfb-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
-  gap:var(--sf-space-5); margin-bottom:var(--sf-space-5); }
+.sfb-intro{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin:0 0 var(--sf-space-5); }
+
+/* ── KPI — compacts, pour que la liste commence haut ──────────────────────── */
+.sfb-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+  gap:var(--sf-space-4); margin-bottom:var(--sf-space-5); }
 .sfb-kpi{ border:var(--sf-border-width) solid var(--sf-border); background:var(--sf-surface);
-  border-radius:var(--sf-radius-md); padding:var(--sf-space-6); }
+  border-radius:var(--sf-radius-md); padding:var(--sf-space-5); }
 .sfb-kpi__l{ display:block; font-size:var(--sf-font-label); text-transform:uppercase;
   letter-spacing:var(--sf-track-caps); color:var(--sf-text-3); font-weight:var(--sf-weight-semibold);
-  margin-bottom:var(--sf-space-3); }
-.sfb-kpi__v{ display:block; font-family:var(--sf-font-display); font-size:var(--sf-font-kpi);
-  font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight); line-height:1;
+  margin-bottom:var(--sf-space-2); }
+.sfb-kpi__v{ display:block; font-family:var(--sf-font-display); font-size:var(--sf-font-h2);
+  font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight); line-height:1.05;
   font-variant-numeric:tabular-nums; }
 .sfb-kpi__v--gain{ color:var(--sf-gain); } .sfb-kpi__v--loss{ color:var(--sf-loss); }
 .sfb-kpi__v--alerte{ color:var(--sf-alert); }
-.sfb-kpi__s{ display:block; font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:var(--sf-space-3); }
-/* Une seule note par bloc, au lieu d'une glose de methode sous chaque carte.
-   Un indicateur dit CE QU'IL EST ; il n'explique pas son calcul. */
+.sfb-kpi__s{ display:block; font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:var(--sf-space-2); }
 .sfb-foot{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin:0 0 var(--sf-space-5); }
+.sfb-foot b{ color:var(--sf-alert); font-weight:var(--sf-weight-semibold); }
 
-/* ── Barre d'outils, commune aux deux blocs ───────────────────────────────── */
+/* ── Barre d'outils ───────────────────────────────────────────────────────── */
 .sfb-tools{ display:flex; gap:var(--sf-space-4); align-items:center; flex-wrap:wrap;
-  margin-bottom:var(--sf-space-8); }
+  margin-bottom:var(--sf-space-6); }
 .sfb-search{ position:relative; flex:1; min-width:200px; max-width:320px; }
 .sfb-search svg{ position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--sf-text-3); }
 .sfb-search input{ width:100%; height:var(--sf-control-h); padding:0 var(--sf-space-5) 0 34px;
@@ -87,7 +97,10 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .sfb-bulk[data-on="1"]{ display:flex; }
 .sfb-bulk__n{ font-weight:var(--sf-weight-semibold); }
 
-/* ── VUE TABLEAU ──────────────────────────────────────────────────────────── */
+/* ── VUE TABLEAU ──────────────────────────────────────────────────────────────
+   TOUT est aligne a gauche, en-tetes comprises : le sens de lecture de la
+   plateforme est gauche -> droite. `tabular-nums` maintient l'alignement des
+   chiffres entre eux, ce que l'alignement a droite assurait autrement. */
 .sfb-tablewrap{ border:var(--sf-border-width) solid var(--sf-border); border-radius:var(--sf-radius-md);
   background:var(--sf-surface); overflow-x:auto; }
 table.sfb-t{ width:100%; border-collapse:collapse; font-size:var(--sf-font-body-sm); }
@@ -100,19 +113,20 @@ table.sfb-t{ width:100%; border-collapse:collapse; font-size:var(--sf-font-body-
 .sfb-t th .ar{ opacity:0; margin-left:4px; }
 .sfb-t th[aria-sort] .ar{ opacity:1; color:var(--sf-brand-vivid); }
 .sfb-t td{ padding:var(--sf-space-5); border-bottom:var(--sf-border-width) solid var(--sf-border);
-  vertical-align:middle; }
+  vertical-align:middle; text-align:left; }
 .sfb-t tbody tr{ cursor:pointer; }
 .sfb-t tbody tr:hover{ background:var(--sf-surface-2); }
 .sfb-t tbody tr:last-child td{ border-bottom:0; }
-.sfb-t .num{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
+.sfb-t .num{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums; white-space:nowrap; }
 .sfb-t .bien{ font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
 .sfb-t .sub{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
 body[data-dens="compact"] .sfb-t td{ padding:var(--sf-space-3) var(--sf-space-5); }
 body[data-dens="compact"] .sfb-t .sub{ display:none; }
+/* Une ligne incomplete se signale d'elle-meme, sans crier */
+.sfb-t tr.incomplet td:first-child{ box-shadow:inset 2px 0 0 var(--sf-alert); }
 
 .gain{ color:var(--sf-gain); } .loss{ color:var(--sf-loss); } .muted{ color:var(--sf-text-3); }
 
-/* Marqueur de source — la distinction la plus importante de l'ecran */
 .sfb-src{ display:inline-block; font-size:9px; text-transform:uppercase;
   letter-spacing:var(--sf-track-caps); font-weight:var(--sf-weight-bold);
   padding:1px 5px; border-radius:var(--sf-radius-xs); margin-left:6px; vertical-align:1px; }
@@ -120,11 +134,9 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
 .sfb-src--estime{ background:var(--sf-surface-3); color:var(--sf-text-3); }
 .sfb-src--attente{ background:var(--sf-alert-wash); color:var(--sf-alert); }
 .sfb-src--manque{ background:var(--sf-alert-wash); color:var(--sf-alert); }
-/* Ce qu'on sait deja d'une fiche incomplete. On ne cache pas l'information,
-   on refuse seulement de l'appeler « cashflow ». */
 .sfb-part{ display:block; font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
 
-.sfb-rend{ display:flex; align-items:center; gap:var(--sf-space-4); justify-content:flex-end; }
+.sfb-rend{ display:flex; align-items:center; gap:var(--sf-space-4); }
 .sfb-rend__b{ width:44px; height:4px; border-radius:2px; background:var(--sf-surface-3); overflow:hidden; flex-shrink:0; }
 .sfb-rend__f{ display:block; height:100%; border-radius:2px; }
 
@@ -134,6 +146,7 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
   border-radius:var(--sf-radius-md); overflow:hidden; cursor:pointer; display:flex; flex-direction:column;
   transition:border-color var(--sf-dur) var(--sf-ease); }
 .sfb-card:hover{ border-color:var(--sf-border-strong); }
+.sfb-card.incomplet{ border-left:2px solid var(--sf-alert); }
 .sfb-card__top{ padding:var(--sf-space-6) var(--sf-space-6) var(--sf-space-5); }
 .sfb-card__st{ display:flex; align-items:center; justify-content:space-between; gap:var(--sf-space-4);
   margin-bottom:var(--sf-space-4); }
@@ -143,24 +156,23 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
 .sfb-card__loc{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin:var(--sf-space-2) 0 0; }
 .sfb-card__cf{ border-top:var(--sf-border-width) solid var(--sf-border);
   background:var(--sf-surface-2); padding:var(--sf-space-5) var(--sf-space-6);
-  display:flex; align-items:baseline; justify-content:space-between; gap:var(--sf-space-4); }
+  display:flex; align-items:baseline; gap:var(--sf-space-4); }
 .sfb-card__cfl{ font-size:var(--sf-font-label); text-transform:uppercase;
   letter-spacing:var(--sf-track-caps); color:var(--sf-text-3); font-weight:var(--sf-weight-semibold); }
 .sfb-card__cfv{ font-family:var(--sf-font-num); font-size:var(--sf-font-lead);
-  font-weight:var(--sf-weight-bold); font-variant-numeric:tabular-nums; }
+  font-weight:var(--sf-weight-bold); font-variant-numeric:tabular-nums; margin-left:auto; }
 .sfb-card__stats{ display:grid; grid-template-columns:repeat(4,1fr); border-top:var(--sf-border-width) solid var(--sf-border); }
-.sfb-card__cell{ padding:var(--sf-space-5) var(--sf-space-3); text-align:center;
-  border-right:var(--sf-border-width) solid var(--sf-border); }
+.sfb-card__cell{ padding:var(--sf-space-5); border-right:var(--sf-border-width) solid var(--sf-border); }
 .sfb-card__cell:last-child{ border-right:0; }
 .sfb-card__cl{ display:block; font-size:var(--sf-font-label); text-transform:uppercase;
   letter-spacing:var(--sf-track-caps); color:var(--sf-text-3); margin-bottom:var(--sf-space-2); }
 .sfb-card__cv{ display:block; font-family:var(--sf-font-num); font-size:var(--sf-font-body-sm);
   font-weight:var(--sf-weight-semibold); font-variant-numeric:tabular-nums; }
 
-/* ── VUE KANBAN ───────────────────────────────────────────────────────────── */
+/* ── VUE KANBAN — reservee a la prospection ───────────────────────────────── */
 .sfb-kb{ display:flex; gap:var(--sf-space-5); overflow-x:auto; padding-bottom:var(--sf-space-5); }
 .sfb-kbcol{ flex:0 0 268px; background:var(--sf-surface-2); border:var(--sf-border-width) solid var(--sf-border);
-  border-radius:var(--sf-radius-md); display:flex; flex-direction:column; max-height:560px; }
+  border-radius:var(--sf-radius-md); display:flex; flex-direction:column; max-height:600px; }
 .sfb-kbh{ padding:var(--sf-space-5); border-bottom:var(--sf-border-width) solid var(--sf-border); }
 .sfb-kbh__r{ display:flex; align-items:center; gap:var(--sf-space-4); }
 .sfb-kbh__t{ font-size:var(--sf-font-body-sm); font-weight:var(--sf-weight-semibold); }
@@ -170,6 +182,7 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
 .sfb-kc{ background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
   border-radius:var(--sf-radius-sm); padding:var(--sf-space-5); cursor:grab; }
 .sfb-kc:hover{ border-color:var(--sf-border-strong); }
+.sfb-kc.incomplet{ border-left:2px solid var(--sf-alert); }
 .sfb-kc__t{ font-size:var(--sf-font-body-sm); font-weight:var(--sf-weight-semibold); margin:0 0 var(--sf-space-2); }
 .sfb-kc__m{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin:0 0 var(--sf-space-4); }
 .sfb-kc__cf{ font-family:var(--sf-font-num); font-size:var(--sf-font-body-sm);
@@ -187,17 +200,32 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
 
   <div class="sfb-note">
     <b>Maquette — non déployée dans l'application.</b> Elle utilise les vrais
-    <code>tokens.css</code> et <code>components.css</code>, donc elle ne peut pas diverger de la charte.
-    Données : les <b>6 biens visibles sur ta capture</b> plus la 7<sup>e</sup> fiche lue sur l'écran
-    d'accueil. Les charges sont <b>déduites</b> des deux chiffres que la plateforme affiche déjà
-    (charges = loyer − cashflow prévisionnel) — aucun chiffre inventé.
-    Seuil de rentabilité : <b>5&nbsp;%</b>.
+    <code>tokens.css</code> et <code>components.css</code>. Données : les
+    <b>6 biens visibles sur ta capture</b> plus la 7<sup>e</sup> fiche lue sur l'écran d'accueil.
+    Les charges sont <b>déduites</b> des deux chiffres que la plateforme affiche déjà — aucun
+    chiffre inventé. Seuil de rentabilité : <b>5&nbsp;%</b>.
   </div>
 
   <div class="sfb-head">
     <h1>Mes biens</h1>
     <span class="sfb-head__n" id="cpt"></span>
   </div>
+
+  <div class="sfb-tabs" role="tablist">
+    <button class="sfb-tab" role="tab" id="t-prospect" aria-selected="true" onclick="setOnglet('prospect')">
+      Ma prospection <span class="sfb-tab__n" id="n-prospect"></span>
+      <span class="sfb-tab__todo hidden" id="dot-prospect" title="Des fiches sont à compléter"></span>
+    </button>
+    <button class="sfb-tab" role="tab" id="t-detenus" aria-selected="false" onclick="setOnglet('detenus')">
+      Mon patrimoine <span class="sfb-tab__n" id="n-detenus"></span>
+      <span class="sfb-tab__todo hidden" id="dot-detenus" title="Des biens sont à compléter"></span>
+    </button>
+  </div>
+
+  <!-- La ligne d'introduction sous les onglets a ete retiree : elle repetait une
+       troisieme fois ce que disent deja le libelle de l'onglet et le sous-titre
+       du premier indicateur (« Si vous achetiez aux conditions saisies »). Elle
+       coutait une hauteur d'ecran pour ne rien ajouter. -->
 
   <div class="sfb-tools">
     <div class="sfb-search">
@@ -207,6 +235,11 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
     <select class="sfb-sel" id="f-type" onchange="dessiner()">
       <option value="">Tous types</option><option>T2</option><option>T3</option>
       <option>T4+</option><option>Immeuble</option>
+    </select>
+    <select class="sfb-sel" id="f-etat" onchange="dessiner()">
+      <option value="">Complètes et à compléter</option>
+      <option value="ok">Fiches complètes</option>
+      <option value="ko">À compléter seulement</option>
     </select>
     <select class="sfb-sel" id="f-dens" onchange="document.body.dataset.dens=this.value">
       <option value="confort">Confort</option><option value="compact">Compact</option>
@@ -233,43 +266,19 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
     <button class="sf-btn sf-btn--ghost sf-btn--sm" type="button" onclick="viderSel()">Annuler</button>
   </div>
 
-  <!-- BLOC 1 — ce que vous possedez -->
-  <section class="sfb-sec">
-    <div class="sfb-sec__h">
-      <h2 class="sfb-sec__t">Mon patrimoine</h2>
-      <span class="sfb-sec__n" id="n-detenus"></span>
-    </div>
-    <p class="sfb-sec__d">Les biens dont vous êtes propriétaire. Ces chiffres vous engagent.</p>
-    <div class="sfb-kpis" id="kpi-detenus"></div>
-    <p class="sfb-foot" id="foot-detenus"></p>
-    <div id="detenus"></div>
-  </section>
-
-  <!-- BLOC 2 — ce que vous envisagez -->
-  <section class="sfb-sec">
-    <div class="sfb-sec__h">
-      <h2 class="sfb-sec__t">Ma prospection</h2>
-      <span class="sfb-sec__n" id="n-prospect"></span>
-    </div>
-    <p class="sfb-sec__d">Les biens que vous étudiez. Ces chiffres sont des projections, rien n'est signé.</p>
-    <div class="sfb-kpis" id="kpi-prospect"></div>
-    <p class="sfb-foot" id="foot-prospect"></p>
-    <div id="prospect"></div>
-  </section>
+  <div class="sfb-kpis" id="kpis"></div>
+  <p class="sfb-foot" id="foot"></p>
+  <div id="liste"></div>
 
   <div class="sfb-legend">
     <span><span class="sfb-src sfb-src--reel">Réel</span> Calculé sur vos loyers encaissés</span>
     <span><span class="sfb-src sfb-src--attente">Attente</span> Bien acquis, loyers pas encore pointés</span>
     <span><span class="sfb-src sfb-src--estime">Estimé</span> Projection avant achat</span>
-    <span><span class="sfb-src sfb-src--manque">À compléter</span> Le loyer manque pour calculer</span>
+    <span><span class="sfb-src sfb-src--manque">À compléter</span> Une information essentielle manque</span>
   </div>
 </div>
 
 <script>
-/* Les 6 biens de la capture + la 7e fiche lue sur l'accueil.
-   `charges` est DEDUIT des deux chiffres affiches par la plateforme
-   (charges = loyer - cashflow previsionnel), il n'est pas invente.
-   Chatellerault affiche -2 233 EUR sans aucun loyer : ce sont ses charges seules. */
 const SEUIL = 5;
 const BIENS = [
   { id:1, titre:'T3 Lyon — Test', ville:'Lyon', cp:'69007', type:'T3', surf:68,
@@ -284,7 +293,7 @@ const BIENS = [
     prix:850000, loyer:2800, charges:3829, cfReel:null,  statut:'Acheté', balise:null },
   { id:6, titre:'Achat bâtiment/immeuble 66 m²', ville:'Châtellerault', cp:'86100', type:'Immeuble', surf:66,
     prix:199499, loyer:null, charges:2233, cfReel:null,  statut:'Renseignements Web', balise:'Veille' },
-  { id:7, titre:'Programme immobilier neuf RSS LE…', ville:'—', cp:'', type:'Immeuble', surf:null,
+  { id:7, titre:'Programme immobilier neuf RSS LE…', ville:null, cp:'', type:'Immeuble', surf:null,
     prix:199199, loyer:null, charges:null, cfReel:null,  statut:'Renseignements Web', balise:'Veille' },
 ];
 
@@ -292,30 +301,43 @@ const esc = s => (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;
 const fmt = n => Math.round(n).toLocaleString('fr-FR');
 const detenu = b => b.statut === 'Acheté';
 
-/* ETAT D'UN BIEN — source unique.
-   La plateforme actuelle declare « Deficitaire » toute fiche portant des
-   charges sans loyer : Chatellerault sort a -2 233 EUR alors que son loyer n'a
-   jamais ete estime. Ce n'est pas un cashflow negatif, c'est une fiche
-   incomplete. Les deux fiches sans loyer tombent donc dans le meme etat, et
-   sont exclues des totaux : additionner des charges sans la recette en face
-   exagere la perte. */
+/* ── INFORMATIONS ESSENTIELLES ────────────────────────────────────────────────
+   Une fiche a qui il manque l'une d'elles ne peut pas etre chiffree
+   honnetement. Elle est alors ecartee de TOUS les indicateurs — sinon un
+   loyer absent se lit comme un loyer nul et transforme une donnee manquante
+   en conclusion (« Deficitaire »), ce que faisait la plateforme.
+   La meme liste doit alimenter les points a traiter de l'accueil. */
+const ESSENTIELS = [
+  { cle:'prix',   label:'Prix' },
+  { cle:'loyer',  label:'Loyer' },
+  { cle:'statut', label:'Statut' },
+  { cle:'ville',  label:'Ville' },
+];
+const manquants = b => ESSENTIELS.filter(c => b[c.cle] == null || b[c.cle] === '');
+const complet   = b => manquants(b).length === 0;
+
 function etat(b){
-  if(b.cfReel != null)  return { code:'reel',   lbl:'Réel',        v:b.cfReel };
-  if(b.loyer == null)   return { code:'manque', lbl:'À compléter', v:null };
+  const m = manquants(b);
+  if(m.length) return { code:'manque', lbl:'À compléter', v:null, m };
+  if(b.cfReel != null) return { code:'reel', lbl:'Réel', v:b.cfReel, m:[] };
   const v = b.loyer - (b.charges||0);
-  return detenu(b) ? { code:'attente', lbl:'Attente', v } : { code:'estime', lbl:'Estimé', v };
+  return detenu(b) ? { code:'attente', lbl:'Attente', v, m:[] } : { code:'estime', lbl:'Estimé', v, m:[] };
 }
 const rend = b => (b.prix && b.loyer) ? (b.loyer*12/b.prix)*100 : null;
 const cls  = v => v==null ? 'muted' : v>0 ? 'gain' : v<0 ? 'loss' : 'muted';
+const val  = (x, suf) => x==null ? '<span class="muted">—</span>' : fmt(x)+(suf||'');
 
-let vue='tableau', tri={col:'cf', sens:-1}, sel=new Set();
+let onglet='prospect', vue='tableau', tri={col:'cf', sens:-1}, sel=new Set();
 
 function filtres(){
   const q=(document.getElementById('q').value||'').toLowerCase().trim();
   const ty=document.getElementById('f-type').value;
+  const et=document.getElementById('f-etat').value;
   return BIENS.filter(b=>{
     if(ty && b.type!==ty) return false;
-    if(q && !((b.titre+' '+b.ville+' '+b.cp).toLowerCase().includes(q))) return false;
+    if(et==='ok' && !complet(b)) return false;
+    if(et==='ko' && complet(b))  return false;
+    if(q && !((b.titre+' '+(b.ville||'')+' '+b.cp).toLowerCase().includes(q))) return false;
     return true;
   });
 }
@@ -332,9 +354,12 @@ function trier(l){
     return (typeof x==='string' ? x.localeCompare(y) : x-y) * tri.sens; });
 }
 function setTri(c){ tri = tri.col===c ? {col:c,sens:-tri.sens} : {col:c,sens:-1}; dessiner(); }
-function setVue(v){ vue=v;
-  ['tableau','grille','kanban'].forEach(k=>
-    document.getElementById('v-'+k).setAttribute('aria-pressed', String(k===v)));
+function setVue(v){ vue=v; dessiner(); }
+function setOnglet(o){ onglet=o; sel.clear(); majBulk();
+  /* Le kanban range par phase : sur les biens detenus il n'y aurait qu'une
+     colonne « Acheté ». On bascule sur le tableau plutot que d'afficher une
+     vue vide de sens. */
+  if(onglet==='detenus' && vue==='kanban') vue='tableau';
   dessiner();
 }
 function basculer(id,e){ e.stopPropagation(); sel.has(id)?sel.delete(id):sel.add(id); majBulk(); }
@@ -355,64 +380,63 @@ function ligne(b){
       <span class="sfb-rend__b"><span class="sfb-rend__f" style="width:${Math.min(100,r/10*100)}%;background:${r>=SEUIL?'var(--sf-gain)':'var(--sf-alert)'}"></span></span>
       <span class="${r>=SEUIL?'gain':'muted'}">${r.toFixed(1)} %</span>
     </span>`;
-  return `<tr onclick="alert('Ouvre la fiche — maquette')">
+  return `<tr class="${c.code==='manque'?'incomplet':''}">
     <td style="width:34px" onclick="event.stopPropagation()">
       <input type="checkbox" ${sel.has(b.id)?'checked':''} onchange="basculer(${b.id},event)" aria-label="Sélectionner ${esc(b.titre)}">
     </td>
     <td><div class="bien">${esc(b.titre)}</div>
         <div class="sub">${esc(b.type)}${b.surf?' · '+b.surf+' m²':''}${b.balise?' · '+esc(b.balise):''}</div></td>
-    <td>${esc(b.ville)}<div class="sub">${esc(b.cp)}</div></td>
-    <td class="num">${b.prix?fmt(b.prix)+' €':'<span class="muted">—</span>'}</td>
-    <td class="num">${b.loyer?fmt(b.loyer)+' €':'<span class="muted">—</span>'}</td>
-    <td class="num muted">${b.charges?'− '+fmt(b.charges)+' €':'—'}</td>
+    <td>${b.ville?esc(b.ville):'<span class="muted">—</span>'}<div class="sub">${esc(b.cp)}</div></td>
+    <td class="num">${val(b.prix,' €')}</td>
+    <td class="num">${val(b.loyer,' €')}</td>
+    <td class="num muted">${b.charges?'− '+fmt(b.charges)+' €':'<span class="muted">—</span>'}</td>
     <td class="num">${rBar}</td>
     <td class="num">${c.code==='manque'
-        ? `<span class="sfb-src sfb-src--manque">${c.lbl}</span>`
+        ? `<span class="sfb-src sfb-src--manque" style="margin-left:0">${c.lbl}</span>
+           <span class="sfb-part">${c.m.map(x=>x.label).join(', ')} à renseigner</span>`
         : `<span class="${cls(c.v)}">${(c.v>0?'+':'')+fmt(c.v)} €</span>
-           <span class="sfb-src sfb-src--${c.code}">${c.lbl}</span>
-           ${c.code==='reel' && b.loyer!=null
-             ? `<span class="sfb-part">le bail promet ${(b.loyer-(b.charges||0))>0?'+':''}${fmt(b.loyer-(b.charges||0))} €</span>`
-             : ''}`}</td>
-    <td><span class="sf-pill">${esc(b.statut)}</span></td>
+           <span class="sfb-src sfb-src--${c.code}">${c.lbl}</span>`}</td>
+    <td><span class="sf-pill">${esc(b.statut||'—')}</span></td>
   </tr>`;
 }
 
 function tableau(l){
   if(!l.length) return '<div class="sfb-vide">Aucun bien ne correspond à votre recherche.</div>';
-  const th=(c,t,al)=>`<th data-sort="${c}" ${tri.col===c?`aria-sort="${tri.sens>0?'ascending':'descending'}"`:''}
-      onclick="setTri('${c}')" style="text-align:${al||'left'}">${t}<span class="ar">${tri.sens>0?'↑':'↓'}</span></th>`;
+  const th=(c,t)=>`<th data-sort="${c}" ${tri.col===c?`aria-sort="${tri.sens>0?'ascending':'descending'}"`:''}
+      onclick="setTri('${c}')">${t}<span class="ar">${tri.sens>0?'↑':'↓'}</span></th>`;
   return `<div class="sfb-tablewrap"><table class="sfb-t">
-    <thead><tr><th></th>${th('bien','Bien')}<th>Ville</th>${th('prix','Prix','right')}
-      ${th('loyer','Loyer','right')}${th('charges','Charges','right')}${th('rend','Rendement','right')}
-      ${th('cf','Cashflow / mois','right')}<th>Statut</th></tr></thead>
+    <thead><tr><th></th>${th('bien','Bien')}<th>Ville</th>${th('prix','Prix')}
+      ${th('loyer','Loyer')}${th('charges','Charges')}${th('rend','Rendement')}
+      ${th('cf','Cashflow / mois')}<th>Statut</th></tr></thead>
     <tbody>${l.map(ligne).join('')}</tbody></table></div>`;
 }
 
 function grille(l){
   if(!l.length) return '<div class="sfb-vide">Aucun bien ne correspond à votre recherche.</div>';
   return `<div class="sfb-grid">${l.map(b=>{ const c=etat(b), r=rend(b);
-    return `<article class="sfb-card" onclick="alert('Ouvre la fiche — maquette')">
+    return `<article class="sfb-card ${c.code==='manque'?'incomplet':''}">
       <div class="sfb-card__top">
-        <div class="sfb-card__st"><span class="sf-pill">${esc(b.statut)}</span>
+        <div class="sfb-card__st"><span class="sf-pill">${esc(b.statut||'—')}</span>
           ${b.balise?`<span class="sf-pill">${esc(b.balise)}</span>`:''}</div>
         <h3 class="sfb-card__t">${esc(b.titre)}</h3>
-        <p class="sfb-card__loc">${esc(b.ville)} ${esc(b.cp)} · ${esc(b.type)}${b.surf?' · '+b.surf+' m²':''}</p>
+        <p class="sfb-card__loc">${b.ville?esc(b.ville)+' '+esc(b.cp):'Ville à renseigner'} · ${esc(b.type)}${b.surf?' · '+b.surf+' m²':''}</p>
       </div>
       <div class="sfb-card__cf">
         <span class="sfb-card__cfl">Cashflow<span class="sfb-src sfb-src--${c.code}">${c.lbl}</span></span>
         <span class="sfb-card__cfv ${cls(c.v)}">${c.v!=null?(c.v>0?'+':'')+fmt(c.v)+' €':'—'}</span>
       </div>
       <div class="sfb-card__stats">
-        <div class="sfb-card__cell"><span class="sfb-card__cl">Prix</span><span class="sfb-card__cv">${b.prix?fmt(b.prix)+' €':'—'}</span></div>
-        <div class="sfb-card__cell"><span class="sfb-card__cl">Loyer</span><span class="sfb-card__cv">${b.loyer?fmt(b.loyer)+' €':'—'}</span></div>
-        <div class="sfb-card__cell"><span class="sfb-card__cl">Charges</span><span class="sfb-card__cv muted">${b.charges?fmt(b.charges)+' €':'—'}</span></div>
+        <div class="sfb-card__cell"><span class="sfb-card__cl">Prix</span><span class="sfb-card__cv">${val(b.prix,' €')}</span></div>
+        <div class="sfb-card__cell"><span class="sfb-card__cl">Loyer</span><span class="sfb-card__cv">${val(b.loyer,' €')}</span></div>
+        <div class="sfb-card__cell"><span class="sfb-card__cl">Charges</span><span class="sfb-card__cv muted">${val(b.charges,' €')}</span></div>
         <div class="sfb-card__cell"><span class="sfb-card__cl">Rdt</span>
           <span class="sfb-card__cv ${r==null?'muted':r>=SEUIL?'gain':''}">${r==null?'—':r.toFixed(1)+' %'}</span></div>
       </div>
     </article>`; }).join('')}</div>`;
 }
 
-function kanban(l, phases){
+function kanban(l){
+  const phases=['Renseignements Web','Contre offre - Acceptée'];
   return `<div class="sfb-kb">${phases.map(p=>{
     const items=l.filter(b=>b.statut===p);
     const chiffres=items.filter(b=>etat(b).v!=null);
@@ -425,56 +449,62 @@ function kanban(l, phases){
           chiffres.length ? (som>0?'+':'')+fmt(som)+' € par mois' : 'Rien à chiffrer'}</span>
       </header>
       <div class="sfb-kbb">${items.map(b=>{ const c=etat(b);
-        return `<article class="sfb-kc"><p class="sfb-kc__t">${esc(b.titre)}</p>
-          <p class="sfb-kc__m">${esc(b.ville)} · ${esc(b.type)}</p>
+        return `<article class="sfb-kc ${c.code==='manque'?'incomplet':''}"><p class="sfb-kc__t">${esc(b.titre)}</p>
+          <p class="sfb-kc__m">${b.ville?esc(b.ville):'Ville à renseigner'} · ${esc(b.type)}</p>
           ${c.v!=null?`<span class="sfb-kc__cf ${cls(c.v)}">${(c.v>0?'+':'')+fmt(c.v)} €</span> `:''}
-          <span class="sfb-src sfb-src--${c.code}">${c.lbl}</span></article>`; }).join('')
+          <span class="sfb-src sfb-src--${c.code}" style="margin-left:0">${c.lbl}</span></article>`; }).join('')
         || '<p class="sfb-kc__m" style="padding:var(--sf-space-5)">Aucun bien</p>'}</div>
     </section>`; }).join('')}</div>`;
 }
 
-function bloc(l, vue, phases){
-  return vue==='tableau' ? tableau(l) : vue==='grille' ? grille(l) : kanban(l, phases);
-}
-
 function dessiner(){
-  const l = trier(filtres());
-  const D = l.filter(detenu), P = l.filter(b=>!detenu(b));
-  document.getElementById('cpt').textContent = l.length+' fiche'+(l.length>1?'s':'')+' sur '+BIENS.length;
-  document.getElementById('n-detenus').textContent  = D.length+' bien'+(D.length>1?'s':'');
-  document.getElementById('n-prospect').textContent = P.length+' fiche'+(P.length>1?'s':'');
+  const tous = trier(filtres());
+  const D = tous.filter(detenu), P = tous.filter(b=>!detenu(b));
+  const l = onglet==='detenus' ? D : P;
 
-  // ── Mon patrimoine ──
-  const Dc = D.filter(b=>etat(b).v!=null);
-  const Dsom = Dc.reduce((s,b)=>s+etat(b).v,0);
-  const Dseuil = Dc.filter(b=>(rend(b)??0)>=SEUIL).length;
-  document.getElementById('kpi-detenus').innerHTML =
-    kpi('Cashflow mensuel', (Dsom>=0?'+':'−')+fmt(Math.abs(Dsom))+' €',
-        'Loyers moins charges et crédits', Dsom>=0?'sfb-kpi__v--gain':'sfb-kpi__v--loss') +
-    kpi('Au-dessus de votre seuil',
-        Dseuil+' <span style="font-size:var(--sf-font-lead);color:var(--sf-text-3)">sur '+Dc.length+'</span>',
-        'Rendement brut supérieur à 5 %') +
-    kpi('Capital engagé', fmt(D.reduce((s,b)=>s+(b.prix||0),0))+' €', "Total des prix d'achat");
-  const Dmanque = D.length - Dc.length;
-  document.getElementById('foot-detenus').textContent = Dmanque
-    ? `${Dmanque} bien sans loyer n'est pas compté dans le cashflow.` : '';
-  document.getElementById('detenus').innerHTML =
-    bloc(D, vue, ['Acheté']);
+  document.getElementById('cpt').textContent = tous.length+' fiche'+(tous.length>1?'s':'')+' sur '+BIENS.length;
+  document.getElementById('n-prospect').textContent = P.length;
+  document.getElementById('n-detenus').textContent  = D.length;
+  document.getElementById('t-prospect').setAttribute('aria-selected', String(onglet==='prospect'));
+  document.getElementById('t-detenus').setAttribute('aria-selected', String(onglet==='detenus'));
+  document.getElementById('dot-prospect').classList.toggle('hidden', P.every(complet));
+  document.getElementById('dot-detenus').classList.toggle('hidden', D.every(complet));
 
-  // ── Ma prospection ──
-  const Pc = P.filter(b=>etat(b).v!=null);
-  const Psom = Pc.reduce((s,b)=>s+etat(b).v,0);
-  document.getElementById('kpi-prospect').innerHTML =
-    kpi('Cashflow projeté', Pc.length ? (Psom>=0?'+':'−')+fmt(Math.abs(Psom))+' €' : '—',
-        'Si vous achetiez aux conditions saisies', Pc.length ? (Psom>=0?'sfb-kpi__v--gain':'sfb-kpi__v--loss') : '') +
-    kpi('Budget étudié', fmt(P.reduce((s,b)=>s+(b.prix||0),0))+' €', 'Total des prix affichés') +
-    kpi('Fiches à compléter', String(P.length-Pc.length), 'Leur loyer estimé manque',
-        (P.length-Pc.length) ? 'sfb-kpi__v--alerte' : '');
-  const Pmanque = P.length - Pc.length;
-  document.getElementById('foot-prospect').textContent = Pmanque
-    ? `${Pmanque} fiche${Pmanque>1?'s':''} sans loyer estimé ${Pmanque>1?'ne sont':"n'est"} pas compté${Pmanque>1?'es':'e'} dans le cashflow.` : '';
-  document.getElementById('prospect').innerHTML =
-    bloc(P, vue, ['Renseignements Web','Contre offre - Acceptée']);
+  // Le kanban n'a de sens que sur la prospection : il range par phase, et les
+  // biens detenus partagent tous le statut « Acheté ».
+  document.getElementById('v-kanban').classList.toggle('hidden', onglet==='detenus');
+  ['tableau','grille','kanban'].forEach(k=>
+    document.getElementById('v-'+k).setAttribute('aria-pressed', String(k===vue)));
+
+  const chiffres = l.filter(b=>etat(b).v!=null);
+  const aFaire   = l.filter(b=>!complet(b));
+  const som      = chiffres.reduce((s,b)=>s+etat(b).v,0);
+
+  document.getElementById('kpis').innerHTML = onglet==='detenus'
+    ? kpi('Cashflow mensuel', chiffres.length?(som>=0?'+':'−')+fmt(Math.abs(som))+' €':'—',
+          'Loyers moins charges et crédits', chiffres.length?(som>=0?'sfb-kpi__v--gain':'sfb-kpi__v--loss'):'') +
+      kpi('Au-dessus de votre seuil',
+          chiffres.filter(b=>(rend(b)??0)>=SEUIL).length+' <span style="font-size:var(--sf-font-body);color:var(--sf-text-3)">sur '+chiffres.length+'</span>',
+          'Rendement brut supérieur à 5 %') +
+      kpi('Capital engagé', fmt(l.reduce((s,b)=>s+(b.prix||0),0))+' €', "Total des prix d'achat") +
+      kpi('Biens à compléter', String(aFaire.length), 'Une information essentielle manque',
+          aFaire.length?'sfb-kpi__v--alerte':'')
+    : kpi('Cashflow projeté', chiffres.length?(som>=0?'+':'−')+fmt(Math.abs(som))+' €':'—',
+          'Si vous achetiez aux conditions saisies', chiffres.length?(som>=0?'sfb-kpi__v--gain':'sfb-kpi__v--loss'):'') +
+      kpi('Au-dessus de votre seuil',
+          chiffres.filter(b=>(rend(b)??0)>=SEUIL).length+' <span style="font-size:var(--sf-font-body);color:var(--sf-text-3)">sur '+chiffres.length+'</span>',
+          'Rendement brut supérieur à 5 %') +
+      kpi('Budget étudié', fmt(l.reduce((s,b)=>s+(b.prix||0),0))+' €', 'Total des prix affichés') +
+      kpi('Fiches à compléter', String(aFaire.length), 'Une information essentielle manque',
+          aFaire.length?'sfb-kpi__v--alerte':'');
+
+  document.getElementById('foot').innerHTML = aFaire.length
+    ? `<b>${aFaire.length} fiche${aFaire.length>1?'s':''}</b> ${aFaire.length>1?'sont exclues':'est exclue'} des indicateurs
+       ci-dessus, faute d'une information essentielle. ${aFaire.length>1?'Elles apparaissent':'Elle apparaît'}
+       aussi dans « À traiter » sur l'accueil.` : '';
+
+  document.getElementById('liste').innerHTML =
+    vue==='tableau' ? tableau(l) : vue==='grille' ? grille(l) : kanban(l);
 }
 dessiner();
 </script>
