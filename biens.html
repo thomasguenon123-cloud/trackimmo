@@ -30,18 +30,14 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight); margin:0; line-height:1; }
 .sfb-head__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); color:var(--sf-text-3); }
 
-/* ── Verdict : ce que dit le portefeuille, en une phrase ──────────────────── */
-.sfb-verdict{ display:flex; gap:var(--sf-space-5); align-items:flex-start;
-  border:var(--sf-border-width) solid var(--sf-border); border-left:3px solid var(--sf-loss);
-  background:var(--sf-surface); border-radius:var(--sf-radius-md);
-  padding:var(--sf-space-6); margin-bottom:var(--sf-space-7); }
-.sfb-verdict__ic{ flex-shrink:0; color:var(--sf-loss); display:flex; }
-.sfb-verdict__t{ font-size:var(--sf-font-lead); font-weight:var(--sf-weight-semibold); margin:0 0 var(--sf-space-2); }
-.sfb-verdict__s{ font-size:var(--sf-font-caption); color:var(--sf-text-2); margin:0; line-height:var(--sf-lh-normal); }
-
 /* ── KPI en bandeau horizontal (et non plus en colonne fixe) ──────────────── */
 .sfb-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
-  gap:var(--sf-space-5); margin-bottom:var(--sf-space-7); }
+  gap:var(--sf-space-5); margin-bottom:var(--sf-space-5); }
+/* Une seule note de bas de bandeau, au lieu d'une glose de methode repetee
+   sous chaque indicateur. Un KPI dit CE QU'IL EST ; il n'explique pas comment
+   il a ete calcule. */
+.sfb-foot{ font-size:var(--sf-font-caption); color:var(--sf-text-3);
+  margin:0 0 var(--sf-space-7); }
 .sfb-kpi{ border:var(--sf-border-width) solid var(--sf-border); background:var(--sf-surface);
   border-radius:var(--sf-radius-md); padding:var(--sf-space-6); }
 .sfb-kpi__l{ display:block; font-size:var(--sf-font-label); text-transform:uppercase;
@@ -118,8 +114,12 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
   letter-spacing:var(--sf-track-caps); font-weight:var(--sf-weight-bold);
   padding:1px 5px; border-radius:var(--sf-radius-xs); margin-left:6px; vertical-align:1px; }
 .sfb-src--reel{ background:var(--sf-gain-wash); color:var(--sf-gain); }
-.sfb-src--prev{ background:var(--sf-surface-3); color:var(--sf-text-3); }
+.sfb-src--estime{ background:var(--sf-surface-3); color:var(--sf-text-3); }
 .sfb-src--attente{ background:var(--sf-alert-wash); color:var(--sf-alert); }
+.sfb-src--manque{ background:var(--sf-alert-wash); color:var(--sf-alert); }
+/* Ce qu'on sait deja d'une fiche incomplete : ses charges. On ne cache pas
+   l'information, on refuse seulement de l'appeler « cashflow ». */
+.sfb-part{ display:block; font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
 
 /* Barre de rendement : lisible d'un coup d'oeil sur toute la colonne */
 .sfb-rend{ display:flex; align-items:center; gap:var(--sf-space-4); justify-content:flex-end; }
@@ -194,42 +194,34 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
     <span class="sfb-head__n" id="cpt"></span>
   </div>
 
-  <!-- VERDICT — l'ecran repond avant de decrire, comme l'accueil -->
-  <div class="sfb-verdict">
-    <span class="sfb-verdict__ic">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/><path d="M10.3 3.6 2.5 17.2A2 2 0 0 0 4.2 20h15.6a2 2 0 0 0 1.7-2.8L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg>
-    </span>
-    <div>
-      <p class="sfb-verdict__t">Votre portefeuille perd <span class="loss">5&nbsp;753&nbsp;€</span> par mois</p>
-      <p class="sfb-verdict__s">
-        Dont <b>2&nbsp;251&nbsp;€ constatés</b> sur l'Immeuble Paris&nbsp;18e — le reste est estimé.
-        <b>3 biens acquis attendent la saisie de leurs loyers</b> : leur chiffre changera.
-      </p>
-    </div>
-  </div>
+  <!-- Le bandeau de verdict rouge a ete retire : sur un ecran ouvert plusieurs
+       fois par jour, une alerte permanente cesse d'alerter et fatigue. Les
+       chiffres restent colores — un signe et une couleur sur une valeur sont
+       une information, pas une alarme. -->
 
   <div class="sfb-kpis">
     <div class="sfb-kpi">
       <span class="sfb-kpi__l">Cashflow mensuel</span>
-      <span class="sfb-kpi__v sfb-kpi__v--loss">−5 753 €</span>
-      <span class="sfb-kpi__s">réel quand il existe, estimé sinon</span>
+      <span class="sfb-kpi__v sfb-kpi__v--loss" id="k-cf"></span>
+      <span class="sfb-kpi__s">Loyers moins charges et crédits</span>
     </div>
     <div class="sfb-kpi">
       <span class="sfb-kpi__l">Au-dessus de votre seuil</span>
-      <span class="sfb-kpi__v">3 <span style="font-size:var(--sf-font-lead);color:var(--sf-text-3)">/ 6</span></span>
-      <span class="sfb-kpi__s">rendement brut ≥ 5 % · 1 fiche non chiffrable</span>
+      <span class="sfb-kpi__v" id="k-seuil"></span>
+      <span class="sfb-kpi__s">Rendement brut supérieur à 5 %</span>
     </div>
     <div class="sfb-kpi">
       <span class="sfb-kpi__l">Capital engagé</span>
-      <span class="sfb-kpi__v">2 614 499 €</span>
-      <span class="sfb-kpi__s">somme des prix affichés · 7 fiches</span>
+      <span class="sfb-kpi__v" id="k-capital"></span>
+      <span class="sfb-kpi__s">Total des prix affichés</span>
     </div>
     <div class="sfb-kpi">
-      <span class="sfb-kpi__l">À compléter</span>
-      <span class="sfb-kpi__v" style="color:var(--sf-alert)">2</span>
-      <span class="sfb-kpi__s">fiches sans loyer estimé</span>
+      <span class="sfb-kpi__l">Fiches à compléter</span>
+      <span class="sfb-kpi__v" style="color:var(--sf-alert)" id="k-todo"></span>
+      <span class="sfb-kpi__s">Leur loyer estimé manque</span>
     </div>
   </div>
+  <p class="sfb-foot" id="k-foot"></p>
 
   <div class="sfb-tools">
     <div class="sfb-search">
@@ -274,41 +266,55 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
   <div id="vue-kanban" class="hidden"></div>
 
   <div class="sfb-legend">
-    <span><span class="sfb-src sfb-src--reel">Réel</span> loyers encaissés</span>
-    <span><span class="sfb-src sfb-src--attente">Attente</span> bien acquis, loyers pas encore saisis</span>
-    <span><span class="sfb-src sfb-src--prev">Estimé</span> calcul prévisionnel</span>
+    <span><span class="sfb-src sfb-src--reel">Réel</span> Calculé sur vos loyers encaissés</span>
+    <span><span class="sfb-src sfb-src--attente">Attente</span> Bien acquis, loyers pas encore pointés</span>
+    <span><span class="sfb-src sfb-src--estime">Estimé</span> Projection avant achat</span>
+    <span><span class="sfb-src sfb-src--manque">À compléter</span> Le loyer manque pour calculer</span>
   </div>
 </div>
 
 <script>
 /* Les 6 biens de la capture + la 7e fiche lue sur l'accueil.
-   `cfReel` n'est renseigne que lorsqu'il existe reellement. */
+   `charges` est DEDUIT des deux chiffres affiches par la plateforme
+   (charges = loyer - cashflow previsionnel), il n'est pas invente.
+   Pour Chatellerault, la plateforme affiche -2 233 EUR sans aucun loyer :
+   ces 2 233 EUR sont donc ses charges seules. */
 const SEUIL = 5;
 const BIENS = [
   { id:1, titre:'T3 Lyon — Test', ville:'Lyon', cp:'69007', type:'T3', surf:68,
-    prix:220000, loyer:1050, cfPrev:93,   cfReel:null, statut:'Acheté', attente:true,  balise:'Coup de cœur' },
+    prix:220000, loyer:1050, charges:957,  cfReel:null, statut:'Acheté', acquis:true,  balise:'Coup de cœur' },
   { id:2, titre:'Immeuble Paris 18e — Test', ville:'Paris 18e', cp:'75018', type:'Immeuble', surf:180,
-    prix:650000, loyer:4200, cfPrev:1073, cfReel:-2251, statut:'Acheté', attente:false, balise:null },
+    prix:650000, loyer:4200, charges:3127, cfReel:-2251, statut:'Acheté', acquis:true, balise:null },
   { id:3, titre:'T2 Nice — Test', ville:'Nice', cp:'06000', type:'T2', surf:40,
-    prix:320000, loyer:1100, cfPrev:-390, cfReel:null, statut:'Contre offre - Acceptée', attente:false, balise:null },
+    prix:320000, loyer:1100, charges:1490, cfReel:null, statut:'Contre offre - Acceptée', acquis:false, balise:null },
   { id:4, titre:'T2 Bordeaux — Test', ville:'Bordeaux', cp:'33000', type:'T2', surf:45,
-    prix:175000, loyer:850,  cfPrev:57,   cfReel:null, statut:'Acheté', attente:true,  balise:null },
+    prix:175000, loyer:850,  charges:793,  cfReel:null, statut:'Acheté', acquis:true,  balise:null },
   { id:5, titre:'T4+ Paris 16e — Test', ville:'Paris 16e', cp:'75016', type:'T4+', surf:95,
-    prix:850000, loyer:2800, cfPrev:-1029,cfReel:null, statut:'Acheté', attente:true,  balise:null },
+    prix:850000, loyer:2800, charges:3829, cfReel:null, statut:'Acheté', acquis:true,  balise:null },
   { id:6, titre:'Achat bâtiment/immeuble 66 m²', ville:'Châtellerault', cp:'86100', type:'Immeuble', surf:66,
-    prix:199499, loyer:null, cfPrev:-2233,cfReel:null, statut:'Renseignements Web', attente:false, balise:'Veille' },
+    prix:199499, loyer:null, charges:2233, cfReel:null, statut:'Renseignements Web', acquis:false, balise:'Veille' },
   { id:7, titre:'Programme immobilier neuf RSS LE…', ville:'—', cp:'', type:'Immeuble', surf:null,
-    prix:199199, loyer:null, cfPrev:null, cfReel:null, statut:'Renseignements Web', attente:false, balise:'Veille' },
+    prix:199199, loyer:null, charges:null, cfReel:null, statut:'Renseignements Web', acquis:false, balise:'Veille' },
 ];
 
 const esc = s => (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fmt = n => Math.round(n).toLocaleString('fr-FR');
-/* Source unique : quel cashflow fait foi, et d'ou vient-il. */
-const cf = b => b.cfReel != null
-  ? { v:b.cfReel, src:'reel',    lbl:'Réel' }
-  : b.cfPrev != null
-    ? { v:b.cfPrev, src:b.attente?'attente':'prev', lbl:b.attente?'Attente':'Estimé' }
-    : { v:null, src:'prev', lbl:'—' };
+
+/* ETAT D'UN BIEN — source unique, et le correctif le plus important de cette
+   iteration.
+   La plateforme actuelle declare « Deficitaire » toute fiche qui porte des
+   charges sans loyer : Chatellerault sort a -2 233 EUR alors que son loyer n'a
+   simplement jamais ete estime. Ce n'est pas un cashflow negatif, c'est une
+   fiche incomplete — et ce chiffre fantome pesait 2 233 EUR dans le total.
+   Elle expliquait aussi l'incoherence relevee par Thomas : deux fiches sans
+   loyer, l'une chiffree et l'autre non, selon qu'une mensualite existait ou
+   pas. Desormais les deux tombent dans le meme etat. */
+function etat(b){
+  if(b.cfReel != null)  return { code:'reel',    lbl:'Réel',    v:b.cfReel };
+  if(b.loyer == null)   return { code:'manque',  lbl:'À compléter', v:null };
+  const v = b.loyer - (b.charges||0);
+  return b.acquis ? { code:'attente', lbl:'Attente', v } : { code:'estime', lbl:'Estimé', v };
+}
 const rend = b => (b.prix && b.loyer) ? (b.loyer*12/b.prix)*100 : null;
 const cls  = v => v==null ? 'muted' : v>0 ? 'gain' : v<0 ? 'loss' : 'muted';
 
@@ -330,7 +336,7 @@ function trier(l){
     case 'prix': return b.prix??-Infinity;
     case 'loyer':return b.loyer??-Infinity;
     case 'rend': return rend(b)??-Infinity;
-    case 'cf':   return cf(b).v??-Infinity;
+    case 'cf':   return etat(b).v??-Infinity;
     default:     return 0; } };
   return [...l].sort((a,b)=>{ const x=g(a),y=g(b);
     return (typeof x==='string' ? x.localeCompare(y) : x-y) * tri.sens; });
@@ -351,7 +357,7 @@ function majBulk(){ const b=document.getElementById('bulk');
 }
 
 function ligne(b){
-  const c=cf(b), r=rend(b);
+  const c=etat(b), r=rend(b);
   const rBar = r==null ? '<span class="muted">—</span>' : `
     <span class="sfb-rend">
       <span class="sfb-rend__b"><span class="sfb-rend__f" style="width:${Math.min(100,r/10*100)}%;background:${r>=SEUIL?'var(--sf-gain)':'var(--sf-alert)'}"></span></span>
@@ -367,10 +373,11 @@ function ligne(b){
     <td class="num">${b.prix?fmt(b.prix)+' €':'<span class="muted">—</span>'}</td>
     <td class="num">${b.loyer?fmt(b.loyer)+' €':'<span class="muted">—</span>'}</td>
     <td class="num">${rBar}</td>
-    <td class="num">${c.v==null
-        ? '<span class="muted">non chiffrable</span>'
+    <td class="num">${c.code==='manque'
+        ? `<span class="sfb-src sfb-src--manque">${c.lbl}</span>
+           ${b.charges?`<span class="sfb-part">${fmt(b.charges)} € de charges</span>`:''}`
         : `<span class="${cls(c.v)}">${(c.v>0?'+':'')+fmt(c.v)} €</span>
-           <span class="sfb-src sfb-src--${c.src}">${c.lbl}</span>`}</td>
+           <span class="sfb-src sfb-src--${c.code}">${c.lbl}</span>`}</td>
     <td><span class="sf-pill">${esc(b.statut)}</span></td>
   </tr>`;
 }
@@ -378,6 +385,26 @@ function ligne(b){
 function dessiner(){
   const l = trier(filtres());
   document.getElementById('cpt').textContent = l.length+' fiche'+(l.length>1?'s':'')+' sur '+BIENS.length;
+
+  /* Les fiches sans loyer sont EXCLUES du cashflow : les compter reviendrait a
+     additionner des charges sans la recette en face, ce qui exagere la perte.
+     Elles sont comptees a part, dans « Fiches a completer ». */
+  const chiffres = l.filter(b => etat(b).v != null);
+  const aCompleter = l.filter(b => etat(b).code === 'manque');
+  const somme  = chiffres.reduce((s,b) => s + etat(b).v, 0);
+  const auSeuil= chiffres.filter(b => (rend(b)??0) >= SEUIL).length;
+  const capital= l.reduce((s,b) => s + (b.prix||0), 0);
+
+  const kcf = document.getElementById('k-cf');
+  kcf.textContent = (somme>0?'+':'−') + fmt(Math.abs(somme)) + ' €';
+  kcf.className = 'sfb-kpi__v ' + (somme>=0 ? 'sfb-kpi__v--gain' : 'sfb-kpi__v--loss');
+  document.getElementById('k-seuil').innerHTML =
+    auSeuil + ' <span style="font-size:var(--sf-font-lead);color:var(--sf-text-3)">sur ' + chiffres.length + '</span>';
+  document.getElementById('k-capital').textContent = fmt(capital) + ' €';
+  document.getElementById('k-todo').textContent = aCompleter.length;
+  document.getElementById('k-foot').textContent = aCompleter.length
+    ? `Les ${aCompleter.length} fiches sans loyer estimé ne sont pas comptées dans le cashflow.`
+    : '';
 
   const th=(c,t,al)=>`<th data-sort="${c}" ${tri.col===c?`aria-sort="${tri.sens>0?'ascending':'descending'}"`:''}
       onclick="setTri('${c}')" style="text-align:${al||'left'}">${t}<span class="ar">${tri.sens>0?'↑':'↓'}</span></th>`;
@@ -390,7 +417,7 @@ function dessiner(){
     </table></div>`;
 
   document.getElementById('vue-grille').innerHTML = `<div class="sfb-grid">${l.map(b=>{
-    const c=cf(b), r=rend(b);
+    const c=etat(b), r=rend(b);
     return `<article class="sfb-card" onclick="alert('Ouvre la fiche — maquette')">
       <div class="sfb-card__top">
         <div class="sfb-card__st"><span class="sf-pill">${esc(b.statut)}</span>
@@ -399,7 +426,7 @@ function dessiner(){
         <p class="sfb-card__loc">${esc(b.ville)} ${esc(b.cp)} · ${esc(b.type)}${b.surf?' · '+b.surf+' m²':''}</p>
       </div>
       <div class="sfb-card__cf">
-        <span class="sfb-card__cfl">Cashflow<span class="sfb-src sfb-src--${c.src}">${c.lbl}</span></span>
+        <span class="sfb-card__cfl">Cashflow<span class="sfb-src sfb-src--${c.code}">${c.lbl}</span></span>
         <span class="sfb-card__cfv ${cls(c.v)}">${c.v!=null?(c.v>0?'+':'')+fmt(c.v)+' €':'—'}</span>
       </div>
       <div class="sfb-card__stats">
@@ -413,17 +440,17 @@ function dessiner(){
   const phases=['Renseignements Web','Contre offre - Acceptée','Acheté'];
   document.getElementById('vue-kanban').innerHTML = `<div class="sfb-kb">${phases.map(p=>{
     const items=l.filter(b=>b.statut===p);
-    const som=items.reduce((s,b)=>s+(cf(b).v||0),0);
+    const som=items.reduce((s,b)=>s+(etat(b).v||0),0);
     return `<section class="sfb-kbcol">
       <header class="sfb-kbh"><span class="sfb-kbh__t">${esc(p)}</span>
         <span class="sfb-kbh__n">${items.length}</span></header>
       <div class="sfb-kbh" style="border-bottom:0;padding-top:0">
         <span class="sfb-kbh__sum ${cls(som)}">${som?(som>0?'+':'')+fmt(som)+' € / mois':'—'}</span></div>
-      <div class="sfb-kbb">${items.map(b=>{ const c=cf(b);
+      <div class="sfb-kbb">${items.map(b=>{ const c=etat(b);
         return `<article class="sfb-kc"><p class="sfb-kc__t">${esc(b.titre)}</p>
           <p class="sfb-kc__m">${esc(b.ville)} · ${esc(b.type)}</p>
-          <span class="sfb-kc__cf ${cls(c.v)}">${c.v!=null?(c.v>0?'+':'')+fmt(c.v)+' €':'—'}</span>
-          <span class="sfb-src sfb-src--${c.src}">${c.lbl}</span></article>`; }).join('')
+          ${c.v!=null?`<span class="sfb-kc__cf ${cls(c.v)}">${(c.v>0?'+':'')+fmt(c.v)} €</span> `:''}
+          <span class="sfb-src sfb-src--${c.code}">${c.lbl}</span></article>`; }).join('')
         || '<p class="sfb-kc__m" style="padding:var(--sf-space-5)">Aucun bien</p>'}</div>
     </section>`; }).join('')}</div>`;
 }
