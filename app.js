@@ -1357,11 +1357,32 @@ function sfPointsAttention() {
   // 2. Loyers deja echus mais non pointes : le cashflow reel est fausse.
   const echus = allLoyers.filter(l =>
     l.annee === annee && l.mois < moisCourant && l.statut !== 'Payé');
-  if (echus.length) {
-    const manque = echus.reduce((s, l) => s + (parseFloat(l.loyer_du) || 0), 0);
-    pts.push({ rang: 1, type: '', icone: 'horloge',
-      titre: `${echus.length} loyer${pl(echus.length,'','s')} échu${pl(echus.length,'','s')} non pointé${pl(echus.length,'','s')}`,
-      enjeu: `Votre cashflow est sous-estimé de <strong>${fmt(manque)} €</strong>.`,
+
+  // Le filtre ci-dessus ecarte le mois EN COURS (`mois < moisCourant`), et il ne
+  // voit que les lignes deja creees en base — or un loyer du mois courant n'a
+  // souvent aucune ligne. Les retards du mois en cours viennent donc des loyers
+  // ATTENDUS, deduits des baux actifs. Pas de double comptage : les deux
+  // ensembles portent sur des mois disjoints.
+  const retards = sfLoyersAttendus().filter(a => a.enRetard);
+  const total = echus.length + retards.length;
+
+  if (total) {
+    const manque = echus.reduce((s, l) => s + (parseFloat(l.loyer_du) || 0), 0)
+                 + retards.reduce((s, a) => s + a.montant, 0);
+    const titre = !echus.length
+      ? `${retards.length} loyer${pl(retards.length,'','s')} en retard`
+      : retards.length
+        ? `${total} loyers non pointés, dont ${retards.length} en retard`
+        : `${echus.length} loyer${pl(echus.length,'','s')} échu${pl(echus.length,'','s')} non pointé${pl(echus.length,'','s')}`;
+    pts.push({
+      // Un loyer en retard passe devant les autres points : c'est de l'argent
+      // attendu qui n'est pas arrive, pas seulement un chiffre fausse.
+      rang: retards.length ? 0.5 : 1,
+      type: retards.length ? 'loss' : '', icone: 'horloge',
+      titre,
+      enjeu: retards.length
+        ? `<strong class="sf-loss">${fmt(manque)} €</strong> attendus et non encaissés.`
+        : `Votre cashflow est sous-estimé de <strong>${fmt(manque)} €</strong>.`,
       action: 'Pointer', cible: `navigate('module-financier')` });
   }
 
@@ -1399,28 +1420,128 @@ function sfPointsAttention() {
 }
 
 // Loyers attendus des 60 prochains jours, deduits du jour de paiement du bail.
-function sfAgenda60j() {
+// Un loyer est POINTE quand il porte le statut « Payé ». Definition volontairement
+// placee ici et nulle part ailleurs : l'agenda, sa case a cocher et le detecteur
+// de retards doivent repondre la meme chose, sinon la case peut se decocher sans
+// que le point a traiter disparaisse.
+// « Partiel » n'est PAS considere comme pointe : il reste un solde du.
+function sfLoyerPointe(ligne) {
+  return !!ligne && ligne.statut === 'Payé';
+}
+
+// Loyers attendus, deduits des baux actifs et croises avec loyers_mensuels.
+//
+// Le calcul part du MOIS COURANT et non de la date du jour. L'ancienne version
+// ecartait toute echeance passee (`if (d < aujourdhui) continue`) : un loyer
+// oublie disparaissait donc de l'agenda le lendemain de son echeance, au moment
+// precis ou il devenait interessant. On ne retire desormais une echeance passee
+// que si elle a effectivement ete pointee.
+function sfLoyersAttendus() {
   const out = [];
   const now = new Date();
+  const aujourdhui = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const fin = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 60);
   const MOIS = ['janv','févr','mars','avr','mai','juin','juil','août','sept','oct','nov','déc'];
 
-  for (const l of allLocataires) {
-    if (l.statut !== 'Actif' || !l.bien_id) continue;
-    const bien = allBiens.find(b => b.id === l.bien_id);
-    const jour = Math.min(Math.max(parseInt(l.jour_paiement, 10) || 5, 1), 28);
+  for (const loc of allLocataires) {
+    if (loc.statut !== 'Actif' || !loc.bien_id) continue;
+    const bien = allBiens.find(b => b.id === loc.bien_id);
+    const jour = Math.min(Math.max(parseInt(loc.jour_paiement, 10) || 5, 1), 28);
+
     for (let i = 0; i < 3; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() + i, jour);
-      if (d < new Date(now.getFullYear(), now.getMonth(), now.getDate()) || d > fin) continue;
+      if (d > fin) continue;
+      const mois = d.getMonth() + 1, annee = d.getFullYear();
+      const ligne = mfFindLoyer(loc.bien_id, mois, annee) || null;
+      const pointe = sfLoyerPointe(ligne);
+
+      // Un jour de grace : un loyer du le 5 n'est en retard que le 6. Le seuil
+      // suit `jour_paiement` au lieu d'etre fixe au 6 du mois, sans quoi un bail
+      // paye le 28 serait declare en retard trois semaines trop tot.
+      const limiteRetard = new Date(annee, mois - 1, jour + 1);
+      const enRetard = !pointe && aujourdhui >= limiteRetard;
+
+      // Echeance passee ET pointee : le sujet est clos, on ne l'affiche plus.
+      if (d < aujourdhui && !enRetard) continue;
+
       out.push({
-        jour: d.getDate(), mois: MOIS[d.getMonth()], tri: d.getTime(),
+        bienId: loc.bien_id, locataireId: loc.id, mois, annee,
+        jour: d.getDate(), moisCourt: MOIS[d.getMonth()], tri: d.getTime(),
         titre: `Loyer attendu — ${esc(bien?.titre || 'Bien')}`,
-        meta: `${esc([l.prenom, l.nom].filter(Boolean).join(' ') || 'Locataire')} · le ${jour} de chaque mois`,
-        montant: (parseFloat(l.loyer_bail_hc) || 0),
+        meta: `${esc([loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Locataire')} · le ${jour} de chaque mois`,
+        // Le montant du fait foi quand la ligne existe : il peut porter un
+        // prorata loi 1989 que le loyer de bail ne reflete pas.
+        montant: ligne ? (parseFloat(ligne.loyer_du) || 0) : (parseFloat(loc.loyer_bail_hc) || 0),
+        ligneId: ligne?.id || null, pointe, enRetard,
       });
     }
   }
-  return out.sort((a, b) => a.tri - b.tri).slice(0, 6);
+  return out.sort((a, b) => a.tri - b.tri);
+}
+
+function sfAgenda60j() {
+  return sfLoyersAttendus().slice(0, 6);
+}
+
+// Pointer un loyer directement depuis l'agenda.
+//
+// L'echeance affichee est CALCULEE a partir du bail : la ligne correspondante
+// peut ne pas exister encore dans loyers_mensuels. Cocher la case doit donc
+// pouvoir la creer, et pas seulement basculer un statut — sinon la case reste
+// sans effet sur les mois jamais generes, ce qui est le cas courant.
+//
+// La creation passe par le meme upsert que le Suivi mensuel, avec la meme
+// contrainte `user_id,bien_id,mois,annee` et le meme prorata loi 1989 : deux
+// chemins d'ecriture divergents finiraient par produire deux montants dus
+// differents pour le meme mois.
+async function sfPointerLoyer(bienId, mois, annee, boite) {
+  if (boite) boite.disabled = true;
+  const today = new Date().toISOString().slice(0, 10);
+
+  try {
+    const ligne = mfFindLoyer(bienId, mois, annee);
+
+    if (ligne) {
+      const patch = sfLoyerPointe(ligne)
+        ? { statut: 'En attente', montant_encaisse: null, date_encaissement: null }
+        : { statut: 'Payé', montant_encaisse: ligne.loyer_du, date_encaissement: today };
+      const { data, error } = await db.from('loyers_mensuels')
+        .update(patch).eq('id', ligne.id).eq('user_id', currentUser.id)
+        .select().maybeSingle();
+      if (error) throw error;
+      if (data) Object.assign(ligne, data);
+      showNotif(patch.statut === 'Payé' ? '✓ Loyer pointé' : 'Pointage annulé');
+
+    } else {
+      const loc = mfLocataireForBienMonth(bienId, mois, annee);
+      if (!loc) { showNotif('Aucun bail actif sur ce mois', true); return; }
+      const prorata = mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, mois, annee, loc.date_entree, loc.date_sortie);
+      if (prorata.montant === 0) { showNotif('Pas d\'occupation ce mois', true); return; }
+
+      const { data, error } = await db.from('loyers_mensuels').upsert({
+        user_id: currentUser.id, bien_id: bienId, locataire_id: loc.id,
+        mois, annee,
+        loyer_du: prorata.montant,
+        charges_dues: parseFloat(loc.charges_bail) || 0,
+        statut: 'Payé', montant_encaisse: prorata.montant, date_encaissement: today,
+        notes: prorata.prorata ? `Prorata loi 1989 : ${prorata.jours}/${prorata.joursMois} jours` : null
+      }, { onConflict: 'user_id,bien_id,mois,annee' }).select().maybeSingle();
+      if (error) throw error;
+      if (data) {
+        const i = allLoyers.findIndex(l => l.id === data.id);
+        if (i >= 0) allLoyers[i] = data; else allLoyers.push(data);
+      }
+      showNotif('✓ Loyer pointé');
+    }
+
+    // Le pointage change le verdict, le compte des points a traiter et les KPI
+    // de patrimoine : on redessine l'ecran entier plutot que la seule ligne.
+    if (currentPage === 'accueil') renderAccueil(document.getElementById('content'));
+
+  } catch (e) {
+    showNotif('Erreur : ' + e.message, true);
+    if (boite) { boite.checked = !boite.checked; boite.disabled = false; }
+  }
 }
 
 function renderAccueil(el) {
@@ -1566,13 +1687,21 @@ function renderAccueil(el) {
         <div class="sf-card sf-card--flat">
           <div class="sf-agenda">
             ${agenda.map(a => `
-              <div class="sf-ag">
-                <span class="sf-ag__date"><span class="sf-ag__day">${a.jour}</span><span class="sf-ag__mon">${a.mois}</span></span>
+              <div class="sf-ag${a.enRetard ? ' sf-ag--retard' : ''}${a.pointe ? ' sf-ag--pointe' : ''}">
+                <span class="sf-ag__date"><span class="sf-ag__day">${a.jour}</span><span class="sf-ag__mon">${a.moisCourt}</span></span>
                 <div class="sf-ag__body">
                   <p class="sf-ag__title">${a.titre}</p>
-                  <p class="sf-ag__meta">${a.meta}</p>
+                  <p class="sf-ag__meta">${a.enRetard
+                    ? `<span class="sf-ag__retard">En retard</span> · échu le ${a.jour} ${a.moisCourt}`
+                    : a.meta}</p>
                 </div>
                 <span class="sf-ag__amount">${fmt(a.montant)} €</span>
+                <label class="sf-ag__check" title="${a.pointe ? 'Annuler le pointage' : 'Pointer ce loyer comme encaissé'}">
+                  <input type="checkbox" ${a.pointe ? 'checked' : ''}
+                         onchange="sfPointerLoyer('${a.bienId}', ${a.mois}, ${a.annee}, this)">
+                  <span class="sf-ag__box">${sfAccIcon('check', 12)}</span>
+                  <span class="sr-only">Pointer le loyer de ${a.moisCourt}</span>
+                </label>
               </div>`).join('')}
             <div class="sf-empty" style="padding:var(--sf-space-8) var(--sf-space-7)">
               <div class="sf-empty__icon">${sfAccIcon('agenda', 20)}</div>
