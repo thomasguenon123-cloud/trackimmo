@@ -8,36 +8,39 @@
 <link rel="stylesheet" href="components.css?v=44">
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
-   MAQUETTE « MES BIENS » — phase 5
+   MAQUETTE « MES BIENS » — phase 5, iteration 3
    Servie en production pour utiliser les VRAIS tokens.css et components.css :
    une copie des valeurs finirait par diverger de la plateforme.
-   Aucune de ces regles ne part dans styles.css tant que la maquette n'est pas
-   validee. Prefixe .sfb- pour ne rien heurter.
+   Rien ne part dans styles.css/app.js tant que ce n'est pas valide.
+   Prefixe .sfb- pour ne rien heurter.
    ═══════════════════════════════════════════════════════════════════════════ */
 body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-ui);
       margin:0; font-size:var(--sf-font-body); }
-.sfb-wrap{ padding:var(--sf-space-8); max-width:1600px; margin:0 auto; }
+.sfb-wrap{ padding:var(--sf-space-8); max-width:1680px; margin:0 auto; }
 
-/* ── Bandeau de note (maquette seulement) ─────────────────────────────────── */
 .sfb-note{ border:1px dashed var(--sf-border-strong); border-radius:var(--sf-radius-md);
   padding:var(--sf-space-5) var(--sf-space-6); margin-bottom:var(--sf-space-8);
   font-size:var(--sf-font-caption); color:var(--sf-text-2); line-height:var(--sf-lh-normal); }
 .sfb-note b{ color:var(--sf-text); }
 
-/* ── En-tete ──────────────────────────────────────────────────────────────── */
 .sfb-head{ display:flex; align-items:baseline; gap:var(--sf-space-5); margin-bottom:var(--sf-space-6); flex-wrap:wrap; }
 .sfb-head h1{ font-family:var(--sf-font-display); font-size:var(--sf-font-h1);
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight); margin:0; line-height:1; }
 .sfb-head__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); color:var(--sf-text-3); }
 
-/* ── KPI en bandeau horizontal (et non plus en colonne fixe) ──────────────── */
+/* ── Deux sections : ce qu'on possede, ce qu'on envisage ──────────────────────
+   Additionner un bien detenu et une fiche en prospection revenait a melanger
+   un engagement et une hypothese. Chaque bloc porte donc son propre total. */
+.sfb-sec{ margin-bottom:var(--sf-space-11); }
+.sfb-sec__h{ display:flex; align-items:baseline; gap:var(--sf-space-5);
+  margin-bottom:var(--sf-space-5); flex-wrap:wrap; }
+.sfb-sec__t{ font-family:var(--sf-font-display); font-size:var(--sf-font-h2);
+  font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-snug); margin:0; }
+.sfb-sec__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); color:var(--sf-text-3); }
+.sfb-sec__d{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin:0 0 var(--sf-space-5); }
+
 .sfb-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
   gap:var(--sf-space-5); margin-bottom:var(--sf-space-5); }
-/* Une seule note de bas de bandeau, au lieu d'une glose de methode repetee
-   sous chaque indicateur. Un KPI dit CE QU'IL EST ; il n'explique pas comment
-   il a ete calcule. */
-.sfb-foot{ font-size:var(--sf-font-caption); color:var(--sf-text-3);
-  margin:0 0 var(--sf-space-7); }
 .sfb-kpi{ border:var(--sf-border-width) solid var(--sf-border); background:var(--sf-surface);
   border-radius:var(--sf-radius-md); padding:var(--sf-space-6); }
 .sfb-kpi__l{ display:block; font-size:var(--sf-font-label); text-transform:uppercase;
@@ -47,12 +50,16 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight); line-height:1;
   font-variant-numeric:tabular-nums; }
 .sfb-kpi__v--gain{ color:var(--sf-gain); } .sfb-kpi__v--loss{ color:var(--sf-loss); }
+.sfb-kpi__v--alerte{ color:var(--sf-alert); }
 .sfb-kpi__s{ display:block; font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:var(--sf-space-3); }
+/* Une seule note par bloc, au lieu d'une glose de methode sous chaque carte.
+   Un indicateur dit CE QU'IL EST ; il n'explique pas son calcul. */
+.sfb-foot{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin:0 0 var(--sf-space-5); }
 
-/* ── Barre d'outils ───────────────────────────────────────────────────────── */
+/* ── Barre d'outils, commune aux deux blocs ───────────────────────────────── */
 .sfb-tools{ display:flex; gap:var(--sf-space-4); align-items:center; flex-wrap:wrap;
-  margin-bottom:var(--sf-space-6); }
-.sfb-search{ position:relative; flex:1; min-width:200px; max-width:340px; }
+  margin-bottom:var(--sf-space-8); }
+.sfb-search{ position:relative; flex:1; min-width:200px; max-width:320px; }
 .sfb-search svg{ position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--sf-text-3); }
 .sfb-search input{ width:100%; height:var(--sf-control-h); padding:0 var(--sf-space-5) 0 34px;
   background:var(--sf-surface-2); border:var(--sf-border-width) solid var(--sf-border);
@@ -64,8 +71,6 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   border:var(--sf-border-width) solid var(--sf-border); border-radius:var(--sf-radius-sm);
   color:var(--sf-text); font-family:inherit; font-size:var(--sf-font-body-sm); appearance:none; cursor:pointer; }
 .sfb-spacer{ flex:1; }
-
-/* Commutateur de vue */
 .sfb-views{ display:flex; gap:2px; background:var(--sf-surface-2); border-radius:var(--sf-radius-sm);
   padding:3px; border:var(--sf-border-width) solid var(--sf-border); }
 .sfb-view{ display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 var(--sf-space-5);
@@ -75,7 +80,6 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .sfb-view[aria-pressed="true"]{ background:var(--sf-surface); color:var(--sf-text);
   font-weight:var(--sf-weight-semibold); box-shadow:var(--sf-elev-1); }
 
-/* ── Barre de selection contextuelle ──────────────────────────────────────── */
 .sfb-bulk{ display:none; align-items:center; gap:var(--sf-space-5);
   background:var(--sf-brand-wash-2); border:var(--sf-border-width) solid var(--sf-brand-3);
   border-radius:var(--sf-radius-sm); padding:var(--sf-space-4) var(--sf-space-6);
@@ -89,7 +93,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 table.sfb-t{ width:100%; border-collapse:collapse; font-size:var(--sf-font-body-sm); }
 .sfb-t th{ text-align:left; font-size:var(--sf-font-label); text-transform:uppercase;
   letter-spacing:var(--sf-track-caps); color:var(--sf-text-2); font-weight:var(--sf-weight-semibold);
-  padding:var(--sf-space-5) var(--sf-space-5); border-bottom:var(--sf-border-width) solid var(--sf-border);
+  padding:var(--sf-space-5); border-bottom:var(--sf-border-width) solid var(--sf-border);
   white-space:nowrap; background:var(--sf-surface-2); position:sticky; top:0; z-index:1; }
 .sfb-t th[data-sort]{ cursor:pointer; user-select:none; }
 .sfb-t th[data-sort]:hover{ color:var(--sf-text); }
@@ -103,13 +107,12 @@ table.sfb-t{ width:100%; border-collapse:collapse; font-size:var(--sf-font-body-
 .sfb-t .num{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
 .sfb-t .bien{ font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
 .sfb-t .sub{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
-/* Densite compacte */
 body[data-dens="compact"] .sfb-t td{ padding:var(--sf-space-3) var(--sf-space-5); }
 body[data-dens="compact"] .sfb-t .sub{ display:none; }
 
 .gain{ color:var(--sf-gain); } .loss{ color:var(--sf-loss); } .muted{ color:var(--sf-text-3); }
 
-/* Marqueur reel / previsionnel — la distinction la plus importante de l'ecran */
+/* Marqueur de source — la distinction la plus importante de l'ecran */
 .sfb-src{ display:inline-block; font-size:9px; text-transform:uppercase;
   letter-spacing:var(--sf-track-caps); font-weight:var(--sf-weight-bold);
   padding:1px 5px; border-radius:var(--sf-radius-xs); margin-left:6px; vertical-align:1px; }
@@ -117,13 +120,12 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
 .sfb-src--estime{ background:var(--sf-surface-3); color:var(--sf-text-3); }
 .sfb-src--attente{ background:var(--sf-alert-wash); color:var(--sf-alert); }
 .sfb-src--manque{ background:var(--sf-alert-wash); color:var(--sf-alert); }
-/* Ce qu'on sait deja d'une fiche incomplete : ses charges. On ne cache pas
-   l'information, on refuse seulement de l'appeler « cashflow ». */
+/* Ce qu'on sait deja d'une fiche incomplete. On ne cache pas l'information,
+   on refuse seulement de l'appeler « cashflow ». */
 .sfb-part{ display:block; font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
 
-/* Barre de rendement : lisible d'un coup d'oeil sur toute la colonne */
 .sfb-rend{ display:flex; align-items:center; gap:var(--sf-space-4); justify-content:flex-end; }
-.sfb-rend__b{ width:46px; height:4px; border-radius:2px; background:var(--sf-surface-3); overflow:hidden; flex-shrink:0; }
+.sfb-rend__b{ width:44px; height:4px; border-radius:2px; background:var(--sf-surface-3); overflow:hidden; flex-shrink:0; }
 .sfb-rend__f{ display:block; height:100%; border-radius:2px; }
 
 /* ── VUE GRILLE ───────────────────────────────────────────────────────────── */
@@ -146,24 +148,24 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
   letter-spacing:var(--sf-track-caps); color:var(--sf-text-3); font-weight:var(--sf-weight-semibold); }
 .sfb-card__cfv{ font-family:var(--sf-font-num); font-size:var(--sf-font-lead);
   font-weight:var(--sf-weight-bold); font-variant-numeric:tabular-nums; }
-.sfb-card__stats{ display:grid; grid-template-columns:repeat(3,1fr); border-top:var(--sf-border-width) solid var(--sf-border); }
-.sfb-card__cell{ padding:var(--sf-space-5); text-align:center; border-right:var(--sf-border-width) solid var(--sf-border); }
+.sfb-card__stats{ display:grid; grid-template-columns:repeat(4,1fr); border-top:var(--sf-border-width) solid var(--sf-border); }
+.sfb-card__cell{ padding:var(--sf-space-5) var(--sf-space-3); text-align:center;
+  border-right:var(--sf-border-width) solid var(--sf-border); }
 .sfb-card__cell:last-child{ border-right:0; }
 .sfb-card__cl{ display:block; font-size:var(--sf-font-label); text-transform:uppercase;
   letter-spacing:var(--sf-track-caps); color:var(--sf-text-3); margin-bottom:var(--sf-space-2); }
-.sfb-card__cv{ display:block; font-family:var(--sf-font-num); font-size:var(--sf-font-body);
+.sfb-card__cv{ display:block; font-family:var(--sf-font-num); font-size:var(--sf-font-body-sm);
   font-weight:var(--sf-weight-semibold); font-variant-numeric:tabular-nums; }
 
 /* ── VUE KANBAN ───────────────────────────────────────────────────────────── */
 .sfb-kb{ display:flex; gap:var(--sf-space-5); overflow-x:auto; padding-bottom:var(--sf-space-5); }
 .sfb-kbcol{ flex:0 0 268px; background:var(--sf-surface-2); border:var(--sf-border-width) solid var(--sf-border);
   border-radius:var(--sf-radius-md); display:flex; flex-direction:column; max-height:560px; }
-.sfb-kbh{ padding:var(--sf-space-5); border-bottom:var(--sf-border-width) solid var(--sf-border);
-  display:flex; align-items:center; gap:var(--sf-space-4); position:sticky; top:0; }
+.sfb-kbh{ padding:var(--sf-space-5); border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.sfb-kbh__r{ display:flex; align-items:center; gap:var(--sf-space-4); }
 .sfb-kbh__t{ font-size:var(--sf-font-body-sm); font-weight:var(--sf-weight-semibold); }
-.sfb-kbh__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); color:var(--sf-text-3);
-  margin-left:auto; }
-.sfb-kbh__sum{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); }
+.sfb-kbh__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-left:auto; }
+.sfb-kbh__sum{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); margin-top:var(--sf-space-2); display:block; }
 .sfb-kbb{ padding:var(--sf-space-4); display:flex; flex-direction:column; gap:var(--sf-space-4); overflow-y:auto; }
 .sfb-kc{ background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
   border-radius:var(--sf-radius-sm); padding:var(--sf-space-5); cursor:grab; }
@@ -176,6 +178,8 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
 .hidden{ display:none !important; }
 .sfb-legend{ margin-top:var(--sf-space-6); font-size:var(--sf-font-caption); color:var(--sf-text-3);
   display:flex; gap:var(--sf-space-6); flex-wrap:wrap; align-items:center; }
+.sfb-vide{ border:var(--sf-border-width) dashed var(--sf-border); border-radius:var(--sf-radius-md);
+  padding:var(--sf-space-9); text-align:center; color:var(--sf-text-3); font-size:var(--sf-font-body-sm); }
 </style>
 </head>
 <body data-dens="confort">
@@ -184,9 +188,10 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
   <div class="sfb-note">
     <b>Maquette — non déployée dans l'application.</b> Elle utilise les vrais
     <code>tokens.css</code> et <code>components.css</code>, donc elle ne peut pas diverger de la charte.
-    Les données sont les <b>6 biens visibles sur ta capture</b> plus la 7<sup>e</sup> fiche lue sur
-    l'écran d'accueil (« Programme immobilier neuf RSS&nbsp;LE… », 199&nbsp;199&nbsp;€) —
-    aucun chiffre inventé. Le seuil de rentabilité est pris à <b>5&nbsp;%</b>, ta préférence actuelle.
+    Données : les <b>6 biens visibles sur ta capture</b> plus la 7<sup>e</sup> fiche lue sur l'écran
+    d'accueil. Les charges sont <b>déduites</b> des deux chiffres que la plateforme affiche déjà
+    (charges = loyer − cashflow prévisionnel) — aucun chiffre inventé.
+    Seuil de rentabilité : <b>5&nbsp;%</b>.
   </div>
 
   <div class="sfb-head">
@@ -194,44 +199,11 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
     <span class="sfb-head__n" id="cpt"></span>
   </div>
 
-  <!-- Le bandeau de verdict rouge a ete retire : sur un ecran ouvert plusieurs
-       fois par jour, une alerte permanente cesse d'alerter et fatigue. Les
-       chiffres restent colores — un signe et une couleur sur une valeur sont
-       une information, pas une alarme. -->
-
-  <div class="sfb-kpis">
-    <div class="sfb-kpi">
-      <span class="sfb-kpi__l">Cashflow mensuel</span>
-      <span class="sfb-kpi__v sfb-kpi__v--loss" id="k-cf"></span>
-      <span class="sfb-kpi__s">Loyers moins charges et crédits</span>
-    </div>
-    <div class="sfb-kpi">
-      <span class="sfb-kpi__l">Au-dessus de votre seuil</span>
-      <span class="sfb-kpi__v" id="k-seuil"></span>
-      <span class="sfb-kpi__s">Rendement brut supérieur à 5 %</span>
-    </div>
-    <div class="sfb-kpi">
-      <span class="sfb-kpi__l">Capital engagé</span>
-      <span class="sfb-kpi__v" id="k-capital"></span>
-      <span class="sfb-kpi__s">Total des prix affichés</span>
-    </div>
-    <div class="sfb-kpi">
-      <span class="sfb-kpi__l">Fiches à compléter</span>
-      <span class="sfb-kpi__v" style="color:var(--sf-alert)" id="k-todo"></span>
-      <span class="sfb-kpi__s">Leur loyer estimé manque</span>
-    </div>
-  </div>
-  <p class="sfb-foot" id="k-foot"></p>
-
   <div class="sfb-tools">
     <div class="sfb-search">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="q" type="search" placeholder="Titre, ville, code postal…" oninput="dessiner()">
     </div>
-    <select class="sfb-sel" id="f-statut" onchange="dessiner()">
-      <option value="">Tous les statuts</option><option>Acheté</option>
-      <option>Contre offre - Acceptée</option><option>Renseignements Web</option>
-    </select>
     <select class="sfb-sel" id="f-type" onchange="dessiner()">
       <option value="">Tous types</option><option>T2</option><option>T3</option>
       <option>T4+</option><option>Immeuble</option>
@@ -261,9 +233,29 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
     <button class="sf-btn sf-btn--ghost sf-btn--sm" type="button" onclick="viderSel()">Annuler</button>
   </div>
 
-  <div id="vue-tableau"></div>
-  <div id="vue-grille" class="hidden"></div>
-  <div id="vue-kanban" class="hidden"></div>
+  <!-- BLOC 1 — ce que vous possedez -->
+  <section class="sfb-sec">
+    <div class="sfb-sec__h">
+      <h2 class="sfb-sec__t">Mon patrimoine</h2>
+      <span class="sfb-sec__n" id="n-detenus"></span>
+    </div>
+    <p class="sfb-sec__d">Les biens dont vous êtes propriétaire. Ces chiffres vous engagent.</p>
+    <div class="sfb-kpis" id="kpi-detenus"></div>
+    <p class="sfb-foot" id="foot-detenus"></p>
+    <div id="detenus"></div>
+  </section>
+
+  <!-- BLOC 2 — ce que vous envisagez -->
+  <section class="sfb-sec">
+    <div class="sfb-sec__h">
+      <h2 class="sfb-sec__t">Ma prospection</h2>
+      <span class="sfb-sec__n" id="n-prospect"></span>
+    </div>
+    <p class="sfb-sec__d">Les biens que vous étudiez. Ces chiffres sont des projections, rien n'est signé.</p>
+    <div class="sfb-kpis" id="kpi-prospect"></div>
+    <p class="sfb-foot" id="foot-prospect"></p>
+    <div id="prospect"></div>
+  </section>
 
   <div class="sfb-legend">
     <span><span class="sfb-src sfb-src--reel">Réel</span> Calculé sur vos loyers encaissés</span>
@@ -277,43 +269,41 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
 /* Les 6 biens de la capture + la 7e fiche lue sur l'accueil.
    `charges` est DEDUIT des deux chiffres affiches par la plateforme
    (charges = loyer - cashflow previsionnel), il n'est pas invente.
-   Pour Chatellerault, la plateforme affiche -2 233 EUR sans aucun loyer :
-   ces 2 233 EUR sont donc ses charges seules. */
+   Chatellerault affiche -2 233 EUR sans aucun loyer : ce sont ses charges seules. */
 const SEUIL = 5;
 const BIENS = [
   { id:1, titre:'T3 Lyon — Test', ville:'Lyon', cp:'69007', type:'T3', surf:68,
-    prix:220000, loyer:1050, charges:957,  cfReel:null, statut:'Acheté', acquis:true,  balise:'Coup de cœur' },
+    prix:220000, loyer:1050, charges:957,  cfReel:null,  statut:'Acheté', balise:'Coup de cœur' },
   { id:2, titre:'Immeuble Paris 18e — Test', ville:'Paris 18e', cp:'75018', type:'Immeuble', surf:180,
-    prix:650000, loyer:4200, charges:3127, cfReel:-2251, statut:'Acheté', acquis:true, balise:null },
+    prix:650000, loyer:4200, charges:3127, cfReel:-2251, statut:'Acheté', balise:null },
   { id:3, titre:'T2 Nice — Test', ville:'Nice', cp:'06000', type:'T2', surf:40,
-    prix:320000, loyer:1100, charges:1490, cfReel:null, statut:'Contre offre - Acceptée', acquis:false, balise:null },
+    prix:320000, loyer:1100, charges:1490, cfReel:null,  statut:'Contre offre - Acceptée', balise:null },
   { id:4, titre:'T2 Bordeaux — Test', ville:'Bordeaux', cp:'33000', type:'T2', surf:45,
-    prix:175000, loyer:850,  charges:793,  cfReel:null, statut:'Acheté', acquis:true,  balise:null },
+    prix:175000, loyer:850,  charges:793,  cfReel:null,  statut:'Acheté', balise:null },
   { id:5, titre:'T4+ Paris 16e — Test', ville:'Paris 16e', cp:'75016', type:'T4+', surf:95,
-    prix:850000, loyer:2800, charges:3829, cfReel:null, statut:'Acheté', acquis:true,  balise:null },
+    prix:850000, loyer:2800, charges:3829, cfReel:null,  statut:'Acheté', balise:null },
   { id:6, titre:'Achat bâtiment/immeuble 66 m²', ville:'Châtellerault', cp:'86100', type:'Immeuble', surf:66,
-    prix:199499, loyer:null, charges:2233, cfReel:null, statut:'Renseignements Web', acquis:false, balise:'Veille' },
+    prix:199499, loyer:null, charges:2233, cfReel:null,  statut:'Renseignements Web', balise:'Veille' },
   { id:7, titre:'Programme immobilier neuf RSS LE…', ville:'—', cp:'', type:'Immeuble', surf:null,
-    prix:199199, loyer:null, charges:null, cfReel:null, statut:'Renseignements Web', acquis:false, balise:'Veille' },
+    prix:199199, loyer:null, charges:null, cfReel:null,  statut:'Renseignements Web', balise:'Veille' },
 ];
 
 const esc = s => (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fmt = n => Math.round(n).toLocaleString('fr-FR');
+const detenu = b => b.statut === 'Acheté';
 
-/* ETAT D'UN BIEN — source unique, et le correctif le plus important de cette
-   iteration.
-   La plateforme actuelle declare « Deficitaire » toute fiche qui porte des
+/* ETAT D'UN BIEN — source unique.
+   La plateforme actuelle declare « Deficitaire » toute fiche portant des
    charges sans loyer : Chatellerault sort a -2 233 EUR alors que son loyer n'a
-   simplement jamais ete estime. Ce n'est pas un cashflow negatif, c'est une
-   fiche incomplete — et ce chiffre fantome pesait 2 233 EUR dans le total.
-   Elle expliquait aussi l'incoherence relevee par Thomas : deux fiches sans
-   loyer, l'une chiffree et l'autre non, selon qu'une mensualite existait ou
-   pas. Desormais les deux tombent dans le meme etat. */
+   jamais ete estime. Ce n'est pas un cashflow negatif, c'est une fiche
+   incomplete. Les deux fiches sans loyer tombent donc dans le meme etat, et
+   sont exclues des totaux : additionner des charges sans la recette en face
+   exagere la perte. */
 function etat(b){
-  if(b.cfReel != null)  return { code:'reel',    lbl:'Réel',    v:b.cfReel };
-  if(b.loyer == null)   return { code:'manque',  lbl:'À compléter', v:null };
+  if(b.cfReel != null)  return { code:'reel',   lbl:'Réel',        v:b.cfReel };
+  if(b.loyer == null)   return { code:'manque', lbl:'À compléter', v:null };
   const v = b.loyer - (b.charges||0);
-  return b.acquis ? { code:'attente', lbl:'Attente', v } : { code:'estime', lbl:'Estimé', v };
+  return detenu(b) ? { code:'attente', lbl:'Attente', v } : { code:'estime', lbl:'Estimé', v };
 }
 const rend = b => (b.prix && b.loyer) ? (b.loyer*12/b.prix)*100 : null;
 const cls  = v => v==null ? 'muted' : v>0 ? 'gain' : v<0 ? 'loss' : 'muted';
@@ -322,9 +312,8 @@ let vue='tableau', tri={col:'cf', sens:-1}, sel=new Set();
 
 function filtres(){
   const q=(document.getElementById('q').value||'').toLowerCase().trim();
-  const st=document.getElementById('f-statut').value, ty=document.getElementById('f-type').value;
+  const ty=document.getElementById('f-type').value;
   return BIENS.filter(b=>{
-    if(st && b.statut!==st) return false;
     if(ty && b.type!==ty) return false;
     if(q && !((b.titre+' '+b.ville+' '+b.cp).toLowerCase().includes(q))) return false;
     return true;
@@ -335,6 +324,7 @@ function trier(l){
     case 'bien': return b.titre.toLowerCase();
     case 'prix': return b.prix??-Infinity;
     case 'loyer':return b.loyer??-Infinity;
+    case 'charges':return b.charges??-Infinity;
     case 'rend': return rend(b)??-Infinity;
     case 'cf':   return etat(b).v??-Infinity;
     default:     return 0; } };
@@ -343,18 +333,20 @@ function trier(l){
 }
 function setTri(c){ tri = tri.col===c ? {col:c,sens:-tri.sens} : {col:c,sens:-1}; dessiner(); }
 function setVue(v){ vue=v;
-  ['tableau','grille','kanban'].forEach(k=>{
-    document.getElementById('vue-'+k).classList.toggle('hidden', k!==v);
-    document.getElementById('v-'+k).setAttribute('aria-pressed', String(k===v)); });
+  ['tableau','grille','kanban'].forEach(k=>
+    document.getElementById('v-'+k).setAttribute('aria-pressed', String(k===v)));
   dessiner();
 }
-function basculer(id,e){ e.stopPropagation();
-  sel.has(id)?sel.delete(id):sel.add(id); majBulk(); }
+function basculer(id,e){ e.stopPropagation(); sel.has(id)?sel.delete(id):sel.add(id); majBulk(); }
 function viderSel(){ sel.clear(); majBulk(); dessiner(); }
 function majBulk(){ const b=document.getElementById('bulk');
   b.dataset.on = sel.size?'1':'0';
-  document.getElementById('bulk-n').textContent = sel.size+' bien'+(sel.size>1?'s':'')+' sélectionné'+(sel.size>1?'s':'');
+  document.getElementById('bulk-n').textContent =
+    sel.size+' bien'+(sel.size>1?'s':'')+' sélectionné'+(sel.size>1?'s':'');
 }
+
+const kpi = (l,v,s,c) => `<div class="sfb-kpi"><span class="sfb-kpi__l">${l}</span>
+  <span class="sfb-kpi__v${c?' '+c:''}">${v}</span><span class="sfb-kpi__s">${s}</span></div>`;
 
 function ligne(b){
   const c=etat(b), r=rend(b);
@@ -372,52 +364,33 @@ function ligne(b){
     <td>${esc(b.ville)}<div class="sub">${esc(b.cp)}</div></td>
     <td class="num">${b.prix?fmt(b.prix)+' €':'<span class="muted">—</span>'}</td>
     <td class="num">${b.loyer?fmt(b.loyer)+' €':'<span class="muted">—</span>'}</td>
+    <td class="num muted">${b.charges?'− '+fmt(b.charges)+' €':'—'}</td>
     <td class="num">${rBar}</td>
     <td class="num">${c.code==='manque'
-        ? `<span class="sfb-src sfb-src--manque">${c.lbl}</span>
-           ${b.charges?`<span class="sfb-part">${fmt(b.charges)} € de charges</span>`:''}`
+        ? `<span class="sfb-src sfb-src--manque">${c.lbl}</span>`
         : `<span class="${cls(c.v)}">${(c.v>0?'+':'')+fmt(c.v)} €</span>
-           <span class="sfb-src sfb-src--${c.code}">${c.lbl}</span>`}</td>
+           <span class="sfb-src sfb-src--${c.code}">${c.lbl}</span>
+           ${c.code==='reel' && b.loyer!=null
+             ? `<span class="sfb-part">le bail promet ${(b.loyer-(b.charges||0))>0?'+':''}${fmt(b.loyer-(b.charges||0))} €</span>`
+             : ''}`}</td>
     <td><span class="sf-pill">${esc(b.statut)}</span></td>
   </tr>`;
 }
 
-function dessiner(){
-  const l = trier(filtres());
-  document.getElementById('cpt').textContent = l.length+' fiche'+(l.length>1?'s':'')+' sur '+BIENS.length;
-
-  /* Les fiches sans loyer sont EXCLUES du cashflow : les compter reviendrait a
-     additionner des charges sans la recette en face, ce qui exagere la perte.
-     Elles sont comptees a part, dans « Fiches a completer ». */
-  const chiffres = l.filter(b => etat(b).v != null);
-  const aCompleter = l.filter(b => etat(b).code === 'manque');
-  const somme  = chiffres.reduce((s,b) => s + etat(b).v, 0);
-  const auSeuil= chiffres.filter(b => (rend(b)??0) >= SEUIL).length;
-  const capital= l.reduce((s,b) => s + (b.prix||0), 0);
-
-  const kcf = document.getElementById('k-cf');
-  kcf.textContent = (somme>0?'+':'−') + fmt(Math.abs(somme)) + ' €';
-  kcf.className = 'sfb-kpi__v ' + (somme>=0 ? 'sfb-kpi__v--gain' : 'sfb-kpi__v--loss');
-  document.getElementById('k-seuil').innerHTML =
-    auSeuil + ' <span style="font-size:var(--sf-font-lead);color:var(--sf-text-3)">sur ' + chiffres.length + '</span>';
-  document.getElementById('k-capital').textContent = fmt(capital) + ' €';
-  document.getElementById('k-todo').textContent = aCompleter.length;
-  document.getElementById('k-foot').textContent = aCompleter.length
-    ? `Les ${aCompleter.length} fiches sans loyer estimé ne sont pas comptées dans le cashflow.`
-    : '';
-
+function tableau(l){
+  if(!l.length) return '<div class="sfb-vide">Aucun bien ne correspond à votre recherche.</div>';
   const th=(c,t,al)=>`<th data-sort="${c}" ${tri.col===c?`aria-sort="${tri.sens>0?'ascending':'descending'}"`:''}
       onclick="setTri('${c}')" style="text-align:${al||'left'}">${t}<span class="ar">${tri.sens>0?'↑':'↓'}</span></th>`;
-  document.getElementById('vue-tableau').innerHTML = `
-    <div class="sfb-tablewrap"><table class="sfb-t">
-      <thead><tr><th></th>${th('bien','Bien')}<th>Ville</th>${th('prix','Prix','right')}
-        ${th('loyer','Loyer','right')}${th('rend','Rendement','right')}${th('cf','Cashflow / mois','right')}
-        <th>Statut</th></tr></thead>
-      <tbody>${l.map(ligne).join('')}</tbody>
-    </table></div>`;
+  return `<div class="sfb-tablewrap"><table class="sfb-t">
+    <thead><tr><th></th>${th('bien','Bien')}<th>Ville</th>${th('prix','Prix','right')}
+      ${th('loyer','Loyer','right')}${th('charges','Charges','right')}${th('rend','Rendement','right')}
+      ${th('cf','Cashflow / mois','right')}<th>Statut</th></tr></thead>
+    <tbody>${l.map(ligne).join('')}</tbody></table></div>`;
+}
 
-  document.getElementById('vue-grille').innerHTML = `<div class="sfb-grid">${l.map(b=>{
-    const c=etat(b), r=rend(b);
+function grille(l){
+  if(!l.length) return '<div class="sfb-vide">Aucun bien ne correspond à votre recherche.</div>';
+  return `<div class="sfb-grid">${l.map(b=>{ const c=etat(b), r=rend(b);
     return `<article class="sfb-card" onclick="alert('Ouvre la fiche — maquette')">
       <div class="sfb-card__top">
         <div class="sfb-card__st"><span class="sf-pill">${esc(b.statut)}</span>
@@ -432,20 +405,25 @@ function dessiner(){
       <div class="sfb-card__stats">
         <div class="sfb-card__cell"><span class="sfb-card__cl">Prix</span><span class="sfb-card__cv">${b.prix?fmt(b.prix)+' €':'—'}</span></div>
         <div class="sfb-card__cell"><span class="sfb-card__cl">Loyer</span><span class="sfb-card__cv">${b.loyer?fmt(b.loyer)+' €':'—'}</span></div>
+        <div class="sfb-card__cell"><span class="sfb-card__cl">Charges</span><span class="sfb-card__cv muted">${b.charges?fmt(b.charges)+' €':'—'}</span></div>
         <div class="sfb-card__cell"><span class="sfb-card__cl">Rdt</span>
           <span class="sfb-card__cv ${r==null?'muted':r>=SEUIL?'gain':''}">${r==null?'—':r.toFixed(1)+' %'}</span></div>
       </div>
     </article>`; }).join('')}</div>`;
+}
 
-  const phases=['Renseignements Web','Contre offre - Acceptée','Acheté'];
-  document.getElementById('vue-kanban').innerHTML = `<div class="sfb-kb">${phases.map(p=>{
+function kanban(l, phases){
+  return `<div class="sfb-kb">${phases.map(p=>{
     const items=l.filter(b=>b.statut===p);
-    const som=items.reduce((s,b)=>s+(etat(b).v||0),0);
+    const chiffres=items.filter(b=>etat(b).v!=null);
+    const som=chiffres.reduce((s,b)=>s+etat(b).v,0);
     return `<section class="sfb-kbcol">
-      <header class="sfb-kbh"><span class="sfb-kbh__t">${esc(p)}</span>
-        <span class="sfb-kbh__n">${items.length}</span></header>
-      <div class="sfb-kbh" style="border-bottom:0;padding-top:0">
-        <span class="sfb-kbh__sum ${cls(som)}">${som?(som>0?'+':'')+fmt(som)+' € / mois':'—'}</span></div>
+      <header class="sfb-kbh">
+        <div class="sfb-kbh__r"><span class="sfb-kbh__t">${esc(p)}</span>
+          <span class="sfb-kbh__n">${items.length}</span></div>
+        <span class="sfb-kbh__sum ${chiffres.length?cls(som):'muted'}">${
+          chiffres.length ? (som>0?'+':'')+fmt(som)+' € par mois' : 'Rien à chiffrer'}</span>
+      </header>
       <div class="sfb-kbb">${items.map(b=>{ const c=etat(b);
         return `<article class="sfb-kc"><p class="sfb-kc__t">${esc(b.titre)}</p>
           <p class="sfb-kc__m">${esc(b.ville)} · ${esc(b.type)}</p>
@@ -453,6 +431,50 @@ function dessiner(){
           <span class="sfb-src sfb-src--${c.code}">${c.lbl}</span></article>`; }).join('')
         || '<p class="sfb-kc__m" style="padding:var(--sf-space-5)">Aucun bien</p>'}</div>
     </section>`; }).join('')}</div>`;
+}
+
+function bloc(l, vue, phases){
+  return vue==='tableau' ? tableau(l) : vue==='grille' ? grille(l) : kanban(l, phases);
+}
+
+function dessiner(){
+  const l = trier(filtres());
+  const D = l.filter(detenu), P = l.filter(b=>!detenu(b));
+  document.getElementById('cpt').textContent = l.length+' fiche'+(l.length>1?'s':'')+' sur '+BIENS.length;
+  document.getElementById('n-detenus').textContent  = D.length+' bien'+(D.length>1?'s':'');
+  document.getElementById('n-prospect').textContent = P.length+' fiche'+(P.length>1?'s':'');
+
+  // ── Mon patrimoine ──
+  const Dc = D.filter(b=>etat(b).v!=null);
+  const Dsom = Dc.reduce((s,b)=>s+etat(b).v,0);
+  const Dseuil = Dc.filter(b=>(rend(b)??0)>=SEUIL).length;
+  document.getElementById('kpi-detenus').innerHTML =
+    kpi('Cashflow mensuel', (Dsom>=0?'+':'−')+fmt(Math.abs(Dsom))+' €',
+        'Loyers moins charges et crédits', Dsom>=0?'sfb-kpi__v--gain':'sfb-kpi__v--loss') +
+    kpi('Au-dessus de votre seuil',
+        Dseuil+' <span style="font-size:var(--sf-font-lead);color:var(--sf-text-3)">sur '+Dc.length+'</span>',
+        'Rendement brut supérieur à 5 %') +
+    kpi('Capital engagé', fmt(D.reduce((s,b)=>s+(b.prix||0),0))+' €', "Total des prix d'achat");
+  const Dmanque = D.length - Dc.length;
+  document.getElementById('foot-detenus').textContent = Dmanque
+    ? `${Dmanque} bien sans loyer n'est pas compté dans le cashflow.` : '';
+  document.getElementById('detenus').innerHTML =
+    bloc(D, vue, ['Acheté']);
+
+  // ── Ma prospection ──
+  const Pc = P.filter(b=>etat(b).v!=null);
+  const Psom = Pc.reduce((s,b)=>s+etat(b).v,0);
+  document.getElementById('kpi-prospect').innerHTML =
+    kpi('Cashflow projeté', Pc.length ? (Psom>=0?'+':'−')+fmt(Math.abs(Psom))+' €' : '—',
+        'Si vous achetiez aux conditions saisies', Pc.length ? (Psom>=0?'sfb-kpi__v--gain':'sfb-kpi__v--loss') : '') +
+    kpi('Budget étudié', fmt(P.reduce((s,b)=>s+(b.prix||0),0))+' €', 'Total des prix affichés') +
+    kpi('Fiches à compléter', String(P.length-Pc.length), 'Leur loyer estimé manque',
+        (P.length-Pc.length) ? 'sfb-kpi__v--alerte' : '');
+  const Pmanque = P.length - Pc.length;
+  document.getElementById('foot-prospect').textContent = Pmanque
+    ? `${Pmanque} fiche${Pmanque>1?'s':''} sans loyer estimé ${Pmanque>1?'ne sont':"n'est"} pas compté${Pmanque>1?'es':'e'} dans le cashflow.` : '';
+  document.getElementById('prospect').innerHTML =
+    bloc(P, vue, ['Renseignements Web','Contre offre - Acceptée']);
 }
 dessiner();
 </script>
