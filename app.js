@@ -509,12 +509,16 @@ const PHASE_MAP = {
   'Administratifs':'administratif','Compromis signé':'administratif',
   'Acheté':'finalise','Abandonné':'finalise'
 };
+// Les libelles ne portent plus d'emoji : leur dessin, leur couleur et leur
+// graisse dependent du systeme d'exploitation, pas de la charte — ils juraient
+// avec le reste de l'interface. Une icone SVG suit la couleur du texte et se
+// comporte pareil partout. Meme parti que les Parametres et l'accueil.
 const PHASES = [
-  {key:'prospection',label:'🔍 Prospection',dot:'phase-prospection',defaultStatut:'Renseignements Web'},
-  {key:'negociation',label:'🤝 Négociation',dot:'phase-negociation',defaultStatut:'1ère offre - Envoyée'},
-  {key:'banque',label:'🏦 Banque',dot:'phase-banque',defaultStatut:'Accord trouvé !'},
-  {key:'administratif',label:'📋 Administratif',dot:'phase-administratif',defaultStatut:'Administratifs'},
-  {key:'finalise',label:'✅ Finalisé',dot:'phase-finalise',defaultStatut:'Acheté'},
+  {key:'prospection',  label:'Prospection',   icone:'loupe',  dot:'phase-prospection',  defaultStatut:'Renseignements Web'},
+  {key:'negociation',  label:'Négociation',   icone:'echange',dot:'phase-negociation',  defaultStatut:'1ère offre - Envoyée'},
+  {key:'banque',       label:'Banque',        icone:'banque', dot:'phase-banque',       defaultStatut:'Accord trouvé !'},
+  {key:'administratif',label:'Administratif', icone:'doc',    dot:'phase-administratif',defaultStatut:'Administratifs'},
+  {key:'finalise',     label:'Finalisé',      icone:'ok',     dot:'phase-finalise',     defaultStatut:'Acheté'},
 ];
 
 // Regroupement propre au tableau de bord et au filtre par phase. Il diverge
@@ -691,8 +695,8 @@ function tiDateFr(d) {
 // Exporte ce que l'utilisateur a sous les yeux : getFilteredBiens() applique
 // les filtres et le tri courants. Exporter tout le portefeuille alors que
 // l'ecran en montre trois serait une mauvaise surprise.
-function exportBiensCSV() {
-  const biens = getFilteredBiens();
+function exportBiensCSV(biensChoisis) {
+  const biens = biensChoisis || getFilteredBiens();
   if (!biens.length) { showNotif('Aucun bien à exporter avec ces filtres', true); return; }
 
   const champs = TI_BIENS.CHAMPS;
@@ -1374,6 +1378,9 @@ const SF_ACC_ICONS = {
   alerte:  '<path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/><path d="M10.3 3.6 2.5 17.2A2 2 0 0 0 4.2 20h15.6a2 2 0 0 0 1.7-2.8L13.7 3.6a2 2 0 0 0-3.4 0Z"/>',
   ok:      '<circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-4.8"/>',
   chevron: '<path d="m9 6 6 6-6 6"/>',
+  // Ajoutees pour les colonnes du kanban, qui portaient des emojis.
+  echange: '<path d="M7 8h11l-3-3"/><path d="M17 16H6l3 3"/>',
+  pin:     '<path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/>',
 };
 function sfAccIcon(n, t) {
   return `<svg width="${t||17}" height="${t||17}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1881,6 +1888,20 @@ function renderBiens(el) {
 
     <div class="sfb-kpis" id="sfb-kpis"></div>
     <p class="sfb-foot" id="sfb-foot"></p>
+
+    <!-- Actions groupées. La barre reste dans le flux et n'apparaît qu'à la
+         première sélection : des actions qui ne se révèlent qu'au survol sont
+         invisibles au clavier et au doigt. -->
+    <div class="sfb-bulk" id="sfb-bulk" data-on="0" role="region" aria-label="Actions groupées">
+      <span class="sfb-bulk__n" id="sfb-bulk-n"></span>
+      <select class="sfb-sel" id="sfb-bulk-statut" aria-label="Nouveau statut">
+        ${TI_BIENS.options('STATUTS', null, 'Changer le statut…')}
+      </select>
+      <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="sfBulkStatut()">Appliquer</button>
+      <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="sfBulkExport()">Exporter la sélection</button>
+      <button class="sf-btn sf-btn--ghost sf-btn--sm" type="button" onclick="sfViderSelection()">Annuler</button>
+    </div>
+
     <div id="biens-content"></div>
 
     <div class="sfb-legend">
@@ -1970,8 +1991,12 @@ function renderBiensTableau(l) {
   const th = (c,t) => `<th data-sort="${c}"${bienSortBy===c?` aria-sort="${bienSortAsc?'ascending':'descending'}"`:''}
       onclick="setTriBiens('${c}')" tabindex="0" onkeydown="if(event.key==='Enter')setTriBiens('${c}')">
       ${t}<span class="ar">${bienSortAsc?'↑':'↓'}</span></th>`;
+  const tousCoches = l.length > 0 && l.every(b => bienSelection.has(b.id));
   return `<div class="sfb-tablewrap"><table class="sfb-t">
     <thead><tr>
+      <th class="sfb-t__case"><input type="checkbox" ${tousCoches?'checked':''}
+        onclick="event.stopPropagation()" onchange="sfToutSelectionner(this.checked)"
+        aria-label="Tout sélectionner"></th>
       ${th('nom','Bien')}<th>Ville</th>${th('prix','Prix')}${th('loyer','Loyer')}
       <th>Charges</th>${th('rend','Rendement')}${th('cf','Cashflow / mois')}<th>Statut</th>
     </tr></thead>
@@ -1981,7 +2006,11 @@ function renderBiensTableau(l) {
                    : d.attenteReel ? 'attente' : 'estime';
       const srcLbl = d.mode==='reel' ? 'Réel' : d.mode==='incomplet' ? 'À compléter'
                    : d.attenteReel ? 'Attente' : 'Estimé';
-      return `<tr class="${d.mode==='incomplet'?'incomplet':''}" onclick="openDetail('${b.id}')">
+      return `<tr class="${d.mode==='incomplet'?'incomplet':''}${bienSelection.has(b.id)?' choisie':''}" onclick="openDetail('${b.id}')">
+        <td class="sfb-t__case" onclick="event.stopPropagation()">
+          <input type="checkbox" ${bienSelection.has(b.id)?'checked':''}
+                 onchange="sfBasculerSelection('${b.id}')"
+                 aria-label="Sélectionner ${esc(b.titre || 'ce bien')}"></td>
         <td><div class="sfb-t__b">${esc(b.titre || 'Sans titre')}</div>
             <div class="sfb-t__s">${esc(b.type_bien || '—')}${b.surface_m2?' · '+esc(b.surface_m2)+' m²':''}${b.balise?' · '+esc(b.balise):''}</div></td>
         <td>${b.ville ? esc(b.ville) : '<span class="sfb-vide-val">—</span>'}
@@ -2072,30 +2101,30 @@ function renderKanban(biens) {
     if(!depts.length) return '<div class="empty-state"><h3>Aucun code postal renseigné</h3><p>Ajoutez des codes postaux à vos biens pour utiliser ce regroupement.</p></div>';
     columns = depts.map(dept => ({
       key: dept,
-      label: '📍 ' + getDeptLabel(dept),
+      label: getDeptLabel(dept), icone:'pin',
       dot: 'phase-generic',
       biens: deptMap[dept]
     }));
     // Biens sans code postal
     const sans = biens.filter(b => !getDept(b));
     if(sans.length) columns.push({
-      key:'__sans__', label:'📍 Sans localisation', dot:'phase-generic', biens:sans
+      key:'__sans__', label:'Sans localisation', icone:'pin', dot:'phase-generic', biens:sans
     });
 
   } else if(kanbanGroup === 'type') {
     const presentTypes = TI_BIENS.TYPES.filter(t => biens.some(b=>b.type_bien===t));
     if(!presentTypes.length) return '<div class="empty-state"><h3>Aucun type renseigné</h3><p>Ajoutez des types à vos biens pour utiliser ce regroupement.</p></div>';
     columns = presentTypes.map(t => ({
-      key: t, label: '🏠 '+t, dot: 'phase-generic', biens: biens.filter(b=>b.type_bien===t)
+      key: t, label: t, icone:'maison', dot: 'phase-generic', biens: biens.filter(b=>b.type_bien===t)
     }));
     const autres = biens.filter(b=>!b.type_bien||!TYPES.includes(b.type_bien));
-    if(autres.length) columns.push({key:'__autre__',label:'🏠 Non renseigné',dot:'phase-generic',biens:autres});
+    if(autres.length) columns.push({key:'__autre__',label:'Non renseigné',icone:'maison',dot:'phase-generic',biens:autres});
   }
 
   // Badge "lecture seule" si pas en mode phase
   const readonlyBadge = !isDraggable
     ? `<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(148,163,184,0.1);border:1px solid var(--c-border);border-radius:8px;font-size:11px;color:var(--c-muted);margin-bottom:12px;">
-        👁 Vue lecture — le glisser-déposer est disponible uniquement en mode <strong style="color:var(--accent)">Phase</strong>
+        Vue lecture — le glisser-déposer est disponible uniquement en mode <strong style="color:var(--accent)">Phase</strong>
        </div>`
     : '';
 
@@ -2111,7 +2140,7 @@ function renderKanban(biens) {
       <div class="kanban-col-header">
         <div class="kanban-col-title">
           <span class="kanban-col-dot ${col.dot}"></span>
-          ${col.label}
+          <span class="kanban-col-ic">${sfAccIcon(col.icone || 'tag', 14)}</span>${esc(col.label)}
         </div>
         <span class="kanban-col-count">${col.biens.length}</span>
       </div>
@@ -2121,7 +2150,10 @@ function renderKanban(biens) {
           : `<div class="kanban-empty">${isDraggable?'Déposer ici':'Aucun bien'}</div>`}
       </div>
     </div>`;
-  }).join('') + '<div style="padding:6px 0 2px;font-size:11px;text-align:center"><a href="#" onclick="closeSettings();navigate(\'administration\')" style="color:var(--accent)">Gérer mes SCI →</a></div>';
+  // Un lien « Gérer mes SCI → » etait concatene ici. Il appartient au panneau
+  // SCI des Parametres (il y figure toujours) : un copier-coller l'avait
+  // ramene dans le kanban, ou il n'avait aucun rapport avec les colonnes.
+  }).join('');
 
   return `
     ${readonlyBadge}
@@ -2211,6 +2243,59 @@ async function kanbanDrop(e, colEl) {
   draggedBienId = null;
 }
 
+// ── SÉLECTION MULTIPLE ET ACTIONS GROUPÉES ──────────────────────────────────
+// La sélection porte sur des identifiants, pas sur des lignes du DOM : elle
+// survit donc à un tri, à un changement de filtre ou de vue.
+const bienSelection = new Set();
+
+function sfBasculerSelection(id) {
+  bienSelection.has(id) ? bienSelection.delete(id) : bienSelection.add(id);
+  sfMajBarreSelection();
+}
+function sfToutSelectionner(coche) {
+  const visibles = getSortedBiens(getFilteredBiens()
+    .filter(b => bienOnglet==='detenus' ? sfDetenu(b) : !sfDetenu(b)));
+  visibles.forEach(b => coche ? bienSelection.add(b.id) : bienSelection.delete(b.id));
+  applyFilters();
+}
+function sfViderSelection() { bienSelection.clear(); applyFilters(); }
+
+function sfMajBarreSelection() {
+  const barre = document.getElementById('sfb-bulk');
+  if(!barre) return;
+  const n = bienSelection.size;
+  barre.dataset.on = n ? '1' : '0';
+  const lbl = document.getElementById('sfb-bulk-n');
+  if(lbl) lbl.textContent = `${n} bien${n>1?'s':''} sélectionné${n>1?'s':''}`;
+}
+
+function sfBiensSelectionnes() {
+  return allBiens.filter(b => bienSelection.has(b.id));
+}
+function sfBulkExport() {
+  const choisis = sfBiensSelectionnes();
+  if(!choisis.length) { showNotif('Aucun bien sélectionné', true); return; }
+  exportBiensCSV(choisis);
+}
+async function sfBulkStatut() {
+  const sel = document.getElementById('sfb-bulk-statut');
+  const statut = sel?.value;
+  if(!statut) { showNotif('Choisissez un statut', true); return; }
+  const choisis = sfBiensSelectionnes();
+  if(!choisis.length) { showNotif('Aucun bien sélectionné', true); return; }
+  if(!confirm(`Passer ${choisis.length} bien${choisis.length>1?'s':''} au statut « ${statut} » ?`)) return;
+  try {
+    const { error } = await db.from('biens').update({ statut })
+      .in('id', choisis.map(b => b.id)).eq('user_id', currentUser.id);
+    if(error) throw error;
+    // Mise a jour en memoire : eviter un rechargement complet pour un champ.
+    choisis.forEach(b => { b.statut = statut; });
+    showNotif(`✓ ${choisis.length} bien${choisis.length>1?'s':''} mis à jour`);
+    bienSelection.clear();
+    applyFilters();
+  } catch(e) { showNotif('Erreur : ' + e.message, true); }
+}
+
 // ── HELPERS VUE ──
 function setView(v) {
   currentView = v;
@@ -2275,6 +2360,7 @@ function getSortedBiens(biens) {
 function applyFilters() {
   const contentEl = document.getElementById('biens-content');
   if(contentEl) contentEl.innerHTML = renderBiensContent(getFilteredBiens());
+  sfMajBarreSelection();
 }
 
 function renderCard(b) {
@@ -2293,7 +2379,7 @@ function renderCard(b) {
         <span class="statut-pill phase-${(PHASE_MAP[b.statut]||'generic')}">${esc(b.statut || '—')}</span>
         ${b.balise?`<span class="sf-pill">${esc(b.balise)}</span>`:''}
       </div>
-      <h3 class="sfb-card__t">${esc(b.titre || 'Sans titre')}</h3>
+      <h3 class="sfb-card__t" title="${esc(b.titre || 'Sans titre')}">${esc(b.titre || 'Sans titre')}</h3>
       <p class="sfb-card__loc">${b.ville
         ? esc([b.ville, b.code_postal].filter(Boolean).join(' '))
         : '<span class="sfb-vide-val">Ville à renseigner</span>'} · ${esc(b.type_bien || '—')}${b.surface_m2?' · '+esc(b.surface_m2)+' m²':''}</p>

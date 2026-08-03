@@ -389,18 +389,34 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 /* ═══ Statuts colorés par phase (Prospection / Négociation / Accord / Banque / Closing / Abandon) ═══ */
 .statut-pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:0.2px;line-height:1.4;}
 .statut-pill::before{content:'';width:7px;height:7px;border-radius:50%;flex-shrink:0;}
-.statut-pill.phase-prospection{background:rgba(59,130,246,0.14);color:#8CC0F0;}
-.statut-pill.phase-prospection::before{background:#8CC0F0;}
-.statut-pill.phase-negociation{background:rgba(245,158,11,0.14);color:#F0B429;}
-.statut-pill.phase-negociation::before{background:#F0B429;}
-.statut-pill.phase-accord{background:rgba(22,163,74,0.14);color:#5BD08A;}
-.statut-pill.phase-accord::before{background:#5BD08A;}
-.statut-pill.phase-banque{background:rgba(234,88,12,0.14);color:#FFA36B;}
-.statut-pill.phase-banque::before{background:#FFA36B;}
-.statut-pill.phase-closing{background:rgba(124,58,237,0.16);color:#BCA0F5;}
-.statut-pill.phase-closing::before{background:#BCA0F5;}
-.statut-pill.phase-abandon{background:rgba(100,116,139,0.16);color:var(--sf-text-3);}
-.statut-pill.phase-abandon::before{background:var(--sf-text-3);}
+/* ═══════════════════════════════════════════════════════════════════════════
+   LES CINQ PHASES — une seule nomenclature, une seule teinte par phase
+   ═══════════════════════════════════════════════════════════════════════════
+   Ce bloc décrivait SIX phases (…accord, closing, abandon) alors que
+   `PHASE_MAP` n'en produit que CINQ (…administratif, finalise). Les deux
+   familles ne se recouvraient que sur trois noms. Résultat : « Acheté », qui
+   vaut `finalise`, ne trouvait aucune règle de pastille et retombait sur
+   `.phase-finalise{background:#5BD08A}` — la couleur du POINT kanban en fond
+   plein — d'où un texte clair sur un vert clair, illisible.
+
+   Les noms viennent désormais des valeurs réelles de `PHASE_MAP`, et chaque
+   phase porte la MÊME teinte sur sa pastille et sur son point. Ne jamais
+   réintroduire un nom de phase qui n'existe pas dans `PHASE_MAP`.
+
+   Rappel : ces six teintes ne sont pas des signaux (gain/alerte/perte) mais
+   des catégories — voir la note du bloc `.tag-*`.                           */
+.statut-pill.phase-prospection  { background:rgba(59,130,246,0.14); color:#8CC0F0; }
+.statut-pill.phase-prospection::before  { background:#8CC0F0; }
+.statut-pill.phase-negociation  { background:rgba(245,158,11,0.14); color:#F0B429; }
+.statut-pill.phase-negociation::before  { background:#F0B429; }
+.statut-pill.phase-banque       { background:rgba(124,58,237,0.16); color:#BCA0F5; }
+.statut-pill.phase-banque::before       { background:#BCA0F5; }
+.statut-pill.phase-administratif{ background:rgba(45,190,185,0.16); color:#6BD5D0; }
+.statut-pill.phase-administratif::before{ background:#6BD5D0; }
+.statut-pill.phase-finalise     { background:rgba(22,163,74,0.16); color:#5BD08A; }
+.statut-pill.phase-finalise::before     { background:#5BD08A; }
+.statut-pill.phase-generic      { background:rgba(100,116,139,0.16); color:var(--sf-text-3); }
+.statut-pill.phase-generic::before      { background:var(--sf-text-3); }
 
 /* ═══ Custom dropdown (Linear/Notion style) — utilisé en Livraison 2 ═══ */
 .cdd-trigger{
@@ -822,7 +838,10 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 
 .card-footer{display:flex;align-items:center;justify-content:space-between;padding-top:9px;border-top:1px solid var(--c-border);}
 
-.statut-pill{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--c-dim);font-weight:500;}
+/* Cette SECONDE definition de `.statut-pill` ecrasait la premiere (meme
+   specificite, declaree plus bas) : elle imposait 10 px et une couleur unique,
+   et annulait la pilule. Elle datait des anciennes cartes, qui n'existent
+   plus. Seul `.statut-dot`, qui sert ailleurs, est conserve. */
 .statut-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);flex-shrink:0;}
 .card-date{font-size:10px;color:var(--c-muted);}
 
@@ -847,8 +866,12 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 .kanban-scroll{overflow-x:auto;padding-bottom:12px;margin:0 -4px;}
 .kanban-board{display:flex;gap:12px;padding:4px;min-height:500px;align-items:flex-start;}
 
+/* Les colonnes se partagent TOUTE la largeur au lieu de rester figees a
+   270 px et de laisser un vide a droite. Les cinq phases sont connues
+   d'avance : flex:1 1 0 les rend d'egale largeur quel que soit leur contenu.
+   Sous 250 px on repasse en defilement horizontal plutot que de les ecraser. */
 .kanban-col{
-  flex:0 0 270px;
+  flex:1 1 0; min-width:250px;
   background:var(--sf-surface-2);
   border:1px solid var(--c-border);
   border-radius:14px;
@@ -916,9 +939,10 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
   margin:0;pointer-events:none;
 }
 
-/* Couleurs phases — meme gamme categorielle que .statut-pill, pour qu'une
-   phase garde la meme teinte du kanban a la pastille. Voir la note en tete
-   du bloc .statut-pill : ces six teintes ne sont pas des signaux. */
+/* Points de phase du kanban. Les teintes sont EXACTEMENT celles des pastilles
+   correspondantes : une phase se reconnait a sa couleur, du kanban au tableau.
+   Ces regles ne s'appliquent qu'aux points — une pastille combinant
+   `.statut-pill` et `.phase-x` prend le fond de la pastille, plus specifique. */
 .phase-prospection{background:#8CC0F0;}
 .phase-negociation{background:#F0B429;}
 .phase-banque{background:#BCA0F5;}
@@ -3011,7 +3035,10 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 
 .sfb-kpi__s{ display:block; font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:var(--sf-space-2); }
 
-.sfb-foot{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin:0 0 var(--sf-space-5); }
+/* Hauteur reservee : sans elle, la note n'apparaissant que sur l'onglet ayant
+   des fiches incompletes, toute la liste se decalait au changement d'onglet. */
+.sfb-foot{ font-size:var(--sf-font-caption); color:var(--sf-text-3);
+  margin:0 0 var(--sf-space-5); min-height:1.4em; }
 
 .sfb-foot b{ color:var(--sf-alert); font-weight:var(--sf-weight-semibold); }
 
@@ -3132,8 +3159,12 @@ table.sfb-t{ width:100%; border-collapse:collapse; font-size:clamp(13px, 0.85vw,
 
 
 /* ── VUE GRILLE ───────────────────────────────────────────────────────────── */
-.sfb-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
-  gap:clamp(12px, 1.1vw, 22px); }
+/* Quatre cartes par ligne AU MAXIMUM. En auto-fill simple, un grand ecran
+   produisait cinq colonnes trop etroites et les montants se coupaient
+   (« 320 0… »). La borne basse de 300 px garde deux colonnes sur tablette. */
+.sfb-grid{ display:grid; gap:clamp(12px, 1.1vw, 22px);
+  grid-template-columns:repeat(auto-fill,
+    minmax(max(300px, calc((100% - 3 * clamp(12px,1.1vw,22px)) / 4)), 1fr)); }
 
 .sfb-card{ border:var(--sf-border-width) solid var(--sf-border); background:var(--sf-surface);
   border-radius:var(--sf-radius-md); overflow:hidden; cursor:pointer; display:flex; flex-direction:column;
@@ -3148,9 +3179,14 @@ table.sfb-t{ width:100%; border-collapse:collapse; font-size:clamp(13px, 0.85vw,
 .sfb-card__st{ display:flex; align-items:center; justify-content:space-between; gap:var(--sf-space-4);
   margin-bottom:var(--sf-space-4); }
 
+/* Une seule ligne, coupee en ellipse. Un titre d'annonce recopie tel quel
+   (« Programme immobilier neuf RSS LES TREFLES (appartement neuf 2 pieces,
+   46 m2) ») occupait trois lignes et desalignait toute la rangee. Le titre
+   entier reste lisible en infobulle et sur la fiche. */
 .sfb-card__t{ font-family:var(--sf-font-display); font-size:clamp(17px, 1.15vw, 21px);
   font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-snug); margin:0;
-  line-height:var(--sf-lh-snug); }
+  line-height:var(--sf-lh-snug);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 .sfb-card__loc{ font-size:var(--sf-font-body-sm); color:var(--sf-text-3); margin:var(--sf-space-3) 0 0; }
 
@@ -3165,12 +3201,18 @@ table.sfb-t{ width:100%; border-collapse:collapse; font-size:clamp(13px, 0.85vw,
   font-weight:var(--sf-weight-bold); font-variant-numeric:tabular-nums; margin-left:auto;
   white-space:nowrap; }
 
-.sfb-card__stats{ display:grid; grid-template-columns:repeat(4,1fr); border-top:var(--sf-border-width) solid var(--sf-border); }
+/* 2x2 et non 1x4 : sur une rangee de quatre cartes, un quart de carte ne
+   suffit pas a un prix a sept chiffres, qui se coupait (« 1 250 0… »).
+   En deux colonnes chaque valeur dispose du double de largeur. */
+.sfb-card__stats{ display:grid; grid-template-columns:repeat(2,1fr);
+  border-top:var(--sf-border-width) solid var(--sf-border); }
 
-.sfb-card__cell{ padding:clamp(10px, 0.9vw, 16px); border-right:var(--sf-border-width) solid var(--sf-border);
-  min-width:0; }
+.sfb-card__cell{ padding:clamp(10px, 0.9vw, 16px); min-width:0; }
+/* En 2x2 : trait vertical sur la colonne de gauche, trait horizontal sous la
+   premiere rangee. Un simple :last-child ne suffit plus. */
+.sfb-card__cell:nth-child(odd){ border-right:var(--sf-border-width) solid var(--sf-border); }
+.sfb-card__cell:nth-child(-n+2){ border-bottom:var(--sf-border-width) solid var(--sf-border); }
 
-.sfb-card__cell:last-child{ border-right:0; }
 
 .sfb-card__cl{ display:block; font-size:var(--sf-font-label); text-transform:uppercase;
   letter-spacing:var(--sf-track-caps); color:var(--sf-text-3); margin-bottom:var(--sf-space-2); }
@@ -3185,13 +3227,14 @@ table.sfb-t{ width:100%; border-collapse:collapse; font-size:clamp(13px, 0.85vw,
 
 
 /* ── VUE KANBAN — reservee a la prospection ───────────────────────────────── */
-/* Les colonnes s'etirent pour occuper la largeur disponible au lieu de laisser
-   un grand vide a droite quand il y a peu de phases, sans jamais depasser une
-   largeur lisible. */
+/* Les colonnes se partagent TOUTE la largeur. Les cinq phases sont connues
+   d'avance : laisser un vide a droite n'apporte rien, et des colonnes plus
+   larges donnent de l'air aux cartes. flex:1 1 0 les rend d'egale largeur,
+   quel que soit leur contenu. */
 .sfb-kb{ display:flex; gap:clamp(12px, 1.1vw, 20px); overflow-x:auto; padding-bottom:var(--sf-space-5);
   align-items:flex-start; }
 
-.sfb-kbcol{ flex:1 1 300px; max-width:420px; min-width:280px;
+.sfb-kbcol{ flex:1 1 0; min-width:250px;
   background:var(--sf-surface-2); border:var(--sf-border-width) solid var(--sf-border);
   border-radius:var(--sf-radius-md); display:flex; flex-direction:column; max-height:640px; }
 
@@ -3243,3 +3286,19 @@ body[data-densite="compact"] .sfb-t__s{ display:none; }
 .sf-gain{ color:var(--sf-gain); }
 .sf-loss{ color:var(--sf-loss); }
 .sfb-card{ position:relative; }
+
+
+/* Colonne de selection. Largeur fixe : sans elle, la premiere colonne se
+   redimensionne selon le contenu et les cases dansent d'une ligne a l'autre. */
+.sfb-t__case{ width:40px; }
+.sfb-t__case input{ cursor:pointer; }
+.sfb-t tbody tr.choisie{ background:var(--sf-brand-wash); }
+.sfb-t tbody tr.choisie:hover{ background:var(--sf-brand-wash-2); }
+
+
+/* Icone SVG des colonnes de kanban, en remplacement des emojis. Elle suit la
+   couleur du texte, contrairement a un emoji dont le dessin et la teinte
+   dependent du systeme. */
+.kanban-col-ic{ display:inline-flex; align-items:center; color:var(--sf-text-3); flex-shrink:0; }
+.kanban-col-title{ min-width:0; }
+.kanban-col-title > span:last-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
