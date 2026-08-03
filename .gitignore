@@ -14,3 +14,7 @@
 
 # Index local de codegraph (regenerable via `codegraph init`)
 .codegraph/
+
+# Configuration de serveur local (outil de developpement). Non versionnee
+# pour la meme raison que les skills : GitHub Pages sert tout le depot.
+.claude/launch.json

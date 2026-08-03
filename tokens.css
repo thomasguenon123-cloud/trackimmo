@@ -166,10 +166,16 @@
   --sf-border:      #22332A;
   --sf-border-strong:#2E4438;
 
-  /* Texte */
+  /* Texte
+     --sf-text-3 est passe de #6E8177 a #7B8F84 le 03/08/2026. L'ancienne
+     valeur avait ete calculee sur --sf-bg, ou elle tenait (4,57:1) ; mais la
+     plupart des textes discrets sont poses sur --sf-surface, une surface plus
+     CLAIRE que le fond, ou elle retombait a 4,28:1 — sous le seuil AA.
+     La nouvelle valeur tient sur les trois surfaces : 5,54 sur --sf-bg,
+     5,15 sur --sf-surface, 4,77 sur --sf-surface-2. */
   --sf-text:        #EAF0EC;
   --sf-text-2:      #9BAEA4;
-  --sf-text-3:      #6E8177;
+  --sf-text-3:      #7B8F84;
   --sf-text-on-brand:#EAF0EC;
 
   /* Marque — SOMBRE, c'est de la matiere (regle 1) */
