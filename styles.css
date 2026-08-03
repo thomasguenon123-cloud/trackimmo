@@ -2642,7 +2642,10 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 /* KPI Cards résultats */
 .marche-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:20px;}
 .marche-kpi{background:var(--c-surface);border:1px solid var(--c-border);border-radius:10px;padding:16px 18px;}
-.marche-kpi-icon{font-size:20px;margin-bottom:8px;}
+/* Contenait un emoji de 20 px ; contient desormais un SVG. La couleur suit le
+   texte discret plutot que la teinte fixe d un emoji. */
+.marche-kpi-icon{display:flex;margin-bottom:8px;color:var(--sf-text-3);}
+.marche-kpi-icon svg{flex-shrink:0;}
 .marche-kpi-val{font-size:22px;font-weight:800;color:var(--c-text);}
 .marche-kpi-val.teal{color:var(--sf-info);}
 .marche-kpi-val.green{color:var(--sf-gain);}
@@ -3302,3 +3305,8 @@ body[data-densite="compact"] .sfb-t__s{ display:none; }
 .kanban-col-ic{ display:inline-flex; align-items:center; color:var(--sf-text-3); flex-shrink:0; }
 .kanban-col-title{ min-width:0; }
 .kanban-col-title > span:last-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Icônes des onglets de la fiche bien. Elles héritent de currentColor, donc
+   elles suivent l'état de l'onglet (discret / actif) sans règle de couleur. */
+.bd-tab svg{ flex-shrink:0; }
+.bd-tab.dim svg{ opacity:.55; }

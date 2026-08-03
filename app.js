@@ -1363,7 +1363,16 @@ function fmtActionDate(d){ if(!d) return '—'; const dt=new Date(d+'T12:00:00')
 // et porte L'ACTION qui le resout. Un point sans action est une inquietude
 // sans issue : on ne l'affiche pas.
 
-// Petit jeu d'icones local a l'accueil, en trait, comme le bandeau.
+// ═══════════════════════════════════════════════════════════════════════════
+//   JEU D'ICONES UNIQUE DE STONEFOLIO
+// ═══════════════════════════════════════════════════════════════════════════
+// Il existait TROIS jeux separes — celui-ci pour l'accueil, `SF_PARAM_ICONS`
+// pour les Parametres, et des <svg> ecrits en ligne au fil des ecrans. Trois
+// jeux, c'est trois dessins possibles pour la meme idee : la « banque » n'avait
+// deja pas le meme trait selon l'ecran. Tout passe desormais par ici.
+//
+// Conventions : trait de 1,9, viewBox 24, `currentColor` — donc l'icone suit la
+// couleur du texte, ce qu'un emoji ne fait jamais.
 const SF_ACC_ICONS = {
   maison:  '<path d="M3 21h18M6 21V9l6-5 6 5v12M10 21v-5h4v5"/>',
   horloge: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -1381,10 +1390,35 @@ const SF_ACC_ICONS = {
   // Ajoutees pour les colonnes du kanban, qui portaient des emojis.
   echange: '<path d="M7 8h11l-3-3"/><path d="M17 16H6l3 3"/>',
   pin:     '<path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/>',
+
+  // ── Reprises de SF_PARAM_ICONS, desormais fondu ici ──────────────────────
+  user:    '<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.2-5.6 7.5-5.6s7.5 2 7.5 5.6"/>',
+  lock:    '<rect x="4" y="10.5" width="16" height="10" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>',
+  bell:    '<path d="M18 8.6a6 6 0 1 0-12 0c0 5.2-2 6.4-2 6.4h16s-2-1.2-2-6.4"/><path d="M13.7 19a2 2 0 0 1-3.4 0"/>',
+  palette: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18"/><path d="M12 3a9 9 0 0 1 0 18" fill="currentColor" stroke="none" opacity=".35"/>',
+  sliders: '<path d="M5 20v-7M5 9V4M12 20v-9M12 7V4M19 20v-5M19 11V4"/><path d="M2.5 13h5M9.5 7h5M16.5 15h5"/>',
+  plug:    '<path d="M9 3v6M15 3v6"/><path d="M6.5 9h11v3a5.5 5.5 0 0 1-11 0Z"/><path d="M12 17.5V21"/>',
+  data:    '<ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6"/><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/>',
+  bank:    '<path d="M3 9.5 12 4l9 5.5"/><path d="M5.5 9.5V19M9.8 9.5V19M14.2 9.5V19M18.5 9.5V19"/><path d="M3 21h18"/>',
+  wrench:  '<path d="M15.5 4.5a5 5 0 0 0-6.4 6.4L4 16l4 4 5.1-5.1a5 5 0 0 0 6.4-6.4L16.6 9.4 14.6 7.4Z"/>',
+  info:    '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.9" r=".7" fill="currentColor" stroke="none"/>',
+
+  // ── Onglets de la fiche bien ─────────────────────────────────────────────
+  euro:    '<path d="M17.5 6.5A6.5 6.5 0 0 0 7 12a6.5 6.5 0 0 0 10.5 5.5"/><path d="M4.5 10.5h8M4.5 14h8"/>',
+  carnet:  '<path d="M6.5 3h11a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 17.5 21h-11A2.5 2.5 0 0 1 4 18.5v-13A2.5 2.5 0 0 1 6.5 3Z"/><path d="M4 17.5h15"/><path d="M8.5 7.5h7"/>',
+  cle:     '<circle cx="8" cy="12" r="4"/><path d="M12 12h9l-2.2 2.6M17.5 12v3"/>',
+  colonne: '<path d="M3 9.5 12 4l9 5.5"/><path d="M5.5 9.5V19M9.8 9.5V19M14.2 9.5V19M18.5 9.5V19"/><path d="M3 21h18"/>',
+  ville:   '<path d="M3 21h18"/><path d="M5 21V8l6-4v17"/><path d="M11 11h6a1 1 0 0 1 1 1v9"/><path d="M8 11v.01M8 15v.01M14 15v.01M14 18v.01"/>',
+  gens:    '<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-5.2 6.5-5.2s6.5 1.9 6.5 5.2"/><path d="M16.5 5.4a3.2 3.2 0 0 1 0 6.2M18 14.4c2.1.6 3.5 2 3.5 4.1"/>',
 };
 function sfAccIcon(n, t) {
+  // Cle inconnue : on ne rend RIEN. La version precedente emettait un <svg>
+  // vide, qui occupait sa largeur sans rien dessiner — un trou invisible a la
+  // relecture du code mais bien visible a l'ecran.
+  const d = SF_ACC_ICONS[n];
+  if(!d) return '';
   return `<svg width="${t||17}" height="${t||17}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-    stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SF_ACC_ICONS[n]||''}</svg>`;
+    stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 }
 
 // Detecteurs. Chacun ne produit un point QUE s'il se declenche reellement :
@@ -2083,7 +2117,11 @@ function renderKanban(biens) {
 
   if(kanbanGroup === 'phase') {
     columns = PHASES.map(ph => ({
-      key: ph.key, label: ph.label, dot: ph.dot,
+      // `icone` doit etre recopie ici : la colonne est un objet NEUF, elle
+      // n'herite de rien. Il manquait, et `sfAccIcon(undefined)` produisait un
+      // <svg> vide qui occupait sa place sans rien dessiner — d'ou un blanc
+      // entre le point de couleur et le titre.
+      key: ph.key, label: ph.label, dot: ph.dot, icone: ph.icone,
       biens: biens.filter(b => (PHASE_MAP[b.statut]||'prospection') === ph.key)
     }));
 
@@ -3398,13 +3436,13 @@ async function renderBienDetail(el) {
   // Ordre des onglets selon l'étape du cycle de vie : en prospection le locatif
   // et la SCI n'ont rien à dire, une fois acquis ils passent devant.
   const TAB_DEFS = {
-    infos:       { lab:'📋 Informations', badge:'' },
-    fin:         { lab:'💰 Finances', badge:'' },
-    financement: { lab:'🏦 Financement', badge: sims.length ? `<span class="bd-badge">${sims.length}</span>` : '' },
-    visites:     { lab:'📓 Visites', badge: visites.length ? `<span class="bd-badge">${visites.length}</span>` : '' },
-    actions:     { lab:'📅 Actions', badge: actions.length ? `<span class="bd-badge">${actions.length}</span>` : '' },
-    locatif:     { lab:'🔑 Locatif', badge: locActif ? '<span class="bd-badge on">1</span>' : '' },
-    sci:         { lab:'🏛️ SCI', badge: sciBien ? '<span class="bd-badge on">✓</span>' : '' },
+    infos:       { lab:sfAccIcon('doc',15)+' Informations', badge:'' },
+    fin:         { lab:sfAccIcon('euro',15)+' Finances', badge:'' },
+    financement: { lab:sfAccIcon('banque',15)+' Financement', badge: sims.length ? `<span class="bd-badge">${sims.length}</span>` : '' },
+    visites:     { lab:sfAccIcon('carnet',15)+' Visites', badge: visites.length ? `<span class="bd-badge">${visites.length}</span>` : '' },
+    actions:     { lab:sfAccIcon('agenda',15)+' Actions', badge: actions.length ? `<span class="bd-badge">${actions.length}</span>` : '' },
+    locatif:     { lab:sfAccIcon('cle',15)+' Locatif', badge: locActif ? '<span class="bd-badge on">1</span>' : '' },
+    sci:         { lab:sfAccIcon('colonne',15)+' SCI', badge: sciBien ? '<span class="bd-badge on">✓</span>' : '' },
   };
   const etapesGestion = bdEtapesGestion(b);   // P4 : SCI, locataire, loyers
 
@@ -4639,26 +4677,13 @@ const PAGE_LABELS = {accueil:'Tableau de bord',biens:'Mes biens',nouveau:'Ajoute
 // Navigation interne par familles + routage hash (#parametres/section).
 // Sections existantes migrées + nouvelles en "Bientôt disponible".
 
-// Icones de section — trait fin, comme celles du bandeau. Les emojis qui
-  // servaient jusqu'ici juraient avec le reste : leur dessin, leur couleur et
-  // leur graisse dependent du systeme d'exploitation, pas de la charte. Un jeu
-  // SVG suit la couleur du texte et se comporte pareil partout.
-  // Un seul jeu, trois consommateurs : le panneau du bandeau, la colonne de la
-  // page Parametres et le titre de section.
-  const SF_PARAM_ICONS = {
-    user:    '<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.2-5.6 7.5-5.6s7.5 2 7.5 5.6"/>',
-    lock:    '<rect x="4" y="10.5" width="16" height="10" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>',
-    bell:    '<path d="M18 8.6a6 6 0 1 0-12 0c0 5.2-2 6.4-2 6.4h16s-2-1.2-2-6.4"/><path d="M13.7 19a2 2 0 0 1-3.4 0"/>',
-    palette: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18"/><path d="M12 3a9 9 0 0 1 0 18" fill="currentColor" stroke="none" opacity=".35"/>',
-    sliders: '<path d="M5 20v-7M5 9V4M12 20v-9M12 7V4M19 20v-5M19 11V4"/><path d="M2.5 13h5M9.5 7h5M16.5 15h5"/>',
-    plug:    '<path d="M9 3v6M15 3v6"/><path d="M6.5 9h11v3a5.5 5.5 0 0 1-11 0Z"/><path d="M12 17.5V21"/>',
-    data:    '<ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6"/><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/>',
-    bank:    '<path d="M3 9.5 12 4l9 5.5"/><path d="M5.5 9.5V19M9.8 9.5V19M14.2 9.5V19M18.5 9.5V19"/><path d="M3 21h18"/>',
-    wrench:  '<path d="M15.5 4.5a5 5 0 0 0-6.4 6.4L4 16l4 4 5.1-5.1a5 5 0 0 0 6.4-6.4L16.6 9.4 14.6 7.4Z"/>',
-    info:    '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.9" r=".7" fill="currentColor" stroke="none"/>',
-  };
+// Ces dix icones vivaient ici, en double du jeu de l'accueil. Elles sont
+  // desormais dans SF_ACC_ICONS, le jeu unique de la plateforme. `sfIcon` reste
+  // comme point d'entree — une trentaine d'appels s'y referent — mais lit la
+  // meme source que `sfAccIcon`. Deux jeux distincts finissaient par proposer
+  // deux dessins pour la meme idee.
   function sfIcon(nom, taille) {
-    const d = SF_PARAM_ICONS[nom];
+    const d = SF_ACC_ICONS[nom];
     if(!d) return '';
     const t = taille || 17;
     return '<svg width="' + t + '" height="' + t + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
@@ -4766,7 +4791,7 @@ function renderParamsSection() {
   // même via navigation directe par URL (double cloisonnement : nav + rendu).
   if (isParamsSectionAdminOnly(sec) && !isAdmin) {
     c.innerHTML = `
-      <div class="params-section-title">🔒 Accès réservé</div>
+      <div class="params-section-title">${sfIcon('lock',20)} Accès réservé</div>
       <div class="params-section-sub">Cette section est réservée aux administrateurs.</div>`;
     return;
   }
@@ -4809,7 +4834,7 @@ function paramsCompteHtml() {
   const p = currentProfile || {};
   const esc = (s) => (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   return `
-    <div class="params-section-title">👤 Compte</div>
+    <div class="params-section-title">${sfIcon('user',20)} Compte</div>
     <div class="params-section-sub">Informations de votre compte et déconnexion.</div>
     <div class="params-card">
       <div class="params-card-title">Identité</div>
@@ -4899,7 +4924,7 @@ function syncAppearanceControls() { /* plus rien a synchroniser */ }
 function paramsMetierHtml() {
   const p = userPrefs || {};
   return `
-    <div class="params-section-title">⚙️ Préférences métier</div>
+    <div class="params-section-title">${sfIcon('sliders',20)} Préférences métier</div>
     <div class="params-section-sub">Constantes de calcul utilisées dans l'application. Modifient les valeurs par défaut des nouveaux biens et le seuil de rendement considéré comme « bon ».</div>
     <div class="params-card">
       <div class="params-card-title">Valeurs par défaut des nouveaux biens</div>
@@ -4960,7 +4985,7 @@ async function saveMyPreferences() {
 // ── Section À PROPOS ──
 function paramsAproposHtml() {
   return `
-    <div class="params-section-title">ℹ️ À propos</div>
+    <div class="params-section-title">${sfIcon('info',20)} À propos</div>
     <div class="params-section-sub">Informations sur l'application.</div>
     <div class="params-card">
       <div class="params-card-title">Stonefolio</div>
@@ -4987,7 +5012,7 @@ function paramsAproposHtml() {
 
 function paramsDonneesHtml() {
   return `
-    <div class="params-section-title">🗂️ Données</div>
+    <div class="params-section-title">${sfIcon('data',20)} Données</div>
     <div class="params-section-sub">Gérez vos données de test.</div>
     <div class="params-card">
       <div class="params-card-title">Fiches de test</div>
@@ -5011,7 +5036,7 @@ function paramsDonneesHtml() {
 // ── Section MES SCI ──
 function paramsSciHtml() {
   return `
-    <div class="params-section-title">🏛️ Mes SCI</div>
+    <div class="params-section-title">${sfIcon('bank',20)} Mes SCI</div>
     <div class="params-section-sub">Vos sociétés civiles immobilières.</div>
     <div class="params-card">
       <div id="sci-list-container">
@@ -5024,7 +5049,7 @@ function paramsSciHtml() {
 // ── Section MAINTENANCE (admin) ──
 function paramsMaintenanceHtml() {
   return `
-    <div class="params-section-title">🔧 Maintenance</div>
+    <div class="params-section-title">${sfIcon('wrench',20)} Maintenance</div>
     <div class="params-section-sub">Outils techniques d'administration de la plateforme.</div>
     <div class="params-card">
       <div class="params-card-title">Migration du stockage</div>
@@ -8707,7 +8732,7 @@ function renderMarcheRecherche(el) {
   <div class="marche-page">
     <div class="marche-hero">
       <div class="marche-hero-left">
-        <div class="marche-hero-tag">🏛️ Données officielles · DGFiP / data.gouv.fr</div>
+        <div class="marche-hero-tag">${sfAccIcon('colonne',14)} Données officielles · DGFiP / data.gouv.fr</div>
         <div class="marche-hero-title">Marché immobilier</div>
         <div class="marche-hero-sub">Prix au m², évolution, volumes de ventes — données DVF officielles par commune</div>
       </div>
@@ -9296,9 +9321,11 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   const fmtE = v => (v != null) ? Number(v).toLocaleString('fr-FR') + ' €' : '—';
   const yr   = v => v ? `<div class="kpi-year">données ${v}</div>` : '';
 
-  const kpi = (icon, val, lab, annee='', cls='') => `
+  // `icone` est une CLE du jeu SF_ACC_ICONS, plus un emoji : le dessin ne
+  // depend plus du systeme d'exploitation et suit la couleur du texte.
+  const kpi = (icone, val, lab, annee='', cls='') => `
     <div class="marche-kpi">
-      <div class="marche-kpi-icon">${icon}</div>
+      <div class="marche-kpi-icon">${sfAccIcon(icone, 20)}</div>
       <div class="marche-kpi-val ${cls}">${val}</div>
       <div class="marche-kpi-lab">${lab}</div>
       ${yr(annee)}
@@ -9325,19 +9352,19 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   const tailMen = (rawTail && rawTail >= 1 && rawTail <= 5) ? rawTail.toFixed(1) : null;
 
   const kpis1 = [
-    pop                   ? kpi('👥', fmtN(pop),                  'Population',          m.annee_population, 'teal') : '',
-    dens                  ? kpi('🗺️', fmtN(dens),                 'Hab/km²',             m.annee_population) : '',
-    m.surface             ? kpi('📐', Math.round(m.surface/100)+' km²', 'Superficie') : '',
-    m.niveau_vie_median   ? kpi('💶', fmtE(m.niveau_vie_median),   'Niveau de vie médian',m.annee_revenus, 'green') : '',
-    m.taux_pauvrete!=null ? kpi('📊', m.taux_pauvrete.toString().replace('.',',')+' %', 'Taux de pauvreté', m.annee_revenus, m.taux_pauvrete > 20 ? 'orange' : 'green') : '',
-    m.pct_locataires!=null? kpi('🔑', m.pct_locataires+' %',       'Taux de locataires',  m.annee_logements) : '',
-    tailMen               ? kpi('🏠', tailMen,                     'Pers. par ménage',    m.annee_population) : '',
-    m.pct_bac_plus!=null  ? kpi('🎓', m.pct_bac_plus+' %',         'Part Bac+',           m.annee_diplomes) : '',
+    pop                   ? kpi('gens', fmtN(pop),                  'Population',          m.annee_population, 'teal') : '',
+    dens                  ? kpi('pin', fmtN(dens),                 'Hab/km²',             m.annee_population) : '',
+    m.surface             ? kpi('graph', Math.round(m.surface/100)+' km²', 'Superficie') : '',
+    m.niveau_vie_median   ? kpi('euro', fmtE(m.niveau_vie_median),   'Niveau de vie médian',m.annee_revenus, 'green') : '',
+    m.taux_pauvrete!=null ? kpi('graph', m.taux_pauvrete.toString().replace('.',',')+' %', 'Taux de pauvreté', m.annee_revenus, m.taux_pauvrete > 20 ? 'orange' : 'green') : '',
+    m.pct_locataires!=null? kpi('cle', m.pct_locataires+' %',       'Taux de locataires',  m.annee_logements) : '',
+    tailMen               ? kpi('maison', tailMen,                     'Pers. par ménage',    m.annee_population) : '',
+    m.pct_bac_plus!=null  ? kpi('carnet', m.pct_bac_plus+' %',         'Part Bac+',           m.annee_diplomes) : '',
   ].filter(Boolean);
 
   const sec1 = `
     <div class="marche-chart-card">
-      <div class="marche-chart-title">📊 Démographie & Revenus — ${commune}</div>
+      <div class="marche-chart-title">${sfAccIcon('graph',18)} Démographie & Revenus — ${commune}</div>
       <div class="marche-chart-sub">Source : INSEE Melodi · Recensement · Filosophi · geo.api.gouv.fr</div>
       <div class="marche-kpis" style="margin-top:14px;margin-bottom:0">
         ${kpis1.join('') || '<div style="font-size:12px;color:var(--c-muted);padding:8px">Données en cours de chargement…</div>'}
@@ -9347,13 +9374,13 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   // ── SECTION 2 : Marché du travail ────────────────────────────
   // Le taux national sert de repère : 17,8 % ne parle pas sans point de comparaison
   const kpis2 = [
-    m.taux_chomage!=null      ? kpi('📉', m.taux_chomage.toString().replace('.',',')+' %', 'Taux de chômage', m.annee_activite, m.taux_chomage > 12 ? 'orange' : 'green') : '',
-    m.nb_creations_ent!=null  ? kpi('🏢', fmtN(m.nb_creations_ent),'Créations d\'ent.',   m.annee_entreprises, 'teal') : '',
+    m.taux_chomage!=null      ? kpi('graph', m.taux_chomage.toString().replace('.',',')+' %', 'Taux de chômage', m.annee_activite, m.taux_chomage > 12 ? 'orange' : 'green') : '',
+    m.nb_creations_ent!=null  ? kpi('ville', fmtN(m.nb_creations_ent),'Créations d\'ent.',   m.annee_entreprises, 'teal') : '',
   ].filter(Boolean);
 
   const sec2 = kpis2.length ? `
     <div class="marche-chart-card">
-      <div class="marche-chart-title">💼 Marché du travail & Économie — ${commune}</div>
+      <div class="marche-chart-title">${sfAccIcon('ville',18)} Marché du travail & Économie — ${commune}</div>
       <div class="marche-chart-sub">Source : INSEE Melodi · Recensement de la Population · SIDE</div>
       <div class="marche-kpis" style="margin-top:14px;margin-bottom:${m.entEvo?.length >= 2 ? '16px' : '0'}">
         ${kpis2.join('')}
@@ -9415,12 +9442,12 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
         </div>
         <div style="display:flex;flex-direction:column;gap:10px;flex-shrink:0">
           <div class="marche-kpi" style="min-width:140px">
-            <div class="marche-kpi-icon">🏆</div>
+            <div class="marche-kpi-icon">${sfAccIcon('ok', 20)}</div>
             <div class="marche-kpi-val" style="color:${dpeColors[ademe.dominant]||'var(--c-text)'}">${ademe.dominant || '—'}</div>
             <div class="marche-kpi-lab">Classe DPE dominante</div>
           </div>
           ${ademe.pctFG != null ? `<div class="marche-kpi" style="min-width:140px">
-            <div class="marche-kpi-icon">⚠️</div>
+            <div class="marche-kpi-icon">${sfAccIcon('alerte', 20)}</div>
             <div class="marche-kpi-val ${ademe.pctFG > 20 ? 'orange' : 'green'}">${ademe.pctFG} %</div>
             <div class="marche-kpi-lab">Logements F/G (énergivores)</div>
           </div>` : ''}
@@ -9512,7 +9539,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   const ponts = `
     <div class="marche-ponts">
       <div class="marche-ponts-head">
-        <div class="marche-ponts-title">🏘️ Votre pipeline à ${esc(commune)}</div>
+        <div class="marche-ponts-title">${sfAccIcon('maison',18)} Votre pipeline à ${esc(commune)}</div>
         <button class="bd-link" onclick="marcheCreerBien('${commune.replace(/'/g,"\\'")}','${cp||''}')">➕ Créer une fiche bien ici</button>
       </div>
       ${biensIci.length ? `
