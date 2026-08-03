@@ -14,7 +14,11 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-ui);
       margin:0; font-size:var(--sf-font-body); }
-.sfb-wrap{ padding:var(--sf-space-8); max-width:1680px; margin:0 auto; }
+/* L'ecran occupait 1 680 px au maximum et laissait le reste vide sur un grand
+   moniteur, tout en gardant une typographie calee sur les petits ecrans. Les
+   tailles suivent desormais la largeur reelle via clamp() : elles grandissent
+   avec l'ecran mais restent bornees, donc la structure ne casse jamais. */
+.sfb-wrap{ padding:clamp(16px, 1.6vw, 34px); max-width:1840px; margin:0 auto; }
 
 .sfb-note{ border:1px dashed var(--sf-border-strong); border-radius:var(--sf-radius-md);
   padding:var(--sf-space-5) var(--sf-space-6); margin-bottom:var(--sf-space-7);
@@ -22,7 +26,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .sfb-note b{ color:var(--sf-text); }
 
 .sfb-head{ display:flex; align-items:baseline; gap:var(--sf-space-5); margin-bottom:var(--sf-space-6); flex-wrap:wrap; }
-.sfb-head h1{ font-family:var(--sf-font-display); font-size:var(--sf-font-h1);
+.sfb-head h1{ font-family:var(--sf-font-display); font-size:clamp(30px, 2.6vw, 46px);
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight); margin:0; line-height:1; }
 .sfb-head__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); color:var(--sf-text-3); }
 
@@ -35,7 +39,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   margin-bottom:var(--sf-space-6); }
 .sfb-tab{ position:relative; display:inline-flex; align-items:center; gap:var(--sf-space-4);
   padding:var(--sf-space-5) var(--sf-space-6); border:0; background:transparent; cursor:pointer;
-  font-family:var(--sf-font-display); font-size:var(--sf-font-lead); font-weight:var(--sf-weight-semibold);
+  font-family:var(--sf-font-display); font-size:clamp(17px, 1.25vw, 23px); font-weight:var(--sf-weight-semibold);
   color:var(--sf-text-3); letter-spacing:var(--sf-track-snug); }
 .sfb-tab:hover{ color:var(--sf-text-2); }
 .sfb-tab[aria-selected="true"]{ color:var(--sf-text); }
@@ -50,16 +54,16 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .sfb-intro{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin:0 0 var(--sf-space-5); }
 
 /* ── KPI — compacts, pour que la liste commence haut ──────────────────────── */
-.sfb-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
-  gap:var(--sf-space-4); margin-bottom:var(--sf-space-5); }
+.sfb-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:clamp(10px, 0.9vw, 18px); margin-bottom:var(--sf-space-5); }
 .sfb-kpi{ border:var(--sf-border-width) solid var(--sf-border); background:var(--sf-surface);
-  border-radius:var(--sf-radius-md); padding:var(--sf-space-5); }
-.sfb-kpi__l{ display:block; font-size:var(--sf-font-label); text-transform:uppercase;
+  border-radius:var(--sf-radius-md); padding:clamp(14px, 1.2vw, 24px); }
+.sfb-kpi__l{ display:block; font-size:var(--sf-font-caption); text-transform:uppercase;
   letter-spacing:var(--sf-track-caps); color:var(--sf-text-3); font-weight:var(--sf-weight-semibold);
-  margin-bottom:var(--sf-space-2); }
-.sfb-kpi__v{ display:block; font-family:var(--sf-font-display); font-size:var(--sf-font-h2);
+  margin-bottom:var(--sf-space-3); }
+.sfb-kpi__v{ display:block; font-family:var(--sf-font-display); font-size:clamp(26px, 2.1vw, 38px);
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight); line-height:1.05;
-  font-variant-numeric:tabular-nums; }
+  font-variant-numeric:tabular-nums; white-space:nowrap; }
 .sfb-kpi__v--gain{ color:var(--sf-gain); } .sfb-kpi__v--loss{ color:var(--sf-loss); }
 .sfb-kpi__v--alerte{ color:var(--sf-alert); }
 .sfb-kpi__s{ display:block; font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:var(--sf-space-2); }
@@ -103,16 +107,17 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
    chiffres entre eux, ce que l'alignement a droite assurait autrement. */
 .sfb-tablewrap{ border:var(--sf-border-width) solid var(--sf-border); border-radius:var(--sf-radius-md);
   background:var(--sf-surface); overflow-x:auto; }
-table.sfb-t{ width:100%; border-collapse:collapse; font-size:var(--sf-font-body-sm); }
-.sfb-t th{ text-align:left; font-size:var(--sf-font-label); text-transform:uppercase;
+table.sfb-t{ width:100%; border-collapse:collapse; font-size:clamp(13px, 0.85vw, 15px); }
+.sfb-t th{ text-align:left; font-size:var(--sf-font-caption); text-transform:uppercase;
   letter-spacing:var(--sf-track-caps); color:var(--sf-text-2); font-weight:var(--sf-weight-semibold);
-  padding:var(--sf-space-5); border-bottom:var(--sf-border-width) solid var(--sf-border);
+  padding:clamp(12px, 1vw, 18px) clamp(12px, 1vw, 20px); border-bottom:var(--sf-border-width) solid var(--sf-border);
   white-space:nowrap; background:var(--sf-surface-2); position:sticky; top:0; z-index:1; }
 .sfb-t th[data-sort]{ cursor:pointer; user-select:none; }
 .sfb-t th[data-sort]:hover{ color:var(--sf-text); }
 .sfb-t th .ar{ opacity:0; margin-left:4px; }
 .sfb-t th[aria-sort] .ar{ opacity:1; color:var(--sf-brand-vivid); }
-.sfb-t td{ padding:var(--sf-space-5); border-bottom:var(--sf-border-width) solid var(--sf-border);
+.sfb-t td{ padding:clamp(12px, 1.05vw, 20px) clamp(12px, 1vw, 20px);
+  border-bottom:var(--sf-border-width) solid var(--sf-border);
   vertical-align:middle; text-align:left; }
 .sfb-t tbody tr{ cursor:pointer; }
 .sfb-t tbody tr:hover{ background:var(--sf-surface-2); }
@@ -141,7 +146,8 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
 .sfb-rend__f{ display:block; height:100%; border-radius:2px; }
 
 /* ── VUE GRILLE ───────────────────────────────────────────────────────────── */
-.sfb-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:var(--sf-space-6); }
+.sfb-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
+  gap:clamp(12px, 1.1vw, 22px); }
 .sfb-card{ border:var(--sf-border-width) solid var(--sf-border); background:var(--sf-surface);
   border-radius:var(--sf-radius-md); overflow:hidden; cursor:pointer; display:flex; flex-direction:column;
   transition:border-color var(--sf-dur) var(--sf-ease); }
@@ -150,29 +156,41 @@ body[data-dens="compact"] .sfb-t .sub{ display:none; }
 .sfb-card__top{ padding:var(--sf-space-6) var(--sf-space-6) var(--sf-space-5); }
 .sfb-card__st{ display:flex; align-items:center; justify-content:space-between; gap:var(--sf-space-4);
   margin-bottom:var(--sf-space-4); }
-.sfb-card__t{ font-family:var(--sf-font-display); font-size:var(--sf-font-h3);
+.sfb-card__t{ font-family:var(--sf-font-display); font-size:clamp(17px, 1.15vw, 21px);
   font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-snug); margin:0;
   line-height:var(--sf-lh-snug); }
-.sfb-card__loc{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin:var(--sf-space-2) 0 0; }
+.sfb-card__loc{ font-size:var(--sf-font-body-sm); color:var(--sf-text-3); margin:var(--sf-space-3) 0 0; }
 .sfb-card__cf{ border-top:var(--sf-border-width) solid var(--sf-border);
   background:var(--sf-surface-2); padding:var(--sf-space-5) var(--sf-space-6);
   display:flex; align-items:baseline; gap:var(--sf-space-4); }
 .sfb-card__cfl{ font-size:var(--sf-font-label); text-transform:uppercase;
   letter-spacing:var(--sf-track-caps); color:var(--sf-text-3); font-weight:var(--sf-weight-semibold); }
-.sfb-card__cfv{ font-family:var(--sf-font-num); font-size:var(--sf-font-lead);
-  font-weight:var(--sf-weight-bold); font-variant-numeric:tabular-nums; margin-left:auto; }
+.sfb-card__cfv{ font-family:var(--sf-font-num); font-size:clamp(17px, 1.2vw, 22px);
+  font-weight:var(--sf-weight-bold); font-variant-numeric:tabular-nums; margin-left:auto;
+  white-space:nowrap; }
 .sfb-card__stats{ display:grid; grid-template-columns:repeat(4,1fr); border-top:var(--sf-border-width) solid var(--sf-border); }
-.sfb-card__cell{ padding:var(--sf-space-5); border-right:var(--sf-border-width) solid var(--sf-border); }
+.sfb-card__cell{ padding:clamp(10px, 0.9vw, 16px); border-right:var(--sf-border-width) solid var(--sf-border);
+  min-width:0; }
 .sfb-card__cell:last-child{ border-right:0; }
 .sfb-card__cl{ display:block; font-size:var(--sf-font-label); text-transform:uppercase;
   letter-spacing:var(--sf-track-caps); color:var(--sf-text-3); margin-bottom:var(--sf-space-2); }
-.sfb-card__cv{ display:block; font-family:var(--sf-font-num); font-size:var(--sf-font-body-sm);
-  font-weight:var(--sf-weight-semibold); font-variant-numeric:tabular-nums; }
+/* `nowrap` : « 320 000 € » se coupait entre le nombre et son symbole, qui
+   partait seul a la ligne. Un montant et son unite forment un tout — ils ne
+   se separent pas, pas plus qu'on n'ecrirait « 320 000 » puis « euros »
+   dessous. La cellule prefere deborder en ellipse plutot que casser. */
+.sfb-card__cv{ display:block; font-family:var(--sf-font-num); font-size:clamp(13px, 0.88vw, 15px);
+  font-weight:var(--sf-weight-semibold); font-variant-numeric:tabular-nums;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 /* ── VUE KANBAN — reservee a la prospection ───────────────────────────────── */
-.sfb-kb{ display:flex; gap:var(--sf-space-5); overflow-x:auto; padding-bottom:var(--sf-space-5); }
-.sfb-kbcol{ flex:0 0 268px; background:var(--sf-surface-2); border:var(--sf-border-width) solid var(--sf-border);
-  border-radius:var(--sf-radius-md); display:flex; flex-direction:column; max-height:600px; }
+/* Les colonnes s'etirent pour occuper la largeur disponible au lieu de laisser
+   un grand vide a droite quand il y a peu de phases, sans jamais depasser une
+   largeur lisible. */
+.sfb-kb{ display:flex; gap:clamp(12px, 1.1vw, 20px); overflow-x:auto; padding-bottom:var(--sf-space-5);
+  align-items:flex-start; }
+.sfb-kbcol{ flex:1 1 300px; max-width:420px; min-width:280px;
+  background:var(--sf-surface-2); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-md); display:flex; flex-direction:column; max-height:640px; }
 .sfb-kbh{ padding:var(--sf-space-5); border-bottom:var(--sf-border-width) solid var(--sf-border); }
 .sfb-kbh__r{ display:flex; align-items:center; gap:var(--sf-space-4); }
 .sfb-kbh__t{ font-size:var(--sf-font-body-sm); font-weight:var(--sf-weight-semibold); }
@@ -387,14 +405,14 @@ function ligne(b){
     <td><div class="bien">${esc(b.titre)}</div>
         <div class="sub">${esc(b.type)}${b.surf?' · '+b.surf+' m²':''}${b.balise?' · '+esc(b.balise):''}</div></td>
     <td>${b.ville?esc(b.ville):'<span class="muted">—</span>'}<div class="sub">${esc(b.cp)}</div></td>
-    <td class="num">${val(b.prix,' €')}</td>
-    <td class="num">${val(b.loyer,' €')}</td>
-    <td class="num muted">${b.charges?'− '+fmt(b.charges)+' €':'<span class="muted">—</span>'}</td>
+    <td class="num">${val(b.prix,' €')}</td>
+    <td class="num">${val(b.loyer,' €')}</td>
+    <td class="num muted">${b.charges?'− '+fmt(b.charges)+' €':'<span class="muted">—</span>'}</td>
     <td class="num">${rBar}</td>
     <td class="num">${c.code==='manque'
         ? `<span class="sfb-src sfb-src--manque" style="margin-left:0">${c.lbl}</span>
            <span class="sfb-part">${c.m.map(x=>x.label).join(', ')} à renseigner</span>`
-        : `<span class="${cls(c.v)}">${(c.v>0?'+':'')+fmt(c.v)} €</span>
+        : `<span class="${cls(c.v)}">${(c.v>0?'+':'')+fmt(c.v)} €</span>
            <span class="sfb-src sfb-src--${c.code}">${c.lbl}</span>`}</td>
     <td><span class="sf-pill">${esc(b.statut||'—')}</span></td>
   </tr>`;
@@ -423,12 +441,12 @@ function grille(l){
       </div>
       <div class="sfb-card__cf">
         <span class="sfb-card__cfl">Cashflow<span class="sfb-src sfb-src--${c.code}">${c.lbl}</span></span>
-        <span class="sfb-card__cfv ${cls(c.v)}">${c.v!=null?(c.v>0?'+':'')+fmt(c.v)+' €':'—'}</span>
+        <span class="sfb-card__cfv ${cls(c.v)}">${c.v!=null?(c.v>0?'+':'')+fmt(c.v)+' €':'—'}</span>
       </div>
       <div class="sfb-card__stats">
-        <div class="sfb-card__cell"><span class="sfb-card__cl">Prix</span><span class="sfb-card__cv">${val(b.prix,' €')}</span></div>
-        <div class="sfb-card__cell"><span class="sfb-card__cl">Loyer</span><span class="sfb-card__cv">${val(b.loyer,' €')}</span></div>
-        <div class="sfb-card__cell"><span class="sfb-card__cl">Charges</span><span class="sfb-card__cv muted">${val(b.charges,' €')}</span></div>
+        <div class="sfb-card__cell"><span class="sfb-card__cl">Prix</span><span class="sfb-card__cv">${val(b.prix,' €')}</span></div>
+        <div class="sfb-card__cell"><span class="sfb-card__cl">Loyer</span><span class="sfb-card__cv">${val(b.loyer,' €')}</span></div>
+        <div class="sfb-card__cell"><span class="sfb-card__cl">Charges</span><span class="sfb-card__cv muted">${val(b.charges,' €')}</span></div>
         <div class="sfb-card__cell"><span class="sfb-card__cl">Rdt</span>
           <span class="sfb-card__cv ${r==null?'muted':r>=SEUIL?'gain':''}">${r==null?'—':r.toFixed(1)+' %'}</span></div>
       </div>
@@ -446,12 +464,12 @@ function kanban(l){
         <div class="sfb-kbh__r"><span class="sfb-kbh__t">${esc(p)}</span>
           <span class="sfb-kbh__n">${items.length}</span></div>
         <span class="sfb-kbh__sum ${chiffres.length?cls(som):'muted'}">${
-          chiffres.length ? (som>0?'+':'')+fmt(som)+' € par mois' : 'Rien à chiffrer'}</span>
+          chiffres.length ? (som>0?'+':'')+fmt(som)+'  € par mois' : 'Rien à chiffrer'}</span>
       </header>
       <div class="sfb-kbb">${items.map(b=>{ const c=etat(b);
         return `<article class="sfb-kc ${c.code==='manque'?'incomplet':''}"><p class="sfb-kc__t">${esc(b.titre)}</p>
           <p class="sfb-kc__m">${b.ville?esc(b.ville):'Ville à renseigner'} · ${esc(b.type)}</p>
-          ${c.v!=null?`<span class="sfb-kc__cf ${cls(c.v)}">${(c.v>0?'+':'')+fmt(c.v)} €</span> `:''}
+          ${c.v!=null?`<span class="sfb-kc__cf ${cls(c.v)}">${(c.v>0?'+':'')+fmt(c.v)} €</span> `:''}
           <span class="sfb-src sfb-src--${c.code}" style="margin-left:0">${c.lbl}</span></article>`; }).join('')
         || '<p class="sfb-kc__m" style="padding:var(--sf-space-5)">Aucun bien</p>'}</div>
     </section>`; }).join('')}</div>`;
@@ -481,20 +499,20 @@ function dessiner(){
   const som      = chiffres.reduce((s,b)=>s+etat(b).v,0);
 
   document.getElementById('kpis').innerHTML = onglet==='detenus'
-    ? kpi('Cashflow mensuel', chiffres.length?(som>=0?'+':'−')+fmt(Math.abs(som))+' €':'—',
+    ? kpi('Cashflow mensuel', chiffres.length?(som>=0?'+':'−')+fmt(Math.abs(som))+' €':'—',
           'Loyers moins charges et crédits', chiffres.length?(som>=0?'sfb-kpi__v--gain':'sfb-kpi__v--loss'):'') +
       kpi('Au-dessus de votre seuil',
           chiffres.filter(b=>(rend(b)??0)>=SEUIL).length+' <span style="font-size:var(--sf-font-body);color:var(--sf-text-3)">sur '+chiffres.length+'</span>',
           'Rendement brut supérieur à 5 %') +
-      kpi('Capital engagé', fmt(l.reduce((s,b)=>s+(b.prix||0),0))+' €', "Total des prix d'achat") +
+      kpi('Capital engagé', fmt(l.reduce((s,b)=>s+(b.prix||0),0))+' €', "Total des prix d'achat") +
       kpi('Biens à compléter', String(aFaire.length), 'Une information essentielle manque',
           aFaire.length?'sfb-kpi__v--alerte':'')
-    : kpi('Cashflow projeté', chiffres.length?(som>=0?'+':'−')+fmt(Math.abs(som))+' €':'—',
+    : kpi('Cashflow projeté', chiffres.length?(som>=0?'+':'−')+fmt(Math.abs(som))+' €':'—',
           'Si vous achetiez aux conditions saisies', chiffres.length?(som>=0?'sfb-kpi__v--gain':'sfb-kpi__v--loss'):'') +
       kpi('Au-dessus de votre seuil',
           chiffres.filter(b=>(rend(b)??0)>=SEUIL).length+' <span style="font-size:var(--sf-font-body);color:var(--sf-text-3)">sur '+chiffres.length+'</span>',
           'Rendement brut supérieur à 5 %') +
-      kpi('Budget étudié', fmt(l.reduce((s,b)=>s+(b.prix||0),0))+' €', 'Total des prix affichés') +
+      kpi('Budget étudié', fmt(l.reduce((s,b)=>s+(b.prix||0),0))+' €', 'Total des prix affichés') +
       kpi('Fiches à compléter', String(aFaire.length), 'Une information essentielle manque',
           aFaire.length?'sfb-kpi__v--alerte':'');
 
