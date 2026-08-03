@@ -6,6 +6,32 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 let currentUser = null;
 
 // ═══════════════════════════════════════════════════════════
+//   PONT ENTRE LES JETONS CSS ET LE CANVAS
+// ═══════════════════════════════════════════════════════════
+// Un graphique Chart.js est dessine dans un <canvas> : il ne connait pas les
+// feuilles de style et n'interprete pas `var(--sf-gain)`. Les couleurs des
+// courbes doivent donc lui etre passees en valeur resolue.
+//
+// Les relire ici plutot que de les recopier en dur evite la derive silencieuse
+// qui s'est deja produite : la charte peut changer dans tokens.css sans que
+// les six graphiques suivent, et personne ne s'en apercoit avant de les
+// regarder. Le repli couvre le cas ou la feuille n'est pas encore appliquee.
+function sfToken(nom, repli) {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(nom).trim();
+    return v || repli;
+  } catch (e) { return repli; }
+}
+
+// Sans ce reglage, Chart.js ecrit ses legendes et ses graduations dans son
+// gris par defaut (#666), pratiquement invisible sur le fond sombre.
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.color = sfToken('--sf-text-2', '#9BAEA4');
+  Chart.defaults.borderColor = sfToken('--sf-chart-grid', 'rgba(234,240,236,.07)');
+  Chart.defaults.font.family = sfToken('--sf-font-ui', 'system-ui, sans-serif');
+}
+
+// ═══════════════════════════════════════════════════════════
 //   MODULE STORAGE — Gestion des fichiers via Supabase Storage
 //   (remplace progressivement le stockage base64 en DB)
 // ═══════════════════════════════════════════════════════════
@@ -314,7 +340,7 @@ async function doSignup() {
       '<strong>📬 Vérifiez vos emails</strong><br><br>' +
       'Nous avons envoyé un lien de confirmation à <strong>' + email + '</strong>. ' +
       'Cliquez dessus pour activer votre compte.<br><br>' +
-      '<em style="font-size:11px;color:#64748b">Pensez à vérifier vos spams si vous ne le voyez pas.</em>',
+      '<em style="font-size:11px;color:var(--sf-text-2)">Pensez à vérifier vos spams si vous ne le voyez pas.</em>',
       'info'
     );
     // Vider les champs
@@ -348,7 +374,7 @@ async function doReset() {
       '<strong>📬 Email envoyé</strong><br><br>' +
       'Si un compte existe pour <strong>'+email+'</strong>, un lien de réinitialisation vient de partir. ' +
       'Cliquez sur le lien dans le mail pour définir un nouveau mot de passe.<br><br>' +
-      '<em style="font-size:11px;color:#64748b">Pensez à vérifier vos spams. Le lien expire dans 1 heure.</em>',
+      '<em style="font-size:11px;color:var(--sf-text-2)">Pensez à vérifier vos spams. Le lien expire dans 1 heure.</em>',
       'success'
     );
     // Vider le champ
@@ -846,14 +872,14 @@ let adminUsersFilter = 'all'; // 'all' | 'active' | 'pending' | 'disabled'
 // Génère les lignes du tableau utilisateurs
 function buildUserRowsHtml(users, myEmail) {
   if(!users || !users.length) {
-    return '<tr><td colspan="7" style="padding:32px;text-align:center;color:#94a3b8;font-size:13px">Aucun utilisateur dans cette catégorie</td></tr>';
+    return '<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--sf-text-3);font-size:13px">Aucun utilisateur dans cette catégorie</td></tr>';
   }
   return users.map(function(u) {
     var isMe = u.email === myEmail;
     var fullName = esc([u.first_name, u.last_name].filter(Boolean).join(' ') || '—');
     var statusCls = u.status === 'active' ? 'active' : u.status === 'pending' ? 'pending' : 'disabled';
     var statusLabel = u.status === 'active' ? '✅ Actif' : u.status === 'pending' ? '⏳ En attente' : '🚫 Archivé';
-    var meBadge = isMe ? '<span style="font-size:9px;background:#6366f1;color:white;padding:1px 6px;border-radius:4px;font-weight:700;margin-left:6px">MOI</span>' : '';
+    var meBadge = isMe ? '<span style="font-size:9px;background:var(--accent);color:white;padding:1px 6px;border-radius:4px;font-weight:700;margin-left:6px">MOI</span>' : '';
     var roleLabel = u.role === 'admin' ? '👑 Admin' : '👤 Utilisateur';
     var roleCls = u.role === 'admin' ? 'role-badge admin' : 'role-badge user';
     var bg = isMe ? 'background:rgba(99,102,241,0.04)' : 'background:white';
@@ -862,7 +888,7 @@ function buildUserRowsHtml(users, myEmail) {
     // Actions selon le statut
     var actions = [];
     if(isMe) {
-      actions.push('<span style="font-size:11px;color:#94a3b8;font-style:italic">Mon compte</span>');
+      actions.push('<span style="font-size:11px;color:var(--sf-text-3);font-style:italic">Mon compte</span>');
     } else if(u.status === 'pending') {
       // En attente : valider l'accès OU renvoyer l'invitation
       actions.push('<button class="admin-action-btn is-validate admin-validate-btn" data-id="'+u.id+'" data-email="'+esc(u.email)+'" aria-label="Valider l\'accès" title="Activer le compte"><span class="ic">✓</span> Valider</button>');
@@ -878,13 +904,13 @@ function buildUserRowsHtml(users, myEmail) {
     var actionHtml = '<div class="admin-actions-cell">' + actions.join('') + '</div>';
 
     return '<tr style="'+bg+'">'
-      + '<td style="padding:12px 14px;font-size:13px;font-weight:600;border-bottom:1px solid #e2e8f0">'+fullName+meBadge+'</td>'
-      + '<td style="padding:12px 14px;font-size:12px;color:#475569;border-bottom:1px solid #e2e8f0">'+esc(u.email)+'</td>'
-      + '<td style="padding:12px 14px;font-size:12px;color:#475569;border-bottom:1px solid #e2e8f0">'+esc(u.phone||'—')+'</td>'
-      + '<td style="padding:12px 14px;border-bottom:1px solid #e2e8f0"><span class="'+roleCls+'">'+roleLabel+'</span></td>'
-      + '<td style="padding:12px 14px;border-bottom:1px solid #e2e8f0"><span class="status-badge '+statusCls+'">'+statusLabel+'</span></td>'
-      + '<td style="padding:12px 14px;font-size:11px;color:#64748b;border-bottom:1px solid #e2e8f0">'+dateInscription+'</td>'
-      + '<td style="padding:12px 14px;border-bottom:1px solid #e2e8f0">'+actionHtml+'</td>'
+      + '<td style="padding:12px 14px;font-size:13px;font-weight:600;border-bottom:1px solid var(--sf-border)">'+fullName+meBadge+'</td>'
+      + '<td style="padding:12px 14px;font-size:12px;color:var(--sf-text-2);border-bottom:1px solid var(--sf-border)">'+esc(u.email)+'</td>'
+      + '<td style="padding:12px 14px;font-size:12px;color:var(--sf-text-2);border-bottom:1px solid var(--sf-border)">'+esc(u.phone||'—')+'</td>'
+      + '<td style="padding:12px 14px;border-bottom:1px solid var(--sf-border)"><span class="'+roleCls+'">'+roleLabel+'</span></td>'
+      + '<td style="padding:12px 14px;border-bottom:1px solid var(--sf-border)"><span class="status-badge '+statusCls+'">'+statusLabel+'</span></td>'
+      + '<td style="padding:12px 14px;font-size:11px;color:var(--sf-text-2);border-bottom:1px solid var(--sf-border)">'+dateInscription+'</td>'
+      + '<td style="padding:12px 14px;border-bottom:1px solid var(--sf-border)">'+actionHtml+'</td>'
       + '</tr>';
   }).join('');
 }
@@ -960,15 +986,15 @@ async function renderAdmin(el) {
       </div>
       <div class="invite-form-grid">
         <div class="form-group">
-          <label class="form-label">Prénom <span style="color:#dc2626">*</span></label>
+          <label class="form-label">Prénom <span style="color:var(--sf-loss)">*</span></label>
           <input class="form-input" id="invite-prenom" placeholder="Marie" autocomplete="off">
         </div>
         <div class="form-group">
-          <label class="form-label">Nom <span style="color:#dc2626">*</span></label>
+          <label class="form-label">Nom <span style="color:var(--sf-loss)">*</span></label>
           <input class="form-input" id="invite-nom" placeholder="Dupont" autocomplete="off">
         </div>
         <div class="form-group">
-          <label class="form-label">Adresse email <span style="color:#dc2626">*</span></label>
+          <label class="form-label">Adresse email <span style="color:var(--sf-loss)">*</span></label>
           <input class="form-input" id="invite-email" type="email" placeholder="marie.dupont@gmail.com" autocomplete="off">
         </div>
         <div class="form-group">
@@ -995,7 +1021,7 @@ async function renderAdmin(el) {
     </div>
 
     <!-- Liste des utilisateurs -->
-    <div style="background:white;border-radius:14px;box-shadow:var(--c-shadow);padding:20px;margin-top:18px">
+    <div style="background:var(--sf-surface);border-radius:14px;box-shadow:var(--c-shadow);padding:20px;margin-top:18px">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
         <div style="font-size:14px;font-weight:700;color:var(--c-text)">📋 Utilisateurs enregistrés</div>
         <div class="mf-filter-pills">
@@ -1014,16 +1040,16 @@ async function renderAdmin(el) {
         </div>
       </div>
       <div class="users-table-wrap">
-        <table style="width:100%;border-collapse:collapse;background:white">
+        <table style="width:100%;border-collapse:collapse;background:var(--sf-surface)">
           <thead>
-            <tr style="background:#f8fafc">
-              <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #e2e8f0">Nom</th>
-              <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #e2e8f0">Email</th>
-              <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #e2e8f0">Téléphone</th>
-              <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #e2e8f0">Rôle</th>
-              <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #e2e8f0">Statut</th>
-              <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #e2e8f0">Inscription</th>
-              <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #e2e8f0">Actions</th>
+            <tr style="background:var(--sf-surface-2)">
+              <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--sf-text-2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--sf-border)">Nom</th>
+              <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--sf-text-2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--sf-border)">Email</th>
+              <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--sf-text-2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--sf-border)">Téléphone</th>
+              <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--sf-text-2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--sf-border)">Rôle</th>
+              <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--sf-text-2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--sf-border)">Statut</th>
+              <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--sf-text-2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--sf-border)">Inscription</th>
+              <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--sf-text-2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--sf-border)">Actions</th>
             </tr>
           </thead>
           <tbody>${buildUserRowsHtml(filtered, myEmail)}</tbody>
@@ -2467,7 +2493,7 @@ async function tiMigrateToStorage() {
     if (totalMigrated > 0) await loadBiens();
     showNotif(`Migration : ${totalMigrated} fichier(s) migré(s)${totalErrors?', '+totalErrors+' erreur(s)':''}`, totalErrors>0);
   } catch(e) {
-    log(`<br><strong style="color:#dc2626">❌ Erreur globale : ${e.message}</strong>`);
+    log(`<br><strong style="color:var(--sf-loss)">❌ Erreur globale : ${e.message}</strong>`);
     showNotif('Erreur migration : '+e.message, true);
   } finally {
     if(btn){ btn.disabled = false; btn.textContent = '🔄 Lancer la migration base64 → Storage'; }
@@ -3228,7 +3254,7 @@ async function renderBienDetail(el) {
         <div class="detail-grid">
           <div class="detail-item"><div class="detail-label">Loyer après travaux</div><div class="detail-value">${b.loyer_apres_travaux ? fmt(b.loyer_apres_travaux) + ' €' : '—'}</div></div>
           <div class="detail-item"><div class="detail-label">Charges locataire (après travaux)</div><div class="detail-value">${b.charges_locataire_travaux ? fmt(b.charges_locataire_travaux) + ' €' : '—'}</div></div>
-          <div class="detail-item"><div class="detail-label">Cashflow potentiel</div><div class="detail-value" style="font-weight:700;color:${(((b.loyer_apres_travaux||0)+(b.charges_locataire_travaux||0))-((b.mensualite_credit||0)+(b.charge_copro||0)+(b.assurance_logement||0)+(b.taxe_fonciere||0)))>=0?'var(--positive-c)':'#dc2626'}">${fmt(((b.loyer_apres_travaux||0)+(b.charges_locataire_travaux||0))-((b.mensualite_credit||0)+(b.charge_copro||0)+(b.assurance_logement||0)+(b.taxe_fonciere||0)))} €/mois</div></div>
+          <div class="detail-item"><div class="detail-label">Cashflow potentiel</div><div class="detail-value" style="font-weight:700;color:${(((b.loyer_apres_travaux||0)+(b.charges_locataire_travaux||0))-((b.mensualite_credit||0)+(b.charge_copro||0)+(b.assurance_logement||0)+(b.taxe_fonciere||0)))>=0?'var(--positive-c)':'var(--sf-loss)'}">${fmt(((b.loyer_apres_travaux||0)+(b.charges_locataire_travaux||0))-((b.mensualite_credit||0)+(b.charge_copro||0)+(b.assurance_logement||0)+(b.taxe_fonciere||0)))} €/mois</div></div>
         </div>
       </div>` : ''}
     </div>
@@ -3711,7 +3737,7 @@ async function openActionModal(bienId, actionId) {
 
   document.getElementById('adm-modal-body').innerHTML = `
     <div class="sci-form-group">
-      <label class="sci-form-label">Type d'action <span style="color:#dc2626">*</span></label>
+      <label class="sci-form-label">Type d'action <span style="color:var(--sf-loss)">*</span></label>
       <select class="sci-form-input" id="act-type" onchange="actionTypeToggle()">
         ${ACTION_TYPES.map(t=>`<option value="${esc(t)}" ${curType===t?'selected':''}>${esc(t)}</option>`).join('')}
         <option value="__autre__" ${isCustom?'selected':''}>Autre…</option>
@@ -3722,7 +3748,7 @@ async function openActionModal(bienId, actionId) {
       <input class="sci-form-input" id="act-type-custom" type="text" maxlength="60" value="${isCustom?esc(curType):''}" placeholder="Ex : Signature mandat">
     </div>
     <div class="sci-form-group">
-      <label class="sci-form-label">Date <span style="color:#dc2626">*</span></label>
+      <label class="sci-form-label">Date <span style="color:var(--sf-loss)">*</span></label>
       <input class="sci-form-input" id="act-date" type="date" value="${a?.date_action || today}">
     </div>
     <div class="sci-form-group">
@@ -3956,7 +3982,7 @@ async function openDossierModal(bienId){
 
     saveBtn.disabled = false;
   } catch(e) {
-    document.getElementById('adm-modal-body').innerHTML = `<div style="padding:14px 4px;font-size:13px;color:#dc2626">Erreur de chargement : ${esc(e.message)}</div>`;
+    document.getElementById('adm-modal-body').innerHTML = `<div style="padding:14px 4px;font-size:13px;color:var(--sf-loss)">Erreur de chargement : ${esc(e.message)}</div>`;
   }
 }
 
@@ -4288,7 +4314,7 @@ async function bkdocGenerate(){
     console.error('bkdocGenerate:', e);
     bkdocProgress('');
     const el = document.getElementById('bkdoc-progress');
-    if(el){ el.style.display = 'block'; el.innerHTML = '<span style="color:#dc2626">Erreur : ' + esc(e.message) + '</span>'; }
+    if(el){ el.style.display = 'block'; el.innerHTML = '<span style="color:var(--sf-loss)">Erreur : ' + esc(e.message) + '</span>'; }
     showNotif('Erreur lors de la génération : ' + e.message, true);
   } finally {
     btn.disabled = false;
@@ -4541,56 +4567,33 @@ async function saveMyProfile() {
 }
 
 // ── Section APPARENCE ──
+// Le nuancier de six couleurs a ete retire : l'accent n'est plus configurable
+// (arbitrage « DA unique » du 01/08/2026). Il ne s'agit pas d'un reglage perdu
+// mais d'une decision de conception — une couleur choisie au hasard par
+// l'utilisateur ne peut pas garantir les contrastes ni la separation entre le
+// vert de marque et le vert « valeur positive ».
 function paramsApparenceHtml() {
   return `
-    <div class="params-section-title">🎨 Apparence</div>
-    <div class="params-section-sub">Personnalisez les couleurs et l'affichage du tableau de bord.</div>
+    <div class="params-section-title">${sfIcon('palette', 20)} Apparence</div>
+    <div class="params-section-sub">Le thème de Stonefolio.</div>
     <div class="params-card">
-      <div class="params-card-title">Couleur principale</div>
-      <div class="color-grid" id="color-grid">
-        <div class="color-swatch" style="background:#6366f1" onclick="setAccent('#6366f1','#4f46e5',this)" title="Indigo (défaut)"></div>
-        <div class="color-swatch" style="background:#8b5cf6" onclick="setAccent('#8b5cf6','#7c3aed',this)" title="Violet"></div>
-        <div class="color-swatch" style="background:#3b82f6" onclick="setAccent('#3b82f6','#2563eb',this)" title="Bleu"></div>
-        <div class="color-swatch" style="background:#10b981" onclick="setAccent('#10b981','#059669',this)" title="Émeraude"></div>
-        <div class="color-swatch" style="background:#f59e0b" onclick="setAccent('#f59e0b','#d97706',this)" title="Ambre"></div>
-        <div class="color-swatch" style="background:#ef4444" onclick="setAccent('#ef4444','#dc2626',this)" title="Rouge"></div>
-      </div>
-    </div>
-    <!-- Carte « Tableau de bord » retiree en phase 5 : ses trois
-           interrupteurs pilotaient les graphiques de l ancien accueil, qui
-           n existent plus. Le cashflow par bien et la repartition par statut
-           restent consultables dans le Module financier. -->`;
+      <div class="params-card-title">Thème sombre</div>
+      <p class="sci-form-hint">
+        Stonefolio s'affiche en sombre. Les couleurs ne sont plus modifiables :
+        elles portent du sens — le vert signale une valeur positive, le corail une
+        valeur négative — et un accent choisi librement pouvait entrer en conflit
+        avec cette lecture ou tomber sous le seuil de lisibilité.
+      </p>
+      <p class="sci-form-hint">Un mode clair est prévu, il n'est pas encore activé.</p>
+    </div>`;
 }
 
-// ── Section DONNÉES ──
-// Synchronise l'état des contrôles d'apparence avec les préférences chargées
-function syncAppearanceControls() {
-  // Les interrupteurs de graphiques du tableau de bord ont disparu en phase 5
-  // avec les graphiques qu'ils pilotaient : plus rien a synchroniser ici.
-  // Pastille de couleur active
-  const activeAccentCss = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
-  document.querySelectorAll('#color-grid .color-swatch').forEach(s => {
-    const c = s.style.background;
-    // Comparaison souple (rgb vs hex) : on compare via un élément témoin
-    const isActive = colorMatches(c, activeAccentCss);
-    s.classList.toggle('active', isActive);
-    s.textContent = isActive ? '✓' : '';
-  });
-}
-
-// Compare deux couleurs CSS (hex ou rgb) de façon robuste
-function colorMatches(a, b) {
-  if(!a || !b) return false;
-  const norm = (col) => {
-    const d = document.createElement('div');
-    d.style.color = col;
-    document.body.appendChild(d);
-    const rgb = getComputedStyle(d).color;
-    document.body.removeChild(d);
-    return rgb;
-  };
-  try { return norm(a) === norm(b); } catch(e){ return false; }
-}
+// La section Apparence n'a plus de controle a synchroniser : les interrupteurs
+// de graphiques sont partis en phase 5 avec les graphiques, et le nuancier de
+// couleurs avec l'arbitrage « DA unique ». Conservee pour son appelant.
+// `colorMatches`, qui ne servait qu'a retrouver la pastille active du
+// nuancier, est supprimee avec lui.
+function syncAppearanceControls() { /* plus rien a synchroniser */ }
 
 // ── Section PRÉFÉRENCES MÉTIER ──
 function paramsMetierHtml() {
@@ -4731,8 +4734,8 @@ function paramsMaintenanceHtml() {
       <button id="ti-migration-btn" class="btn btn-primary" style="width:100%;font-size:13px" onclick="tiMigrateToStorage()">🔄 Lancer la migration base64 → Storage</button>
       <div id="ti-migration-log" style="display:none;margin-top:10px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:10px;font-size:11px;font-family:monospace;max-height:200px;overflow-y:auto;line-height:1.6"></div>
     </div>
-    <div class="params-card" style="margin-top:14px;border-color:var(--negative,#dc2626)">
-      <div class="params-card-title" style="color:var(--negative,#dc2626)">⚠️ Purge des anciennes données base64</div>
+    <div class="params-card" style="margin-top:14px;border-color:var(--negative,var(--sf-loss))">
+      <div class="params-card-title" style="color:var(--negative,var(--sf-loss))">⚠️ Purge des anciennes données base64</div>
       <div style="font-size:12px;color:var(--c-muted);line-height:1.5;margin-bottom:10px">
         Une fois la migration vers Storage terminée et validée, cette action libère l'espace en base de données
         en vidant les colonnes base64 résiduelles (<code>photos</code>, <code>documents</code>, <code>pdf_data</code>).
@@ -4741,7 +4744,7 @@ function paramsMaintenanceHtml() {
         Aucune donnée non migrée n'est perdue. La structure des colonnes est conservée (porte de sortie).
         L'action est ré-exécutable sans danger (idempotente).
       </div>
-      <button id="ti-purge-btn" class="btn" style="width:100%;font-size:13px;background:var(--negative,#dc2626);color:white;border:none" onclick="tiPurgeLegacyB64()">🗑️ Purger les anciennes données base64</button>
+      <button id="ti-purge-btn" class="btn" style="width:100%;font-size:13px;background:var(--negative,var(--sf-loss));color:white;border:none" onclick="tiPurgeLegacyB64()">🗑️ Purger les anciennes données base64</button>
       <div id="ti-purge-log" style="display:none;margin-top:10px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:10px;font-size:11px;font-family:monospace;max-height:200px;overflow-y:auto;line-height:1.6"></div>
     </div>`;
 }
@@ -4771,7 +4774,7 @@ async function tiPurgeLegacyB64() {
     if(!data || !data.success) throw new Error('Réponse invalide du serveur');
 
     const lines = [
-      `<div style="color:var(--positive,#16a34a);font-weight:700">✓ Purge terminée</div>`,
+      `<div style="color:var(--positive,var(--sf-gain));font-weight:700">✓ Purge terminée</div>`,
       `<div style="margin-top:6px">• biens.photos : <strong>${data.biens_photos_purged}</strong> ligne(s) purgée(s)</div>`,
       `<div>• biens.documents : <strong>${data.biens_documents_purged}</strong> ligne(s) purgée(s)</div>`,
       `<div>• visites.photos : <strong>${data.visites_photos_purged}</strong> ligne(s) purgée(s)</div>`,
@@ -4780,7 +4783,7 @@ async function tiPurgeLegacyB64() {
       `<div>• locataires.documents : <strong>${data.locataires_purged}</strong> ligne(s) purgée(s)</div>`,
     ];
     if(data.biens_photos_skipped_no_storage > 0){
-      lines.push(`<div style="margin-top:6px;color:var(--warning,#f59e0b)">⚠️ ${data.biens_photos_skipped_no_storage} ligne(s) biens.photos NON purgée(s) (pas d'équivalent Storage — protégées).</div>`);
+      lines.push(`<div style="margin-top:6px;color:var(--warning,var(--sf-alert))">⚠️ ${data.biens_photos_skipped_no_storage} ligne(s) biens.photos NON purgée(s) (pas d'équivalent Storage — protégées).</div>`);
     }
     if(data.note){
       lines.push(`<div style="margin-top:6px;color:var(--c-muted);font-style:italic">${data.note}</div>`);
@@ -4788,7 +4791,7 @@ async function tiPurgeLegacyB64() {
     log.innerHTML = lines.join('');
     showNotif('Purge terminée avec succès', false);
   } catch(e) {
-    log.innerHTML = `<div style="color:var(--negative,#dc2626)">✗ Erreur : ${e.message || e}</div>`;
+    log.innerHTML = `<div style="color:var(--negative,var(--sf-loss))">✗ Erreur : ${e.message || e}</div>`;
     showNotif('Erreur lors de la purge : ' + (e.message || e), true);
   } finally {
     btn.disabled = false;
@@ -5248,7 +5251,7 @@ function initMfOverviewCharts(months, serieLoyers, serieSorties, serieCashflow) 
       + (ctx.parsed.y >= 0 ? '+' : '') + Math.round(ctx.parsed.y).toLocaleString('fr-FR') + ' €' }
   };
   const euroAxis = { ticks: { font: { size: 10 }, callback: v => Math.round(v).toLocaleString('fr-FR') + ' €' },
-    grid: { color: 'rgba(100,116,139,0.12)' } };
+    grid: { color: sfToken('--sf-chart-grid','rgba(234,240,236,.07)') } };
 
   const cvCf = document.getElementById('mfo-chart-cashflow');
   if(cvCf) {
@@ -5276,10 +5279,10 @@ function initMfOverviewCharts(months, serieLoyers, serieSorties, serieCashflow) 
         type: 'line',
         data: { labels, datasets: [
           { label: 'Loyers encaissés', data: serieLoyers,
-            borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,0.12)',
+            borderColor: sfToken('--sf-gain','#4ADE80'), backgroundColor: 'rgba(74,222,128,0.14)',
             borderWidth: 2, fill: true, tension: 0.35, pointRadius: 0, pointHoverRadius: 4 },
           { label: 'Sorties (charges + crédit)', data: serieSorties,
-            borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.08)',
+            borderColor: sfToken('--sf-loss','#FF7A6B'), backgroundColor: 'rgba(255,122,107,0.12)',
             borderWidth: 2, fill: true, tension: 0.35, pointRadius: 0, pointHoverRadius: 4 },
         ]},
         options: {
@@ -5541,7 +5544,7 @@ function initMfBienSparklines(biens) {
     const values = cfMensuel.map(m => m.cashflow);
 
     // Couleur dynamique par segment (vert si positif, rouge si négatif)
-    const color = values[values.length - 1] >= 0 ? '#16a34a' : '#dc2626';
+    const color = values[values.length - 1] >= 0 ? sfToken('--sf-gain','#4ADE80') : sfToken('--sf-loss','#FF7A6B');
 
     try {
       mfbCharts[b.id] = new Chart(canvas, {
@@ -6533,7 +6536,7 @@ function renderMfLocataires(c) {
       <div class="kpi-card" style="padding:14px"><div style="font-size:11px;color:var(--c-muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase">Actifs</div>
         <div style="font-size:24px;font-weight:800;margin-top:4px;color:var(--positive)">${cnt['Actif']}</div></div>
       <div class="kpi-card" style="padding:14px"><div style="font-size:11px;color:var(--c-muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase">Candidats</div>
-        <div style="font-size:24px;font-weight:800;margin-top:4px;color:#b45309">${cnt['Candidat']}</div></div>
+        <div style="font-size:24px;font-weight:800;margin-top:4px;color:var(--sf-alert)">${cnt['Candidat']}</div></div>
       <div class="kpi-card" style="padding:14px"><div style="font-size:11px;color:var(--c-muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase">Loyer mensuel actif</div>
         <div style="font-size:24px;font-weight:800;margin-top:4px">${fmt(loyerActifTotal)} €</div></div>
     </div>
@@ -6785,7 +6788,7 @@ function initMfRentaCharts(serieReel, cfPrevMensuel, serieCumulReel, serieCumulP
       + (ctx.parsed.y >= 0 ? '+' : '') + Math.round(ctx.parsed.y).toLocaleString('fr-FR') + ' €' }
   };
   const euroAxis = { ticks: { font: { size: 10 }, callback: v => Math.round(v).toLocaleString('fr-FR') + ' €' },
-    grid: { color: 'rgba(100,116,139,0.12)' } };
+    grid: { color: sfToken('--sf-chart-grid','rgba(234,240,236,.07)') } };
 
   const cvM = document.getElementById('mfr-chart-mensuel');
   if(cvM) {
@@ -6797,7 +6800,7 @@ function initMfRentaCharts(serieReel, cfPrevMensuel, serieCumulReel, serieCumulP
             backgroundColor: serieReel.map(v => (v ?? 0) >= 0 ? 'rgba(22,163,74,0.75)' : 'rgba(220,38,38,0.75)'),
             borderRadius: 4, maxBarThickness: 24, order: 2 },
           { label: 'Prévisionnel', type: 'line', data: Array(12).fill(Math.round(cfPrevMensuel)),
-            borderColor: '#6366f1', borderWidth: 2, borderDash: [6, 4],
+            borderColor: sfToken('--accent','#17A06B'), borderWidth: 2, borderDash: [6, 4],
             pointRadius: 0, pointHoverRadius: 3, fill: false, order: 1 },
         ]},
         options: {
@@ -6815,7 +6818,7 @@ function initMfRentaCharts(serieReel, cfPrevMensuel, serieCumulReel, serieCumulP
     // Couleur de base = signe du dernier cumul connu, pour que la pastille de
     // légende corresponde à la couleur réellement affichée en fin de trajectoire
     const dernierCumul = [...serieCumulReel].reverse().find(v => v != null) ?? 0;
-    const couleurCumul = dernierCumul < 0 ? '#dc2626' : '#16a34a';
+    const couleurCumul = dernierCumul < 0 ? sfToken('--sf-loss','#FF7A6B') : sfToken('--sf-gain','#4ADE80');
     try {
       mfbCharts['renta-cumul'] = new Chart(cvC, {
         type: 'line',
@@ -6824,11 +6827,11 @@ function initMfRentaCharts(serieReel, cfPrevMensuel, serieCumulReel, serieCumulP
           // rouge en dessous (sinon une trajectoire déficitaire s'affiche en vert)
           { label: 'Cumul réel', data: serieCumulReel,
             borderColor: couleurCumul,
-            segment: { borderColor: ctx => ((ctx.p0.parsed.y < 0 || ctx.p1.parsed.y < 0) ? '#dc2626' : '#16a34a') },
+            segment: { borderColor: ctx => ((ctx.p0.parsed.y < 0 || ctx.p1.parsed.y < 0) ? sfToken('--sf-loss','#FF7A6B') : sfToken('--sf-gain','#4ADE80')) },
             fill: { target: 'origin', above: 'rgba(22,163,74,0.10)', below: 'rgba(220,38,38,0.08)' },
             borderWidth: 2.5, tension: 0.3, pointRadius: 0, pointHoverRadius: 4 },
           { label: 'Cumul prévisionnel', data: serieCumulPrev,
-            borderColor: '#6366f1', borderWidth: 2, borderDash: [6, 4],
+            borderColor: sfToken('--accent','#17A06B'), borderWidth: 2, borderDash: [6, 4],
             fill: false, tension: 0.3, pointRadius: 0, pointHoverRadius: 4 },
         ]},
         options: {
@@ -7338,7 +7341,7 @@ function openLocataireModal(id, presetBienId) {
     <div class="sci-form-row">
       <div class="sci-form-group"><label class="sci-form-label">Prénom</label>
         <input class="sci-form-input" id="loc-prenom" value="${l?.prenom||''}" placeholder="Jean"></div>
-      <div class="sci-form-group"><label class="sci-form-label">Nom <span style="color:#dc2626">*</span></label>
+      <div class="sci-form-group"><label class="sci-form-label">Nom <span style="color:var(--sf-loss)">*</span></label>
         <input class="sci-form-input" id="loc-nom" value="${l?.nom||''}" placeholder="Dupont"></div>
     </div>
     <div class="sci-form-row">
@@ -7392,7 +7395,7 @@ function openLocataireModal(id, presetBienId) {
         <input class="sci-form-input" id="loc-jour-paiement" type="number" min="1" max="31" value="${l?.jour_paiement||5}"></div>
     </div>
     <div class="sci-form-row">
-      <div class="sci-form-group"><label class="sci-form-label">Date d'entrée <span style="color:#dc2626">*</span></label>
+      <div class="sci-form-group"><label class="sci-form-label">Date d'entrée <span style="color:var(--sf-loss)">*</span></label>
         <input class="sci-form-input" id="loc-date-entree" type="date" value="${l?.date_entree||''}">
         <div class="sci-form-hint">Requise dès qu'un locataire actif est rattaché à un bien : c'est elle qui détermine les loyers générés.</div></div>
       <div class="sci-form-group"><label class="sci-form-label">Date de sortie</label>
@@ -7847,9 +7850,14 @@ function renderAdmAnnuaire(c) {
     'Notaire':'⚖️','Avocat':'👨‍⚖️','Expert-comptable':'📒','Banquier':'🏦',
     'Agent immobilier':'🏠','Gestionnaire locatif':'🔑','Artisan':'🔨','Syndic':'🏢','Autre':'👤'
   };
+  // Neuf teintes categorielles, remontees en luminosite pour le fond sombre.
+  // Elles restent ecrites en HEXADECIMAL SIX CHIFFRES et non en var(--...) :
+  // la pastille en construit son fond par `${couleur}22`, c'est-a-dire en
+  // ajoutant deux chiffres d'opacite a la fin du code. Une variable CSS ne
+  // supporte pas cette concatenation — `var(--x)22` n'est pas une couleur.
   const roleColors = {
-    'Notaire':'#8b5cf6','Avocat':'#6366f1','Expert-comptable':'#0891b2','Banquier':'#059669',
-    'Agent immobilier':'#d97706','Gestionnaire locatif':'#ea580c','Artisan':'#64748b','Syndic':'#0f172a','Autre':'#6b7280'
+    'Notaire':'#BCA0F5','Avocat':'#9DAEF7','Expert-comptable':'#6BD5D0','Banquier':'#5BD08A',
+    'Agent immobilier':'#F0B429','Gestionnaire locatif':'#FFA36B','Artisan':'#9BAEA4','Syndic':'#8CC0F0','Autre':'#9BAEA4'
   };
 
   // Grouper par rôle
@@ -7880,7 +7888,7 @@ function renderAdmAnnuaire(c) {
         <div class="contact-grid">
           ${cts.map(ct => `
             <div class="contact-card" onclick="openContactModal('${ct.id}')">
-              <div class="contact-avatar" style="background:${roleColors[ct.role]||'#6b7280'}22;color:${roleColors[ct.role]||'#6b7280'}">
+              <div class="contact-avatar" style="background:${roleColors[ct.role]||'#9BAEA4'}22;color:${roleColors[ct.role]||'#9BAEA4'}">
                 ${(ct.prenom||ct.nom||'?').charAt(0).toUpperCase()}
               </div>
               <div class="contact-info">
@@ -8073,10 +8081,10 @@ function openContactModal(id) {
     <div class="sci-form-row">
       <div class="sci-form-group"><label class="sci-form-label">Prénom</label>
         <input class="sci-form-input" id="ct-prenom" value="${ct?.prenom||''}" placeholder="Prénom"></div>
-      <div class="sci-form-group"><label class="sci-form-label">Nom <span style="color:#dc2626">*</span></label>
+      <div class="sci-form-group"><label class="sci-form-label">Nom <span style="color:var(--sf-loss)">*</span></label>
         <input class="sci-form-input" id="ct-nom" value="${ct?.nom||''}" placeholder="Nom de famille"></div>
     </div>
-    <div class="sci-form-group"><label class="sci-form-label">Rôle <span style="color:#dc2626">*</span></label>
+    <div class="sci-form-group"><label class="sci-form-label">Rôle <span style="color:var(--sf-loss)">*</span></label>
       <select class="sci-form-input" id="ct-role" onchange="document.getElementById('ct-role-detail-row').style.display=this.value==='Autre'?'block':'none'">
         ${roles.map(r=>`<option value="${r}" ${ct?.role===r?'selected':''}>${r}</option>`).join('')}
       </select></div>
@@ -8156,7 +8164,7 @@ function openEcheanceModal(id) {
   document.getElementById('adm-modal-save').onclick = saveEcheance;
   document.getElementById('adm-modal-del').onclick = deleteEcheance;
   document.getElementById('adm-modal-body').innerHTML = `
-    <div class="sci-form-group"><label class="sci-form-label">Titre <span style="color:#dc2626">*</span></label>
+    <div class="sci-form-group"><label class="sci-form-label">Titre <span style="color:var(--sf-loss)">*</span></label>
       <input class="sci-form-input" id="ech-titre" value="${e?.titre||''}" placeholder="Ex : Renouvellement assurance PNO"></div>
     <div class="sci-form-row">
       <div class="sci-form-group"><label class="sci-form-label">Type</label>
@@ -8170,7 +8178,7 @@ function openEcheanceModal(id) {
         </select></div>
     </div>
     <div class="sci-form-row">
-      <div class="sci-form-group"><label class="sci-form-label">Date d'échéance <span style="color:#dc2626">*</span></label>
+      <div class="sci-form-group"><label class="sci-form-label">Date d'échéance <span style="color:var(--sf-loss)">*</span></label>
         <input class="sci-form-input" id="ech-date" type="date" value="${e?.date_echeance||''}"></div>
       <div class="sci-form-group"><label class="sci-form-label">Rappel (jours avant)</label>
         <input class="sci-form-input" id="ech-rappel" type="number" value="${e?.rappel_j_avant??30}" min="0" max="365"></div>
@@ -8269,15 +8277,15 @@ function openBilanModal(id) {
       </div>
     </div>
     <div class="sci-form-row">
-      <div class="sci-form-group"><label class="sci-form-label">SCI <span style="color:#dc2626">*</span></label>
+      <div class="sci-form-group"><label class="sci-form-label">SCI <span style="color:var(--sf-loss)">*</span></label>
         <select class="sci-form-input" id="bil-sci">
           <option value="">Sélectionner une SCI</option>
           ${allSCI.map(s=>`<option value="${s.id}" ${b?.sci_id===s.id?'selected':''}>${s.nom_sci}</option>`).join('')}
         </select></div>
-      <div class="sci-form-group"><label class="sci-form-label">Exercice <span style="color:#dc2626">*</span></label>
+      <div class="sci-form-group"><label class="sci-form-label">Exercice <span style="color:var(--sf-loss)">*</span></label>
         <input class="sci-form-input" id="bil-annee" type="number" value="${b?.exercice||anneeActuelle}" min="2020" max="2050"></div>
     </div>
-    <div class="sci-form-group"><label class="sci-form-label">Régime fiscal <span style="color:#dc2626">*</span></label>
+    <div class="sci-form-group"><label class="sci-form-label">Régime fiscal <span style="color:var(--sf-loss)">*</span></label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">
         <label class="regime-option ${!b||b.regime==='IR'?'active':''}">
           <input type="radio" name="bil-regime" value="IR" ${!b||b.regime==='IR'?'checked':''} onchange="this.closest('.sci-form-group').querySelectorAll('.regime-option').forEach(o=>o.classList.toggle('active',o.querySelector('input').checked))">
@@ -8953,7 +8961,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   // ── En-tête commune ──────────────────────────────────────────
   const header = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
-      <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#0f766e,#0891b2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🏙️</div>
+      <div style="width:48px;height:48px;border-radius:50%;background:var(--accent-g);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🏙️</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:22px;font-weight:800;color:var(--c-text)">${commune}</div>
         <div style="font-size:12px;color:var(--c-muted)">${dept}${cp?' · '+cp:''} · Code INSEE : ${codeInsee}</div>
@@ -9146,7 +9154,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   const dvfNote = `
     <div style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:12px 16px;font-size:12px;color:var(--c-muted)">
       ℹ️ Données DVF (prix/m²) indisponibles depuis le navigateur (CORS).
-      Consultez <a href="https://dataviz.cerema.fr/dynmark/" target="_blank" style="color:#0891b2">Dynmark (Cerema)</a> pour les prix au m².
+      Consultez <a href="https://dataviz.cerema.fr/dynmark/" target="_blank" style="color:var(--sf-info)">Dynmark (Cerema)</a> pour les prix au m².
     </div>`;
 
   // ── P5 : ponts Marché → Pipeline ─────────────────────────────
@@ -9195,7 +9203,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
         options:{ responsive:true,
           plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmtTip(c.parsed.y)}`}} },
           scales:{
-            y:{ticks:{callback:v=>fmtTip(v),font:{size:11}},grid:{color:'rgba(0,0,0,0.05)'}},
+            y:{ticks:{callback:v=>fmtTip(v),font:{size:11}},grid:{color:sfToken('--sf-chart-grid','rgba(234,240,236,.07)')}},
             x:{ticks:{font:{size:11}},grid:{display:false}}
           }
         }
@@ -10427,13 +10435,12 @@ function closeSettings() {
   // No-op : l'ancien panneau slide-in n'existe plus, conservé pour compat des appels existants
 }
 
+// Meme raison que applyAccentVars : ces cinq themes repeignaient --accent en
+// style en ligne. Ils survivent comme entree de localStorage (sf_theme) pour
+// ne pas casser la restauration, mais ne touchent plus a la couleur.
 function applyTheme(name) {
   const t = THEMES[name]; if(!t) return;
   currentTheme = name;
-  document.documentElement.style.setProperty('--accent', t.accent);
-  document.documentElement.style.setProperty('--accent2', t.accent2);
-  document.documentElement.style.setProperty('--accent-g', t.grad);
-  // Update active swatch
   document.querySelectorAll('.theme-swatch').forEach(s => {
     s.classList.toggle('active', s.dataset.theme === name);
   });
@@ -10441,34 +10448,23 @@ function applyTheme(name) {
 }
 
 
-// Applique la couleur d'accent et ses teintes dérivées. Source unique :
-// appelée par setAccent, la restauration localStorage et le chargement DB.
-function applyAccentVars(color, colorDark) {
-  const r = document.documentElement.style;
-  r.setProperty('--accent', color);
-  r.setProperty('--accent2', colorDark);
-  r.setProperty('--accent-g', `linear-gradient(135deg, ${color}, ${colorDark})`);
-  // Sans ces teintes, les bandeaux et bordures resteraient indigo alors que
-  // l'utilisateur a choisi une autre couleur dans les Paramètres.
-  r.setProperty('--accent-wash',   color + '14');
-  r.setProperty('--accent-wash-2', color + '24');
-  r.setProperty('--accent-border', color + '47');
-}
-
-function setAccent(color, colorDark, el) {
-  applyAccentVars(color, colorDark);
-  // Update swatches UI
-  document.querySelectorAll('.color-swatch').forEach(s => {
-    s.classList.remove('active');
-    s.textContent = '';
-  });
-  if(el) { el.classList.add('active'); el.textContent = '✓'; }
-  // Suivi en mémoire + cache localStorage (anti-flash au prochain chargement)
-  currentAccent = { color, colorDark };
-  localStorage.setItem('sf_accent', JSON.stringify({color, colorDark}));
-  // Persistance DB (source de vérité, suit le compte partout)
-  persistAppearance();
-}
+// L'ACCENT N'EST PLUS CONFIGURABLE — arbitrage « DA unique » du 01/08/2026.
+//
+// Cette fonction ecrivait --accent et ses derives en style EN LIGNE sur
+// <html>. Un style en ligne l'emporte sur toute regle de feuille : tant
+// qu'elle s'executait, la couleur enregistree en base (bleu #3b82f6 pour le
+// compte de Thomas) repeignait la charte verte a chaque chargement, et aucune
+// correction dans styles.css n'aurait pu tenir. C'etait la cause reelle
+// derriere « le fond est toujours blanc », pas seulement les variables.
+//
+// Elle est conservee en fonction vide plutot que supprimee : deux appelants
+// (loadPreferences, applyAppearanceFromPrefs) l'invoquent encore, et les
+// colonnes accent_color / accent_color2 existent toujours en base.
+// La charte vient desormais uniquement de tokens.css.
+//
+// `setAccent`, seule fonction qui ecrivait un nouvel accent, est supprimee
+// avec le nuancier qui l'appelait.
+function applyAccentVars() { /* volontairement sans effet */ }
 
 // Les trois interrupteurs de graphiques ont ete retires en phase 5 : le nouvel
 // accueil n'a plus de graphiques a montrer ou masquer. Les colonnes
@@ -10573,7 +10569,7 @@ async function loadSCIList() {
   } catch(e) {
     console.error('loadSCIList:', e);
     const c = document.getElementById('sci-list-container');
-    if(c) c.innerHTML = '<div style="font-size:12px;color:#dc2626;padding:4px 0">Erreur — <a href="#" onclick="closeSettings();navigate(\'administration\')" style="color:var(--accent)">Gérer mes SCI</a></div>';
+    if(c) c.innerHTML = '<div style="font-size:12px;color:var(--sf-loss);padding:4px 0">Erreur — <a href="#" onclick="closeSettings();navigate(\'administration\')" style="color:var(--accent)">Gérer mes SCI</a></div>';
   }
 }
 

@@ -12,9 +12,9 @@
 <!-- Socle de jetons Stonefolio (phase 2). Ne declare que des variables : aucun
      effet visuel tant qu'aucun composant ne les consomme. Charge AVANT
      styles.css pour que la migration puisse s'appuyer dessus. -->
-<link rel="stylesheet" href="tokens.css?v=41">
-<link rel="stylesheet" href="components.css?v=41">
-<link rel="stylesheet" href="styles.css?v=41">
+<link rel="stylesheet" href="tokens.css?v=42">
+<link rel="stylesheet" href="components.css?v=42">
+<link rel="stylesheet" href="styles.css?v=42">
 </head>
 <body>
 
@@ -187,7 +187,7 @@
 
 <div class="notif" id="notif"></div>
 
-<script src="app.js?v=41"></script>
+<script src="app.js?v=42"></script>
 
 <!-- LIGHTBOX -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
@@ -364,7 +364,7 @@
       <!-- Infos générales -->
       <div class="sci-section-title">Informations générales</div>
       <div class="sci-form-group">
-        <label class="sci-form-label">Nom de la SCI <span style="color:#dc2626">*</span></label>
+        <label class="sci-form-label">Nom de la SCI <span style="color:var(--sf-loss)">*</span></label>
         <input class="sci-form-input" id="sci-nom" placeholder="Ex : SCI Guénon Investissement" type="text">
       </div>
       <div class="sci-form-row">
