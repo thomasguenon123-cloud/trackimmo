@@ -740,3 +740,88 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
   position:absolute; width:1px; height:1px; padding:0; margin:-1px;
   overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LISTES DÉROULANTES — habillage maison
+   ═══════════════════════════════════════════════════════════════════════════
+   Calé sur le panneau des Paramètres (`.sf-menu__panel` / `.sf-menu__row`) :
+   même surface, même rayon, même élévation, même survol. C'était la référence
+   demandée, et deux composants qui ouvrent un panneau doivent l'ouvrir pareil.
+
+   Sous 720 px, aucun de ces styles ne s'applique : le sélecteur natif reprend
+   la main (voir la requête média en fin de bloc).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.sf-pick{ position:relative; display:inline-flex; }
+
+/* Le <select> reste dans le DOM — il porte la valeur et reçoit les `change` —
+   mais ne se voit plus et ne prend plus le focus. */
+.sf-pick__natif{
+  position:absolute; opacity:0; pointer-events:none;
+  width:100%; height:100%; left:0; top:0; margin:0; border:0; padding:0;
+}
+.sf-pick__btn{
+  display:inline-flex; align-items:center; gap:var(--sf-space-4);
+  height:var(--sf-control-h); padding:0 var(--sf-space-5);
+  background:var(--sf-surface-2); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); color:var(--sf-text);
+  font-family:var(--sf-font-ui); font-size:var(--sf-font-body-sm);
+  cursor:pointer; white-space:nowrap; width:100%; text-align:left;
+  transition:border-color var(--sf-dur) var(--sf-ease), background-color var(--sf-dur) var(--sf-ease);
+}
+.sf-pick__btn:hover:not(:disabled){ border-color:var(--sf-border-strong); }
+.sf-pick__btn:focus-visible{
+  outline:var(--sf-focus-width) solid var(--sf-focus); outline-offset:var(--sf-focus-offset);
+}
+.sf-pick__btn:disabled{ opacity:.5; cursor:not-allowed; }
+.sf-pick__btn[aria-expanded="true"]{
+  border-color:var(--sf-brand-vivid); background:var(--sf-surface-3);
+}
+.sf-pick__val{ flex:1; overflow:hidden; text-overflow:ellipsis; }
+.sf-pick__chev{
+  flex-shrink:0; color:var(--sf-text-3);
+  transition:transform var(--sf-dur) var(--sf-ease);
+}
+.sf-pick__btn[aria-expanded="true"] .sf-pick__chev{ transform:rotate(180deg); }
+
+/* Le panneau vit dans <body>, en `fixed` : un parent en `overflow:hidden` — le
+   tableau, une fenêtre modale — le tronquerait sinon. Son plan est au-dessus
+   des modales, faute de quoi un select DANS une modale s'ouvrirait dessous. */
+.sf-pick__panel{
+  position:fixed; z-index:calc(var(--sf-z-modal) + 100);
+  max-height:min(320px, 60vh); overflow-y:auto;
+  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border-strong);
+  border-radius:var(--sf-radius-md); box-shadow:var(--sf-elev-3);
+  padding:var(--sf-space-3); min-width:180px;
+}
+.sf-pick__opt{
+  display:flex; align-items:center; gap:var(--sf-space-4);
+  padding:var(--sf-space-4) var(--sf-space-5);
+  border-radius:var(--sf-radius-sm); cursor:pointer;
+  font-size:var(--sf-font-body-sm); color:var(--sf-text); white-space:nowrap;
+}
+.sf-pick__lbl{ flex:1; }
+/* Une seule mise en avant à la fois : le survol souris et la navigation
+   clavier écrivent la même classe, sinon deux lignes paraissent actives. */
+.sf-pick__opt.est-survole{ background:var(--sf-surface-3); }
+.sf-pick__opt.est-choisi{ color:var(--sf-brand-vivid); font-weight:var(--sf-weight-semibold); }
+.sf-pick__ok{ flex-shrink:0; opacity:0; color:var(--sf-brand-vivid); }
+.sf-pick__opt.est-choisi .sf-pick__ok{ opacity:1; }
+
+/* Les selects de la plateforme portent des classes variées (.filter-select,
+   .ti-select, .sfb-sel, .sci-form-input, .form-input…). L'enveloppe reprend
+   leur largeur pour ne casser aucune mise en page existante. */
+.sf-pick{ width:100%; }
+.sfb-tools .sf-pick, .filter-bar .sf-pick{ width:auto; }
+
+@media (max-width: 720px){
+  /* Sur mobile le sélecteur natif fait mieux : roulette plein écran, clavier
+     virtuel, accessibilité du système. On lui rend la main entièrement. */
+  .sf-pick__btn{ display:none; }
+  .sf-pick__natif{
+    position:static; opacity:1; pointer-events:auto; height:var(--sf-control-h);
+    padding:0 var(--sf-space-5); background:var(--sf-surface-2); color:var(--sf-text);
+    border:var(--sf-border-width) solid var(--sf-border); border-radius:var(--sf-radius-sm);
+    font-family:var(--sf-font-ui); font-size:var(--sf-font-body-sm);
+  }
+}

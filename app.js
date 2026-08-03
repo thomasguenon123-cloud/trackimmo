@@ -9586,14 +9586,14 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
     if (m.popEvo?.length >= 2) {
       marcheChart = mkLine('chart-pop',
         m.popEvo.map(x=>x.annee), m.popEvo.map(x=>x.val),
-        'rgb(8,145,178)', 'Population', v => v?.toLocaleString('fr-FR')+' hab.');
+        'rgb(107,184,224)', 'Population', v => v?.toLocaleString('fr-FR')+' hab.');
     }
     // Pas de graphique du chômage : le dossier complet INSEE ne publie ce taux
     // que pour l'année la plus récente (aucune série temporelle disponible).
     if (m.entEvo?.length >= 2) {
       mkLine('chart-ent',
         m.entEvo.map(x=>x.annee), m.entEvo.map(x=>x.val),
-        'rgb(99,102,241)', "Créations d'entreprises", v => v?.toLocaleString('fr-FR'));
+        'rgb(23,160,107)', "Créations d'entreprises", v => v?.toLocaleString('fr-FR'));
     }
   }, 80);
 }
@@ -11196,3 +11196,205 @@ async function deleteSCI() {
 }
 
 
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LISTES DÉROULANTES — habillage maison
+   ═══════════════════════════════════════════════════════════════════════════
+   Un <select> natif fait dessiner sa liste d'options PAR LE SYSTÈME
+   D'EXPLOITATION : fond blanc, surlignage bleu Windows, police système. Aucune
+   règle CSS ne peut l'atteindre. C'est la seule surface de Stonefolio qui
+   échappait encore à la charte.
+
+   PARTI : le <select> natif RESTE dans le DOM et garde son rôle de source de
+   vérité. Une cinquantaine d'endroits lisent `element.value` et s'abonnent à
+   `onchange` ; les remplacer aurait été une réécriture à haut risque pour un
+   gain visuel. On se contente de le masquer et de dessiner par-dessus. Chaque
+   choix écrit dans le select puis émet un `change` : le reste du code ne voit
+   aucune différence.
+
+   MOBILE : aucun habillage. Le sélecteur natif y est meilleur — roulette
+   plein écran, gestion du clavier virtuel, accessibilité du système. On ne
+   remplace pas un composant qui fait mieux que ce qu'on écrirait.
+
+   Le panneau est posé dans <body> et positionné en `fixed` : sinon un parent
+   en `overflow:hidden` (le tableau, une fenêtre modale) le tronquerait.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const SF_SEUIL_MOBILE = '(max-width: 720px)';
+let sfSelectOuvert = null;   // { natif, bouton, panneau, index }
+let sfSelectEnCours = false; // garde-fou anti-boucle de l'observateur
+
+function sfSelectMobile() {
+  return window.matchMedia(SF_SEUIL_MOBILE).matches;
+}
+
+function sfSelectLibelle(natif) {
+  const o = natif.options[natif.selectedIndex];
+  return o ? o.textContent : '';
+}
+
+function sfSelectInit(natif) {
+  if (natif.dataset.sfHabille || natif.multiple || natif.size > 1) return;
+  natif.dataset.sfHabille = '1';
+
+  const enveloppe = document.createElement('div');
+  enveloppe.className = 'sf-pick';
+  natif.parentNode.insertBefore(enveloppe, natif);
+  enveloppe.appendChild(natif);
+  // Le natif reste present (source de verite) mais sort du parcours clavier :
+  // c'est le bouton qui porte l'interaction.
+  natif.classList.add('sf-pick__natif');
+  natif.setAttribute('tabindex', '-1');
+
+  const bouton = document.createElement('button');
+  bouton.type = 'button';
+  bouton.className = 'sf-pick__btn';
+  bouton.setAttribute('aria-haspopup', 'listbox');
+  bouton.setAttribute('aria-expanded', 'false');
+  if (natif.getAttribute('aria-label')) bouton.setAttribute('aria-label', natif.getAttribute('aria-label'));
+  if (natif.disabled) bouton.disabled = true;
+  bouton.innerHTML = `<span class="sf-pick__val"></span>
+    <svg class="sf-pick__chev" width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+      aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
+  enveloppe.appendChild(bouton);
+
+  const sync = () => { bouton.querySelector('.sf-pick__val').textContent = sfSelectLibelle(natif); };
+  sync();
+  // Une valeur changee par le code (et non par l'utilisateur) doit se voir.
+  natif.addEventListener('change', sync);
+
+  bouton.addEventListener('click', e => {
+    e.preventDefault(); e.stopPropagation();
+    sfSelectOuvert && sfSelectOuvert.natif === natif ? sfSelectFermer() : sfSelectOuvrir(natif, bouton);
+  });
+  bouton.addEventListener('keydown', e => {
+    if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) {
+      e.preventDefault(); sfSelectOuvrir(natif, bouton);
+    }
+  });
+}
+
+function sfSelectOuvrir(natif, bouton) {
+  sfSelectFermer();
+  if (natif.disabled || !natif.options.length) return;
+
+  const panneau = document.createElement('div');
+  panneau.className = 'sf-pick__panel';
+  panneau.setAttribute('role', 'listbox');
+  panneau.innerHTML = [...natif.options].map((o, i) => `
+    <div class="sf-pick__opt${i === natif.selectedIndex ? ' est-choisi' : ''}"
+         role="option" aria-selected="${i === natif.selectedIndex}" data-i="${i}">
+      <span class="sf-pick__lbl">${esc(o.textContent)}</span>
+      <svg class="sf-pick__ok" width="14" height="14" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"
+        aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+    </div>`).join('');
+  document.body.appendChild(panneau);
+
+  // Positionnement : sous le bouton, ou au-dessus s'il n'y a pas la place.
+  const r = bouton.getBoundingClientRect();
+  panneau.style.minWidth = r.width + 'px';
+  const h = panneau.offsetHeight;
+  const dessous = window.innerHeight - r.bottom;
+  panneau.style.left = Math.max(8, Math.min(r.left, window.innerWidth - panneau.offsetWidth - 8)) + 'px';
+  panneau.style.top = (dessous < h + 12 && r.top > h + 12 ? r.top - h - 6 : r.bottom + 6) + 'px';
+
+  bouton.setAttribute('aria-expanded', 'true');
+  sfSelectOuvert = { natif, bouton, panneau, index: natif.selectedIndex };
+
+  panneau.addEventListener('mousedown', e => {
+    const opt = e.target.closest('.sf-pick__opt');
+    if (!opt) return;
+    e.preventDefault();
+    sfSelectChoisir(parseInt(opt.dataset.i, 10));
+  });
+  sfSelectSurligner(natif.selectedIndex, false);
+  panneau.querySelector('.est-choisi')?.scrollIntoView({ block: 'nearest' });
+}
+
+function sfSelectSurligner(i, defiler = true) {
+  if (!sfSelectOuvert) return;
+  const opts = sfSelectOuvert.panneau.querySelectorAll('.sf-pick__opt');
+  if (!opts.length) return;
+  const n = ((i % opts.length) + opts.length) % opts.length;
+  opts.forEach(o => o.classList.remove('est-survole'));
+  opts[n].classList.add('est-survole');
+  if (defiler) opts[n].scrollIntoView({ block: 'nearest' });
+  sfSelectOuvert.index = n;
+}
+
+function sfSelectChoisir(i) {
+  if (!sfSelectOuvert) return;
+  const { natif } = sfSelectOuvert;
+  if (natif.selectedIndex !== i) {
+    natif.selectedIndex = i;
+    // `change` et non `input` : c'est l'evenement auquel tout le code existant
+    // est abonne. `bubbles` pour que les gestionnaires poses plus haut voient.
+    natif.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  sfSelectFermer();
+}
+
+function sfSelectFermer() {
+  if (!sfSelectOuvert) return;
+  sfSelectOuvert.panneau.remove();
+  sfSelectOuvert.bouton.setAttribute('aria-expanded', 'false');
+  sfSelectOuvert = null;
+}
+
+// Clavier au niveau du document : le panneau n'a pas le focus (il est dans
+// <body>), c'est le bouton qui le garde — donc on ecoute globalement.
+document.addEventListener('keydown', e => {
+  if (!sfSelectOuvert) return;
+  const n = sfSelectOuvert.panneau.querySelectorAll('.sf-pick__opt').length;
+  switch (e.key) {
+    case 'Escape':    e.preventDefault(); sfSelectOuvert.bouton.focus(); sfSelectFermer(); break;
+    case 'ArrowDown': e.preventDefault(); sfSelectSurligner(sfSelectOuvert.index + 1); break;
+    case 'ArrowUp':   e.preventDefault(); sfSelectSurligner(sfSelectOuvert.index - 1); break;
+    case 'Home':      e.preventDefault(); sfSelectSurligner(0); break;
+    case 'End':       e.preventDefault(); sfSelectSurligner(n - 1); break;
+    case 'Enter':
+    case ' ':         e.preventDefault(); sfSelectChoisir(sfSelectOuvert.index); sfSelectOuvert?.bouton.focus(); break;
+    case 'Tab':       sfSelectFermer(); break;
+    default:
+      // Saisie au clavier : on saute a la premiere option qui commence ainsi,
+      // comme le fait un select natif.
+      if (e.key.length === 1) {
+        const opts = [...sfSelectOuvert.panneau.querySelectorAll('.sf-pick__lbl')];
+        const j = opts.findIndex(o => o.textContent.trim().toLowerCase().startsWith(e.key.toLowerCase()));
+        if (j >= 0) sfSelectSurligner(j);
+      }
+  }
+});
+document.addEventListener('mousedown', e => {
+  if (sfSelectOuvert && !e.target.closest('.sf-pick')) sfSelectFermer();
+});
+window.addEventListener('resize', sfSelectFermer);
+// `true` : la phase de capture attrape aussi le defilement d'un conteneur
+// interne, qui ne remonte pas jusqu'a window.
+window.addEventListener('scroll', sfSelectFermer, true);
+
+// Habille tous les selects presents. Idempotent : `data-sf-habille` empeche de
+// traiter deux fois le meme element.
+function sfAmeliorerSelects() {
+  if (sfSelectMobile()) return;
+  sfSelectEnCours = true;
+  try { document.querySelectorAll('select:not([data-sf-habille])').forEach(sfSelectInit); }
+  finally { sfSelectEnCours = false; }
+}
+
+// Les ecrans se redessinent par innerHTML un peu partout : plutot que d'aller
+// appeler sfAmeliorerSelects() dans une cinquantaine de fonctions de rendu — et
+// d'en oublier — on observe le document. Le drapeau evite que nos propres
+// insertions relancent le traitement en boucle.
+(function sfObserverSelects() {
+  let minuteur = null;
+  new MutationObserver(() => {
+    if (sfSelectEnCours) return;
+    clearTimeout(minuteur);
+    minuteur = setTimeout(sfAmeliorerSelects, 30);
+  }).observe(document.documentElement, { childList: true, subtree: true });
+  sfAmeliorerSelects();
+})();
