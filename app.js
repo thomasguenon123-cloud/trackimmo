@@ -485,12 +485,18 @@ function checkRecoveryHash() {
 function notairePct() { return (userPrefs?.notaire_pct ?? 7.0) / 100; }
 
 let allBiens = [], currentPage = 'accueil', editingId = null, charts = {};
-let currentView = 'grid';
+// Vue par defaut : TABLEAU. L'ecran sert a comparer des biens entre eux, ce que
+// sept cartes separees ne permettent pas.
+let currentView = 'tableau';
 let kanbanGroup = 'phase';
 let draggedBienId = null;
-let bienSortBy = 'date';
-let bienPage = 0;
-const BIENS_PER_PAGE = 6;
+let bienSortBy = 'cf';
+let bienSortAsc = false;
+// « Ma prospection » d'abord : c'est la qu'on agit au quotidien.
+let bienOnglet = 'prospect';
+// La pagination a ete retiree : a six fiches par page, sept biens creaient une
+// deuxieme page pour un seul element. Les onglets separent deja les deux
+// ensembles, et le tableau est assez dense pour qu'un defilement suffise.
 
 const PHASE_MAP = {
   'Renseignements Web':'prospection','Vendeur contacté (1ère)':'prospection',
@@ -1276,22 +1282,50 @@ function computeCF(b) {
   return loyer - ch;
 }
 
+// ── INFORMATIONS ESSENTIELLES ────────────────────────────────────────────────
+// Sans l'une d'elles, un bien ne peut pas être chiffré honnêtement.
+//
+// Cette liste fait autorité pour TOUTE la plateforme : la page « Mes biens »
+// écarte ces fiches de ses indicateurs, la fiche affiche « — » sur les valeurs
+// absentes, et l'accueil les remonte dans « À traiter ». Trois écrans, une
+// seule définition — sinon ils finiraient par ne plus être d'accord sur ce
+// qu'est une fiche complète.
+const SF_ESSENTIELS = [
+  { k:'prix_affiche',  lab:'Prix',   num:true  },
+  { k:'loyer_en_etat', lab:'Loyer',  num:true  },
+  { k:'statut',        lab:'Statut', num:false },
+  { k:'ville',         lab:'Ville',  num:false },
+];
+function sfManquants(b) {
+  return SF_ESSENTIELS.filter(c => {
+    const v = b[c.k];
+    if(v == null || v === '') return true;
+    return c.num ? !((parseFloat(v) || 0) > 0) : false;
+  });
+}
+function sfBienComplet(b) { return sfManquants(b).length === 0; }
+
 // ── P2 : quel cashflow afficher pour un bien ──
 // « Acheté » avec loyers saisis → réel (moyenne mensuelle sur 12 mois), prévisionnel en rappel.
-// « Acheté » sans aucun loyer   → état explicite, pas un faux chiffre négatif.
+// Fiche à qui il manque une information essentielle → AUCUN chiffre.
 // Autres statuts               → prévisionnel, étiqueté comme tel.
 function cfDisplayData(b) {
   const prev = computeCF(b);
   const hasPrev = !!(b.mensualite_credit || b.loyer_en_etat);
   const acquis = b.statut === 'Acheté';
+  const manque = sfManquants(b);
   const hasLoyers = acquis && allLoyers.some(l =>
     l.bien_id === b.id && (l.statut === 'Payé' || l.statut === 'Partiel')
     && (parseFloat(l.montant_encaisse) || 0) > 0);
-  if(hasLoyers) return { mode: 'reel', value: mfCashflowReel12M(b).cashflow / 12, prev, hasPrev, attenteReel: false };
-  // Bien acquis sans loyer encaissé saisi : on affiche le PRÉVISIONNEL, qui reste
-  // calculable, plutôt qu'un « Non calculé » qui contredisait la fiche complète.
-  // attenteReel signale que le réel prendra le relais dès la première saisie.
-  return { mode: 'previsionnel', value: hasPrev ? prev : null, prev, hasPrev, attenteReel: acquis };
+  // Le réel prime : quand les loyers sont encaissés, le cashflow est constaté,
+  // même si la fiche reste incomplète par ailleurs.
+  if(hasLoyers) return { mode:'reel', value: mfCashflowReel12M(b).cashflow / 12, prev, hasPrev, attenteReel:false, manque };
+  // ⚠️ Sans loyer estimé, `computeCF` retranche les charges d'un loyer nul et
+  // sort un gros négatif : la plateforme déclarait « Déficitaire » une fiche
+  // dont le loyer n'avait jamais été saisi. Une donnée manquante n'est pas une
+  // conclusion — on ne chiffre pas.
+  if(manque.length) return { mode:'incomplet', value:null, prev, hasPrev, attenteReel:false, manque };
+  return { mode:'previsionnel', value: hasPrev ? prev : null, prev, hasPrev, attenteReel: acquis, manque };
 }
 function fmt(n){return Math.round(n).toLocaleString('fr-FR');}
 function cfCls(cf){return cf>0?'positive':cf<0?'negative':'neutral';}
@@ -1409,14 +1443,22 @@ function sfPointsAttention() {
       action: 'Saisir', cible: `navigate('module-financier')` });
   }
 
-  // 4. Sans loyer estime, le rendement d'une fiche n'est pas calculable.
-  const sansLoyer = prospection.filter(b => !((parseFloat(b.loyer_en_etat) || 0) > 0));
-  if (sansLoyer.length) {
-    const villes = [...new Set(sansLoyer.map(b => b.ville).filter(Boolean))];
+  // 4. Fiche a qui il manque une information essentielle : elle n'est pas
+  //    chiffrable, et surtout elle est ECARTEE des indicateurs de « Mes biens ».
+  //    Le detecteur s'appuie sur SF_ESSENTIELS, la meme liste que la page biens
+  //    et la fiche — les trois ecrans ne peuvent donc pas etre en desaccord sur
+  //    ce qu'est une fiche complete.
+  const incompletes = allBiens.filter(b => b.statut !== 'Abandonné' && !sfBienComplet(b));
+  if (incompletes.length) {
+    // On nomme le champ le plus souvent absent : « complétez vos fiches » ne dit
+    // pas quoi faire, « il manque le loyer » si.
+    const compte = {};
+    incompletes.forEach(b => sfManquants(b).forEach(c => { compte[c.lab] = (compte[c.lab]||0) + 1; }));
+    const top = Object.entries(compte).sort((a,b) => b[1]-a[1])[0];
     pts.push({ rang: 3, type: 'info', icone: 'graph',
-      titre: `${sansLoyer.length} fiche${pl(sansLoyer.length,'','s')} sans loyer estimé`,
-      enjeu: `Leur rendement ne peut pas être calculé.` +
-             (villes.length === 1 ? ` ${pl(sansLoyer.length,'Elle est','Elles sont')} à ${esc(villes[0])}.` : ''),
+      titre: `${incompletes.length} fiche${pl(incompletes.length,'','s')} à compléter`,
+      enjeu: `${pl(incompletes.length,'Elle est exclue','Elles sont exclues')} de vos indicateurs` +
+             (top ? ` — il manque le plus souvent <strong>${esc(top[0].toLowerCase())}</strong>.` : '.'),
       action: 'Compléter', cible: `navigate('biens')` });
   }
 
@@ -1757,149 +1799,210 @@ function renderAccueil(el) {
 }
 
 // ── BIENS ──
+// ═══════════════════════════════════════════════════════════════════════════
+//   MES BIENS — phase 5
+// ═══════════════════════════════════════════════════════════════════════════
+// L'écran sert à ARBITRER entre des biens. Il présentait sept cartes séparées :
+// comparer sept rendements demandait de balayer sept blocs. La vue TABLEAU
+// devient donc la vue par défaut ; grille et kanban restent disponibles.
+//
+// Deux ONGLETS au lieu de deux sections empilées — sans quoi il fallait
+// traverser tout le patrimoine pour atteindre la prospection. « Ma prospection »
+// vient en premier : c'est là qu'on agit au quotidien.
+//
+// Le kanban n'est PAS proposé sur le patrimoine : il range par phase, et les
+// biens détenus partagent tous le statut « Acheté » — une colonne, aucune
+// information.
+
+const sfDetenu = b => b.statut === 'Acheté';
+const sfRendement = b => (b.prix_affiche && b.loyer_en_etat)
+  ? (parseFloat(b.loyer_en_etat) * 12 / parseFloat(b.prix_affiche)) * 100 : null;
+// Charges mensuelles hors loyer — la colonne qui manquait pour comprendre d'où
+// vient un cashflow négatif.
+const sfCharges = b => (parseFloat(b.mensualite_credit)||0) + (parseFloat(b.charge_copro)||0)
+  + (parseFloat(b.assurance_logement)||0) + (parseFloat(b.taxe_fonciere)||0);
+const sfNum = (v, suf) => (v == null || v === '' || !(parseFloat(v) >= 0))
+  ? '<span class="sfb-vide-val">—</span>' : fmt(parseFloat(v)) + (suf || '');
+
 function renderBiens(el) {
-  const cfs = allBiens.map(b=>computeCF(b));
-  const total = allBiens.length;
-  const totalCF = cfs.reduce((a,b)=>a+b,0);
-  const positifs = cfs.filter(c=>c>0).length;
-  const best = cfs.length?Math.max(...cfs):0;
-  const worst = cfs.length?Math.min(...cfs):0;
-
   el.innerHTML = `
-    <div class="biens-layout">
-      <!-- KPIs colonne gauche -->
-      <div class="biens-kpi-col">
-        <div class="biens-kpi-title">Synthèse</div>
-        <div class="biens-kpi-card"><div class="bk-label">Nombre de fiches</div><div class="bk-value">${total}</div></div>
-        <div class="biens-kpi-card"><div class="bk-label">Cashflow prévi total</div><div class="bk-value ${cfCls(totalCF)}">${fmt(totalCF)} €</div></div>
-        <div class="biens-kpi-card"><div class="bk-label">Biens rentables</div><div class="bk-value positive">${positifs} / ${total}</div></div>
-        <div class="biens-kpi-card"><div class="bk-label">Meilleur cashflow</div><div class="bk-value positive">${fmt(best)} €</div></div>
-        <div class="biens-kpi-card"><div class="bk-label">Pire cashflow</div><div class="bk-value ${worst<0?'negative':''}">${fmt(worst)} €</div></div>
-      </div>
-
-      <!-- Colonne principale -->
-      <div class="biens-main">
-        <!-- Barre de filtres horizontale -->
-        <div class="filter-bar">
-          <span class="filter-bar-label">Filtres</span>
-          <div class="filter-sep"></div>
-          <!-- Le filtre n'offrait que 10 statuts sur 19 et oubliait le type
-               « Autre » : on ne pouvait pas filtrer sur un bien range dans un
-               statut absent de la liste. Les deux listes viennent du registre. -->
-          <select class="filter-select" id="f-statut" onchange="applyFilters()">
-            ${TI_BIENS.options('STATUTS', null, 'Tous les statuts')}
-          </select>
-          <select class="filter-select" id="f-type" onchange="applyFilters()" style="min-width:110px">
-            ${TI_BIENS.options('TYPES', null, 'Tous types')}
-          </select>
-          <input class="filter-input" id="f-ville" placeholder="Ville..." oninput="applyFilters()">
-          <select class="filter-select" id="f-rent" onchange="applyFilters()" style="min-width:110px">
-            <option value="">Rentabilité</option>
-            <option value="positive">Positifs</option>
-            <option value="negative">Négatifs</option>
-          </select>
-          <div class="sort-sep"></div>
-          <span class="sort-label">Trier</span>
-          <select class="filter-select" id="f-sort" onchange="applySort()" style="min-width:150px">
-            <option value="date">Date d'ajout ↓</option>
-            <option value="cf_desc">Cashflow ↓</option>
-            <option value="cf_asc">Cashflow ↑</option>
-            <option value="prix_desc">Prix ↓</option>
-            <option value="prix_asc">Prix ↑</option>
-            <option value="rend_desc">Rendement ↓</option>
-            <option value="nom_az">Nom A → Z</option>
-          </select>
-        </div>
-
-        <!-- Header : titre | pagination | toggle -->
-        <div class="biens-header-bar">
-          <!-- Gauche : titre + count -->
-          <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
-            <div class="section-title">Biens prospectés</div>
-            <span class="count-pill" id="biens-count">${total} bien${total>1?'s':''}</span>
-          </div>
-          <!-- Centre : pagination (masquée en kanban) -->
-          <div id="biens-pagination-top" style="display:${currentView==='kanban'?'none':'flex'};align-items:center;justify-content:center;flex:1;min-width:0;"></div>
-          <!-- Droite : toggle + groupBy -->
-          <div class="view-toggle-bar" style="flex-shrink:0;">
-            <div class="view-toggle">
-              <button class="view-btn ${currentView==='grid'?'active':''}" onclick="setView('grid')" title="Vue grille">⊞ Grille</button>
-              <button class="view-btn ${currentView==='kanban'?'active':''}" onclick="setView('kanban')" title="Vue kanban">▤ Kanban</button>
-            </div>
-            <div id="kanban-group-wrap" style="display:${currentView==='kanban'?'flex':'none'};align-items:center;gap:6px;">
-              <span style="font-size:11px;font-weight:600;color:var(--c-muted);white-space:nowrap;">Grouper par</span>
-              <select class="kanban-group-select" id="kanban-group-sel" onchange="setKanbanGroup(this.value)">
-                <option value="phase" ${kanbanGroup==='phase'?'selected':''}>Phase</option>
-                <option value="ville" ${kanbanGroup==='ville'?'selected':''}>Département</option>
-                <option value="type" ${kanbanGroup==='type'?'selected':''}>Type de bien</option>
-              </select>
-            </div>
-            <!-- Action de niveau page : elle vit avec le toggle de vue, pas dans
-                 la barre de filtres qui est en flex-wrap et la rejetait seule
-                 sur une deuxieme ligne. -->
-            <button class="icon-btn" onclick="exportBiensCSV()" title="Exporte les biens actuellement affichés, filtres et tri compris" aria-label="Exporter les biens affichés au format CSV">⬇ CSV</button>
-          </div>
-        </div>
-
-        <!-- Contenu : grille ou kanban -->
-        <div id="biens-content">
-          ${renderBiensContent(allBiens)}
-        </div>
-      </div>
+    <div class="sfb-head">
+      <h1>Mes biens</h1>
+      <span class="sfb-head__n sf-num" id="sfb-cpt"></span>
     </div>
-  `;
+
+    <div class="sfb-tabs" role="tablist">
+      <button class="sfb-tab" role="tab" id="sfb-t-prospect" onclick="sfSetOnglet('prospect')">
+        Ma prospection <span class="sfb-tab__n sf-num" id="sfb-n-prospect"></span>
+        <span class="sfb-tab__todo" id="sfb-dot-prospect" title="Des fiches sont à compléter"></span>
+      </button>
+      <button class="sfb-tab" role="tab" id="sfb-t-detenus" onclick="sfSetOnglet('detenus')">
+        Mon patrimoine <span class="sfb-tab__n sf-num" id="sfb-n-detenus"></span>
+        <span class="sfb-tab__todo" id="sfb-dot-detenus" title="Des biens sont à compléter"></span>
+      </button>
+    </div>
+
+    <div class="sfb-tools">
+      <div class="sfb-search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="f-recherche" type="search" placeholder="Titre, ville, code postal…" oninput="applyFilters()" aria-label="Rechercher un bien">
+      </div>
+      <select class="sfb-sel" id="f-filtre-type" onchange="applyFilters()" aria-label="Type de bien">
+        ${TI_BIENS.options('TYPES', null, 'Tous types')}
+      </select>
+      <select class="sfb-sel" id="f-etat" onchange="applyFilters()" aria-label="Complétude">
+        <option value="">Complètes et à compléter</option>
+        <option value="ok">Fiches complètes</option>
+        <option value="ko">À compléter seulement</option>
+      </select>
+      <select class="sfb-sel" id="f-dens" onchange="sfSetDensite(this.value)" aria-label="Densité">
+        <option value="confort">Confort</option><option value="compact">Compact</option>
+      </select>
+      <span class="sfb-spacer"></span>
+      <div class="sfb-views" role="group" aria-label="Vue">
+        <button class="sfb-view" id="sfb-v-tableau" onclick="setView('tableau')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 5h18M3 12h18M3 19h18"/></svg>Tableau</button>
+        <button class="sfb-view" id="sfb-v-grille" onclick="setView('grille')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Grille</button>
+        <button class="sfb-view" id="sfb-v-kanban" onclick="setView('kanban')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg>Kanban</button>
+      </div>
+      <select class="sfb-sel" id="sfb-group" onchange="setKanbanGroup(this.value)" aria-label="Grouper le kanban par">
+        <option value="phase">Grouper par phase</option>
+        <option value="ville">Grouper par département</option>
+        <option value="type">Grouper par type</option>
+      </select>
+      <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="exportBiensCSV()"
+              title="Exporte les biens actuellement affichés, filtres compris">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg> CSV</button>
+      <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="navigate('nouveau')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter</button>
+    </div>
+
+    <div class="sfb-kpis" id="sfb-kpis"></div>
+    <p class="sfb-foot" id="sfb-foot"></p>
+    <div id="biens-content"></div>
+
+    <div class="sfb-legend">
+      <span><span class="sfb-src sfb-src--reel">Réel</span> Calculé sur vos loyers encaissés</span>
+      <span><span class="sfb-src sfb-src--attente">Attente</span> Bien acquis, loyers pas encore pointés</span>
+      <span><span class="sfb-src sfb-src--estime">Estimé</span> Projection avant achat</span>
+      <span><span class="sfb-src sfb-src--manque">À compléter</span> Une information essentielle manque</span>
+    </div>`;
+  applyFilters();
 }
 
-function buildPaginationHtml(sorted) {
-  const totalPages = Math.ceil(sorted.length / BIENS_PER_PAGE);
-  if(totalPages <= 1) return '';
-  const prevDisabled = bienPage === 0 ? 'disabled' : '';
-  const nextDisabled = bienPage === totalPages - 1 ? 'disabled' : '';
-  let pages = '';
-  for(let i = 0; i < totalPages; i++) {
-    const near = Math.abs(i - bienPage) <= 1;
-    const edge = i === 0 || i === totalPages - 1;
-    if(near || edge) {
-      if(i > 1 && near && Math.abs((i-1) - bienPage) > 1 && i-1 !== 0)
-        pages += `<span class="pg-info">…</span>`;
-      if(i > 0 && !near && i === totalPages-1 && bienPage < totalPages-3)
-        pages += `<span class="pg-info">…</span>`;
-      pages += `<button class="pg-btn${i===bienPage?' active':''}" onclick="goToPage(${i})">${i+1}</button>`;
-    }
-  }
-  const start = bienPage * BIENS_PER_PAGE;
-  return `
-    <button class="pg-btn pg-btn-sm" onclick="goToPage(${bienPage-1})" ${prevDisabled}>← Préc.</button>
-    ${pages}
-    <button class="pg-btn pg-btn-sm" onclick="goToPage(${bienPage+1})" ${nextDisabled}>Suiv. →</button>
-    <span class="pg-info">${start+1}–${Math.min(start+BIENS_PER_PAGE,sorted.length)} / ${sorted.length}</span>`;
-}
-
-function updatePaginationTop(sorted) {
-  const el = document.getElementById('biens-pagination-top');
-  if(!el) return;
-  const html = buildPaginationHtml(sorted);
-  el.innerHTML = html;
-  el.style.display = (currentView==='kanban' || !html) ? 'none' : 'flex';
-}
-
+// Redessine tout ce qui dépend des filtres et de l'onglet. Un seul point
+// d'entrée : les indicateurs ne peuvent pas se désynchroniser de la liste.
 function renderBiensContent(biens) {
-  if(currentView === 'kanban') {
-    updatePaginationTop([]);
-    return renderKanban(biens);
-  }
-  const sorted = getSortedBiens(biens);
-  if(!sorted.length) {
-    updatePaginationTop([]);
-    return '<div class="empty-state"><h3>Aucun bien</h3><p>Ajoutez votre premier bien prospecté.</p></div>';
-  }
-  const totalPages = Math.ceil(sorted.length / BIENS_PER_PAGE);
-  if(bienPage >= totalPages) bienPage = Math.max(0, totalPages - 1);
-  const start = bienPage * BIENS_PER_PAGE;
-  const paged = sorted.slice(start, start + BIENS_PER_PAGE);
-  // Mettre à jour la pagination dans le header
-  setTimeout(() => updatePaginationTop(sorted), 0);
-  return `<div class="biens-grid">${paged.map(renderCard).join('')}</div>`;
+  const detenus = biens.filter(sfDetenu);
+  const prospect = biens.filter(b => !sfDetenu(b));
+  const l = getSortedBiens(bienOnglet === 'detenus' ? detenus : prospect);
+
+  const $ = id => document.getElementById(id);
+  if($('sfb-cpt')) $('sfb-cpt').textContent = `${biens.length} fiche${biens.length>1?'s':''} sur ${allBiens.length}`;
+  if($('sfb-n-prospect')) $('sfb-n-prospect').textContent = prospect.length;
+  if($('sfb-n-detenus'))  $('sfb-n-detenus').textContent  = detenus.length;
+  if($('sfb-t-prospect')) $('sfb-t-prospect').setAttribute('aria-selected', String(bienOnglet==='prospect'));
+  if($('sfb-t-detenus'))  $('sfb-t-detenus').setAttribute('aria-selected', String(bienOnglet==='detenus'));
+  if($('sfb-dot-prospect')) $('sfb-dot-prospect').style.display = prospect.every(sfBienComplet) ? 'none' : '';
+  if($('sfb-dot-detenus'))  $('sfb-dot-detenus').style.display  = detenus.every(sfBienComplet)  ? 'none' : '';
+  // Kanban et regroupement n'ont de sens que sur la prospection.
+  if($('sfb-v-kanban')) $('sfb-v-kanban').style.display = bienOnglet==='detenus' ? 'none' : '';
+  if($('sfb-group'))    $('sfb-group').style.display    = (bienOnglet==='prospect' && currentView==='kanban') ? '' : 'none';
+  ['tableau','grille','kanban'].forEach(k => {
+    const btn = $('sfb-v-'+k); if(btn) btn.setAttribute('aria-pressed', String(k===currentView));
+  });
+
+  // Les fiches incomplètes sont écartées de TOUS les indicateurs : additionner
+  // des charges sans le loyer en face exagère la perte.
+  const chiffres = l.filter(b => cfDisplayData(b).value != null);
+  const aFaire   = l.filter(b => !sfBienComplet(b));
+  const somme    = chiffres.reduce((s,b) => s + cfDisplayData(b).value, 0);
+  const seuil    = parseFloat(userPrefs?.seuil_rentabilite) || 5;
+  const auSeuil  = chiffres.filter(b => (sfRendement(b) ?? 0) >= seuil).length;
+  const capital  = l.reduce((s,b) => s + (parseFloat(b.prix_affiche) || 0), 0);
+  const kpi = (lab,val,sub,cl) => `<div class="sfb-kpi"><span class="sfb-kpi__l">${lab}</span>
+    <span class="sfb-kpi__v${cl?' '+cl:''}">${val}</span><span class="sfb-kpi__s">${sub}</span></div>`;
+  const cfCl = chiffres.length ? (somme>=0 ? 'sfb-kpi__v--gain' : 'sfb-kpi__v--loss') : '';
+  const cfVal = chiffres.length ? (somme>=0?'+':'−')+fmt(Math.abs(somme))+' €' : '—';
+
+  if($('sfb-kpis')) $('sfb-kpis').innerHTML = bienOnglet==='detenus'
+    ? kpi('Cashflow mensuel', cfVal, 'Loyers moins charges et crédits', cfCl)
+      + kpi('Au-dessus de votre seuil', `${auSeuil} <span class="sfb-kpi__sur">sur ${chiffres.length}</span>`,
+            `Rendement brut supérieur à ${seuil} %`)
+      + kpi('Capital engagé', fmt(capital)+' €', "Total des prix d'achat")
+      + kpi('Biens à compléter', String(aFaire.length), 'Une information essentielle manque',
+            aFaire.length ? 'sfb-kpi__v--alerte' : '')
+    : kpi('Cashflow projeté', cfVal, 'Si vous achetiez aux conditions saisies', cfCl)
+      + kpi('Au-dessus de votre seuil', `${auSeuil} <span class="sfb-kpi__sur">sur ${chiffres.length}</span>`,
+            `Rendement brut supérieur à ${seuil} %`)
+      + kpi('Budget étudié', fmt(capital)+' €', 'Total des prix affichés')
+      + kpi('Fiches à compléter', String(aFaire.length), 'Une information essentielle manque',
+            aFaire.length ? 'sfb-kpi__v--alerte' : '');
+
+  if($('sfb-foot')) $('sfb-foot').innerHTML = aFaire.length
+    ? `<b>${aFaire.length} fiche${aFaire.length>1?'s':''}</b> ${aFaire.length>1?'sont exclues':'est exclue'} des indicateurs
+       ci-dessus, faute d'une information essentielle. ${aFaire.length>1?'Elles apparaissent':'Elle apparaît'}
+       aussi dans « À traiter » sur l'accueil.` : '';
+
+  if(!l.length) return `
+    <div class="bd-empty-state">
+      <div class="bd-empty-icon">${sfAccIcon('maison', 24)}</div>
+      <h3>${bienOnglet==='detenus' ? 'Aucun bien acquis' : 'Aucune fiche en prospection'}</h3>
+      <p>${bienOnglet==='detenus'
+        ? 'Vos biens apparaîtront ici une fois leur statut passé à « Acheté ».'
+        : 'Ajoutez une annonce pour suivre son rendement jusqu\'à la signature.'}</p>
+      <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="navigate('nouveau')">Ajouter un bien</button>
+    </div>`;
+
+  if(currentView === 'kanban' && bienOnglet === 'prospect') return renderKanban(l);
+  if(currentView === 'grille') return `<div class="sfb-grid">${l.map(renderCard).join('')}</div>`;
+  return renderBiensTableau(l);
+}
+
+// ── VUE TABLEAU ─────────────────────────────────────────────────────────────
+// Tout est aligné à gauche, en-têtes comprises : le sens de lecture de la
+// plateforme est gauche → droite. `tabular-nums` maintient l'alignement des
+// chiffres entre eux, ce que l'alignement à droite assurait autrement.
+function renderBiensTableau(l) {
+  const seuil = parseFloat(userPrefs?.seuil_rentabilite) || 5;
+  const th = (c,t) => `<th data-sort="${c}"${bienSortBy===c?` aria-sort="${bienSortAsc?'ascending':'descending'}"`:''}
+      onclick="setTriBiens('${c}')" tabindex="0" onkeydown="if(event.key==='Enter')setTriBiens('${c}')">
+      ${t}<span class="ar">${bienSortAsc?'↑':'↓'}</span></th>`;
+  return `<div class="sfb-tablewrap"><table class="sfb-t">
+    <thead><tr>
+      ${th('nom','Bien')}<th>Ville</th>${th('prix','Prix')}${th('loyer','Loyer')}
+      <th>Charges</th>${th('rend','Rendement')}${th('cf','Cashflow / mois')}<th>Statut</th>
+    </tr></thead>
+    <tbody>${l.map(b => {
+      const d = cfDisplayData(b), r = sfRendement(b), ch = sfCharges(b);
+      const srcCls = d.mode==='reel' ? 'reel' : d.mode==='incomplet' ? 'manque'
+                   : d.attenteReel ? 'attente' : 'estime';
+      const srcLbl = d.mode==='reel' ? 'Réel' : d.mode==='incomplet' ? 'À compléter'
+                   : d.attenteReel ? 'Attente' : 'Estimé';
+      return `<tr class="${d.mode==='incomplet'?'incomplet':''}" onclick="openDetail('${b.id}')">
+        <td><div class="sfb-t__b">${esc(b.titre || 'Sans titre')}</div>
+            <div class="sfb-t__s">${esc(b.type_bien || '—')}${b.surface_m2?' · '+esc(b.surface_m2)+' m²':''}${b.balise?' · '+esc(b.balise):''}</div></td>
+        <td>${b.ville ? esc(b.ville) : '<span class="sfb-vide-val">—</span>'}
+            <div class="sfb-t__s">${esc(b.code_postal || '')}</div></td>
+        <td class="sf-num">${sfNum(b.prix_affiche,' €')}</td>
+        <td class="sf-num">${sfNum(b.loyer_en_etat,' €')}</td>
+        <td class="sf-num sfb-charges">${ch>0 ? '− '+fmt(ch)+' €' : '<span class="sfb-vide-val">—</span>'}</td>
+        <td class="sf-num">${r==null ? '<span class="sfb-vide-val">—</span>' : `
+          <span class="sfb-rend"><span class="sfb-rend__b"><span class="sfb-rend__f"
+            style="width:${Math.min(100, r/10*100)}%;background:${r>=seuil?'var(--sf-gain)':'var(--sf-alert)'}"></span></span>
+          <span class="${r>=seuil?'sf-gain':''}">${r.toFixed(1)} %</span></span>`}</td>
+        <td class="sf-num">${d.mode==='incomplet'
+          ? `<span class="sfb-src sfb-src--manque sfb-src--seul">À compléter</span>
+             <span class="sfb-part">${d.manque.map(x=>x.lab).join(', ')} à renseigner</span>`
+          : d.value == null
+            ? '<span class="sfb-vide-val">—</span>'
+            : `<span class="${d.value>0?'sf-gain':d.value<0?'sf-loss':''}">${(d.value>0?'+':'')+fmt(d.value)} €</span>
+               <span class="sfb-src sfb-src--${srcCls}">${srcLbl}</span>`}</td>
+        <td><span class="statut-pill phase-${(PHASE_MAP[b.statut]||'generic')}">${esc(b.statut || '—')}</span></td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
 }
 
 // ── KANBAN ──
@@ -2111,134 +2214,103 @@ async function kanbanDrop(e, colEl) {
 // ── HELPERS VUE ──
 function setView(v) {
   currentView = v;
-  const el = document.getElementById('content');
-  if(el && currentPage==='biens') renderBiens(el);
+  applyFilters();
 }
-function setKanbanGroup(g) {
-  kanbanGroup = g;
-  const content = document.getElementById('biens-content');
-  const wrap = document.getElementById('kanban-group-wrap');
-  if(wrap) wrap.style.display = 'flex';
-  if(content) content.innerHTML = renderBiensContent(getFilteredBiens());
+function sfSetOnglet(o) {
+  bienOnglet = o;
+  // Le kanban range par phase : sur le patrimoine il n'y aurait qu'une colonne
+  // « Acheté ». On retombe sur le tableau plutôt que d'afficher une vue vide de sens.
+  if(bienOnglet === 'detenus' && currentView === 'kanban') currentView = 'tableau';
+  applyFilters();
 }
+function sfSetDensite(d) {
+  document.body.dataset.densite = d;
+  try { localStorage.setItem('sf_densite', d); } catch(e){}
+}
+function setKanbanGroup(g) { kanbanGroup = g; applyFilters(); }
+
 function getFilteredBiens() {
-  const statut = document.getElementById('f-statut')?.value||'';
-  const type = document.getElementById('f-type')?.value||'';
-  const ville = (document.getElementById('f-ville')?.value||'').toLowerCase();
-  const rent = document.getElementById('f-rent')?.value||'';
-  return allBiens.filter(b=>{
-    if(statut&&b.statut!==statut)return false;
-    if(type&&b.type_bien!==type)return false;
-    if(ville&&!(b.ville||'').toLowerCase().includes(ville))return false;
-    if(rent==='positive'&&computeCF(b)<=0)return false;
-    if(rent==='negative'&&computeCF(b)>=0)return false;
+  const q    = (document.getElementById('f-recherche')?.value || '').toLowerCase().trim();
+  const type = document.getElementById('f-filtre-type')?.value || '';
+  const etat = document.getElementById('f-etat')?.value || '';
+  return allBiens.filter(b => {
+    if(type && b.type_bien !== type) return false;
+    if(etat === 'ok' && !sfBienComplet(b)) return false;
+    if(etat === 'ko' &&  sfBienComplet(b)) return false;
+    if(q) {
+      const foin = `${b.titre||''} ${b.ville||''} ${b.code_postal||''}`.toLowerCase();
+      if(!foin.includes(q)) return false;
+    }
     return true;
   });
 }
 
+// Tri par colonne : un second clic sur la meme colonne inverse le sens.
+function setTriBiens(c) {
+  if(bienSortBy === c) bienSortAsc = !bienSortAsc;
+  else { bienSortBy = c; bienSortAsc = false; }
+  applyFilters();
+}
+
 function getSortedBiens(biens) {
-  const arr = [...biens];
-  switch(bienSortBy) {
-    case 'cf_desc': return arr.sort((a,b)=>computeCF(b)-computeCF(a));
-    case 'cf_asc':  return arr.sort((a,b)=>computeCF(a)-computeCF(b));
-    case 'prix_desc': return arr.sort((a,b)=>(parseFloat(b.prix_affiche)||0)-(parseFloat(a.prix_affiche)||0));
-    case 'prix_asc':  return arr.sort((a,b)=>(parseFloat(a.prix_affiche)||0)-(parseFloat(b.prix_affiche)||0));
-    case 'rend_desc': return arr.sort((a,b)=>{
-      const rA = a.prix_affiche&&a.loyer_en_etat?(a.loyer_en_etat*12/a.prix_affiche):0;
-      const rB = b.prix_affiche&&b.loyer_en_etat?(b.loyer_en_etat*12/b.prix_affiche):0;
-      return rB-rA;
-    });
-    case 'nom_az': return arr.sort((a,b)=>(a.titre||'').localeCompare(b.titre||'','fr'));
-    default: return arr.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
-  }
+  const cle = b => {
+    switch(bienSortBy) {
+      case 'nom':   return (b.titre || '').toLowerCase();
+      case 'prix':  return parseFloat(b.prix_affiche)  || -Infinity;
+      case 'loyer': return parseFloat(b.loyer_en_etat) || -Infinity;
+      case 'rend':  return sfRendement(b) ?? -Infinity;
+      case 'cf':    return cfDisplayData(b).value ?? -Infinity;
+      default:      return new Date(b.created_at).getTime() || 0;
+    }
+  };
+  const sens = bienSortAsc ? 1 : -1;
+  return [...biens].sort((a,b) => {
+    const x = cle(a), y = cle(b);
+    return (typeof x === 'string' ? x.localeCompare(y, 'fr') : x - y) * sens;
+  });
 }
 
-function applySort() {
-  const sel = document.getElementById('f-sort');
-  if(sel) bienSortBy = sel.value;
-  bienPage = 0;
-  const filtered = getFilteredBiens();
-  const count = document.getElementById('biens-count');
-  if(count) count.textContent = filtered.length+' bien'+(filtered.length>1?'s':'');
-  const contentEl = document.getElementById('biens-content');
-  if(contentEl) contentEl.innerHTML = renderBiensContent(filtered);
-}
-
+// Point d'entrée unique du redessin : indicateurs, onglets et liste sont
+// recalculés ensemble, ils ne peuvent donc pas diverger.
 function applyFilters() {
-  bienPage = 0;
-  const filtered = getFilteredBiens();
-  const count = document.getElementById('biens-count');
-  if(count) count.textContent = filtered.length+' bien'+(filtered.length>1?'s':'');
   const contentEl = document.getElementById('biens-content');
-  if(contentEl) contentEl.innerHTML = renderBiensContent(filtered);
-}
-
-function goToPage(p) {
-  bienPage = p;
-  const filtered = getFilteredBiens();
-  const contentEl = document.getElementById('biens-content');
-  if(contentEl) contentEl.innerHTML = renderBiensContent(filtered);
+  if(contentEl) contentEl.innerHTML = renderBiensContent(getFilteredBiens());
 }
 
 function renderCard(b) {
-  // P2 : réel en principal pour un bien acheté, prévisionnel étiqueté sinon
-  const d = cfDisplayData(b);
-  const cfC = d.value == null ? 'neutral' : cfCls(d.value);
-  const bmap = Object.fromEntries(TI_BIENS.BALISES.map(b => [b.v, b.cls]));
-  const rend=b.prix_affiche&&b.loyer_en_etat?((b.loyer_en_etat*12/b.prix_affiche)*100).toFixed(1)+'%':'—';
-  const date=b.created_at?new Date(b.created_at).toLocaleDateString('fr-FR'):'—';
-  const cfIcon = cfC==='positive' ? '📈' : cfC==='negative' ? '📉' : '➖';
-  const cfLabel = d.mode==='reel' ? 'Cashflow réel · moy. 12 mois' : 'Cashflow prévisionnel';
-  const cfDisplay = d.value != null ? (d.value>0?'+':'')+fmt(d.value)+' €/m' : 'Non calculé';
-  const cfSub = d.mode==='reel' && d.hasPrev ? `<div class="card-cf-sub">prévi ${d.prev>0?'+':''}${fmt(d.prev)} €/m</div>`
-    : d.attenteReel ? `<div class="card-cf-sub">réel dès la saisie des loyers</div>` : '';
-  const cfBadge = d.mode==='reel' ? `${cfIcon} Réel`
-    : d.attenteReel ? '⏳ Réel en attente'
-    : `${cfIcon} ${cfC==='positive'?'Rentable':cfC==='negative'?'Déficitaire':'—'}`;
-  return `<div class="bien-card ${cfC}" onclick="openDetail('${b.id}')">
+  const d = cfDisplayData(b), r = sfRendement(b), ch = sfCharges(b);
+  // Le seuil vient des préférences. Il était codé en dur à 6 % / 4 %, si bien
+  // qu'un même 5,7 % s'affichait « bon » sur la fiche et « moyen » sur la carte.
+  const seuil = parseFloat(userPrefs?.seuil_rentabilite) || 5;
+  const srcCls = d.mode==='reel' ? 'reel' : d.mode==='incomplet' ? 'manque'
+               : d.attenteReel ? 'attente' : 'estime';
+  const srcLbl = d.mode==='reel' ? 'Réel' : d.mode==='incomplet' ? 'À compléter'
+               : d.attenteReel ? 'Attente' : 'Estimé';
+  return `<article class="sfb-card ${d.mode==='incomplet'?'incomplet':''}" onclick="openDetail('${b.id}')">
     ${b.is_test?'<div class="test-ribbon">TEST</div>':''}
-    <!-- Bandeau cashflow -->
-    <div class="card-cf-banner ${cfC}">
-      <div class="card-cf-left">
-        <div class="card-cf-label">${cfLabel}</div>
-        <div class="card-cf-amount ${cfC}">${cfDisplay}</div>
-        ${cfSub}
+    <div class="sfb-card__top">
+      <div class="sfb-card__st">
+        <span class="statut-pill phase-${(PHASE_MAP[b.statut]||'generic')}">${esc(b.statut || '—')}</span>
+        ${b.balise?`<span class="sf-pill">${esc(b.balise)}</span>`:''}
       </div>
-      <span class="card-cf-badge ${cfC}">${cfBadge}</span>
+      <h3 class="sfb-card__t">${esc(b.titre || 'Sans titre')}</h3>
+      <p class="sfb-card__loc">${b.ville
+        ? esc([b.ville, b.code_postal].filter(Boolean).join(' '))
+        : '<span class="sfb-vide-val">Ville à renseigner</span>'} · ${esc(b.type_bien || '—')}${b.surface_m2?' · '+esc(b.surface_m2)+' m²':''}</p>
     </div>
-    <div class="card-body">
-      <!-- Ligne tags + type -->
-      <div class="card-row1">
-        <div class="card-tags">
-          <span class="tag tag-type">${b.type_bien||'—'}${b.surface_m2?' · '+b.surface_m2+'m²':''}</span>
-          ${b.balise?`<span class="tag ${bmap[b.balise]||''}">${b.balise}</span>`:''}
-        </div>
-        <div class="card-date" style="font-size:10px;color:var(--c-muted)">${date}</div>
-      </div>
-      <!-- Titre + ville -->
-      <div class="card-titre">${b.titre}</div>
-      <div class="card-loc">📍 ${[b.ville,b.code_postal].filter(Boolean).join(' ')||'—'}</div>
-      <!-- Stats 3 colonnes -->
-      <div class="card-stats-row">
-        <div class="card-stat-cell">
-          <div class="card-stat-lbl">Prix</div>
-          <div class="card-stat-val">${b.prix_affiche?fmt(b.prix_affiche)+'€':'—'}</div>
-        </div>
-        <div class="card-stat-cell">
-          <div class="card-stat-lbl">Loyer</div>
-          <div class="card-stat-val">${b.loyer_en_etat?fmt(b.loyer_en_etat)+'€':'—'}</div>
-        </div>
-        <div class="card-stat-cell">
-          <div class="card-stat-lbl">Rendement</div>
-          <div class="card-stat-val" style="color:${rend!=='—'?(parseFloat(rend)>=6?'var(--positive)':parseFloat(rend)>=4?'var(--warning)':'var(--negative)'):'var(--c-dim)'}">${rend}</div>
-        </div>
-      </div>
-      <!-- Statut -->
-      <div class="card-footer" style="margin-top:10px">
-        <div class="statut-pill"><div class="statut-dot"></div>${b.statut||'—'}</div>
-      </div>
+    <div class="sfb-card__cf">
+      <span class="sfb-card__cfl">Cashflow<span class="sfb-src sfb-src--${srcCls}">${srcLbl}</span></span>
+      <span class="sfb-card__cfv ${d.value>0?'sf-gain':d.value<0?'sf-loss':''}">${
+        d.value != null ? (d.value>0?'+':'')+fmt(d.value)+' €' : '—'}</span>
     </div>
-  </div>`;
+    <div class="sfb-card__stats">
+      <div class="sfb-card__cell"><span class="sfb-card__cl">Prix</span><span class="sfb-card__cv">${sfNum(b.prix_affiche,' €')}</span></div>
+      <div class="sfb-card__cell"><span class="sfb-card__cl">Loyer</span><span class="sfb-card__cv">${sfNum(b.loyer_en_etat,' €')}</span></div>
+      <div class="sfb-card__cell"><span class="sfb-card__cl">Charges</span><span class="sfb-card__cv sfb-charges">${ch>0?fmt(ch)+' €':'<span class="sfb-vide-val">—</span>'}</span></div>
+      <div class="sfb-card__cell"><span class="sfb-card__cl">Rdt</span>
+        <span class="sfb-card__cv ${r==null?'':r>=seuil?'sf-gain':''}">${r==null?'<span class="sfb-vide-val">—</span>':r.toFixed(1)+' %'}</span></div>
+    </div>
+  </article>`;
 }
 
 // ── NOUVEAU BIEN ──
@@ -8210,10 +8282,32 @@ function renderAdmBilans(c) {
 // ═══════════════════════════════════════════
 // MODALS — Contacts
 // ═══════════════════════════════════════════
-function openContactModal(id) {
+// Rattachements SCI du contact en cours d'edition. Charges a l'ouverture de la
+// fenetre, compares a la fermeture : c'est cette liste qui dit ce qui a change.
+let ctSciInitial = [];
+
+async function openContactModal(id) {
   editingContactId = id;
   const ct = id ? allContacts.find(c=>c.id===id) : null;
   const roles = ['Notaire','Avocat','Expert-comptable','Banquier','Agent immobilier','Gestionnaire locatif','Artisan','Syndic','Associé','Autre'];
+
+  // Les cases « SCI rattachée(s) » s'affichaient TOUJOURS decochees et n'etaient
+  // jamais relues a l'enregistrement : le controle donnait le change sans avoir
+  // le moindre effet, ni en lecture ni en ecriture. On charge donc l'existant.
+  ctSciInitial = [];
+  if(id) {
+    try {
+      const { data, error } = await db.from('sci_contacts')
+        .select('sci_id').eq('contact_id', id).eq('user_id', currentUser.id);
+      if(error) throw error;
+      ctSciInitial = (data || []).map(r => r.sci_id);
+    } catch(e) {
+      // On prefere ne pas ouvrir plutot que d'afficher des cases fausses :
+      // l'utilisateur enregistrerait un rattachement vide sans le voir.
+      showNotif('Rattachements SCI illisibles : ' + e.message, true);
+      return;
+    }
+  }
 
   const m = document.getElementById('adm-modal-overlay');
   document.getElementById('adm-modal-title').textContent = id ? '✏️ Modifier le contact' : '＋ Nouveau contact';
@@ -8246,11 +8340,12 @@ function openContactModal(id) {
       <input class="sci-form-input" id="ct-adresse" value="${esc(ct?.adresse||'')}" placeholder="Adresse professionnelle"></div>
     <div class="sci-form-group"><label class="sci-form-label">SCI(s) rattachée(s)</label>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px" id="ct-sci-chips">
-        ${allSCI.map(s=>`
+        ${allSCI.length ? allSCI.map(s=>`
           <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
-            <input type="checkbox" id="ct-sci-${s.id}" ${''/* TODO: load from sci_contacts */}>
-            ${s.nom_sci}
-          </label>`).join('')}
+            <input type="checkbox" class="ct-sci-case" data-sci="${esc(s.id)}" ${ctSciInitial.includes(s.id)?'checked':''}>
+            ${esc(s.nom_sci)}
+          </label>`).join('')
+        : '<span class="sci-form-hint">Aucune SCI enregistrée pour l\'instant.</span>'}
       </div></div>
     <div class="sci-form-group"><label class="sci-form-label">Notes</label>
       <textarea class="sci-form-input" id="ct-notes" rows="2" style="resize:vertical">${ct?.notes||''}</textarea></div>`;
@@ -8276,9 +8371,31 @@ async function saveContact() {
   };
   try {
     let res;
-    if(editingContactId) res = await db.from('contacts').update(payload).eq('id',editingContactId);
-    else res = await db.from('contacts').insert(payload);
+    if(editingContactId) res = await db.from('contacts').update(payload).eq('id',editingContactId).select().maybeSingle();
+    else res = await db.from('contacts').insert(payload).select().maybeSingle();
     if(res.error) throw res.error;
+
+    // Synchronisation des rattachements SCI. On n'ecrit QUE l'ecart : rien ne
+    // sert de tout supprimer puis tout reinserer, et une suppression suivie
+    // d'une insertion qui echoue perdrait des liens existants.
+    const contactId = editingContactId || res.data?.id;
+    if(contactId) {
+      const coches = [...document.querySelectorAll('.ct-sci-case')]
+        .filter(c => c.checked).map(c => c.dataset.sci);
+      const aAjouter = coches.filter(s => !ctSciInitial.includes(s));
+      const aRetirer = ctSciInitial.filter(s => !coches.includes(s));
+      if(aAjouter.length) {
+        const { error } = await db.from('sci_contacts').insert(
+          aAjouter.map(sci_id => ({ sci_id, contact_id: contactId, user_id: currentUser.id })));
+        if(error) throw error;
+      }
+      if(aRetirer.length) {
+        const { error } = await db.from('sci_contacts').delete()
+          .eq('contact_id', contactId).eq('user_id', currentUser.id).in('sci_id', aRetirer);
+        if(error) throw error;
+      }
+    }
+
     showNotif(editingContactId?'Contact mis à jour ✓':'Contact ajouté ✓');
     closeAdmModal(); await loadAdminData(); switchAdminTab('annuaire');
   } catch(e) { showNotif('Erreur : '+e.message, true); }

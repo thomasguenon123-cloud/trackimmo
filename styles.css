@@ -2943,3 +2943,303 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 .bkdoc-photo-item.sel .tick{display:flex;}
 .bkdoc-progress{display:none;margin-top:14px;padding:10px 14px;background:var(--sf-surface-2);border-radius:8px;font-size:12.5px;color:var(--c-dim);}
 
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MES BIENS — phase 5, porte depuis biens.html apres validation
+   Tailles en clamp() : elles suivent la largeur de l ecran entre deux bornes,
+   pour remplir un grand moniteur sans casser la structure sur un portable.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+.sfb-head{ display:flex; align-items:baseline; gap:var(--sf-space-5); margin-bottom:var(--sf-space-6); flex-wrap:wrap; }
+
+.sfb-head h1{ font-family:var(--sf-font-display); font-size:clamp(30px, 2.6vw, 46px);
+  font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight); margin:0; line-height:1; }
+
+.sfb-head__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); color:var(--sf-text-3); }
+
+
+/* ── ONGLETS ──────────────────────────────────────────────────────────────────
+   Deux sections empilees obligeaient a faire defiler toute la premiere pour
+   atteindre la seconde — insupportable des que le portefeuille grossit. En
+   onglets, chaque ensemble occupe l'ecran a son tour. La prospection est en
+   premier : c'est la qu'on agit au quotidien. */
+.sfb-tabs{ display:flex; gap:var(--sf-space-2); border-bottom:var(--sf-border-width) solid var(--sf-border);
+  margin-bottom:var(--sf-space-6); }
+
+.sfb-tab{ position:relative; display:inline-flex; align-items:center; gap:var(--sf-space-4);
+  padding:var(--sf-space-5) var(--sf-space-6); border:0; background:transparent; cursor:pointer;
+  font-family:var(--sf-font-display); font-size:clamp(17px, 1.25vw, 23px); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text-3); letter-spacing:var(--sf-track-snug); }
+
+.sfb-tab:hover{ color:var(--sf-text-2); }
+
+.sfb-tab[aria-selected="true"]{ color:var(--sf-text); }
+
+.sfb-tab[aria-selected="true"]::after{ content:''; position:absolute; left:var(--sf-space-5);
+  right:var(--sf-space-5); bottom:-1px; height:2px; background:var(--sf-brand-vivid); border-radius:1px; }
+
+.sfb-tab__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
+  font-weight:var(--sf-weight-semibold); color:var(--sf-text-3);
+  background:var(--sf-surface-2); border-radius:var(--sf-radius-full); padding:1px 8px; }
+
+.sfb-tab[aria-selected="true"] .sfb-tab__n{ background:var(--sf-brand-wash-2); color:var(--sf-brand-vivid); }
+
+.sfb-tab__todo{ width:6px; height:6px; border-radius:50%; background:var(--sf-alert); }
+
+
+/* ── KPI — compacts, pour que la liste commence haut ──────────────────────── */
+.sfb-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:clamp(10px, 0.9vw, 18px); margin-bottom:var(--sf-space-5); }
+
+.sfb-kpi{ border:var(--sf-border-width) solid var(--sf-border); background:var(--sf-surface);
+  border-radius:var(--sf-radius-md); padding:clamp(14px, 1.2vw, 24px); }
+
+.sfb-kpi__l{ display:block; font-size:var(--sf-font-caption); text-transform:uppercase;
+  letter-spacing:var(--sf-track-caps); color:var(--sf-text-3); font-weight:var(--sf-weight-semibold);
+  margin-bottom:var(--sf-space-3); }
+
+.sfb-kpi__v{ display:block; font-family:var(--sf-font-display); font-size:clamp(26px, 2.1vw, 38px);
+  font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight); line-height:1.05;
+  font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+.sfb-kpi__v--gain{ color:var(--sf-gain); }
+ .sfb-kpi__v--loss{ color:var(--sf-loss); }
+
+.sfb-kpi__v--alerte{ color:var(--sf-alert); }
+
+.sfb-kpi__s{ display:block; font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:var(--sf-space-2); }
+
+.sfb-foot{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin:0 0 var(--sf-space-5); }
+
+.sfb-foot b{ color:var(--sf-alert); font-weight:var(--sf-weight-semibold); }
+
+
+/* ── Barre d'outils ───────────────────────────────────────────────────────── */
+.sfb-tools{ display:flex; gap:var(--sf-space-4); align-items:center; flex-wrap:wrap;
+  margin-bottom:var(--sf-space-6); }
+
+.sfb-search{ position:relative; flex:1; min-width:200px; max-width:320px; }
+
+.sfb-search svg{ position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--sf-text-3); }
+
+.sfb-search input{ width:100%; height:var(--sf-control-h); padding:0 var(--sf-space-5) 0 34px;
+  background:var(--sf-surface-2); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); color:var(--sf-text); font-family:inherit; font-size:var(--sf-font-body); }
+
+.sfb-search input:focus{ outline:none; border-color:var(--sf-brand-vivid);
+  box-shadow:0 0 0 var(--sf-focus-ring) var(--sf-brand-wash); }
+
+.sfb-sel{ height:var(--sf-control-h); padding:0 30px 0 var(--sf-space-5);
+  background:var(--sf-surface-2) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239BAEA4' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 9px center/14px;
+  border:var(--sf-border-width) solid var(--sf-border); border-radius:var(--sf-radius-sm);
+  color:var(--sf-text); font-family:inherit; font-size:var(--sf-font-body-sm); appearance:none; cursor:pointer; }
+
+.sfb-spacer{ flex:1; }
+
+.sfb-views{ display:flex; gap:2px; background:var(--sf-surface-2); border-radius:var(--sf-radius-sm);
+  padding:3px; border:var(--sf-border-width) solid var(--sf-border); }
+
+.sfb-view{ display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 var(--sf-space-5);
+  border:0; background:transparent; color:var(--sf-text-2); border-radius:6px; cursor:pointer;
+  font-family:inherit; font-size:var(--sf-font-body-sm); font-weight:var(--sf-weight-medium); }
+
+.sfb-view:hover{ color:var(--sf-text); }
+
+.sfb-view[aria-pressed="true"]{ background:var(--sf-surface); color:var(--sf-text);
+  font-weight:var(--sf-weight-semibold); box-shadow:var(--sf-elev-1); }
+
+
+.sfb-bulk{ display:none; align-items:center; gap:var(--sf-space-5);
+  background:var(--sf-brand-wash-2); border:var(--sf-border-width) solid var(--sf-brand-3);
+  border-radius:var(--sf-radius-sm); padding:var(--sf-space-4) var(--sf-space-6);
+  margin-bottom:var(--sf-space-5); font-size:var(--sf-font-body-sm); }
+
+.sfb-bulk[data-on="1"]{ display:flex; }
+
+.sfb-bulk__n{ font-weight:var(--sf-weight-semibold); }
+
+
+/* ── VUE TABLEAU ──────────────────────────────────────────────────────────────
+   TOUT est aligne a gauche, en-tetes comprises : le sens de lecture de la
+   plateforme est gauche -> droite. `tabular-nums` maintient l'alignement des
+   chiffres entre eux, ce que l'alignement a droite assurait autrement. */
+.sfb-tablewrap{ border:var(--sf-border-width) solid var(--sf-border); border-radius:var(--sf-radius-md);
+  background:var(--sf-surface); overflow-x:auto; }
+
+table.sfb-t{ width:100%; border-collapse:collapse; font-size:clamp(13px, 0.85vw, 15px); }
+
+.sfb-t th{ text-align:left; font-size:var(--sf-font-caption); text-transform:uppercase;
+  letter-spacing:var(--sf-track-caps); color:var(--sf-text-2); font-weight:var(--sf-weight-semibold);
+  padding:clamp(12px, 1vw, 18px) clamp(12px, 1vw, 20px); border-bottom:var(--sf-border-width) solid var(--sf-border);
+  white-space:nowrap; background:var(--sf-surface-2); position:sticky; top:0; z-index:1; }
+
+.sfb-t th[data-sort]{ cursor:pointer; user-select:none; }
+
+.sfb-t th[data-sort]:hover{ color:var(--sf-text); }
+
+.sfb-t th .ar{ opacity:0; margin-left:4px; }
+
+.sfb-t th[aria-sort] .ar{ opacity:1; color:var(--sf-brand-vivid); }
+
+.sfb-t td{ padding:clamp(12px, 1.05vw, 20px) clamp(12px, 1vw, 20px);
+  border-bottom:var(--sf-border-width) solid var(--sf-border);
+  vertical-align:middle; text-align:left; }
+
+.sfb-t tbody tr{ cursor:pointer; }
+
+.sfb-t tbody tr:hover{ background:var(--sf-surface-2); }
+
+.sfb-t tbody tr:last-child td{ border-bottom:0; }
+
+.sfb-t .num{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+.sfb-t .bien{ font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
+
+.sfb-t .sub{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
+
+/* Une ligne incomplete se signale d'elle-meme, sans crier */
+.sfb-t tr.incomplet td:first-child{ box-shadow:inset 2px 0 0 var(--sf-alert); }
+
+
+.sf-gain{ color:var(--sf-gain); }
+ .sf-loss{ color:var(--sf-loss); }
+ .muted{ color:var(--sf-text-3); }
+
+
+.sfb-src{ display:inline-block; font-size:9px; text-transform:uppercase;
+  letter-spacing:var(--sf-track-caps); font-weight:var(--sf-weight-bold);
+  padding:1px 5px; border-radius:var(--sf-radius-xs); margin-left:6px; vertical-align:1px; }
+
+.sfb-src--reel{ background:var(--sf-gain-wash); color:var(--sf-gain); }
+
+/* --sf-text-3 sur --sf-surface-3 ne tenait que 4,35:1 — sous le seuil AA. */
+.sfb-src--estime{ background:var(--sf-surface-3); color:var(--sf-text-2); }
+
+.sfb-src--attente{ background:var(--sf-alert-wash); color:var(--sf-alert); }
+
+.sfb-src--manque{ background:var(--sf-alert-wash); color:var(--sf-alert); }
+
+.sfb-part{ display:block; font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
+
+
+.sfb-rend{ display:flex; align-items:center; gap:var(--sf-space-4); }
+
+.sfb-rend__b{ width:44px; height:4px; border-radius:2px; background:var(--sf-surface-3); overflow:hidden; flex-shrink:0; }
+
+.sfb-rend__f{ display:block; height:100%; border-radius:2px; }
+
+
+/* ── VUE GRILLE ───────────────────────────────────────────────────────────── */
+.sfb-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
+  gap:clamp(12px, 1.1vw, 22px); }
+
+.sfb-card{ border:var(--sf-border-width) solid var(--sf-border); background:var(--sf-surface);
+  border-radius:var(--sf-radius-md); overflow:hidden; cursor:pointer; display:flex; flex-direction:column;
+  transition:border-color var(--sf-dur) var(--sf-ease); }
+
+.sfb-card:hover{ border-color:var(--sf-border-strong); }
+
+.sfb-card.incomplet{ border-left:2px solid var(--sf-alert); }
+
+.sfb-card__top{ padding:var(--sf-space-6) var(--sf-space-6) var(--sf-space-5); }
+
+.sfb-card__st{ display:flex; align-items:center; justify-content:space-between; gap:var(--sf-space-4);
+  margin-bottom:var(--sf-space-4); }
+
+.sfb-card__t{ font-family:var(--sf-font-display); font-size:clamp(17px, 1.15vw, 21px);
+  font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-snug); margin:0;
+  line-height:var(--sf-lh-snug); }
+
+.sfb-card__loc{ font-size:var(--sf-font-body-sm); color:var(--sf-text-3); margin:var(--sf-space-3) 0 0; }
+
+.sfb-card__cf{ border-top:var(--sf-border-width) solid var(--sf-border);
+  background:var(--sf-surface-2); padding:var(--sf-space-5) var(--sf-space-6);
+  display:flex; align-items:baseline; gap:var(--sf-space-4); }
+
+.sfb-card__cfl{ font-size:var(--sf-font-label); text-transform:uppercase;
+  letter-spacing:var(--sf-track-caps); color:var(--sf-text-3); font-weight:var(--sf-weight-semibold); }
+
+.sfb-card__cfv{ font-family:var(--sf-font-num); font-size:clamp(17px, 1.2vw, 22px);
+  font-weight:var(--sf-weight-bold); font-variant-numeric:tabular-nums; margin-left:auto;
+  white-space:nowrap; }
+
+.sfb-card__stats{ display:grid; grid-template-columns:repeat(4,1fr); border-top:var(--sf-border-width) solid var(--sf-border); }
+
+.sfb-card__cell{ padding:clamp(10px, 0.9vw, 16px); border-right:var(--sf-border-width) solid var(--sf-border);
+  min-width:0; }
+
+.sfb-card__cell:last-child{ border-right:0; }
+
+.sfb-card__cl{ display:block; font-size:var(--sf-font-label); text-transform:uppercase;
+  letter-spacing:var(--sf-track-caps); color:var(--sf-text-3); margin-bottom:var(--sf-space-2); }
+
+/* `nowrap` : « 320 000 € » se coupait entre le nombre et son symbole, qui
+   partait seul a la ligne. Un montant et son unite forment un tout — ils ne
+   se separent pas, pas plus qu'on n'ecrirait « 320 000 » puis « euros »
+   dessous. La cellule prefere deborder en ellipse plutot que casser. */
+.sfb-card__cv{ display:block; font-family:var(--sf-font-num); font-size:clamp(13px, 0.88vw, 15px);
+  font-weight:var(--sf-weight-semibold); font-variant-numeric:tabular-nums;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+
+/* ── VUE KANBAN — reservee a la prospection ───────────────────────────────── */
+/* Les colonnes s'etirent pour occuper la largeur disponible au lieu de laisser
+   un grand vide a droite quand il y a peu de phases, sans jamais depasser une
+   largeur lisible. */
+.sfb-kb{ display:flex; gap:clamp(12px, 1.1vw, 20px); overflow-x:auto; padding-bottom:var(--sf-space-5);
+  align-items:flex-start; }
+
+.sfb-kbcol{ flex:1 1 300px; max-width:420px; min-width:280px;
+  background:var(--sf-surface-2); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-md); display:flex; flex-direction:column; max-height:640px; }
+
+.sfb-kbh{ padding:var(--sf-space-5); border-bottom:var(--sf-border-width) solid var(--sf-border); }
+
+.sfb-kbh__r{ display:flex; align-items:center; gap:var(--sf-space-4); }
+
+.sfb-kbh__t{ font-size:var(--sf-font-body-sm); font-weight:var(--sf-weight-semibold); }
+
+.sfb-kbh__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-left:auto; }
+
+.sfb-kbh__sum{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); margin-top:var(--sf-space-2); display:block; }
+
+.sfb-kbb{ padding:var(--sf-space-4); display:flex; flex-direction:column; gap:var(--sf-space-4); overflow-y:auto; }
+
+.sfb-kc{ background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); padding:var(--sf-space-5); cursor:grab; }
+
+.sfb-kc:hover{ border-color:var(--sf-border-strong); }
+
+.sfb-kc.incomplet{ border-left:2px solid var(--sf-alert); }
+
+.sfb-kc__t{ font-size:var(--sf-font-body-sm); font-weight:var(--sf-weight-semibold); margin:0 0 var(--sf-space-2); }
+
+.sfb-kc__m{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin:0 0 var(--sf-space-4); }
+
+.sfb-kc__cf{ font-family:var(--sf-font-num); font-size:var(--sf-font-body-sm);
+  font-weight:var(--sf-weight-semibold); font-variant-numeric:tabular-nums; }
+
+.sfb-legend{ margin-top:var(--sf-space-6); font-size:var(--sf-font-caption); color:var(--sf-text-3);
+  display:flex; gap:var(--sf-space-6); flex-wrap:wrap; align-items:center; }
+
+.sfb-vide{ border:var(--sf-border-width) dashed var(--sf-border); border-radius:var(--sf-radius-md);
+  padding:var(--sf-space-9); text-align:center; color:var(--sf-text-3); font-size:var(--sf-font-body-sm); }
+
+/* Densité : réglage utilisateur, restauré au chargement. */
+body[data-densite="compact"] .sfb-t td{ padding:var(--sf-space-3) var(--sf-space-5); }
+body[data-densite="compact"] .sfb-t__s{ display:none; }
+
+/* Valeur absente : le tiret doit se lire comme « pas de donnée », pas comme un
+   zéro. Il reste discret mais présent — jamais une case vide, qui laisserait
+   croire à un défaut d'affichage. */
+.sfb-vide-val{ color:var(--sf-text-3); }
+.sfb-charges{ color:var(--sf-text-3); }
+.sfb-t__b{ font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
+.sfb-t__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
+.sfb-src--seul{ margin-left:0; }
+.sfb-kpi__sur{ font-size:var(--sf-font-body); color:var(--sf-text-3); }
+.sf-gain{ color:var(--sf-gain); }
+.sf-loss{ color:var(--sf-loss); }
+.sfb-card{ position:relative; }
