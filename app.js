@@ -882,7 +882,7 @@ function buildUserRowsHtml(users, myEmail) {
     var meBadge = isMe ? '<span style="font-size:9px;background:var(--accent);color:white;padding:1px 6px;border-radius:4px;font-weight:700;margin-left:6px">MOI</span>' : '';
     var roleLabel = u.role === 'admin' ? '👑 Admin' : '👤 Utilisateur';
     var roleCls = u.role === 'admin' ? 'role-badge admin' : 'role-badge user';
-    var bg = isMe ? 'background:rgba(99,102,241,0.04)' : 'background:white';
+    var bg = isMe ? 'background:var(--sf-brand-wash)' : 'background:var(--sf-surface)';
     var dateInscription = u.created_at ? new Date(u.created_at).toLocaleDateString('fr-FR') : '—';
 
     // Actions selon le statut
@@ -1009,7 +1009,7 @@ async function renderAdmin(el) {
           <textarea class="form-input" id="invite-notes" rows="2" style="resize:vertical;font-family:inherit" placeholder="Ex : Investisseur partenaire de l'agence Lyon Nord"></textarea>
         </div>
       </div>
-      <div style="background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.15);border-radius:8px;padding:10px 14px;margin-top:14px;font-size:12px;color:var(--c-dim);display:flex;gap:10px;align-items:flex-start">
+      <div style="background:rgba(23,160,107,0.06);border:1px solid rgba(23,160,107,0.15);border-radius:8px;padding:10px 14px;margin-top:14px;font-size:12px;color:var(--c-dim);display:flex;gap:10px;align-items:flex-start">
         <span style="font-size:16px;line-height:1">ℹ️</span>
         <span>L'utilisateur recevra un email de bienvenue avec un lien sécurisé. Il définira lui-même son mot de passe en cliquant sur ce lien. Aucun mot de passe n'est jamais visible pour vous.</span>
       </div>
@@ -1297,6 +1297,19 @@ function fmt(n){return Math.round(n).toLocaleString('fr-FR');}
 function cfCls(cf){return cf>0?'positive':cf<0?'negative':'neutral';}
 // Échappement HTML global (réutilisable partout)
 function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+
+// URL destinee a un href. `esc()` ne suffit pas ici : il rend l'URL inoffensive
+// pour l'ANALYSE HTML, mais `javascript:alert(1)` reste une URL valide une fois
+// echappee, et s'execute au clic.
+//
+// Deux sources alimentent ces liens : le lien d'annonce saisi par
+// l'utilisateur, et surtout les URL d'articles renvoyees par NewsAPI — une
+// donnee tierce que nous ne controlons pas. Seuls http et https passent ; tout
+// le reste retombe sur '#'.
+function safeUrl(u){
+  const s = (u == null ? '' : String(u)).trim();
+  return /^https?:\/\//i.test(s) ? esc(s) : '#';
+}
 // Date d'action (YYYY-MM-DD) → format FR court, neutre au fuseau
 function fmtActionDate(d){ if(!d) return '—'; const dt=new Date(d+'T12:00:00'); return isNaN(dt)?d:dt.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}); }
 
@@ -1696,7 +1709,7 @@ function renderAccueil(el) {
                     : a.meta}</p>
                 </div>
                 <span class="sf-ag__amount">${fmt(a.montant)} €</span>
-                <label class="sf-ag__check" title="${a.pointe ? 'Annuler le pointage' : 'Pointer ce loyer comme encaissé'}">
+                <label class="sf-ag__check" title="${esc(a.pointe ? 'Annuler le pointage' : 'Pointer ce loyer comme encaissé')}">
                   <input type="checkbox" ${a.pointe ? 'checked' : ''}
                          onchange="sfPointerLoyer('${a.bienId}', ${a.mois}, ${a.annee}, this)">
                   <span class="sf-ag__box">${sfAccIcon('check', 12)}</span>
@@ -2262,18 +2275,18 @@ async function renderNouveau(el, bien) {
         <div class="form-card">
           <div class="form-card-title">📍 Informations du bien</div>
           <div class="form-grid">
-            <div class="form-group form-full"><label class="req">Titre de l'annonce</label><input type="text" id="f-titre" value="${bien?.titre||''}" oninput="updatePrev()" placeholder="ex: T3 Paris Montmartre 65m²" style="border-color:${!bien?.titre?'rgba(220,38,38,0.3)':''}"></div>
-            <div class="form-group"><label class="req">Ville</label><input type="text" id="f-ville" value="${bien?.ville||''}" placeholder="Paris"></div>
-            <div class="form-group"><label>Code postal</label><input type="text" id="f-cp" value="${bien?.code_postal||''}" placeholder="75018"></div>
+            <div class="form-group form-full"><label class="req">Titre de l'annonce</label><input type="text" id="f-titre" value="${esc(bien?.titre||'')}" oninput="updatePrev()" placeholder="ex: T3 Paris Montmartre 65m²" style="border-color:${!bien?.titre?'rgba(220,38,38,0.3)':''}"></div>
+            <div class="form-group"><label class="req">Ville</label><input type="text" id="f-ville" value="${esc(bien?.ville||'')}" placeholder="Paris"></div>
+            <div class="form-group"><label>Code postal</label><input type="text" id="f-cp" value="${esc(bien?.code_postal||'')}" placeholder="75018"></div>
             <div class="form-group"><label>Type de bien</label>
               <select id="f-type">${TI_BIENS.options('TYPES', bien?.type_bien)}</select>
             </div>
-            <div class="form-group"><label>Surface (m²)</label><input type="number" id="f-surface" value="${bien?.surface_m2||''}" placeholder="45"></div>
-            <div class="form-group"><label>Prix affiché (€)</label><input type="number" id="f-prix" value="${bien?.prix_affiche||''}" oninput="updatePrev()" placeholder="300 000"></div>
+            <div class="form-group"><label>Surface (m²)</label><input type="number" id="f-surface" value="${esc(bien?.surface_m2||'')}" placeholder="45"></div>
+            <div class="form-group"><label>Prix affiché (€)</label><input type="number" id="f-prix" value="${esc(bien?.prix_affiche||'')}" oninput="updatePrev()" placeholder="300 000"></div>
             <div class="form-group"><label>Statut</label>
               <select id="f-statut">${TI_BIENS.options('STATUTS', bien?.statut)}</select>
             </div>
-            <div class="form-group form-full"><label>Lien de l'annonce</label><input type="url" id="f-lien" value="${bien?.lien_annonce||''}" placeholder="https://www.seloger.com/..."></div>
+            <div class="form-group form-full"><label>Lien de l'annonce</label><input type="url" id="f-lien" value="${esc(bien?.lien_annonce||'')}" placeholder="https://www.seloger.com/..."></div>
             <div class="form-group"><label>Source</label>
               <select id="f-source">${TI_BIENS.options('SOURCES', bien?.source, '—')}</select>
             </div>
@@ -2293,7 +2306,7 @@ async function renderNouveau(el, bien) {
         <div class="form-card">
           <div class="form-card-title">💰 Coûts d'acquisition</div>
           <div class="form-grid cols3">
-            <div class="form-group"><label>Prix HA (€)</label><input type="number" id="f-ha" value="${bien?.prix_affiche||''}" oninput="updateNotaire();updatePrev()" placeholder="300 000"></div>
+            <div class="form-group"><label>Prix HA (€)</label><input type="number" id="f-ha" value="${esc(bien?.prix_affiche||'')}" oninput="updateNotaire();updatePrev()" placeholder="300 000"></div>
             <div class="form-group">
               <label>Frais de notaire <span style="color:var(--positive-c);font-weight:600">(${+(notairePct()*100).toFixed(1)}% auto)</span></label>
               <div class="calc-field" id="f-notaire-display">
@@ -2301,8 +2314,8 @@ async function renderNouveau(el, bien) {
                 <span id="notaire-val">${bien?.prix_affiche?fmt(Math.round((bien.prix_affiche||0)*notairePct()))+' €':'—'}</span>
               </div>
             </div>
-            <div class="form-group"><label>Travaux (€)</label><input type="number" id="f-travaux" value="${bien?.travaux||''}" oninput="updatePrev()" placeholder="0"></div>
-            <div class="form-group"><label>Frais d'agence (€)</label><input type="number" id="f-agence" value="${bien?.frais_agence||''}" oninput="updatePrev()" placeholder="0"></div>
+            <div class="form-group"><label>Travaux (€)</label><input type="number" id="f-travaux" value="${esc(bien?.travaux||'')}" oninput="updatePrev()" placeholder="0"></div>
+            <div class="form-group"><label>Frais d'agence (€)</label><input type="number" id="f-agence" value="${esc(bien?.frais_agence||'')}" oninput="updatePrev()" placeholder="0"></div>
             <div class="form-group">
               <label>Création SCI</label>
               <div class="sci-toggle">
@@ -2310,7 +2323,7 @@ async function renderNouveau(el, bien) {
                 <button class="sci-btn ${sciOui?'active':''}" onclick="setSCI(true)">Oui</button>
               </div>
               <div class="sci-amount" id="sci-amount-wrap" style="display:${sciOui?'block':'none'}">
-                <input type="number" id="f-sci" value="${bien?.creation_sci&&parseFloat(bien.creation_sci)>0?bien.creation_sci:''}" placeholder="Montant SCI (€)" oninput="updatePrev()">
+                <input type="number" id="f-sci" value="${esc(bien?.creation_sci&&parseFloat(bien.creation_sci)>0?bien.creation_sci:'')}" placeholder="Montant SCI (€)" oninput="updatePrev()">
               </div>
             </div>
           </div>
@@ -2320,8 +2333,8 @@ async function renderNouveau(el, bien) {
         <div class="form-card">
           <div class="form-card-title">🏦 Crédit bancaire</div>
           <div class="form-grid">
-            <div class="form-group"><label>Mensualité (€/mois)</label><input type="number" id="f-mensualite" value="${bien?.mensualite_credit||''}" oninput="updatePrev()" placeholder="1 200"></div>
-            <div class="form-group"><label>Durée (ans)</label><input type="number" id="f-duree" value="${bien?.duree_credit_ans||userPrefs.duree_credit_ans||20}"></div>
+            <div class="form-group"><label>Mensualité (€/mois)</label><input type="number" id="f-mensualite" value="${esc(bien?.mensualite_credit||'')}" oninput="updatePrev()" placeholder="1 200"></div>
+            <div class="form-group"><label>Durée (ans)</label><input type="number" id="f-duree" value="${esc(bien?.duree_credit_ans||userPrefs.duree_credit_ans||20)}"></div>
           </div>
         </div>
 
@@ -2329,9 +2342,9 @@ async function renderNouveau(el, bien) {
         <div class="form-card">
           <div class="form-card-title">📋 Charges mensuelles</div>
           <div class="form-grid cols3">
-            <div class="form-group"><label>Charges copro (€/mois)</label><input type="number" id="f-copro" value="${bien?.charge_copro||''}" oninput="updatePrev()" placeholder="0"></div>
-            <div class="form-group"><label>Assurance (€/mois)</label><input type="number" id="f-assurance" value="${bien?.assurance_logement||userPrefs.assurance_mois||33}" oninput="updatePrev()"></div>
-            <div class="form-group"><label>Taxe foncière (€/mois)</label><input type="number" id="f-taxe" value="${bien?.taxe_fonciere||''}" oninput="updatePrev()" placeholder="0"></div>
+            <div class="form-group"><label>Charges copro (€/mois)</label><input type="number" id="f-copro" value="${esc(bien?.charge_copro||'')}" oninput="updatePrev()" placeholder="0"></div>
+            <div class="form-group"><label>Assurance (€/mois)</label><input type="number" id="f-assurance" value="${esc(bien?.assurance_logement||userPrefs.assurance_mois||33)}" oninput="updatePrev()"></div>
+            <div class="form-group"><label>Taxe foncière (€/mois)</label><input type="number" id="f-taxe" value="${esc(bien?.taxe_fonciere||'')}" oninput="updatePrev()" placeholder="0"></div>
           </div>
         </div>
 
@@ -2339,8 +2352,8 @@ async function renderNouveau(el, bien) {
         <div class="form-card">
           <div class="form-card-title">🏘️ Revenus locatifs (en état)</div>
           <div class="form-grid">
-            <div class="form-group"><label>Loyer hors charges (€/mois)</label><input type="number" id="f-loyer" value="${bien?.loyer_en_etat||''}" oninput="updatePrev()" placeholder="1 500"></div>
-            <div class="form-group"><label>Charges locataire (€/mois)</label><input type="number" id="f-charges-loc" value="${bien?.charges_locataire_etat||''}" oninput="updatePrev()" placeholder="0"></div>
+            <div class="form-group"><label>Loyer hors charges (€/mois)</label><input type="number" id="f-loyer" value="${esc(bien?.loyer_en_etat||'')}" oninput="updatePrev()" placeholder="1 500"></div>
+            <div class="form-group"><label>Charges locataire (€/mois)</label><input type="number" id="f-charges-loc" value="${esc(bien?.charges_locataire_etat||'')}" oninput="updatePrev()" placeholder="0"></div>
           </div>
         </div>
 
@@ -2348,8 +2361,8 @@ async function renderNouveau(el, bien) {
         <div class="form-card">
           <div class="form-card-title">🔨 Revenus locatifs (après travaux)</div>
           <div class="form-grid">
-            <div class="form-group"><label>Loyer après travaux (€/mois)</label><input type="number" id="f-loyer-travaux" value="${bien?.loyer_apres_travaux||''}" placeholder="1 800"></div>
-            <div class="form-group"><label>Charges locataire après travaux (€/mois)</label><input type="number" id="f-charges-travaux" value="${bien?.charges_locataire_travaux||''}" placeholder="0"></div>
+            <div class="form-group"><label>Loyer après travaux (€/mois)</label><input type="number" id="f-loyer-travaux" value="${esc(bien?.loyer_apres_travaux||'')}" placeholder="1 800"></div>
+            <div class="form-group"><label>Charges locataire après travaux (€/mois)</label><input type="number" id="f-charges-travaux" value="${esc(bien?.charges_locataire_travaux||'')}" placeholder="0"></div>
           </div>
         </div>
 
@@ -2357,9 +2370,9 @@ async function renderNouveau(el, bien) {
         <div class="form-card">
           <div class="form-card-title">👤 Contact</div>
           <div class="form-grid cols3">
-            <div class="form-group"><label>Intermédiaire</label><input type="text" id="f-inter" value="${bien?.intermediaire||''}" placeholder="Agence / Particulier"></div>
-            <div class="form-group"><label>Téléphone</label><input type="text" id="f-tel" value="${bien?.telephone||''}"></div>
-            <div class="form-group"><label>Mail</label><input type="email" id="f-mail" value="${bien?.mail||''}"></div>
+            <div class="form-group"><label>Intermédiaire</label><input type="text" id="f-inter" value="${esc(bien?.intermediaire||'')}" placeholder="Agence / Particulier"></div>
+            <div class="form-group"><label>Téléphone</label><input type="text" id="f-tel" value="${esc(bien?.telephone||'')}"></div>
+            <div class="form-group"><label>Mail</label><input type="email" id="f-mail" value="${esc(bien?.mail||'')}"></div>
           </div>
         </div>
 
@@ -3356,7 +3369,7 @@ async function renderBienDetail(el) {
         <div class="detail-item"><div class="detail-label">Téléphone</div><div class="detail-value">${ie(b.id,'telephone',b.telephone,'tel')}</div></div>
         <div class="detail-item" style="grid-column:1/-1"><div class="detail-label">Mail</div><div class="detail-value">${ie(b.id,'mail',b.mail,'email')}</div></div>
       </div>
-      ${b.lien_annonce?`<div style="margin-bottom:12px"><a href="${b.lien_annonce}" target="_blank" class="annonce-link">🔗 Voir l'annonce originale</a></div>`:''}
+      ${b.lien_annonce?`<div style="margin-bottom:12px"><a href="${safeUrl(b.lien_annonce)}" target="_blank" rel="noopener" class="annonce-link">🔗 Voir l'annonce originale</a></div>`:''}
       <div style="margin-top:10px"><div class="detail-label" style="margin-bottom:4px">Notes</div>${ie(b.id,'notes',b.notes,'textarea')}</div>
     </div>
 
@@ -3878,7 +3891,7 @@ async function openActionModal(bienId, actionId) {
     </div>
     <div class="sci-form-group">
       <label class="sci-form-label">Date <span style="color:var(--sf-loss)">*</span></label>
-      <input class="sci-form-input" id="act-date" type="date" value="${a?.date_action || today}">
+      <input class="sci-form-input" id="act-date" type="date" value="${esc(a?.date_action || today)}">
     </div>
     <div class="sci-form-group">
       <label class="sci-form-label">Commentaire</label>
@@ -4991,7 +5004,8 @@ document.addEventListener('keydown', e => {
 
 // Conservees sous leur ancien nom : navigate() les appelle, et d'autres
 // chemins pourraient encore le faire. Elles referment desormais le bandeau.
-function toggleMobileSidebar() { sfToggleMobile(); }
+// `toggleMobileSidebar()` etait l'alias de compatibilite de l'ancienne barre
+// laterale, supprimee en phase 4. Plus aucun appelant : retiree.
 function closeMobileSidebar() {
   sfCloseMenus();
   const n = document.getElementById('sf-menus');
@@ -6508,7 +6522,7 @@ function mfOpenChargeModal(preset) {
 
         <div class="form-group">
           <label class="form-label">Montant (€) *</label>
-          <input type="number" class="form-input" id="charge-montant" value="${initial.montant || ''}" min="0" step="0.01" required>
+          <input type="number" class="form-input" id="charge-montant" value="${esc(initial.montant || '')}" min="0" step="0.01" required>
         </div>
 
         <div class="form-group">
@@ -7131,9 +7145,9 @@ function mfBilanFeedRender() {
       ${pcgTries.map(k => `<div class="bilan-resume-row sub"><span>${PCG_CR_LABELS.charges[k] || k}</span><span>−${fmt(d.parPcg[k])} €</span></div>`).join('')}
       <div style="font-size:11px;font-weight:700;color:var(--c-muted);margin:10px 0 4px">DOTATIONS AUX AMORTISSEMENTS (6811) — à saisir</div>
       <div class="bilanfeed-dot-grid">
-        <div><label>Immeuble</label><input type="number" class="form-input" id="bf-am-imm" value="${dotations.immeuble || ''}" min="0" step="0.01" placeholder="0" oninput="mfBilanFeedResultat()"></div>
-        <div><label>Travaux</label><input type="number" class="form-input" id="bf-am-trav" value="${dotations.travaux || ''}" min="0" step="0.01" placeholder="0" oninput="mfBilanFeedResultat()"></div>
-        <div><label>Mobilier</label><input type="number" class="form-input" id="bf-am-mob" value="${dotations.mobilier || ''}" min="0" step="0.01" placeholder="0" oninput="mfBilanFeedResultat()"></div>
+        <div><label>Immeuble</label><input type="number" class="form-input" id="bf-am-imm" value="${esc(dotations.immeuble || '')}" min="0" step="0.01" placeholder="0" oninput="mfBilanFeedResultat()"></div>
+        <div><label>Travaux</label><input type="number" class="form-input" id="bf-am-trav" value="${esc(dotations.travaux || '')}" min="0" step="0.01" placeholder="0" oninput="mfBilanFeedResultat()"></div>
+        <div><label>Mobilier</label><input type="number" class="form-input" id="bf-am-mob" value="${esc(dotations.mobilier || '')}" min="0" step="0.01" placeholder="0" oninput="mfBilanFeedResultat()"></div>
       </div>
       <div class="bilan-resume-row total"><span>Résultat net estimé</span><span id="bf-resultat"></span></div>`;
   }
@@ -7469,35 +7483,35 @@ function openLocataireModal(id, presetBienId) {
     <div class="mf-section-title">👤 Identité</div>
     <div class="sci-form-row">
       <div class="sci-form-group"><label class="sci-form-label">Prénom</label>
-        <input class="sci-form-input" id="loc-prenom" value="${l?.prenom||''}" placeholder="Jean"></div>
+        <input class="sci-form-input" id="loc-prenom" value="${esc(l?.prenom||'')}" placeholder="Jean"></div>
       <div class="sci-form-group"><label class="sci-form-label">Nom <span style="color:var(--sf-loss)">*</span></label>
-        <input class="sci-form-input" id="loc-nom" value="${l?.nom||''}" placeholder="Dupont"></div>
+        <input class="sci-form-input" id="loc-nom" value="${esc(l?.nom||'')}" placeholder="Dupont"></div>
     </div>
     <div class="sci-form-row">
       <div class="sci-form-group"><label class="sci-form-label">Email</label>
-        <input class="sci-form-input" id="loc-email" type="email" value="${l?.email||''}" placeholder="email@exemple.com"></div>
+        <input class="sci-form-input" id="loc-email" type="email" value="${esc(l?.email||'')}" placeholder="email@exemple.com"></div>
       <div class="sci-form-group"><label class="sci-form-label">Téléphone</label>
-        <input class="sci-form-input" id="loc-tel" value="${l?.telephone||''}" placeholder="06 xx xx xx xx"></div>
+        <input class="sci-form-input" id="loc-tel" value="${esc(l?.telephone||'')}" placeholder="06 xx xx xx xx"></div>
     </div>
     <div class="sci-form-group"><label class="sci-form-label">Date de naissance</label>
-      <input class="sci-form-input" id="loc-naissance" type="date" value="${l?.date_naissance||''}"></div>
+      <input class="sci-form-input" id="loc-naissance" type="date" value="${esc(l?.date_naissance||'')}"></div>
 
     <!-- Profession & revenus -->
     <div class="mf-section-title">💼 Profession & revenus</div>
     <div class="sci-form-row">
       <div class="sci-form-group"><label class="sci-form-label">Profession</label>
-        <input class="sci-form-input" id="loc-profession" value="${l?.profession||''}" placeholder="Ingénieur"></div>
+        <input class="sci-form-input" id="loc-profession" value="${esc(l?.profession||'')}" placeholder="Ingénieur"></div>
       <div class="sci-form-group"><label class="sci-form-label">Employeur</label>
-        <input class="sci-form-input" id="loc-employeur" value="${l?.employeur||''}" placeholder="Entreprise XYZ"></div>
+        <input class="sci-form-input" id="loc-employeur" value="${esc(l?.employeur||'')}" placeholder="Entreprise XYZ"></div>
     </div>
     <div class="sci-form-group"><label class="sci-form-label">Revenus nets mensuels (€)</label>
-      <input class="sci-form-input" id="loc-revenus" type="number" min="0" step="100" value="${l?.revenus_mensuels||''}" placeholder="2 500"></div>
+      <input class="sci-form-input" id="loc-revenus" type="number" min="0" step="100" value="${esc(l?.revenus_mensuels||'')}" placeholder="2 500"></div>
 
     <!-- Garant -->
     <div class="mf-section-title">🛡️ Garant / Caution</div>
     <div class="sci-form-row">
       <div class="sci-form-group"><label class="sci-form-label">Nom du garant</label>
-        <input class="sci-form-input" id="loc-garant-nom" value="${l?.garant_nom||''}" placeholder="Marie Dupont"></div>
+        <input class="sci-form-input" id="loc-garant-nom" value="${esc(l?.garant_nom||'')}" placeholder="Marie Dupont"></div>
       <div class="sci-form-group"><label class="sci-form-label">Lien</label>
         <select class="sci-form-input" id="loc-garant-lien">
           <option value="">— Préciser —</option>
@@ -7505,7 +7519,7 @@ function openLocataireModal(id, presetBienId) {
         </select></div>
     </div>
     <div class="sci-form-group"><label class="sci-form-label">Revenus du garant (€/mois)</label>
-      <input class="sci-form-input" id="loc-garant-revenus" type="number" min="0" step="100" value="${l?.garant_revenus||''}" placeholder="3 000"></div>
+      <input class="sci-form-input" id="loc-garant-revenus" type="number" min="0" step="100" value="${esc(l?.garant_revenus||'')}" placeholder="3 000"></div>
 
     <!-- Bail -->
     <div class="mf-section-title">🏠 Bail</div>
@@ -7521,23 +7535,23 @@ function openLocataireModal(id, presetBienId) {
           ${TYPES_BAIL.map(t=>`<option value="${t}" ${l?.type_bail===t?'selected':''}>${t}</option>`).join('')}
         </select></div>
       <div class="sci-form-group"><label class="sci-form-label">Jour de paiement (1-31)</label>
-        <input class="sci-form-input" id="loc-jour-paiement" type="number" min="1" max="31" value="${l?.jour_paiement||5}"></div>
+        <input class="sci-form-input" id="loc-jour-paiement" type="number" min="1" max="31" value="${esc(l?.jour_paiement||5)}"></div>
     </div>
     <div class="sci-form-row">
       <div class="sci-form-group"><label class="sci-form-label">Date d'entrée <span style="color:var(--sf-loss)">*</span></label>
-        <input class="sci-form-input" id="loc-date-entree" type="date" value="${l?.date_entree||''}">
+        <input class="sci-form-input" id="loc-date-entree" type="date" value="${esc(l?.date_entree||'')}">
         <div class="sci-form-hint">Requise dès qu'un locataire actif est rattaché à un bien : c'est elle qui détermine les loyers générés.</div></div>
       <div class="sci-form-group"><label class="sci-form-label">Date de sortie</label>
-        <input class="sci-form-input" id="loc-date-sortie" type="date" value="${l?.date_sortie||''}"></div>
+        <input class="sci-form-input" id="loc-date-sortie" type="date" value="${esc(l?.date_sortie||'')}"></div>
     </div>
     <div class="sci-form-row">
       <div class="sci-form-group"><label class="sci-form-label">Loyer HC (€/mois)</label>
-        <input class="sci-form-input" id="loc-loyer" type="number" min="0" step="10" value="${l?.loyer_bail_hc||''}" placeholder="850"></div>
+        <input class="sci-form-input" id="loc-loyer" type="number" min="0" step="10" value="${esc(l?.loyer_bail_hc||'')}" placeholder="850"></div>
       <div class="sci-form-group"><label class="sci-form-label">Charges (€/mois)</label>
-        <input class="sci-form-input" id="loc-charges" type="number" min="0" step="5" value="${l?.charges_bail||''}" placeholder="50"></div>
+        <input class="sci-form-input" id="loc-charges" type="number" min="0" step="5" value="${esc(l?.charges_bail||'')}" placeholder="50"></div>
     </div>
     <div class="sci-form-group"><label class="sci-form-label">Dépôt de garantie (€)</label>
-      <input class="sci-form-input" id="loc-depot" type="number" min="0" step="50" value="${l?.depot_garantie||''}" placeholder="850"></div>
+      <input class="sci-form-input" id="loc-depot" type="number" min="0" step="50" value="${esc(l?.depot_garantie||'')}" placeholder="850"></div>
 
     <!-- Statut -->
     <div class="mf-section-title">🏷️ Statut</div>
@@ -8076,7 +8090,7 @@ function renderAdmEcheances(c) {
             <div class="ech-meta">${sciName} · ${dateStr} ${e.recurrence&&e.recurrence!=='Aucune'?'· 🔄 '+e.recurrence:''}</div>
           </div>
           <div class="ech-badge ${badgeCls}">${badge}</div>
-          <button class="ech-check ${e.est_faite?'checked':''}" onclick="event.stopPropagation();toggleEcheance('${e.id}',${!e.est_faite})" title="${e.est_faite?'Marquer non faite':'Marquer faite'}">
+          <button class="ech-check ${e.est_faite?'checked':''}" onclick="event.stopPropagation();toggleEcheance('${e.id}',${!e.est_faite})" title="${esc(e.est_faite?'Marquer non faite':'Marquer faite')}">
             ${e.est_faite?'✓':'○'}
           </button>
         </div>`; }).join('')}
@@ -8209,9 +8223,9 @@ function openContactModal(id) {
   document.getElementById('adm-modal-body').innerHTML = `
     <div class="sci-form-row">
       <div class="sci-form-group"><label class="sci-form-label">Prénom</label>
-        <input class="sci-form-input" id="ct-prenom" value="${ct?.prenom||''}" placeholder="Prénom"></div>
+        <input class="sci-form-input" id="ct-prenom" value="${esc(ct?.prenom||'')}" placeholder="Prénom"></div>
       <div class="sci-form-group"><label class="sci-form-label">Nom <span style="color:var(--sf-loss)">*</span></label>
-        <input class="sci-form-input" id="ct-nom" value="${ct?.nom||''}" placeholder="Nom de famille"></div>
+        <input class="sci-form-input" id="ct-nom" value="${esc(ct?.nom||'')}" placeholder="Nom de famille"></div>
     </div>
     <div class="sci-form-group"><label class="sci-form-label">Rôle <span style="color:var(--sf-loss)">*</span></label>
       <select class="sci-form-input" id="ct-role" onchange="document.getElementById('ct-role-detail-row').style.display=this.value==='Autre'?'block':'none'">
@@ -8219,17 +8233,17 @@ function openContactModal(id) {
       </select></div>
     <div class="sci-form-group" id="ct-role-detail-row" style="display:${ct?.role==='Autre'?'block':'none'}">
       <label class="sci-form-label">Précisez le rôle</label>
-      <input class="sci-form-input" id="ct-role-detail" value="${ct?.role_detail||''}" placeholder="Ex : Courtier, Architecte…"></div>
+      <input class="sci-form-input" id="ct-role-detail" value="${esc(ct?.role_detail||'')}" placeholder="Ex : Courtier, Architecte…"></div>
     <div class="sci-form-group"><label class="sci-form-label">Entreprise / Cabinet</label>
-      <input class="sci-form-input" id="ct-societe" value="${ct?.societe||''}" placeholder="Cabinet Martin…"></div>
+      <input class="sci-form-input" id="ct-societe" value="${esc(ct?.societe||'')}" placeholder="Cabinet Martin…"></div>
     <div class="sci-form-row">
       <div class="sci-form-group"><label class="sci-form-label">Téléphone</label>
-        <input class="sci-form-input" id="ct-tel" value="${ct?.telephone||''}" placeholder="06 xx xx xx xx"></div>
+        <input class="sci-form-input" id="ct-tel" value="${esc(ct?.telephone||'')}" placeholder="06 xx xx xx xx"></div>
       <div class="sci-form-group"><label class="sci-form-label">Email</label>
-        <input class="sci-form-input" id="ct-email" value="${ct?.email||''}" placeholder="email@exemple.com"></div>
+        <input class="sci-form-input" id="ct-email" value="${esc(ct?.email||'')}" placeholder="email@exemple.com"></div>
     </div>
     <div class="sci-form-group"><label class="sci-form-label">Adresse</label>
-      <input class="sci-form-input" id="ct-adresse" value="${ct?.adresse||''}" placeholder="Adresse professionnelle"></div>
+      <input class="sci-form-input" id="ct-adresse" value="${esc(ct?.adresse||'')}" placeholder="Adresse professionnelle"></div>
     <div class="sci-form-group"><label class="sci-form-label">SCI(s) rattachée(s)</label>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px" id="ct-sci-chips">
         ${allSCI.map(s=>`
@@ -8294,7 +8308,7 @@ function openEcheanceModal(id) {
   document.getElementById('adm-modal-del').onclick = deleteEcheance;
   document.getElementById('adm-modal-body').innerHTML = `
     <div class="sci-form-group"><label class="sci-form-label">Titre <span style="color:var(--sf-loss)">*</span></label>
-      <input class="sci-form-input" id="ech-titre" value="${e?.titre||''}" placeholder="Ex : Renouvellement assurance PNO"></div>
+      <input class="sci-form-input" id="ech-titre" value="${esc(e?.titre||'')}" placeholder="Ex : Renouvellement assurance PNO"></div>
     <div class="sci-form-row">
       <div class="sci-form-group"><label class="sci-form-label">Type</label>
         <select class="sci-form-input" id="ech-type">
@@ -8308,7 +8322,7 @@ function openEcheanceModal(id) {
     </div>
     <div class="sci-form-row">
       <div class="sci-form-group"><label class="sci-form-label">Date d'échéance <span style="color:var(--sf-loss)">*</span></label>
-        <input class="sci-form-input" id="ech-date" type="date" value="${e?.date_echeance||''}"></div>
+        <input class="sci-form-input" id="ech-date" type="date" value="${esc(e?.date_echeance||'')}"></div>
       <div class="sci-form-group"><label class="sci-form-label">Rappel (jours avant)</label>
         <input class="sci-form-input" id="ech-rappel" type="number" value="${e?.rappel_j_avant??30}" min="0" max="365"></div>
     </div>
@@ -8412,7 +8426,7 @@ function openBilanModal(id) {
           ${allSCI.map(s=>`<option value="${s.id}" ${b?.sci_id===s.id?'selected':''}>${s.nom_sci}</option>`).join('')}
         </select></div>
       <div class="sci-form-group"><label class="sci-form-label">Exercice <span style="color:var(--sf-loss)">*</span></label>
-        <input class="sci-form-input" id="bil-annee" type="number" value="${b?.exercice||anneeActuelle}" min="2020" max="2050"></div>
+        <input class="sci-form-input" id="bil-annee" type="number" value="${esc(b?.exercice||anneeActuelle)}" min="2020" max="2050"></div>
     </div>
     <div class="sci-form-group"><label class="sci-form-label">Régime fiscal <span style="color:var(--sf-loss)">*</span></label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">
@@ -9248,7 +9262,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
         <div class="marche-chart-sub">Source : NewsAPI · Presse nationale et locale · Économie · Emploi · Immobilier</div>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
           ${news.articles.map(a => `
-            <a href="${a.url}" target="_blank" rel="noopener" style="display:flex;gap:10px;text-decoration:none;background:var(--c-bg);border-radius:8px;padding:12px;transition:opacity .15s;align-items:flex-start" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+            <a href="${safeUrl(a.url)}" target="_blank" rel="noopener" style="display:flex;gap:10px;text-decoration:none;background:var(--c-bg);border-radius:8px;padding:12px;transition:opacity .15s;align-items:flex-start" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
               ${a.urlToImage ? `<img src="${a.urlToImage}" style="width:60px;height:45px;object-fit:cover;border-radius:4px;flex-shrink:0" onerror="this.style.display='none'">` : '<div style="width:60px;height:45px;background:var(--c-border);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px">📰</div>'}
               <div style="min-width:0">
                 <div style="font-size:13px;font-weight:600;color:var(--c-text);margin-bottom:3px;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${(a.title||'').replace(/<[^>]+>/g,'')}</div>
@@ -9257,7 +9271,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
             </a>`).join('')}
         </div>
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--c-border);display:flex;gap:8px;flex-wrap:wrap">
-          ${newsLinks.map(l => `<a href="${l.url}" target="_blank" rel="noopener" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--c-dim);text-decoration:none;transition:border-color .15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--c-border)'">${l.label}</a>`).join('')}
+          ${newsLinks.map(l => `<a href="${safeUrl(l.url)}" target="_blank" rel="noopener" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--c-dim);text-decoration:none;transition:border-color .15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--c-border)'">${l.label}</a>`).join('')}
         </div>
       </div>`;
   } else {
@@ -9267,7 +9281,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
         <div class="marche-chart-sub">Économie locale · Emploi · Entreprises · Immobilier</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:14px">
           ${newsLinks.map(l => `
-            <a href="${l.url}" target="_blank" rel="noopener" style="display:block;text-decoration:none;background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:14px;transition:border-color .15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--c-border)'">
+            <a href="${safeUrl(l.url)}" target="_blank" rel="noopener" style="display:block;text-decoration:none;background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:14px;transition:border-color .15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--c-border)'">
               <div style="font-size:13px;font-weight:700;color:var(--c-text);margin-bottom:4px">${l.label}</div>
               <div style="font-size:11px;color:var(--c-muted)">${l.desc}</div>
             </a>`).join('')}
@@ -9565,7 +9579,7 @@ function renderPortails(el) {
         </div>
         <div class="portails-grid" style="margin-bottom:8px">
           ${g.items.map(p=>`
-            <a class="portail-card" href="${p.url}" target="_blank" rel="noopener">
+            <a class="portail-card" href="${safeUrl(p.url)}" target="_blank" rel="noopener">
               <img class="portail-favicon" src="https://www.google.com/s2/favicons?domain=${p.icon}&sz=64" alt="${p.name}" onerror="this.style.display='none'">
               <div>
                 <div class="portail-name">${p.name}</div>
@@ -9731,7 +9745,7 @@ async function openReadVisite(id) {
   document.getElementById('detail-content').innerHTML = `
     <!-- Méta -->
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
-      <span style="background:${v.type_visite==='achat'?'rgba(99,102,241,0.1)':'rgba(22,163,74,0.1)'};color:${v.type_visite==='achat'?'var(--accent)':'var(--positive-c)'};padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600">${typeLabel}</span>
+      <span style="background:${v.type_visite==='achat'?'rgba(23,160,107,0.1)':'rgba(22,163,74,0.1)'};color:${v.type_visite==='achat'?'var(--accent)':'var(--positive-c)'};padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600">${typeLabel}</span>
       <span style="font-size:12px;color:var(--c-dim)">📅 ${dateStr}</span>
       ${v.biens?.titre?`<span style="font-size:12px;color:var(--c-dim)">🏘️ ${v.biens.titre}${v.biens.ville?' — '+v.biens.ville:''}</span>`:''}
     </div>
@@ -9779,14 +9793,14 @@ function visiteForm(v) {
   // visitPhotos est déjà normalisé (objets hybrides) par openDetailVisite
   return `
     <div class="form-grid" style="margin-bottom:14px">
-      <div class="form-group"><label>Date de la visite *</label><input type="date" id="v-date" value="${v?.date_visite||new Date().toISOString().split('T')[0]}"></div>
+      <div class="form-group"><label>Date de la visite *</label><input type="date" id="v-date" value="${esc(v?.date_visite||new Date().toISOString().split('T')[0])}"></div>
       <div class="form-group"><label>Type de visite</label>
         <select id="v-type">
           <option value="achat" ${v?.type_visite==='achat'?'selected':''}>Visite achat</option>
           <option value="locataire" ${v?.type_visite==='locataire'?'selected':''}>Visite locataire</option>
         </select>
       </div>
-      <div class="form-group form-full"><label>Adresse (libre)</label><input type="text" id="v-adresse" value="${v?.adresse||''}" placeholder="ex: 12 rue de la Paix, Paris 75001"></div>
+      <div class="form-group form-full"><label>Adresse (libre)</label><input type="text" id="v-adresse" value="${esc(v?.adresse||'')}" placeholder="ex: 12 rue de la Paix, Paris 75001"></div>
       <div class="form-group form-full"><label>Rattacher à un bien (optionnel)</label>
         <select id="v-bien"><option value="">— Aucun bien rattaché —</option>${bienOptions}</select>
       </div>
@@ -10156,7 +10170,7 @@ async function openReadSimulation(id) {
     <div style="margin-bottom:16px">
       <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--c-muted);margin-bottom:8px">📄 Document importé</div>
       <div style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="openPdfSim('${s.id}')">
-        <div style="width:40px;height:40px;background:rgba(99,102,241,0.1);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📄</div>
+        <div style="width:40px;height:40px;background:rgba(23,160,107,0.1);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📄</div>
         <div>
           <div style="font-size:13px;font-weight:600;color:var(--c-text)">${s.pdf_name||'Document PDF'}</div>
           <div style="font-size:11px;color:var(--accent);margin-top:2px">Cliquer pour ouvrir le document →</div>
@@ -10198,22 +10212,22 @@ function showSimModal(s) {
     <div id="pdf-status"></div>
 
     <div class="form-grid" style="margin-bottom:14px">
-      <div class="form-group form-full"><label>Nom de la simulation *</label><input type="text" id="s-nom" value="${s?.nom_simulation||''}" placeholder="ex: Offre Crédit Agricole 20 ans"></div>
-      <div class="form-group"><label>Date d'émission du document</label><input type="date" id="s-date-doc" value="${s?.date_document||''}"></div>
+      <div class="form-group form-full"><label>Nom de la simulation *</label><input type="text" id="s-nom" value="${esc(s?.nom_simulation||'')}" placeholder="ex: Offre Crédit Agricole 20 ans"></div>
+      <div class="form-group"><label>Date d'émission du document</label><input type="date" id="s-date-doc" value="${esc(s?.date_document||'')}"></div>
       <div class="form-group"><label>Rattacher à un bien</label>
         <select id="s-bien"><option value="">— Non rattaché —</option>${bienOptions}</select>
       </div>
-      <div class="form-group"><label>Montant emprunté (€)</label><input type="number" id="s-montant" value="${s?.montant_emprunte||''}" oninput="recalcSim()"></div>
-      <div class="form-group"><label>Taux d'intérêt annuel (%)</label><input type="number" id="s-taux" step="0.01" value="${s?.taux_interet||''}" oninput="recalcSim()"></div>
-      <div class="form-group"><label>Durée (ans)</label><input type="number" id="s-duree" value="${s?.duree_ans||20}" oninput="recalcSim()"></div>
+      <div class="form-group"><label>Montant emprunté (€)</label><input type="number" id="s-montant" value="${esc(s?.montant_emprunte||'')}" oninput="recalcSim()"></div>
+      <div class="form-group"><label>Taux d'intérêt annuel (%)</label><input type="number" id="s-taux" step="0.01" value="${esc(s?.taux_interet||'')}" oninput="recalcSim()"></div>
+      <div class="form-group"><label>Durée (ans)</label><input type="number" id="s-duree" value="${esc(s?.duree_ans||20)}" oninput="recalcSim()"></div>
       <div class="form-group"><label>Mensualité calculée</label>
         <div class="calc-field" id="s-mensualite-display">
           <span class="calc-field-badge">🔒 Auto</span>
           <span id="s-mensualite-val">${s?.mensualite_calculee?fmt(s.mensualite_calculee)+' €/mois':'—'}</span>
         </div>
       </div>
-      <div class="form-group"><label>Loyer min. exigé par la banque (€/mois)</label><input type="number" id="s-loyer-banque" value="${s?.loyer_exige_banque||''}" oninput="recalcSim()" placeholder="ex: 1 200"></div>
-      <div class="form-group"><label>Vos revenus mensuels (€/mois)</label><input type="number" id="s-revenus" value="${s?.revenus_mensuels||''}" oninput="recalcSim()" placeholder="ex: 4 000"></div>
+      <div class="form-group"><label>Loyer min. exigé par la banque (€/mois)</label><input type="number" id="s-loyer-banque" value="${esc(s?.loyer_exige_banque||'')}" oninput="recalcSim()" placeholder="ex: 1 200"></div>
+      <div class="form-group"><label>Vos revenus mensuels (€/mois)</label><input type="number" id="s-revenus" value="${esc(s?.revenus_mensuels||'')}" oninput="recalcSim()" placeholder="ex: 4 000"></div>
     </div>
 
     <!-- Résultats en temps réel -->
@@ -10595,14 +10609,11 @@ function applyTheme(name) {
 // avec le nuancier qui l'appelait.
 function applyAccentVars() { /* volontairement sans effet */ }
 
-// Les trois interrupteurs de graphiques ont ete retires en phase 5 : le nouvel
-// accueil n'a plus de graphiques a montrer ou masquer. Les colonnes
-// dash_show_* restent en base — inoffensives, et reutilisables si l'on
-// reintroduit un jour des blocs optionnels.
-function savePrefs() {
-  persistAppearance();
-  if(currentPage === 'accueil') renderAccueil(document.getElementById('content'));
-}
+// `savePrefs()` vivait ici. Elle etait le gestionnaire des trois interrupteurs
+// de graphiques du tableau de bord, retires en phase 5 avec les graphiques
+// qu'ils pilotaient : plus aucun appelant depuis. Les colonnes dash_show_*
+// restent en base — inoffensives, et reutilisables si l'on reintroduit un jour
+// des blocs optionnels.
 
 // Enregistre l'apparence courante (couleur + toggles) en base de données.
 // Source de vérité = DB ; le localStorage n'est qu'un cache anti-flash.
@@ -10794,25 +10805,25 @@ function renderAssociesList() {
       <div class="assoc-grid" style="margin-bottom:8px">
         <div>
           <label class="sci-form-label">Prénom</label>
-          <input class="sci-form-input" value="${a.prenom||''}" oninput="updateAssocie(${i},'prenom',this.value)" placeholder="Prénom">
+          <input class="sci-form-input" value="${esc(a.prenom||'')}" oninput="updateAssocie(${i},'prenom',this.value)" placeholder="Prénom">
         </div>
         <div>
           <label class="sci-form-label">Nom</label>
-          <input class="sci-form-input" value="${a.nom||''}" oninput="updateAssocie(${i},'nom',this.value)" placeholder="Nom">
+          <input class="sci-form-input" value="${esc(a.nom||'')}" oninput="updateAssocie(${i},'nom',this.value)" placeholder="Nom">
         </div>
       </div>
       <div class="assoc-grid-3">
         <div>
           <label class="sci-form-label">Téléphone</label>
-          <input class="sci-form-input" value="${a.telephone||''}" oninput="updateAssocie(${i},'telephone',this.value)" placeholder="06 xx xx xx xx">
+          <input class="sci-form-input" value="${esc(a.telephone||'')}" oninput="updateAssocie(${i},'telephone',this.value)" placeholder="06 xx xx xx xx">
         </div>
         <div>
           <label class="sci-form-label">Email</label>
-          <input class="sci-form-input" value="${a.email||''}" oninput="updateAssocie(${i},'email',this.value)" placeholder="email@exemple.com">
+          <input class="sci-form-input" value="${esc(a.email||'')}" oninput="updateAssocie(${i},'email',this.value)" placeholder="email@exemple.com">
         </div>
         <div>
           <label class="sci-form-label">Parts %</label>
-          <input class="sci-form-input" type="number" min="0" max="100" value="${a.parts_pct||''}" oninput="updateAssocie(${i},'parts_pct',parseFloat(this.value)||0)" placeholder="50">
+          <input class="sci-form-input" type="number" min="0" max="100" value="${esc(a.parts_pct||'')}" oninput="updateAssocie(${i},'parts_pct',parseFloat(this.value)||0)" placeholder="50">
         </div>
       </div>
       <div class="assoc-sub">Situation professionnelle <span>(facultatif — utilisé dans le dossier bancaire)</span></div>
@@ -10835,7 +10846,7 @@ function renderAssociesList() {
         </div>
         <div>
           <label class="sci-form-label">Revenus mensuels nets (€)</label>
-          <input class="sci-form-input" type="number" min="0" step="50" value="${a.revenus_mensuels??''}" oninput="updateAssocie(${i},'revenus_mensuels',this.value===''?null:(parseFloat(this.value)||0))" placeholder="Ex : 2800">
+          <input class="sci-form-input" type="number" min="0" step="50" value="${esc(a.revenus_mensuels??'')}" oninput="updateAssocie(${i},'revenus_mensuels',this.value===''?null:(parseFloat(this.value)||0))" placeholder="Ex : 2800">
         </div>
       </div>
     </div>`).join('');
