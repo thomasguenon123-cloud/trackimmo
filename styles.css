@@ -3318,3 +3318,6 @@ body[data-densite="compact"] .sfb-t__s{ display:none; }
 .notif__ic{ display:flex; flex-shrink:0; color:var(--sf-gain); }
 .notif.error .notif__ic{ color:var(--sf-loss); }
 .notif__txt{ min-width:0; }
+
+/* Encart d'information de l'écran Utilisateurs : l'icône remplace un emoji. */
+.adm-info-ic{ display:flex; flex-shrink:0; color:var(--sf-info); }

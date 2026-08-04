@@ -982,9 +982,9 @@ async function renderAdmin(el) {
       </div>
       <div style="display:flex;gap:24px;flex-wrap:wrap">
         <div class="admin-hero-stat"><div class="admin-hero-num">${total}</div><div class="admin-hero-lbl">Total</div></div>
-        <div class="admin-hero-stat"><div class="admin-hero-num" style="color:#86efac">${active}</div><div class="admin-hero-lbl">Actifs</div></div>
-        <div class="admin-hero-stat"><div class="admin-hero-num" style="color:#fde68a">${pending}</div><div class="admin-hero-lbl">En attente</div></div>
-        <div class="admin-hero-stat"><div class="admin-hero-num" style="color:#c4b5fd">${admins}</div><div class="admin-hero-lbl">Admins</div></div>
+        <div class="admin-hero-stat"><div class="admin-hero-num" style="color:var(--sf-gain)">${active}</div><div class="admin-hero-lbl">Actifs</div></div>
+        <div class="admin-hero-stat"><div class="admin-hero-num" style="color:var(--sf-alert)">${pending}</div><div class="admin-hero-lbl">En attente</div></div>
+        <div class="admin-hero-stat"><div class="admin-hero-num" style="color:var(--sf-info)">${admins}</div><div class="admin-hero-lbl">Admins</div></div>
       </div>
     </div>
 
@@ -992,7 +992,7 @@ async function renderAdmin(el) {
     <div class="invite-form-card">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
         <div>
-          <div style="font-size:14px;font-weight:700;color:var(--c-text)">📤 Inviter un nouvel utilisateur</div>
+          <div style="font-size:14px;font-weight:700;color:var(--c-text)">${sfAccIcon('envoi',16)} Inviter un nouvel utilisateur</div>
           <div style="font-size:12px;color:var(--c-dim);margin-top:3px">Un email d'invitation sera envoyé. L'utilisateur définira lui-même son mot de passe.</div>
         </div>
       </div>
@@ -1012,8 +1012,8 @@ async function renderAdmin(el) {
         <div class="form-group">
           <label class="form-label">Rôle</label>
           <select class="form-select" id="invite-role" style="width:100%">
-            <option value="user">👤 Utilisateur — accès à son espace uniquement</option>
-            <option value="admin">👑 Admin — accès complet + gestion des utilisateurs</option>
+            <option value="user">Utilisateur — accès à son espace uniquement</option>
+            <option value="admin">Admin — accès complet + gestion des utilisateurs</option>
           </select>
         </div>
         <div class="form-group" style="grid-column:1/-1">
@@ -1022,12 +1022,12 @@ async function renderAdmin(el) {
         </div>
       </div>
       <div style="background:rgba(23,160,107,0.06);border:1px solid rgba(23,160,107,0.15);border-radius:8px;padding:10px 14px;margin-top:14px;font-size:12px;color:var(--c-dim);display:flex;gap:10px;align-items:flex-start">
-        <span style="font-size:16px;line-height:1">ℹ️</span>
+        <span class="adm-info-ic">${sfAccIcon('info',16)}</span>
         <span>L'utilisateur recevra un email de bienvenue avec un lien sécurisé. Il définira lui-même son mot de passe en cliquant sur ce lien. Aucun mot de passe n'est jamais visible pour vous.</span>
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:14px">
         <button class="btn btn-primary" id="btn-invite-send" onclick="adminInviteUser()" style="padding:10px 20px">
-          📤 Envoyer l'invitation
+          ${sfAccIcon('envoi',14)} Envoyer l'invitation
         </button>
       </div>
     </div>
@@ -1035,19 +1035,19 @@ async function renderAdmin(el) {
     <!-- Liste des utilisateurs -->
     <div style="background:var(--sf-surface);border-radius:14px;box-shadow:var(--c-shadow);padding:20px;margin-top:18px">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
-        <div style="font-size:14px;font-weight:700;color:var(--c-text)">📋 Utilisateurs enregistrés</div>
+        <div style="font-size:14px;font-weight:700;color:var(--c-text)">${sfAccIcon('doc',16)} Utilisateurs enregistrés</div>
         <div class="mf-filter-pills">
           <button class="mf-filter-pill ${adminUsersFilter==='all'?'active':''}" onclick="setAdminUsersFilter('all')">
             Tous <span class="count">${total}</span>
           </button>
           <button class="mf-filter-pill ${adminUsersFilter==='active'?'active':''}" onclick="setAdminUsersFilter('active')">
-            ✅ Actifs <span class="count">${active}</span>
+            ${sfAccIcon('ok',13)} Actifs <span class="count">${active}</span>
           </button>
           <button class="mf-filter-pill ${adminUsersFilter==='pending'?'active':''}" onclick="setAdminUsersFilter('pending')">
-            ⏳ En attente <span class="count">${pending}</span>
+            ${sfAccIcon('horloge',13)} En attente <span class="count">${pending}</span>
           </button>
           <button class="mf-filter-pill ${adminUsersFilter==='disabled'?'active':''}" onclick="setAdminUsersFilter('disabled')">
-            🚫 Archivés <span class="count">${disabled}</span>
+            ${sfAccIcon('interdit',13)} Archivés <span class="count">${disabled}</span>
           </button>
         </div>
       </div>
@@ -1110,8 +1110,8 @@ async function adminInviteUser() {
     if(data?.error) throw new Error(data.error);
 
     const message = data?.alreadyRegistered
-      ? '✅ ' + (data.message || 'Mail de réinitialisation envoyé à ' + email)
-      : '✅ ' + (data?.message || 'Invitation envoyée à ' + email);
+      ? (data.message || 'Mail de réinitialisation envoyé à ' + email)
+      : (data?.message || 'Invitation envoyée à ' + email);
     showNotif(message);
 
     // Reset du formulaire
@@ -1126,7 +1126,7 @@ async function adminInviteUser() {
     console.error('[admin-invite]', e);
     showNotif('Erreur : ' + e.message, true);
   } finally {
-    if(btn) { btn.disabled = false; btn.innerHTML = '📤 Envoyer l\'invitation'; }
+    if(btn) { btn.disabled = false; btn.innerHTML = sfAccIcon("envoi",14)+' Envoyer l\'invitation'; }
   }
 }
 
@@ -4155,7 +4155,7 @@ async function saveAction() {
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
   } finally {
-    btn.disabled = false; btn.innerHTML = '✓ Enregistrer';
+    btn.disabled = false; btn.innerHTML = sfAccIcon("check",14)+' Enregistrer';
   }
 }
 
@@ -5037,11 +5037,11 @@ function paramsDonneesHtml() {
     <div class="params-section-sub">Gérez vos données de test.</div>
     <div class="params-card">
       <div class="params-card-title">Fiches de test</div>
-      <div class="settings-action" onclick="genTestData()">🎲 Générer des fiches tests (5)</div>
-      <div class="settings-action" onclick="purgeTestData()">🧹 Supprimer les fiches tests</div>
+      <div class="settings-action" onclick="genTestData()">${sfAccIcon('boite',15)} Générer des fiches tests (5)</div>
+      <div class="settings-action" onclick="purgeTestData()">${sfAccIcon('poubelle',15)} Supprimer les fiches tests</div>
     </div>
     <div class="params-danger">
-      <div class="params-danger-header">⚠️ Zone de danger</div>
+      <div class="params-danger-header">${sfAccIcon('alerte',15)} Zone de danger</div>
       <div class="params-danger-body">
         <div class="params-danger-row">
           <div>
@@ -7973,7 +7973,7 @@ async function saveLocataire() {
   } catch(e) {
     showNotif('Erreur : '+e.message, true);
   } finally {
-    btn.disabled = false; btn.innerHTML = '✓ Enregistrer';
+    btn.disabled = false; btn.innerHTML = sfAccIcon("check",14)+' Enregistrer';
   }
 }
 
@@ -8531,7 +8531,7 @@ async function saveContact() {
     showNotif(editingContactId?'Contact mis à jour ✓':'Contact ajouté ✓');
     closeAdmModal(); await loadAdminData(); switchAdminTab('annuaire');
   } catch(e) { showNotif('Erreur : '+e.message, true); }
-  finally { btn.disabled=false; btn.innerHTML='✓ Enregistrer'; }
+  finally { btn.disabled=false; btn.innerHTML=sfAccIcon("check",14)+' Enregistrer'; }
 }
 
 async function deleteContact() {
@@ -8610,7 +8610,7 @@ async function saveEcheance() {
     showNotif(editingEcheanceId?'Échéance mise à jour ✓':'Échéance ajoutée ✓');
     closeAdmModal(); await loadAdminData(); switchAdminTab('echeances');
   } catch(e) { showNotif('Erreur : '+e.message, true); }
-  finally { btn.disabled=false; btn.innerHTML='✓ Enregistrer'; }
+  finally { btn.disabled=false; btn.innerHTML=sfAccIcon("check",14)+' Enregistrer'; }
 }
 
 async function deleteEcheance() {
@@ -8721,7 +8721,7 @@ async function saveBilan() {
     showNotif(bId?'Bilan mis à jour ✓':'Bilan créé ✓');
     closeAdmModal(); await loadAdminData(); switchAdminTab('bilans');
   } catch(e) { showNotif('Erreur : '+(e.message.includes('unique')?'Un bilan existe déjà pour cette SCI et cet exercice.':e.message), true); }
-  finally { btn.disabled=false; btn.innerHTML='✓ Enregistrer'; }
+  finally { btn.disabled=false; btn.innerHTML=sfAccIcon("check",14)+' Enregistrer'; }
 }
 
 async function deleteBilan() {
@@ -11199,7 +11199,7 @@ async function saveSCI() {
     showNotif('Erreur : ' + e.message, true);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '✓ Enregistrer';
+    btn.innerHTML = sfAccIcon("check",14)+' Enregistrer';
   }
 }
 
