@@ -3483,10 +3483,10 @@ async function renderBienDetail(el) {
   // Onglet Financement : décomposition de l'acquisition et poids du crédit
   const finSplit = [
     { lab:'Prix',     val: parseFloat(b.prix_affiche)||0,  col:'var(--accent)' },
-    { lab:'Notaire',  val: parseFloat(b.frais_notaire)||0, col:'#6b7280' },
-    { lab:'Travaux',  val: parseFloat(b.travaux)||0,       col:'var(--warning)' },
-    { lab:'Agence',   val: parseFloat(b.frais_agence)||0,  col:'#0ea5e9' },
-    { lab:'SCI',      val: parseFloat(b.creation_sci)||0,  col:'#a855f7' },
+    { lab:'Notaire',  val: parseFloat(b.frais_notaire)||0, col:'#9BAEA4' },
+    { lab:'Travaux',  val: parseFloat(b.travaux)||0,       col:'#F0B429' },
+    { lab:'Agence',   val: parseFloat(b.frais_agence)||0,  col:'#8CC0F0' },
+    { lab:'SCI',      val: parseFloat(b.creation_sci)||0,  col:'#BCA0F5' },
   ].filter(s => s.val > 0).map(s => ({ ...s, pct: emprunt ? (s.val / emprunt) * 100 : 0 }));
   const mensu        = parseFloat(b.mensualite_credit) || 0;
   const loyerAttendu = (parseFloat(b.loyer_en_etat)||0) + (parseFloat(b.charges_locataire_etat)||0);
@@ -8067,7 +8067,7 @@ async function renderAdministration(el) {
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
           <button onclick="genAdminTestData()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;">🧪 Générer tests</button>
           <button onclick="purgeAdminTestData()" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.75);border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;">🧹 Supprimer tests</button>
-          <button onclick="purgeAllAdminData()" style="background:rgba(220,38,38,0.3);border:1px solid rgba(220,38,38,0.5);color:#fca5a5;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;">🗑 Tout supprimer</button>
+          <button onclick="purgeAllAdminData()" style="background:rgba(220,38,38,0.3);border:1px solid rgba(220,38,38,0.5);color:var(--sf-loss);border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;">🗑 Tout supprimer</button>
         </div>
       </div>
     </div>
@@ -10820,35 +10820,26 @@ document.addEventListener('DOMContentLoaded', init);
 //   SETTINGS PANEL
 // ═══════════════════════════════════════════════════════════
 
-const THEMES = {
-  indigo: { accent:'#6366f1', accent2:'#a5b4fc', grad:'linear-gradient(135deg,#6366f1,#8b5cf6)' },
-  blue:   { accent:'#3b82f6', accent2:'#93c5fd', grad:'linear-gradient(135deg,#3b82f6,#06b6d4)' },
-  emerald:{ accent:'#10b981', accent2:'#6ee7b7', grad:'linear-gradient(135deg,#10b981,#059669)' },
-  rose:   { accent:'#f43f5e', accent2:'#fda4af', grad:'linear-gradient(135deg,#f43f5e,#e11d48)' },
-  amber:  { accent:'#f59e0b', accent2:'#fcd34d', grad:'linear-gradient(135deg,#f59e0b,#d97706)' },
-};
+// `THEMES` vivait ici : cinq nuanciers (indigo, blue, emerald, rose, amber)
+// qui portaient a eux seuls QUINZE couleurs de l'ancienne charte TrackImmo.
+// Ils ne peignaient plus rien depuis l'arbitrage « DA unique » du 01/08/2026 —
+// du code mort qui gardait la vieille palette en vie dans le depot.
 
-let currentTheme = 'indigo';
 // Visibilité des blocs du tableau de bord (cf = graphique cashflow, st = donut statuts, kpi = bandeau KPIs)
 const dashVisibility = { cf: true, st: true, kpi: true };
-// Couleur d'accent active (suivie pour la persistance DB). Défaut = indigo.
-let currentAccent = { color: '#6366f1', colorDark: '#4f46e5' };
+// Couleur d'accent : la colonne existe encore en base et `persistAppearance()`
+// l'ecrit, mais plus rien ne la lit pour peindre. Elle vaut desormais le vert
+// d'identite plutot qu'un indigo qui n'a plus cours.
+let currentAccent = { color: '#17A06B', colorDark: '#127A44' };
 
 function closeSettings() {
   // No-op : l'ancien panneau slide-in n'existe plus, conservé pour compat des appels existants
 }
 
-// Meme raison que applyAccentVars : ces cinq themes repeignaient --accent en
-// style en ligne. Ils survivent comme entree de localStorage (sf_theme) pour
-// ne pas casser la restauration, mais ne touchent plus a la couleur.
-function applyTheme(name) {
-  const t = THEMES[name]; if(!t) return;
-  currentTheme = name;
-  document.querySelectorAll('.theme-swatch').forEach(s => {
-    s.classList.toggle('active', s.dataset.theme === name);
-  });
-  localStorage.setItem('sf_theme', name);
-}
+// `applyTheme()` vivait ici. Elle ne peignait plus rien depuis l'arbitrage
+// « DA unique », et aucun `.theme-swatch` n'existe plus dans l'interface : elle
+// ne faisait qu'ecrire une entree de localStorage que personne ne lisait pour
+// autre chose qu'elle-meme. Supprimee avec `THEMES` et `currentTheme`.
 
 
 // L'ACCENT N'EST PLUS CONFIGURABLE — arbitrage « DA unique » du 01/08/2026.
@@ -10902,10 +10893,9 @@ async function persistAppearance() {
 }
 
 function loadPreferences() {
-  // Fast path (localStorage) : appliqué immédiatement pour éviter un flash de thème
-  // avant que les préférences DB ne soient chargées (cf. applyAppearanceFromPrefs).
-  const savedTheme = localStorage.getItem('sf_theme');
-  if(savedTheme && THEMES[savedTheme]) applyTheme(savedTheme);
+  // La restauration du thème est retirée avec le nuancier : il n'y a plus
+  // qu'une seule charte, il n'y a donc plus rien à restaurer. La clé
+  // localStorage `sf_theme` d'un ancien utilisateur est simplement ignorée.
   try {
     const savedAccent = JSON.parse(localStorage.getItem('sf_accent')||'null');
     if(savedAccent?.color) {
