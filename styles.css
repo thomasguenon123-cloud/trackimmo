@@ -3310,3 +3310,11 @@ body[data-densite="compact"] .sfb-t__s{ display:none; }
    elles suivent l'état de l'onglet (discret / actif) sans règle de couleur. */
 .bd-tab svg{ flex-shrink:0; }
 .bd-tab.dim svg{ opacity:.55; }
+
+/* Notification : l'icône est posée par le composant, plus par chacun des
+   messages. Une quarantaine d'appels commençaient par « ✓ », « ✅ », « 🚫 » —
+   autant d'endroits où elle pouvait manquer ou différer. */
+.notif{ display:flex; align-items:center; gap:var(--sf-space-4); }
+.notif__ic{ display:flex; flex-shrink:0; color:var(--sf-gain); }
+.notif.error .notif__ic{ color:var(--sf-loss); }
+.notif__txt{ min-width:0; }

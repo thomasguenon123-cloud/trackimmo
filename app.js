@@ -720,7 +720,7 @@ function exportBiensCSV(biensChoisis) {
   });
 
   const nom = tiTelechargerCsv('biens', tiCsv(entetes, lignes));
-  showNotif(`✓ ${biens.length} bien${biens.length > 1 ? 's' : ''} exporté${biens.length > 1 ? 's' : ''} · ${nom}`);
+  showNotif(`${biens.length} bien${biens.length > 1 ? 's' : ''} exporté${biens.length > 1 ? 's' : ''} · ${nom}`);
 }
 
 // ── Export des loyers d'une annee ────────────────────────────────
@@ -747,7 +747,7 @@ function exportLoyersCSV(annee) {
     });
 
   const nom = tiTelechargerCsv(`loyers-${annee}`, tiCsv(entetes, lignes));
-  showNotif(`✓ ${lignes.length} ligne${lignes.length > 1 ? 's' : ''} de loyer exportée${lignes.length > 1 ? 's' : ''} · ${nom}`);
+  showNotif(`${lignes.length} ligne${lignes.length > 1 ? 's' : ''} de loyer exportée${lignes.length > 1 ? 's' : ''} · ${nom}`);
 }
 
 // ── Export des charges d'une annee ───────────────────────────────
@@ -773,7 +773,7 @@ function exportChargesCSV(annee) {
     });
 
   const nom = tiTelechargerCsv(`charges-${annee}`, tiCsv(entetes, lignes));
-  showNotif(`✓ ${lignes.length} charge${lignes.length > 1 ? 's' : ''} exportée${lignes.length > 1 ? 's' : ''} · ${nom}`);
+  showNotif(`${lignes.length} charge${lignes.length > 1 ? 's' : ''} exportée${lignes.length > 1 ? 's' : ''} · ${nom}`);
 }
 let sciOui = false;
 
@@ -888,9 +888,11 @@ function buildUserRowsHtml(users, myEmail) {
     var isMe = u.email === myEmail;
     var fullName = esc([u.first_name, u.last_name].filter(Boolean).join(' ') || '—');
     var statusCls = u.status === 'active' ? 'active' : u.status === 'pending' ? 'pending' : 'disabled';
-    var statusLabel = u.status === 'active' ? '✅ Actif' : u.status === 'pending' ? '⏳ En attente' : '🚫 Archivé';
+    var statusLabel = u.status === 'active' ? sfAccIcon("ok",13)+' Actif'
+      : u.status === 'pending' ? sfAccIcon("horloge",13)+' En attente'
+      : sfAccIcon("interdit",13)+' Archivé';
     var meBadge = isMe ? '<span style="font-size:9px;background:var(--accent);color:white;padding:1px 6px;border-radius:4px;font-weight:700;margin-left:6px">MOI</span>' : '';
-    var roleLabel = u.role === 'admin' ? '👑 Admin' : '👤 Utilisateur';
+    var roleLabel = u.role === 'admin' ? sfAccIcon("couronne",13)+' Admin' : sfAccIcon("user",13)+' Utilisateur';
     var roleCls = u.role === 'admin' ? 'role-badge admin' : 'role-badge user';
     var bg = isMe ? 'background:var(--sf-brand-wash)' : 'background:var(--sf-surface)';
     var dateInscription = u.created_at ? new Date(u.created_at).toLocaleDateString('fr-FR') : '—';
@@ -901,15 +903,15 @@ function buildUserRowsHtml(users, myEmail) {
       actions.push('<span style="font-size:11px;color:var(--sf-text-3);font-style:italic">Mon compte</span>');
     } else if(u.status === 'pending') {
       // En attente : valider l'accès OU renvoyer l'invitation
-      actions.push('<button class="admin-action-btn is-validate admin-validate-btn" data-id="'+u.id+'" data-email="'+esc(u.email)+'" aria-label="Valider l\'accès" title="Activer le compte"><span class="ic">✓</span> Valider</button>');
-      actions.push('<button class="admin-action-btn is-resend admin-resend-btn" data-email="'+esc(u.email)+'" data-fn="'+esc(u.first_name||'')+'" data-ln="'+esc(u.last_name||'')+'" data-role="'+u.role+'" aria-label="Renvoyer l\'invitation" title="Renvoyer un email d\'invitation"><span class="ic">📤</span> Renvoyer</button>');
+      actions.push('<button class="admin-action-btn is-validate admin-validate-btn" data-id="'+u.id+'" data-email="'+esc(u.email)+'" aria-label="Valider l\'accès" title="Activer le compte"><span class="ic">'+sfAccIcon("check",14)+'</span> Valider</button>');
+      actions.push('<button class="admin-action-btn is-resend admin-resend-btn" data-email="'+esc(u.email)+'" data-fn="'+esc(u.first_name||'')+'" data-ln="'+esc(u.last_name||'')+'" data-role="'+u.role+'" aria-label="Renvoyer l\'invitation" title="Renvoyer un email d\'invitation"><span class="ic">'+sfAccIcon("envoi",14)+'</span> Renvoyer</button>');
     } else if(u.status === 'active') {
       // Actif : envoyer reset password OU archiver
-      actions.push('<button class="admin-action-btn is-reset admin-resetpwd-btn" data-email="'+esc(u.email)+'" aria-label="Envoyer un email de réinitialisation de mot de passe" title="Envoyer un email de réinitialisation"><span class="ic">🔑</span> Reset</button>');
-      actions.push('<button class="admin-action-btn is-disable admin-disable-btn" data-id="'+u.id+'" aria-label="Archiver l\'utilisateur" title="Archiver"><span class="ic">🚫</span> Archiver</button>');
+      actions.push('<button class="admin-action-btn is-reset admin-resetpwd-btn" data-email="'+esc(u.email)+'" aria-label="Envoyer un email de réinitialisation de mot de passe" title="Envoyer un email de réinitialisation"><span class="ic">'+sfAccIcon("cle",14)+'</span> Reset</button>');
+      actions.push('<button class="admin-action-btn is-disable admin-disable-btn" data-id="'+u.id+'" aria-label="Archiver l\'utilisateur" title="Archiver"><span class="ic">'+sfAccIcon("interdit",14)+'</span> Archiver</button>');
     } else if(u.status === 'disabled') {
       // Archivé : réactiver
-      actions.push('<button class="admin-action-btn is-enable admin-enable-btn" data-id="'+u.id+'" aria-label="Réactiver le compte" title="Réactiver le compte"><span class="ic">✅</span> Réactiver</button>');
+      actions.push('<button class="admin-action-btn is-enable admin-enable-btn" data-id="'+u.id+'" aria-label="Réactiver le compte" title="Réactiver le compte"><span class="ic">'+sfAccIcon("ok",14)+'</span> Réactiver</button>');
     }
     var actionHtml = '<div class="admin-actions-cell">' + actions.join('') + '</div>';
 
@@ -944,7 +946,7 @@ document.addEventListener('click', function(e) {
 async function renderAdmin(el) {
   const isAdmin = currentProfile?.role === 'admin' || currentUser?.email === ADMIN_EMAIL;
   if(!isAdmin) {
-    el.innerHTML = `<div class="empty-state"><h3>🔒 Accès refusé</h3><p>Cette section est réservée aux administrateurs.</p></div>`;
+    el.innerHTML = `<div class="empty-state"><h3>${sfAccIcon('lock',20)} Accès refusé</h3><p>Cette section est réservée aux administrateurs.</p></div>`;
     return;
   }
 
@@ -1137,7 +1139,7 @@ async function adminResendInvite(email, firstName, lastName, role) {
       body: { email, firstName, lastName, role: role || 'user' }
     });
     if(error || data?.error) throw new Error(data?.error || error.message);
-    showNotif('📤 Invitation renvoyée à ' + email);
+    showNotif('Invitation renvoyée à ' + email);
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
   }
@@ -1151,7 +1153,7 @@ async function adminSendResetPwd(email) {
     const redirectTo = window.location.href.split('#')[0];
     const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo });
     if(error) throw error;
-    showNotif('🔑 Email de réinitialisation envoyé à ' + email);
+    showNotif('Email de réinitialisation envoyé à ' + email);
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
   }
@@ -1164,7 +1166,7 @@ async function adminValidateUser(profileId, email) {
   try {
     const { error } = await db.rpc('admin_set_user_status', { p_profile_id: profileId, p_status: 'active' });
     if(error) throw error;
-    showNotif('✅ Accès activé pour ' + email);
+    showNotif('Accès activé pour ' + email);
     renderAdmin(document.getElementById('content'));
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
@@ -1177,7 +1179,7 @@ async function adminDisableUser(profileId) {
   try {
     const { error } = await db.rpc('admin_disable_user', { p_profile_id: profileId });
     if(error) throw error;
-    showNotif('🚫 Utilisateur archivé');
+    showNotif('Utilisateur archivé');
     renderAdmin(document.getElementById('content'));
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
@@ -1189,7 +1191,7 @@ async function adminEnableUser(profileId) {
   try {
     const { error } = await db.rpc('admin_enable_user', { p_profile_id: profileId });
     if(error) throw error;
-    showNotif('✅ Utilisateur réactivé');
+    showNotif('Utilisateur réactivé');
     renderAdmin(document.getElementById('content'));
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
@@ -1402,6 +1404,23 @@ const SF_ACC_ICONS = {
   bank:    '<path d="M3 9.5 12 4l9 5.5"/><path d="M5.5 9.5V19M9.8 9.5V19M14.2 9.5V19M18.5 9.5V19"/><path d="M3 21h18"/>',
   wrench:  '<path d="M15.5 4.5a5 5 0 0 0-6.4 6.4L4 16l4 4 5.1-5.1a5 5 0 0 0 6.4-6.4L16.6 9.4 14.6 7.4Z"/>',
   info:    '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.9" r=".7" fill="currentColor" stroke="none"/>',
+
+  // ── Actions, etats vides et titres de section (lots 2b / 2c) ─────────────
+  crayon:   '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 6.5 17.5 9.5"/>',
+  poubelle: '<path d="M4 7h16"/><path d="M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2"/><path d="M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/><path d="M10.5 11v6M13.5 11v6"/>',
+  croix:    '<path d="M6 6l12 12M18 6 6 18"/>',
+  envoi:    '<path d="M12 20V5"/><path d="m6 11 6-6 6 6"/><path d="M4 20h16"/>',
+  interdit: '<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
+  mallette: '<rect x="3" y="7.5" width="18" height="12.5" rx="2"/><path d="M9 7.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.5"/><path d="M3 13h18"/>',
+  image:    '<rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 17 5-4.5 4.5 4 3-2.5L20 18"/>',
+  trombone: '<path d="M20 11.5 12 19.4a5 5 0 0 1-7.1-7.1l8.5-8.4a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4l7.7-7.6"/>',
+  couronne: '<path d="M4 18h16"/><path d="M3 7l4 4 5-6 5 6 4-4-2 8H5L3 7Z"/>',
+  boite:    '<path d="M3 8.5 12 4l9 4.5v7L12 20l-9-4.5v-7Z"/><path d="m3 8.5 9 4.5 9-4.5M12 13v7"/>',
+  balance:  '<path d="M12 4v16M7 20h10"/><path d="M4 8h16"/><path d="M4 8 1.5 14a2.8 2.8 0 0 0 5 0L4 8Z"/><path d="M20 8l-2.5 6a2.8 2.8 0 0 0 5 0L20 8Z"/>',
+  ampoule:  '<path d="M9.5 18h5"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5.9 1.1 1 1.6h5c.1-.5.4-1.1 1-1.6A6 6 0 0 0 12 3Z"/>',
+  etoile:   '<path d="m12 3.5 2.6 5.5 5.9.8-4.3 4.2 1.1 6-5.3-2.9-5.3 2.9 1.1-6L3.5 9.8l5.9-.8L12 3.5Z"/>',
+  bulle:    '<path d="M20 12.5a7.5 7.5 0 0 1-10.9 6.7L4 20.5l1.4-4.6A7.5 7.5 0 1 1 20 12.5Z"/>',
+  travaux:  '<path d="M3 9h18v6H3z"/><path d="m7 9 3 6M13 9l3 6"/><path d="M4 19h16M4 5h16"/>',
 
   // ── Onglets de la fiche bien ─────────────────────────────────────────────
   euro:    '<path d="M17.5 6.5A6.5 6.5 0 0 0 7 12a6.5 6.5 0 0 0 10.5 5.5"/><path d="M4.5 10.5h8M4.5 14h8"/>',
@@ -1627,7 +1646,7 @@ async function sfPointerLoyer(bienId, mois, annee, boite) {
         const i = allLoyers.findIndex(l => l.id === data.id);
         if (i >= 0) allLoyers[i] = data; else allLoyers.push(data);
       }
-      showNotif('✓ Loyer pointé');
+      showNotif('Loyer pointé');
     }
 
     // Le pointage change le verdict, le compte des points a traiter et les KPI
@@ -2328,7 +2347,7 @@ async function sfBulkStatut() {
     if(error) throw error;
     // Mise a jour en memoire : eviter un rechargement complet pour un champ.
     choisis.forEach(b => { b.statut = statut; });
-    showNotif(`✓ ${choisis.length} bien${choisis.length>1?'s':''} mis à jour`);
+    showNotif(`${choisis.length} bien${choisis.length>1?'s':''} mis à jour`);
     bienSelection.clear();
     applyFilters();
   } catch(e) { showNotif('Erreur : ' + e.message, true); }
@@ -2455,7 +2474,7 @@ async function renderNouveau(el, bien) {
       <div class="info">${bien?'<strong>Modifier le bien :</strong> '+(bien.titre||'').replace(/</g,'&lt;'):'<strong>Ajouter un nouveau bien</strong>'}</div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-secondary" onclick="navigate('biens')" style="padding:7px 14px;font-size:12px">Annuler</button>
-        <button class="btn btn-primary" id="btn-save-top" onclick="saveBien()" style="padding:7px 16px;font-size:12px">${bien?'💾 Enregistrer':'＋ Ajouter le bien'}</button>
+        <button class="btn btn-primary" id="btn-save-top" onclick="saveBien()" style="padding:7px 16px;font-size:12px">${bien?sfAccIcon('check',14)+' Enregistrer':'＋ Ajouter le bien'}</button>
       </div>
     </div>
     <div>
@@ -2469,7 +2488,7 @@ async function renderNouveau(el, bien) {
 
         <!-- Bien -->
         <div class="form-card">
-          <div class="form-card-title">📍 Informations du bien</div>
+          <div class="form-card-title">${sfAccIcon('pin',16)} Informations du bien</div>
           <div class="form-grid">
             <div class="form-group form-full"><label class="req">Titre de l'annonce</label><input type="text" id="f-titre" value="${esc(bien?.titre||'')}" oninput="updatePrev()" placeholder="ex: T3 Paris Montmartre 65m²" style="border-color:${!bien?.titre?'rgba(220,38,38,0.3)':''}"></div>
             <div class="form-group"><label class="req">Ville</label><input type="text" id="f-ville" value="${esc(bien?.ville||'')}" placeholder="Paris"></div>
@@ -2500,7 +2519,7 @@ async function renderNouveau(el, bien) {
 
         <!-- Acquisition -->
         <div class="form-card">
-          <div class="form-card-title">💰 Coûts d'acquisition</div>
+          <div class="form-card-title">${sfAccIcon('euro',16)} Coûts d'acquisition</div>
           <div class="form-grid cols3">
             <div class="form-group"><label>Prix HA (€)</label><input type="number" id="f-ha" value="${esc(bien?.prix_affiche||'')}" oninput="updateNotaire();updatePrev()" placeholder="300 000"></div>
             <div class="form-group">
@@ -2527,7 +2546,7 @@ async function renderNouveau(el, bien) {
 
         <!-- Crédit -->
         <div class="form-card">
-          <div class="form-card-title">🏦 Crédit bancaire</div>
+          <div class="form-card-title">${sfAccIcon('banque',16)} Crédit bancaire</div>
           <div class="form-grid">
             <div class="form-group"><label>Mensualité (€/mois)</label><input type="number" id="f-mensualite" value="${esc(bien?.mensualite_credit||'')}" oninput="updatePrev()" placeholder="1 200"></div>
             <div class="form-group"><label>Durée (ans)</label><input type="number" id="f-duree" value="${esc(bien?.duree_credit_ans||userPrefs.duree_credit_ans||20)}"></div>
@@ -2536,7 +2555,7 @@ async function renderNouveau(el, bien) {
 
         <!-- Charges -->
         <div class="form-card">
-          <div class="form-card-title">📋 Charges mensuelles</div>
+          <div class="form-card-title">${sfAccIcon('doc',16)} Charges mensuelles</div>
           <div class="form-grid cols3">
             <div class="form-group"><label>Charges copro (€/mois)</label><input type="number" id="f-copro" value="${esc(bien?.charge_copro||'')}" oninput="updatePrev()" placeholder="0"></div>
             <div class="form-group"><label>Assurance (€/mois)</label><input type="number" id="f-assurance" value="${esc(bien?.assurance_logement||userPrefs.assurance_mois||33)}" oninput="updatePrev()"></div>
@@ -2546,7 +2565,7 @@ async function renderNouveau(el, bien) {
 
         <!-- Loyers -->
         <div class="form-card">
-          <div class="form-card-title">🏘️ Revenus locatifs (en état)</div>
+          <div class="form-card-title">${sfAccIcon('maison',16)} Revenus locatifs (en état)</div>
           <div class="form-grid">
             <div class="form-group"><label>Loyer hors charges (€/mois)</label><input type="number" id="f-loyer" value="${esc(bien?.loyer_en_etat||'')}" oninput="updatePrev()" placeholder="1 500"></div>
             <div class="form-group"><label>Charges locataire (€/mois)</label><input type="number" id="f-charges-loc" value="${esc(bien?.charges_locataire_etat||'')}" oninput="updatePrev()" placeholder="0"></div>
@@ -2555,7 +2574,7 @@ async function renderNouveau(el, bien) {
 
         <!-- Loyers après travaux -->
         <div class="form-card">
-          <div class="form-card-title">🔨 Revenus locatifs (après travaux)</div>
+          <div class="form-card-title">${sfAccIcon('wrench',16)} Revenus locatifs (après travaux)</div>
           <div class="form-grid">
             <div class="form-group"><label>Loyer après travaux (€/mois)</label><input type="number" id="f-loyer-travaux" value="${esc(bien?.loyer_apres_travaux||'')}" placeholder="1 800"></div>
             <div class="form-group"><label>Charges locataire après travaux (€/mois)</label><input type="number" id="f-charges-travaux" value="${esc(bien?.charges_locataire_travaux||'')}" placeholder="0"></div>
@@ -2564,7 +2583,7 @@ async function renderNouveau(el, bien) {
 
         <!-- Contact -->
         <div class="form-card">
-          <div class="form-card-title">👤 Contact</div>
+          <div class="form-card-title">${sfAccIcon('user',16)} Contact</div>
           <div class="form-grid cols3">
             <div class="form-group"><label>Intermédiaire</label><input type="text" id="f-inter" value="${esc(bien?.intermediaire||'')}" placeholder="Agence / Particulier"></div>
             <div class="form-group"><label>Téléphone</label><input type="text" id="f-tel" value="${esc(bien?.telephone||'')}"></div>
@@ -2574,7 +2593,7 @@ async function renderNouveau(el, bien) {
 
         <!-- Médias -->
         <div class="form-card">
-          <div class="form-card-title">📎 Photos & documents</div>
+          <div class="form-card-title">${sfAccIcon('trombone',16)} Photos & documents</div>
           <div class="form-group" style="margin-bottom:12px">
             <label>Photos du bien</label>
             <div class="photo-upload-area" onclick="document.getElementById('bien-photo-input').click()" style="padding:14px">
@@ -2599,14 +2618,14 @@ async function renderNouveau(el, bien) {
 
         <!-- Notes -->
         <div class="form-card">
-          <div class="form-card-title">📝 Notes & commentaires</div>
+          <div class="form-card-title">${sfAccIcon('crayon',16)} Notes & commentaires</div>
           <div class="form-group"><textarea id="f-notes" placeholder="Points d'attention, observations, négociation prévue...">${bien?.notes||''}</textarea></div>
         </div>
 
         <div class="form-actions">
-          ${bien?`<button class="btn btn-danger" onclick="deleteBienPage('${bien.id}')">🗑 Supprimer</button>`:''}
+          ${bien?`<button class="btn btn-danger" onclick="deleteBienPage('${bien.id}')">${sfAccIcon('poubelle',14)} Supprimer</button>`:''}
           <button class="btn btn-secondary" onclick="navigate('biens')">Annuler</button>
-          <button class="btn btn-primary" id="btn-save" onclick="saveBien()">${bien?'💾 Enregistrer':'＋ Ajouter le bien'}</button>
+          <button class="btn btn-primary" id="btn-save" onclick="saveBien()">${bien?sfAccIcon('check',14)+' Enregistrer':'＋ Ajouter le bien'}</button>
         </div>
       </div>
 
@@ -2621,7 +2640,7 @@ async function renderNouveau(el, bien) {
 
         <!-- Synthèse financière -->
         <div class="synthese-card">
-          <div class="synthese-title">📊 Synthèse financière</div>
+          <div class="synthese-title">${sfAccIcon('graph',16)} Synthèse financière</div>
           <div class="synthese-row">
             <span class="synthese-label">Prix affiché</span>
             <span class="synthese-value" id="syn-prix">—</span>
@@ -2650,7 +2669,7 @@ async function renderNouveau(el, bien) {
 
         <!-- Checklist de complétion -->
         <div class="synthese-card">
-          <div class="synthese-title">✅ Complétion de la fiche</div>
+          <div class="synthese-title">${sfAccIcon('ok',16)} Complétion de la fiche</div>
           <div class="checklist-item"><div class="check-dot" id="chk-titre"></div>Titre de l'annonce</div>
           <div class="checklist-item"><div class="check-dot" id="chk-ville"></div>Ville</div>
           <div class="checklist-item"><div class="check-dot" id="chk-prix"></div>Prix affiché</div>
@@ -2676,7 +2695,7 @@ async function renderNouveau(el, bien) {
     const v = document.getElementById('f-ville'), c = document.getElementById('f-cp');
     if(v) v.value = nouveauPrefill.ville || '';
     if(c) c.value = nouveauPrefill.code_postal || '';
-    showNotif(`📍 ${nouveauPrefill.ville} pré-rempli depuis l'analyse de marché`);
+    showNotif(`${nouveauPrefill.ville} pré-rempli depuis l'analyse de marché`);
     nouveauPrefill = null;
     document.getElementById('f-titre')?.focus();
   }
@@ -3069,7 +3088,7 @@ async function saveBien() {
     await loadBiens();navigate('biens');
   } catch(error) {
     showNotif('Erreur : '+error.message,true);
-    btn.textContent=editingId?'💾 Enregistrer':'＋ Ajouter le bien';
+    btn.innerHTML=editingId?sfAccIcon('check',14)+' Enregistrer':'＋ Ajouter le bien';
   } finally {
     btn.disabled=false;
   }
@@ -3132,7 +3151,7 @@ async function genTestData() {
   });
   const {error} = await db.from('biens').insert(inserts);
   if(error){showNotif('Erreur génération : '+error.message,true);return;}
-  showNotif(`✅ ${inserts.length} fiches tests générées`);
+  showNotif(`${inserts.length} fiches tests générées`);
   await loadBiens(); navigate(currentPage);
 }
 
@@ -3142,7 +3161,7 @@ async function purgeTestData() {
   if(!confirm(`Supprimer les ${n} fiche(s) test ?`))return;
   const{error}=await db.from('biens').delete().eq('is_test',true);
   if(error){showNotif('Erreur',true);return;}
-  showNotif(`✓ ${n} fiche(s) test supprimée(s)`);
+  showNotif(`${n} fiche(s) test supprimée(s)`);
   await loadBiens();navigate(currentPage);
 }
 
@@ -3151,7 +3170,7 @@ async function purgeAllData() {
   if(!confirm('Dernière confirmation : supprimer définitivement toutes les fiches ?'))return;
   const{error}=await db.from('biens').delete().neq('id','00000000-0000-0000-0000-000000000000');
   if(error){showNotif('Erreur',true);return;}
-  showNotif('✓ Toutes les fiches supprimées');
+  showNotif('Toutes les fiches supprimées');
   await loadBiens();navigate(currentPage);
 }
 
@@ -3200,7 +3219,7 @@ async function inlineSaveBienField(span, newValue) {
     span.classList.remove('saving');
     span.classList.add('saved-flash');
     setTimeout(() => span.classList.remove('saved-flash'), 600);
-    showNotif('✅ Mis à jour');
+    showNotif('Mis à jour');
     // Si modification d'un champ financier, on recalcule le hero du modal
     if(['prix_affiche','frais_notaire','travaux','frais_agence','creation_sci','mensualite_credit','loyer_en_etat','charges_locataire_etat','charge_copro','assurance_logement','taxe_fonciere'].includes(field)) {
       inlineRefreshHero(id);
@@ -3264,7 +3283,7 @@ function inlineEditField(span) {
     inputEl = document.createElement('select');
     inputEl.className = 'inline-edit-input';
     const balises = [{v:'',l:'— Sans balise —'},
-      ...TI_BIENS.BALISES.map(b => ({ v:b.v, l:`${b.emoji} ${b.v}` }))];
+      ...TI_BIENS.BALISES.map(b => ({ v:b.v, l:b.v }))];
     inputEl.innerHTML = balises.map(b => `<option value="${b.v}" ${b.v===currentValue?'selected':''}>${b.l}</option>`).join('');
   } else {
     inputEl = document.createElement('input');
@@ -3411,7 +3430,9 @@ async function renderBienDetail(el) {
   const emprunt = (b.prix_affiche||0)+(b.frais_notaire||0)+(b.travaux||0)+(b.frais_agence||0)+(b.creation_sci||0);
 
   const phase = getStatutPhase(b.statut || 'Renseignements Web');
-  const baliseEmoji = Object.fromEntries(TI_BIENS.BALISES.map(b => [b.v, b.emoji]));
+  // `baliseEmoji` vivait ici. L'emoji a disparu des libellés de balise : leur
+  // COULEUR les distingue déjà, et il était de toute façon impossible à
+  // remplacer par un SVG dans une <option>, où seul du texte est permis.
   const bmap = Object.fromEntries(TI_BIENS.BALISES.map(b => [b.v, b.cls]));
 
   // Données locatives (déjà en mémoire depuis le démarrage — P2)
@@ -3519,7 +3540,7 @@ async function renderBienDetail(el) {
         </div>
         <div class="bd-rail-block">
           <div class="bd-rail-lab">Balise</div>
-          <span class="inline-edit" data-id="${b.id}" data-field="balise" data-type="select-balise" data-value="${(b.balise||'').replace(/"/g,'&quot;')}" onclick="inlineEditField(this)">${b.balise && bmap[b.balise] ? `<span class="tag-pill ${bmap[b.balise]}">${baliseEmoji[b.balise]||''} ${b.balise}</span>` : '<span class="bd-rail-none">— Sans balise —</span>'}</span>
+          <span class="inline-edit" data-id="${b.id}" data-field="balise" data-type="select-balise" data-value="${(b.balise||'').replace(/"/g,'&quot;')}" onclick="inlineEditField(this)">${b.balise && bmap[b.balise] ? `<span class="tag-pill ${bmap[b.balise]}">${b.balise}</span>` : '<span class="bd-rail-none">— Sans balise —</span>'}</span>
         </div>
         <div class="bd-rail-block">
           <div class="bd-rail-lab">SCI détentrice</div>
@@ -3952,7 +3973,7 @@ async function bdSaveSciGestion(bienId) {
     if(error) throw error;
     const b = allBiens.find(x => x.id === bienId);
     if(b) b.sci_id = sciId;
-    showNotif('✅ SCI rattachée');
+    showNotif('SCI rattachée');
     bdRenderMiseEnGestion(bienId);
     bdRefresh();
   } catch(e) { showNotif('Erreur : ' + e.message, true); }
@@ -3980,7 +4001,7 @@ async function bdAttachLocataire(bienId) {
     Object.assign(loc, patch);
     // Sans date d'entree, l'etape 3 (generer les loyers) refusera de tourner.
     // Autant le dire ici plutot que de laisser l'utilisateur buter dessus.
-    showNotif(`✅ ${nom} rattaché${activation ? ' et passé en Actif' : ''}`
+    showNotif(`${nom} rattaché${activation ? ' et passé en Actif' : ''}`
       + (loc.date_entree ? '' : " · date d'entrée à renseigner pour générer les loyers"));
     bdRenderMiseEnGestion(bienId);
     bdRefresh();
@@ -3994,7 +4015,7 @@ async function bdGenererLoyers(bienId) {
   const n = await autoGenerateLoyers(loc);
   if(n > 0) {
     await loadMfFinancialData();
-    showNotif(`✅ ${n} loyer${n>1?'s':''} généré${n>1?'s':''}`);
+    showNotif(`${n} loyer${n>1?'s':''} généré${n>1?'s':''}`);
     bdRenderMiseEnGestion(bienId);
     bdRefresh();
   } else {
@@ -4068,7 +4089,7 @@ async function openActionModal(bienId, actionId) {
   // Si le type existant n'est pas dans la liste prédéfinie → mode "Autre" pré-rempli
   const isCustom = curType && !ACTION_TYPES.includes(curType);
 
-  document.getElementById('adm-modal-title').textContent = editingActionId ? '✏️ Modifier l\'action' : '＋ Nouvelle action';
+  document.getElementById('adm-modal-title').textContent = editingActionId ? 'Modifier l\'action' : '＋ Nouvelle action';
   document.getElementById('adm-modal-del').style.display = editingActionId ? 'flex' : 'none';
   document.getElementById('adm-modal-save').onclick = saveAction;
   document.getElementById('adm-modal-del').onclick = deleteAction;
@@ -4807,7 +4828,7 @@ function renderParamsSection() {
       <div class="params-section-title">${sfIcon(meta.icon, 20)} ${meta.label}</div>
       <div class="params-section-sub">Cette section sera disponible prochainement.</div>
       <div class="params-soon-box">
-        <div class="psb-icon">🚧</div>
+        <div class="psb-icon">${sfAccIcon('travaux', 26)}</div>
         <div class="psb-title">Bientôt disponible</div>
         <div>La section « ${meta.label} » est en cours de préparation.</div>
       </div>`;
@@ -4858,7 +4879,7 @@ function paramsCompteHtml() {
         </div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
-        <button class="btn btn-primary" id="acc-save-btn" onclick="saveMyProfile()">💾 Enregistrer</button>
+        <button class="btn btn-primary" id="acc-save-btn" onclick="saveMyProfile()">${sfAccIcon('check',14)} Enregistrer</button>
       </div>
     </div>
     <div class="params-card">
@@ -4883,11 +4904,11 @@ async function saveMyProfile() {
     if(error) throw error;
     // Recharger le profil en mémoire pour refléter les changements
     await loadProfile();
-    showNotif('✓ Profil mis à jour');
+    showNotif('Profil mis à jour');
   } catch(e) {
     showNotif('Erreur : '+e.message, true);
   } finally {
-    if(btn){ btn.disabled = false; btn.textContent = '💾 Enregistrer'; }
+    if(btn){ btn.disabled = false; btn.innerHTML = sfAccIcon('check',14)+' Enregistrer'; }
   }
 }
 
@@ -4951,7 +4972,7 @@ function paramsMetierHtml() {
         </div>
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:14px">
-        <button class="btn btn-primary" id="pref-save-btn" onclick="saveMyPreferences()">💾 Enregistrer</button>
+        <button class="btn btn-primary" id="pref-save-btn" onclick="saveMyPreferences()">${sfAccIcon('check',14)} Enregistrer</button>
       </div>
     </div>`;
 }
@@ -4974,11 +4995,11 @@ async function saveMyPreferences() {
     // Recharger les préférences en mémoire
     const { data: prefs } = await db.rpc('get_my_preferences');
     if(prefs) userPrefs = prefs;
-    showNotif('✓ Préférences enregistrées');
+    showNotif('Préférences enregistrées');
   } catch(e) {
     showNotif('Erreur : '+e.message, true);
   } finally {
-    if(btn){ btn.disabled = false; btn.textContent = '💾 Enregistrer'; }
+    if(btn){ btn.disabled = false; btn.innerHTML = sfAccIcon('check',14)+' Enregistrer'; }
   }
 }
 
@@ -5461,7 +5482,7 @@ function renderMfOverview(c) {
   if(biensAchetes.length === 0) {
     c.innerHTML = `
       <div class="mfb-empty">
-        <div class="mfb-empty-icon">💼</div>
+        <div class="mfb-empty-icon">${sfAccIcon('mallette', 26)}</div>
         <div class="mfb-empty-title">Votre patrimoine, en un coup d'œil</div>
         <div class="mfb-empty-desc">
           La vue d'ensemble consolide le cashflow réel, le rendement net et les écarts
@@ -5632,7 +5653,7 @@ function renderMfBiens(c) {
   if(biensAchetes.length === 0) {
     c.innerHTML = `
       <div class="mfb-empty">
-        <div class="mfb-empty-icon">🔑</div>
+        <div class="mfb-empty-icon">${sfAccIcon('cle', 26)}</div>
         <div class="mfb-empty-title">Aucun bien acquis pour l'instant</div>
         <div class="mfb-empty-desc">
           Le suivi financier réel apparaîtra dès qu'un bien aura le statut <strong>« Acheté »</strong>.
@@ -5752,7 +5773,7 @@ function renderMfBiens(c) {
     <!-- Grille des biens -->
     ${filtered.length === 0 ? `
       <div class="mfb-empty">
-        <div class="mfb-empty-icon">🔍</div>
+        <div class="mfb-empty-icon">${sfAccIcon('loupe', 26)}</div>
         <div class="mfb-empty-title">Aucun bien dans cette catégorie</div>
         <div class="mfb-empty-desc">Modifiez le filtre pour afficher d'autres biens.</div>
       </div>` : `
@@ -5992,7 +6013,7 @@ function renderMfSuivi(c) {
   if(allBiens.filter(b => b.statut === 'Acheté').length === 0) {
     c.innerHTML = `
       <div class="mfb-empty">
-        <div class="mfb-empty-icon">📅</div>
+        <div class="mfb-empty-icon">${sfAccIcon('agenda', 26)}</div>
         <div class="mfb-empty-title">Aucun suivi mensuel disponible</div>
         <div class="mfb-empty-desc">
           Le suivi mensuel apparaîtra dès qu'un bien aura le statut <strong>« Acheté »</strong>.
@@ -6397,7 +6418,7 @@ async function mfCreateLoyerLine(bienId, locataireId, mois, annee) {
       const existing = allLoyers.findIndex(l => l.id === data.id);
       if(existing >= 0) allLoyers[existing] = data; else allLoyers.push(data);
     }
-    showNotif('✅ Ligne loyer générée');
+    showNotif('Ligne loyer générée');
     const c = document.getElementById('mf-content');
     if(c) renderMfSuivi(c);
   } catch(e) {
@@ -6440,7 +6461,7 @@ async function mfGenerateMissingLoyers(annee) {
       }
     }
   }
-  showNotif(`✅ ${created} ligne(s) créée(s), ${skipped} déjà présente(s) ou sans locataire`);
+  showNotif(`${created} ligne(s) créée(s), ${skipped} déjà présente(s) ou sans locataire`);
   const c = document.getElementById('mf-content');
   if(c) renderMfSuivi(c);
 }
@@ -6621,7 +6642,7 @@ async function mfPopupConfirm() {
       const idx = allLoyers.findIndex(l => l.id === data.id);
       if(idx >= 0) allLoyers[idx] = data; else allLoyers.push(data);
     }
-    showNotif('✅ Encaissement enregistré');
+    showNotif('Encaissement enregistré');
     mfCloseEncaissementPopup();
     const c = document.getElementById('mf-content');
     if(c) renderMfSuivi(c);
@@ -6750,12 +6771,12 @@ function mfOpenChargeModal(preset) {
         <div style="font-size:11px;color:var(--c-muted);font-style:italic">💡 Les charges sont mappées automatiquement à la déclaration fiscale Cerfa 2044 (régime réel locations nues)</div>
         <div style="display:flex;gap:6px">
           <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Annuler</button>
-          <button class="btn btn-primary" onclick="mfSaveCharge('${isEdit ? initial.id : ''}')">${isEdit?'💾 Enregistrer':'＋ Ajouter la charge'}</button>
+          <button class="btn btn-primary" onclick="mfSaveCharge('${isEdit ? initial.id : ''}')">${isEdit?sfAccIcon('check',14)+' Enregistrer':'＋ Ajouter la charge'}</button>
         </div>
       </div>
     </div>
   `;
-  document.getElementById('detail-titre').textContent = isEdit ? '✏️ Modifier la charge' : '💸 Ajouter une charge réelle';
+  document.getElementById('detail-titre').textContent = isEdit ? 'Modifier la charge' : '💸 Ajouter une charge réelle';
   document.getElementById('detail-content').innerHTML = html;
   openModal('modal-detail');
   setTimeout(() => mfUpdateCerfaInfo(), 50);
@@ -6832,7 +6853,7 @@ async function mfDeleteCharge(chargeId) {
     const { error } = await db.from('charges_reelles').delete().eq('id', chargeId).eq('user_id', currentUser.id);
     if(error) throw error;
     allCharges = allCharges.filter(c => c.id !== chargeId);
-    showNotif('🗑️ Charge supprimée');
+    showNotif('Charge supprimée');
     const c = document.getElementById('mf-content');
     if(c) renderMfSuivi(c);
   } catch(e) {
@@ -6884,7 +6905,7 @@ function renderMfLocataires(c) {
     <!-- Liste -->
     ${filtered.length === 0 ? `
       <div class="mf-loc-empty">
-        <div class="mf-loc-empty-icon">👥</div>
+        <div class="mf-loc-empty-icon">${sfAccIcon('gens', 26)}</div>
         <div style="font-size:16px;font-weight:700;color:var(--c-text);margin-bottom:6px">${
           allLocataires.length === 0 ? 'Aucun locataire' : 'Aucun résultat pour ce filtre'}</div>
         <div style="font-size:13px;color:var(--c-muted);margin-bottom:14px">${
@@ -6918,11 +6939,11 @@ function renderLocataireCard(l) {
         </div>
       </div>
       <div class="mf-loc-info">
-        ${bien ? `<div class="mf-loc-info-row"><span class="ic">🏠</span> <span class="v">${bien.titre}</span> <span style="color:var(--c-muted)">— ${bien.ville||''}</span></div>` :
-                 `<div class="mf-loc-info-row"><span class="ic">🏠</span> <span style="color:var(--c-muted)">Aucun bien rattaché</span></div>`}
-        ${l.loyer_bail_hc > 0 ? `<div class="mf-loc-info-row"><span class="ic">💰</span> <span class="v">${fmt(l.loyer_bail_hc)} €</span><span style="color:var(--c-muted)">/mois HC${l.depot_garantie>0?` · Dépôt ${fmt(l.depot_garantie)} €`:''}</span></div>` : ''}
-        <div class="mf-loc-info-row"><span class="ic">📅</span> <span class="v">${dateEntreeStr}</span>${dateSortieStr ? ` <span style="color:var(--c-muted)">→ ${dateSortieStr}</span>` : (l.statut==='Actif'?' <span style="color:var(--c-muted)">en cours</span>':'')}</div>
-        ${docsCount > 0 ? `<div class="mf-loc-info-row"><span class="ic">📎</span> <span class="v">${docsCount}</span> <span style="color:var(--c-muted)">document${docsCount>1?'s':''}</span></div>` : ''}
+        ${bien ? `<div class="mf-loc-info-row"><span class="ic">${sfAccIcon('maison',14)}</span> <span class="v">${bien.titre}</span> <span style="color:var(--c-muted)">— ${bien.ville||''}</span></div>` :
+                 `<div class="mf-loc-info-row"><span class="ic">${sfAccIcon('maison',14)}</span> <span style="color:var(--c-muted)">Aucun bien rattaché</span></div>`}
+        ${l.loyer_bail_hc > 0 ? `<div class="mf-loc-info-row"><span class="ic">${sfAccIcon('euro',14)}</span> <span class="v">${fmt(l.loyer_bail_hc)} €</span><span style="color:var(--c-muted)">/mois HC${l.depot_garantie>0?` · Dépôt ${fmt(l.depot_garantie)} €`:''}</span></div>` : ''}
+        <div class="mf-loc-info-row"><span class="ic">${sfAccIcon('agenda',14)}</span> <span class="v">${dateEntreeStr}</span>${dateSortieStr ? ` <span style="color:var(--c-muted)">→ ${dateSortieStr}</span>` : (l.statut==='Actif'?' <span style="color:var(--c-muted)">en cours</span>':'')}</div>
+        ${docsCount > 0 ? `<div class="mf-loc-info-row"><span class="ic">${sfAccIcon('trombone',14)}</span> <span class="v">${docsCount}</span> <span style="color:var(--c-muted)">document${docsCount>1?'s':''}</span></div>` : ''}
       </div>
     </div>`;
 }
@@ -6944,7 +6965,7 @@ function renderMfRenta(c) {
   if(biensAchetes.length === 0) {
     c.innerHTML = `
       <div class="mfb-empty">
-        <div class="mfb-empty-icon">💶</div>
+        <div class="mfb-empty-icon">${sfAccIcon('euro', 26)}</div>
         <div class="mfb-empty-title">Rentabilité réelle et écarts</div>
         <div class="mfb-empty-desc">
           Cet onglet compare, bien par bien et année par année, le cashflow <strong>réellement constaté</strong>
@@ -7026,7 +7047,7 @@ function renderMfRenta(c) {
   if(nbMois === 0) {
     c.innerHTML = selectorHtml + `
       <div class="mfb-empty" style="padding:40px 32px">
-        <div class="mfb-empty-icon">📅</div>
+        <div class="mfb-empty-icon">${sfAccIcon('agenda', 26)}</div>
         <div class="mfb-empty-title">Exercice ${annee} pas encore commencé</div>
         <div class="mfb-empty-desc">Aucune donnée réelle pour une année future. Revenez sur ${now.getFullYear()} avec la flèche ‹.</div>
       </div>`;
@@ -7387,7 +7408,7 @@ async function mfBilanFeedSaveBiens() {
     if(err) throw err.error;
     updates.forEach(u => { u.bien.sci_id = u.sci_id; });
     const nb = updates.filter(u => u.sci_id).length, nd = updates.length - nb;
-    showNotif(`✅ ${[nb ? nb + ' bien(s) rattaché(s)' : '', nd ? nd + ' détaché(s)' : ''].filter(Boolean).join(' · ')}`);
+    showNotif(`${[nb ? nb + ' bien(s) rattaché(s)' : '', nd ? nd + ' détaché(s)' : ''].filter(Boolean).join(' · ')}`);
     ctx.showAttach = false;
     mfBilanFeedRender();
     mfRentaRefresh();   // met à jour le rappel « SCI » sous le sélecteur de bien
@@ -7441,7 +7462,7 @@ async function mfBilanFeedWrite() {
       });
     }
     if(res.error) throw res.error;
-    showNotif(`✅ Bilan ${annee} alimenté (régime ${regime})`);
+    showNotif(`Bilan ${annee} alimenté (régime ${regime})`);
     closeModal('modal-detail');
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
@@ -7656,7 +7677,7 @@ function openLocataireModal(id, presetBienId) {
   // Biens "Acheté" uniquement (périmètre Module Financier)
   const biensAchetes = allBiens.filter(b => b.statut === 'Acheté');
 
-  document.getElementById('adm-modal-title').textContent = id ? '✏️ Modifier le locataire' : '＋ Nouveau locataire';
+  document.getElementById('adm-modal-title').textContent = id ? 'Modifier le locataire' : '＋ Nouveau locataire';
   document.getElementById('adm-modal-del').style.display = id ? 'flex' : 'none';
   document.getElementById('adm-modal-save').onclick = saveLocataire;
   document.getElementById('adm-modal-del').onclick = deleteLocataire;
@@ -7920,7 +7941,7 @@ async function saveLocataire() {
         }
       }
       if(echecsUpload.length){
-        showNotif(`⚠️ ${echecsUpload.length} document${echecsUpload.length>1?'s':''} n'${echecsUpload.length>1?'ont':'a'} pas pu être envoyé${echecsUpload.length>1?'s':''} (${echecsUpload.slice(0,2).join(', ')}${echecsUpload.length>2?'…':''}) — conservé${echecsUpload.length>1?'s':''} dans la fiche, à réimporter`, true);
+        showNotif(`${echecsUpload.length} document${echecsUpload.length>1?'s':''} n'${echecsUpload.length>1?'ont':'a'} pas pu être envoyé${echecsUpload.length>1?'s':''} (${echecsUpload.slice(0,2).join(', ')}${echecsUpload.length>2?'…':''}) — conservé${echecsUpload.length>1?'s':''} dans la fiche, à réimporter`, true);
       }
       if(needUpdate){
         await db.from('locataires').update({ documents: migratedDocs }).eq('id', savedId);
@@ -7942,7 +7963,7 @@ async function saveLocataire() {
     const suffixe = loyersGenes
       ? ` · ${loyersGenes} loyer${loyersGenes>1?'s':''} généré${loyersGenes>1?'s':''}`
       : (attenduDesLoyers ? ' · aucun nouveau loyer à générer' : '');
-    showNotif(`✓ Locataire ${editingLocataireId ? 'mis à jour' : 'créé'}${suffixe}`);
+    showNotif(`Locataire ${editingLocataireId ? 'mis à jour' : 'créé'}${suffixe}`);
     closeAdmModal();
     await loadLocataires();
     const c = document.getElementById('mf-content');
@@ -7967,7 +7988,7 @@ async function deleteLocataire() {
   }
   const { error } = await db.from('locataires').delete().eq('id', editingLocataireId);
   if(error) { showNotif('Erreur : '+error.message, true); return; }
-  showNotif('🗑 Locataire supprimé');
+  showNotif('Locataire supprimé');
   closeAdmModal();
   await loadLocataires();
   const c = document.getElementById('mf-content');
@@ -8421,7 +8442,7 @@ async function openContactModal(id) {
   }
 
   const m = document.getElementById('adm-modal-overlay');
-  document.getElementById('adm-modal-title').textContent = id ? '✏️ Modifier le contact' : '＋ Nouveau contact';
+  document.getElementById('adm-modal-title').textContent = id ? 'Modifier le contact' : '＋ Nouveau contact';
   document.getElementById('adm-modal-del').style.display = id ? 'flex' : 'none';
   document.getElementById('adm-modal-save').onclick = saveContact;
   document.getElementById('adm-modal-del').onclick = deleteContact;
@@ -8530,7 +8551,7 @@ function openEcheanceModal(id) {
   const types = ['Assurance','Dépôt bilan','Renouvellement','Fiscal','Administratif','Autre'];
   const recs  = ['Aucune','Annuelle','Semestrielle','Trimestrielle','Mensuelle'];
 
-  document.getElementById('adm-modal-title').textContent = id ? '✏️ Modifier l\'échéance' : '＋ Nouvelle échéance';
+  document.getElementById('adm-modal-title').textContent = id ? 'Modifier l\'échéance' : '＋ Nouvelle échéance';
   document.getElementById('adm-modal-del').style.display = id ? 'flex' : 'none';
   document.getElementById('adm-modal-save').onclick = saveEcheance;
   document.getElementById('adm-modal-del').onclick = deleteEcheance;
@@ -9730,7 +9751,7 @@ async function genAdminTestData() {
       statut: 'Brouillon', notes: 'Bilan test', user_id: currentUser.id
     });
 
-    showNotif('✅ Données tests créées (SCI, contact, échéance, bilan)');
+    showNotif('Données tests créées (SCI, contact, échéance, bilan)');
     await loadAdminData(); switchAdminTab(adminTab);
   } catch(e) { showNotif('Erreur : ' + e.message, true); }
 }
@@ -9741,7 +9762,7 @@ async function purgeAdminTestData() {
     await db.from('sci').delete().eq('user_id', currentUser.id).ilike('nom_sci', '%TEST%');
     await db.from('contacts').delete().eq('user_id', currentUser.id).eq('notes', 'Contact test');
     await db.from('sci_echeances').delete().eq('user_id', currentUser.id).ilike('notes', '%test%');
-    showNotif('🧹 Données tests supprimées');
+    showNotif('Données tests supprimées');
     await loadAdminData(); switchAdminTab(adminTab);
   } catch(e) { showNotif('Erreur : ' + e.message, true); }
 }
@@ -9757,7 +9778,7 @@ async function purgeAllAdminData() {
       db.from('sci_documents').delete().eq('user_id', currentUser.id),
     ]);
     await db.from('sci').delete().eq('user_id', currentUser.id);
-    showNotif('🗑 Toutes les données d\'administration supprimées');
+    showNotif('Toutes les données d\'administration supprimées');
     await loadAdminData(); switchAdminTab(adminTab);
   } catch(e) { showNotif('Erreur : ' + e.message, true); }
 }
@@ -10055,9 +10076,9 @@ function visiteForm(v) {
       <div class="photos-preview-grid" id="photos-preview"></div>
     </div>
     <div class="modal-actions">
-      ${v?`<button class="btn btn-danger" onclick="deleteVisite('${v.id}')">🗑 Supprimer</button>`:''}
+      ${v?`<button class="btn btn-danger" onclick="deleteVisite('${v.id}')">${sfAccIcon('poubelle',14)} Supprimer</button>`:''}
       <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Annuler</button>
-      <button class="btn btn-primary" onclick="saveVisite(${v?`'${v.id}'`:'null'})">${v?'💾 Enregistrer':'＋ Créer la visite'}</button>
+      <button class="btn btn-primary" onclick="saveVisite(${v?`'${v.id}'`:'null'})">${v?sfAccIcon('check',14)+' Enregistrer':'＋ Créer la visite'}</button>
     </div>
   `;
 }
@@ -10244,7 +10265,7 @@ async function simActionDelete() {
   const {error} = await db.from('simulations_credit').delete().in('id', ids);
   if(error) { showNotif('Erreur suppression : '+error.message, true); return; }
   simSelected.clear();
-  showNotif(`✅ ${n} simulation${n>1?'s':''} supprimée${n>1?'s':''}`);
+  showNotif(`${n} simulation${n>1?'s':''} supprimée${n>1?'s':''}`);
   renderSimulateur(document.getElementById('content'));
 }
 
@@ -10286,7 +10307,7 @@ async function confirmAttribuer() {
   if(error) { showNotif('Erreur : '+error.message, true); return; }
   closeModal('modal-detail');
   simSelected.clear();
-  showNotif(`✅ ${ids.length} simulation${ids.length>1?'s':''} attribuée${ids.length>1?'s':''}`);
+  showNotif(`${ids.length} simulation${ids.length>1?'s':''} attribuée${ids.length>1?'s':''}`);
 
   // FLX-002 : une seule source de vérité pour la mensualité — si la simulation
   // attribuée diffère de la mensualité saisie sur le bien, proposer la synchro.
@@ -10322,7 +10343,7 @@ async function simActionDupliquer() {
     await db.from('simulations_credit').insert({...rest, nom_simulation: s.nom_simulation+' (copie)', user_id: currentUser.id});
   }
   simSelected.clear();
-  showNotif('✅ Simulation(s) dupliquée(s)');
+  showNotif('Simulation(s) dupliquée(s)');
   renderSimulateur(document.getElementById('content'));
 }
 
@@ -10468,9 +10489,9 @@ function showSimModal(s) {
       <textarea id="s-notes" placeholder="Conditions de l'offre, points à négocier...">${s?.notes||''}</textarea>
     </div>
     <div class="modal-actions">
-      ${s?`<button class="btn btn-danger" onclick="deleteSim('${s.id}')">🗑 Supprimer</button>`:''}
+      ${s?`<button class="btn btn-danger" onclick="deleteSim('${s.id}')">${sfAccIcon('poubelle',14)} Supprimer</button>`:''}
       <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Annuler</button>
-      <button class="btn btn-primary" onclick="saveSim()">${s?'💾 Enregistrer':'＋ Sauvegarder'}</button>
+      <button class="btn btn-primary" onclick="saveSim()">${s?sfAccIcon('check',14)+' Enregistrer':'＋ Sauvegarder'}</button>
     </div>
   `;
   openModal('modal-detail');
@@ -10756,9 +10777,18 @@ function toggleVisiteGroup(groupId, header) {
 
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
+// L'icone est portee par le COMPOSANT, plus par chacun des messages. Une
+// quarantaine d'appels commencaient par « ✓ », « ✅ », « 🚫 »… : autant
+// d'endroits ou l'icone pouvait manquer ou differer. Ici elle decoule du seul
+// parametre qui la determine vraiment — succes ou erreur.
+//
+// `textContent` est remplace par `innerHTML`, donc le message est ECHAPPE :
+// il contient parfois un titre de bien saisi par l'utilisateur.
 function showNotif(msg,isError=false){
   const el=document.getElementById('notif');
-  el.textContent=msg;el.className='notif show'+(isError?' error':'');
+  el.innerHTML = `<span class="notif__ic">${sfAccIcon(isError?'alerte':'ok',16)}</span>`
+               + `<span class="notif__txt">${esc(msg)}</span>`;
+  el.className='notif show'+(isError?' error':'');
   setTimeout(()=>el.classList.remove('show'),3000);
 }
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
