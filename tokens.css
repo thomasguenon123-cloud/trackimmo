@@ -134,6 +134,16 @@
      navigation, elle est lue a chaque page. */
   --sf-nav-h:        68px;
 
+  /* ── Icones utilisables en CSS ────────────────────────────────────────────
+     Certaines icones doivent apparaitre dans un `::before`/`::after`, ou l'on
+     ne peut pas poser de balise `<svg>`. Elles sont ici en URI de donnees,
+     destinees a `mask-image` — et non a `background-image` : le masque
+     decoupe la forme et laisse `background:currentColor` la peindre, donc
+     l'icone SUIT LA COULEUR DU TEXTE. Une image de fond figerait sa teinte et
+     deviendrait invisible au changement de theme.
+     Le trace est le meme que celui de `SF_ACC_ICONS.crayon` dans app.js. */
+  --sf-ic-crayon: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M4%2020h4L19%209a2.1%202.1%200%200%200-3-3L5%2017v3Z'/%3E%3Cpath%20d='M14.5%206.5%2017.5%209.5'/%3E%3C/svg%3E");
+
   /* ── Mouvement ────────────────────────────────────────────────────────── */
   --sf-dur-fast: 120ms;
   --sf-dur:      180ms;
