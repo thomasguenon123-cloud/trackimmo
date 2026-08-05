@@ -1571,6 +1571,34 @@ function sfLoyerPointe(ligne) {
   return !!ligne && ligne.statut === 'Payé';
 }
 
+// État d'une échéance de loyer, pour un mois donné d'une année donnée.
+//
+// ⚠️ CE QUE CETTE FONCTION CORRIGE : la matrice de la fiche bien déduisait
+// l'état du seul `statut` de la ligne. Or `bdGenererLoyers` crée les DOUZE
+// mois de l'année d'un coup, avec le statut « Impayé » par défaut. En août,
+// septembre à décembre s'affichaient donc en rouge — des loyers déclarés
+// impayés alors que leur échéance n'était pas arrivée. Un signal d'alerte qui
+// se déclenche pour dix mois d'avance ne signale plus rien.
+//
+// La règle du retard est CELLE DE L'AGENDA, pas une seconde écrite à la main :
+// un loyer dû le 5 n'est en retard que le 6, seuil suivant `jour_paiement`.
+//
+//   'ok'     payé              'part'   partiellement payé
+//   'ko'     échu, non soldé   'avenir' échéance pas encore arrivée
+//   'none'   rien en base
+function sfLoyerEtat(ligne, mois, annee, locataire) {
+  if (ligne && ligne.statut === 'Payé')    return 'ok';
+  if (ligne && ligne.statut === 'Partiel') return 'part';
+
+  const jour = Math.min(Math.max(parseInt(locataire?.jour_paiement, 10) || 5, 1), 28);
+  const aujourdhui = new Date(); aujourdhui.setHours(0, 0, 0, 0);
+  // Même seuil qu'à l'agenda : le lendemain de l'échéance.
+  const limiteRetard = new Date(annee, mois - 1, jour + 1);
+  if (aujourdhui < limiteRetard) return 'avenir';
+
+  return ligne ? 'ko' : 'none';
+}
+
 // Loyers attendus, deduits des baux actifs et croises avec loyers_mensuels.
 //
 // Le calcul part du MOIS COURANT et non de la date du jour. L'ancienne version
@@ -4025,13 +4053,19 @@ async function renderBienDetail(el) {
                    </p>`
                 : `<div class="bd-months">
                     ${MOIS_LABELS.map((lab,i) => {
-                      const l = loyersAnnee.find(x => x.mois === i+1);
-                      const st = !l ? 'none' : (l.statut==='Payé' ? 'ok' : l.statut==='Partiel' ? 'part' : 'ko');
-                      const tip = !l ? `${lab} : rien de saisi` : `${lab} : ${esc(l.statut||'')} — ${sfEur(l.montant_encaisse||0)} sur ${sfEur(l.loyer_du||0)} dus`;
+                      const mois = i + 1;
+                      const l = loyersAnnee.find(x => x.mois === mois);
+                      // Le bail peut changer en cours d'année : on prend celui
+                      // du mois concerné, pas le locataire courant.
+                      const loc = mfLocataireForBienMonth(b.id, mois, annee) || locActif;
+                      const st = sfLoyerEtat(l, mois, annee, loc);
+                      const tip = st === 'avenir' ? `${lab} : échéance à venir`
+                                : !l ? `${lab} : rien de saisi`
+                                : `${lab} : ${esc(l.statut||'')} — ${sfEur(l.montant_encaisse||0)} sur ${sfEur(l.loyer_du||0)} dus`;
                       return `<div class="bd-month ${st}" title="${tip}"><span>${lab}</span></div>`;
                     }).join('')}
                    </div>
-                   <div class="bd-month-legend"><span><i class="ok"></i>Payé</span><span><i class="part"></i>Partiel</span><span><i class="ko"></i>Impayé</span><span><i class="none"></i>Non saisi</span></div>`}
+                   <div class="bd-month-legend"><span><i class="ok"></i>Payé</span><span><i class="part"></i>Partiel</span><span><i class="ko"></i>Impayé</span><span><i class="avenir"></i>À venir</span><span><i class="none"></i>Non saisi</span></div>`}
             </div>
           </div>
 
