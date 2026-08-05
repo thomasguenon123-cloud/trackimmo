@@ -1860,7 +1860,7 @@ function renderAccueil(el) {
               <div class="sf-ag${a.enRetard ? ' sf-ag--retard' : ''}${a.pointe ? ' sf-ag--pointe' : ''}">
                 <span class="sf-ag__date"><span class="sf-ag__day">${a.jour}</span><span class="sf-ag__mon">${a.moisCourt}</span></span>
                 <div class="sf-ag__body">
-                  <p class="sf-ag__title">${a.titre}</p>
+                  <p class="sf-ag__title">${esc(a.titre)}</p>
                   <p class="sf-ag__meta">${a.enRetard
                     ? `<span class="sf-ag__retard">En retard</span> · échu le ${a.jour} ${a.moisCourt}`
                     : a.meta}</p>
@@ -2291,14 +2291,14 @@ function renderKanbanCard(b, draggable=true) {
   return `<div class="kanban-card ${cfC}" ${dragAttrs} onclick="openDetail('${b.id}')">
     ${b.is_test?'<div class="test-ribbon">TEST</div>':''}
     <div class="kc-top">
-      <div class="kc-title">${b.titre}</div>
+      <div class="kc-title">${esc(b.titre)}</div>
       <div class="kc-cf ${cfC}">${cfTxt}</div>
     </div>
     <div class="kc-loc">📍 ${loc}</div>
     <div class="kc-meta">
       ${b.type_bien?`<span class="kc-tag">${b.type_bien}${b.surface_m2?' · '+b.surface_m2+'m²':''}</span>`:''}
       ${b.prix_affiche?`<span class="kc-tag">${fmt(b.prix_affiche)}€</span>`:''}
-      ${b.balise?`<span class="kc-tag ${bmap[b.balise]||''}">${b.balise}</span>`:''}
+      ${b.balise?`<span class="kc-tag ${bmap[b.balise]||''}">${esc(b.balise)}</span>`:''}
       <span class="kc-statut">${b.statut||'—'}</span>
     </div>
   </div>`;
@@ -2566,7 +2566,7 @@ async function renderNouveau(el, bien) {
             <div class="form-group"><label>SCI associée</label>
               <select id="f-sci-id">
                 <option value="">— Aucune SCI —</option>
-                ${allSCI.map(s=>`<option value="${s.id}" ${bien?.sci_id===s.id?'selected':''}>${s.nom_sci}</option>`).join('')}
+                ${allSCI.map(s=>`<option value="${s.id}" ${bien?.sci_id===s.id?'selected':''}>${esc(s.nom_sci)}</option>`).join('')}
               </select>
             </div>
           </div>
@@ -4208,7 +4208,7 @@ function bdRenderMiseEnGestion(bienId) {
                       const autre = l.bien_id ? allBiens.find(x => x.id === l.bien_id) : null;
                       const t = autre ? (autre.titre || 'un bien') : '';
                       const suffixe = autre ? ` · déjà sur ${t.length > 24 ? t.slice(0,24)+'…' : t}`
-                                            : (l.statut && l.statut !== 'Actif' ? ` · ${l.statut}` : '');
+                                            : (l.statut && l.statut !== 'Actif' ? ` · ${esc(l.statut)}` : '');
                       return `<option value="${l.id}">${esc(nom)}${esc(suffixe)}</option>`;
                     }).join('')}
                   </select>
@@ -6301,7 +6301,12 @@ function renderMfSuivi(c) {
       if(l && (l.statut === 'Payé' || l.statut === 'Partiel')) {
         totalLoyers += parseFloat(l.montant_encaisse) || 0;
       }
-      if(l && (l.statut === 'Impayé' || l.statut === 'En retard')) impayes++;
+      // FND-006, même cause que FND-002 : le compteur cherchait des libellés
+      // que l'application n'écrit jamais, il restait donc à zéro. Il compte
+      // désormais les échéances ÉCHUES et non soldées, quel que soit leur
+      // libellé — et n'inclut pas les mois à venir.
+      const loc = mfLocataireForBienMonth(b.id, m, mfSuiviYear);
+      if(sfLoyerEtat(l, m, mfSuiviYear, loc) === 'ko') impayes++;
       totalCharges += mfSumChargesMonth(b.id, m, mfSuiviYear);
     }
   }
@@ -6537,7 +6542,7 @@ function renderMfLoyerCell(b, mois) {
       data-loyer-id="${l.id}"
       onclick="mfQuickToggleLoyer(this,'${l.id}')"
       oncontextmenu="event.preventDefault();mfOpenEncaissementPopup(event,'${b.id}',${mois},${annee});"
-      title="${l.statut} — ${MOIS_LONGS[mois-1]} ${annee} — Clic = ${l.statut === 'Payé' ? 'Annuler' : 'Marquer payé'}">
+      title="${esc(l.statut)} — ${MOIS_LONGS[mois-1]} ${annee} — Clic = ${l.statut === 'Payé' ? 'Annuler' : 'Marquer payé'}">
       <span class="icon">${icon}</span>
       <span class="montant">${fmt(montantAffiche)} €</span>
       <span class="more" onclick="event.stopPropagation();mfOpenEncaissementPopup(event,'${b.id}',${mois},${annee})">•••</span>
@@ -6565,7 +6570,7 @@ function renderMfChargeItem(c) {
   return `
     <div class="mfs-charge-item">
       <div>
-        <div class="mfs-charge-cat">${c.categorie}</div>
+        <div class="mfs-charge-cat">${esc(c.categorie)}</div>
         <div class="mfs-charge-cerfa" title="${cerfa.label}">📋 ${cerfa.ligne}</div>
       </div>
       <div class="mfs-charge-info">
@@ -7208,7 +7213,7 @@ function renderLocataireCard(l) {
         </div>
       </div>
       <div class="mf-loc-info">
-        ${bien ? `<div class="mf-loc-info-row"><span class="ic">${sfAccIcon('maison',14)}</span> <span class="v">${bien.titre}</span> <span style="color:var(--c-muted)">— ${bien.ville||''}</span></div>` :
+        ${bien ? `<div class="mf-loc-info-row"><span class="ic">${sfAccIcon('maison',14)}</span> <span class="v">${esc(bien.titre)}</span> <span style="color:var(--c-muted)">— ${esc(bien.ville||'')}</span></div>` :
                  `<div class="mf-loc-info-row"><span class="ic">${sfAccIcon('maison',14)}</span> <span style="color:var(--c-muted)">Aucun bien rattaché</span></div>`}
         ${l.loyer_bail_hc > 0 ? `<div class="mf-loc-info-row"><span class="ic">${sfAccIcon('euro',14)}</span> <span class="v">${fmt(l.loyer_bail_hc)} €</span><span style="color:var(--c-muted)">/mois HC${l.depot_garantie>0?` · Dépôt ${fmt(l.depot_garantie)} €`:''}</span></div>` : ''}
         <div class="mf-loc-info-row"><span class="ic">${sfAccIcon('agenda',14)}</span> <span class="v">${dateEntreeStr}</span>${dateSortieStr ? ` <span style="color:var(--c-muted)">→ ${dateSortieStr}</span>` : (l.statut==='Actif'?' <span style="color:var(--c-muted)">en cours</span>':'')}</div>
@@ -7712,11 +7717,16 @@ async function mfBilanFeedWrite() {
         mobilier: parseFloat(document.getElementById('bf-am-mob')?.value) || 0,
       },
     };
-    // FND-015 : les colonnes plates dépréciées sont vidées, is_compte_resultat fait foi
-    payload.amortissement_immeuble = null;
-    payload.amortissement_travaux = null;
-    payload.amortissement_mobilier = null;
   }
+
+  // FND-015 : les colonnes plates sont dépréciées, `is_compte_resultat` fait
+  // foi. La mise à null était À L'INTÉRIEUR de la branche IS — un bilan au
+  // régime IR les laissait donc telles quelles, et le seul bilan en base
+  // (exercice 2026, régime IR) porte à la fois la structure canonique et des
+  // colonnes plates non nulles. En IR l'amortissement n'existe même pas.
+  payload.amortissement_immeuble = null;
+  payload.amortissement_travaux  = null;
+  payload.amortissement_mobilier = null;
 
   const btn = document.getElementById('bf-write');
   if(btn) { btn.disabled = true; btn.textContent = 'Écriture…'; }
@@ -7874,12 +7884,21 @@ function mfStatutOccupation(bienId) {
   );
   if(!locataireActif) return { type: 'vacant', label: 'Vacant', locataire: null };
 
-  // Vérifier impayés sur les 3 derniers mois
+  // Impayés sur les 3 derniers mois.
+  //
+  // ⚠️ FND-002 : ce test cherchait les statuts 'Impayé' et 'En retard'. Or
+  // l'application ne les écrit JAMAIS d'elle-même — `bdGenererLoyers` et le
+  // pointage créent toutes leurs lignes en 'En attente', et ces deux libellés
+  // ne sont posables qu'à la main par la fenêtre d'encaissement. Le badge
+  // affichait donc « Occupé » alors que la matrice, juste à côté sur le même
+  // écran, montrait un mois échu en rouge.
+  // L'impayé se déduit de l'ÉCHÉANCE, pas du libellé : `sfLoyerEtat` applique
+  // la règle de l'agenda (un loyer dû le 5 n'est en retard que le 6).
   const months = mf12LastMonths().slice(-3);
   const hasImpaye = allLoyers.some(l =>
     l.bien_id === bienId && l.locataire_id === locataireActif.id
     && months.some(m => m.mois === l.mois && m.annee === l.annee)
-    && (l.statut === 'Impayé' || l.statut === 'En retard')
+    && sfLoyerEtat(l, l.mois, l.annee, locataireActif) === 'ko'
   );
   if(hasImpaye) return { type: 'impaye', label: 'Impayé en cours', locataire: locataireActif };
 
@@ -7999,7 +8018,7 @@ function openLocataireModal(id, presetBienId) {
     <div class="sci-form-group"><label class="sci-form-label">Bien rattaché ${biensAchetes.length===0?'<span style="font-size:11px;color:var(--c-muted)">(aucun bien acheté pour l\'instant)</span>':''}</label>
       <select class="sci-form-input" id="loc-bien">
         <option value="">— Aucun bien rattaché —</option>
-        ${biensAchetes.map(b => `<option value="${b.id}" ${(l?.bien_id||presetBienId)===b.id?'selected':''}>${b.titre} — ${b.ville||''}</option>`).join('')}
+        ${biensAchetes.map(b => `<option value="${b.id}" ${(l?.bien_id||presetBienId)===b.id?'selected':''}>${esc(b.titre)} — ${esc(b.ville||'')}</option>`).join('')}
       </select></div>
     <div class="sci-form-row">
       <div class="sci-form-group"><label class="sci-form-label">Type de bail</label>
@@ -8426,15 +8445,26 @@ function renderAdmSCI(c) {
         const initials = (s.nom_sci||'SC').substring(0,2).toUpperCase();
         const nbAssoc = (s.associes||[]).length;
         const biensSCI = allBiens.filter(b => b.sci_id === s.id);
-        const cashflow = biensSCI.reduce((sum,b) => sum + computeCF(b), 0);
+        // ⚠️ FND-001 : cette somme passait par `computeCF()` seul — du
+        // prévisionnel pur. C'est le défaut corrigé sur « Mes biens » le
+        // 03/08/2026, resté ici. Un bien acquis dont les loyers sont encaissés
+        // était compté en prévisionnel alors que tout le reste de la
+        // plateforme affiche son réel, et une fiche sans loyer estimé faisait
+        // retrancher ses charges d'un loyer nul.
+        // RÈGLE : toute agrégation passe par `cfDisplayData()`, jamais
+        // `computeCF()` seul. Les fiches non chiffrables sont écartées, pas
+        // comptées pour zéro — leur nombre est dit à côté.
+        const cfSCI    = biensSCI.map(b => cfDisplayData(b).value).filter(v => v != null);
+        const cashflow = cfSCI.reduce((sum, v) => sum + v, 0);
+        const ecartes  = biensSCI.length - cfSCI.length;
         const cfColor = cashflow >= 0 ? 'var(--positive)' : 'var(--negative)';
         return `
         <div class="sci-card" onclick="openSCIDetail('${s.id}')">
           <div class="sci-card-head">
             <div class="sci-card-avatar">${initials}</div>
             <div>
-              <div class="sci-card-name">${s.nom_sci}</div>
-              <div class="sci-card-sub">${s.siret ? `SIRET : ${s.siret}` : 'SIRET non renseigné'}</div>
+              <div class="sci-card-name">${esc(s.nom_sci)}</div>
+              <div class="sci-card-sub">${s.siret ? `SIRET : ${esc(s.siret)}` : 'SIRET non renseigné'}</div>
             </div>
             <button class="sci-card-edit" onclick="event.stopPropagation();openSCIModal('${s.id}')" title="Modifier">✏️</button>
           </div>
@@ -8442,11 +8472,11 @@ function renderAdmSCI(c) {
             <div class="sci-stat"><div class="sci-stat-val">${s.capital_social ? fmt(s.capital_social)+' €' : '—'}</div><div class="sci-stat-lab">Capital</div></div>
             <div class="sci-stat"><div class="sci-stat-val">${nbAssoc}</div><div class="sci-stat-lab">Associé${nbAssoc>1?'s':''}</div></div>
             <div class="sci-stat"><div class="sci-stat-val">${biensSCI.length}</div><div class="sci-stat-lab">Bien${biensSCI.length>1?'s':''}</div></div>
-            <div class="sci-stat"><div class="sci-stat-val" style="color:${cfColor}">${cashflow>=0?'+':''}${fmt(cashflow)} €</div><div class="sci-stat-lab">Cashflow/mois</div></div>
+            <div class="sci-stat"><div class="sci-stat-val" style="color:${cfSCI.length?cfColor:'var(--c-dim)'}">${cfSCI.length ? (cashflow>=0?'+':'−')+sfEur(Math.abs(cashflow)) : '—'}</div><div class="sci-stat-lab">Cashflow/mois${ecartes ? ` · ${ecartes} à compléter` : ''}</div></div>
           </div>
           ${(s.associes||[]).length ? `
           <div class="sci-card-assocs">
-            ${s.associes.map(a=>`<span class="assoc-chip">${a.prenom||''} ${a.nom||''} ${a.parts_pct?'('+a.parts_pct+'%)'  :''}</span>`).join('')}
+            ${s.associes.map(a=>`<span class="assoc-chip">${esc(a.prenom||'')} ${esc(a.nom||'')} ${a.parts_pct?'('+a.parts_pct+'%)'  :''}</span>`).join('')}
           </div>` : ''}
         </div>`;
       }).join('')}
@@ -8664,7 +8694,7 @@ function renderAdmBilans(c) {
               <div class="bilan-card-sub">Régime <span class="bilan-badge ${b.regime.toLowerCase()}">${b.regime}</span></div>
             </div>
             <div style="text-align:right">
-              <div style="font-size:11px;color:${statutColor};font-weight:600">${b.statut}</div>
+              <div style="font-size:11px;color:${statutColor};font-weight:600">${esc(b.statut)}</div>
               ${alimente ? `
               <div style="font-size:18px;font-weight:800;color:${resultat>=0?'var(--positive)':'var(--negative)'};margin-top:2px">${resultat>=0?'+':''}${fmt(resultat)} €</div>
               <div style="font-size:10px;color:var(--c-muted)">Résultat net</div>` : `
@@ -8835,7 +8865,7 @@ function openEcheanceModal(id) {
       <div class="sci-form-group"><label class="sci-form-label">SCI concernée</label>
         <select class="sci-form-input" id="ech-sci">
           <option value="">Toutes mes SCI</option>
-          ${allSCI.map(s=>`<option value="${s.id}" ${e?.sci_id===s.id?'selected':''}>${s.nom_sci}</option>`).join('')}
+          ${allSCI.map(s=>`<option value="${s.id}" ${e?.sci_id===s.id?'selected':''}>${esc(s.nom_sci)}</option>`).join('')}
         </select></div>
     </div>
     <div class="sci-form-row">
@@ -8941,7 +8971,7 @@ function openBilanModal(id) {
       <div class="sci-form-group"><label class="sci-form-label">SCI <span style="color:var(--sf-loss)">*</span></label>
         <select class="sci-form-input" id="bil-sci">
           <option value="">Sélectionner une SCI</option>
-          ${allSCI.map(s=>`<option value="${s.id}" ${b?.sci_id===s.id?'selected':''}>${s.nom_sci}</option>`).join('')}
+          ${allSCI.map(s=>`<option value="${s.id}" ${b?.sci_id===s.id?'selected':''}>${esc(s.nom_sci)}</option>`).join('')}
         </select></div>
       <div class="sci-form-group"><label class="sci-form-label">Exercice <span style="color:var(--sf-loss)">*</span></label>
         <input class="sci-form-input" id="bil-annee" type="number" value="${esc(b?.exercice||anneeActuelle)}" min="2020" max="2050"></div>
@@ -9114,7 +9144,7 @@ async function marcheSuggest(val) {
         const cp = (c.codesPostaux||[])[0] || c.code;
         const depNom = c.departement?.nom || '';
         return `<div class="marche-suggest-item" onclick="marcheSelectCommune('${c.nom.replace(/'/g,"\\'")}','${c.code}','${depNom.replace(/'/g,"\\'")}','${cp}')">
-          ${c.nom} <span class="suggest-dep">${depNom} · ${cp}</span>
+          ${esc(c.nom)} <span class="suggest-dep">${esc(depNom)} · ${esc(cp)}</span>
         </div>`;
       }).join('');
       box.style.display = 'block';
@@ -10275,7 +10305,7 @@ async function openReadVisite(id) {
 
     <!-- Notes texte -->
     ${v.notes ? `
-    <div style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r);padding:16px;margin-bottom:18px;font-size:14px;color:var(--c-text);line-height:1.7;white-space:pre-wrap">${v.notes}</div>
+    <div style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r);padding:16px;margin-bottom:18px;font-size:14px;color:var(--c-text);line-height:1.7;white-space:pre-wrap">${esc(v.notes)}</div>
     ` : `<div style="color:var(--c-muted);font-size:13px;margin-bottom:18px;font-style:italic">Aucune note rédigée.</div>`}
 
     <!-- Photos -->
@@ -10309,7 +10339,7 @@ async function openDetailVisite(id) {
 }
 
 function visiteForm(v) {
-  const bienOptions = allBiens.map(b=>`<option value="${b.id}" ${v?.bien_id===b.id?'selected':''}>${b.titre} — ${b.ville||''}</option>`).join('');
+  const bienOptions = allBiens.map(b=>`<option value="${b.id}" ${v?.bien_id===b.id?'selected':''}>${esc(b.titre)} — ${esc(b.ville||'')}</option>`).join('');
   // visitPhotos est déjà normalisé (objets hybrides) par openDetailVisite
   return `
     <div class="form-grid" style="margin-bottom:14px">
@@ -10466,7 +10496,7 @@ async function renderSimulateur(el) {
     }
   }
 
-  const bienOptions = allBiens.map(b=>`<option value="${b.id}">${b.titre} — ${b.ville||''}</option>`).join('');
+  const bienOptions = allBiens.map(b=>`<option value="${b.id}">${esc(b.titre)} — ${esc(b.ville||'')}</option>`).join('');
 
   // Compute stats
   const bestRate = sims?.length ? Math.min(...sims.map(s=>s.taux_interet||99)).toFixed(2) : null;
@@ -10542,7 +10572,7 @@ async function simActionAttribuer() {
   if(!simSelected.size) return;
   const biens = allBiens.filter(b=>!b.is_test);
   if(!biens.length) { showNotif('Aucun bien disponible à attribuer', true); return; }
-  const opts = biens.map(b=>`<option value="${b.id}">${b.titre}${b.ville?' — '+b.ville:''}</option>`).join('');
+  const opts = biens.map(b=>`<option value="${b.id}">${esc(b.titre)}${b.ville?' — '+esc(b.ville):''}</option>`).join('');
   // Afficher une modal de sélection propre
   document.getElementById('detail-titre').textContent = 'Attribuer à un bien';
   document.getElementById('detail-content').innerHTML = `
@@ -10629,7 +10659,7 @@ function renderSimCard(s) {
   return `<div class="sim-list-item" data-id="${s.id}" onclick="openReadSimulation('${s.id}')">
     <div class="sim-checkbox" data-id="${s.id}" onclick="toggleSimSelect('${s.id}',event)" title="Sélectionner"></div>
     <div class="sim-list-content">
-      <div class="sim-item-name">${s.nom_simulation}${s.date_document?' <span style="font-size:10px;color:var(--c-muted);font-weight:400">· '+new Date(s.date_document+'T12:00:00').toLocaleDateString('fr-FR')+'</span>':''}</div>
+      <div class="sim-item-name">${esc(s.nom_simulation)}${s.date_document?' <span style="font-size:10px;color:var(--c-muted);font-weight:400">· '+new Date(s.date_document+'T12:00:00').toLocaleDateString('fr-FR')+'</span>':''}</div>
       <div class="sim-item-detail">${s.biens?.titre?'🏠 '+s.biens.titre+' · ':''} ${fmt(s.montant_emprunte||0)} € sur ${s.duree_ans||20} ans · ${(s.taux_interet||0).toFixed(2)}%</div>
     </div>
     ${(s.pdf_data||s.pdf_path)?`<button class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="event.stopPropagation();openPdfSim('${s.id}')">📄 PDF</button>`:''}
@@ -10683,7 +10713,7 @@ async function openReadSimulation(id) {
       <div class="detail-item"><div class="detail-label">Coût total du crédit</div><div class="detail-value">${fmt(Math.round((m*s.duree_ans*12)-(s.montant_emprunte||0)))} €</div></div>
     </div>
 
-    ${s.notes?`<div class="notes-box" style="margin-bottom:16px">${s.notes}</div>`:''}
+    ${s.notes?`<div class="notes-box" style="margin-bottom:16px">${esc(s.notes)}</div>`:''}
 
     <!-- PDF viewer -->
     ${(s.pdf_data||s.pdf_path)?`
@@ -10719,7 +10749,7 @@ function showSimModal(s) {
   // Reset state PDF en mémoire (évite de ré-uploader un PDF d'une session précédente)
   window._currentPdfName = null;
   window._currentPdfData = null;
-  const bienOptions = allBiens.map(b=>`<option value="${b.id}" ${s?.bien_id===b.id?'selected':''}>${b.titre} — ${b.ville||''}</option>`).join('');
+  const bienOptions = allBiens.map(b=>`<option value="${b.id}" ${s?.bien_id===b.id?'selected':''}>${esc(b.titre)} — ${esc(b.ville||'')}</option>`).join('');
   document.getElementById('detail-titre').textContent = s?'Modifier la simulation':'Nouvelle simulation';
   document.getElementById('detail-content').innerHTML = `
     <!-- Import PDF -->
@@ -11251,7 +11281,7 @@ function renderSCIList() {
       <div class="sci-list-item" onclick="openSCIModal('${s.id}')">
         <div class="sci-list-avatar">${initials}</div>
         <div>
-          <div class="sci-list-name">${s.nom_sci}</div>
+          <div class="sci-list-name">${esc(s.nom_sci)}</div>
           <div class="sci-list-sub">${sub}</div>
         </div>
         <div class="sci-list-arrow">›</div>
