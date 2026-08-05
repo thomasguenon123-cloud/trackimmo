@@ -11,20 +11,13 @@
 <link rel="stylesheet" href="components.css?v=51">
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
-   MAQUETTE « FICHE BIEN » — phase 5, iteration 2
+   MAQUETTE « FICHE BIEN » — phase 5, iteration 3
    Servie en production pour utiliser les VRAIS tokens.css et components.css.
    Rien ne part dans styles.css/app.js tant que ce n'est pas valide.
 
    Donnees : celles de la fiche « T2 Bordeaux — Test » de Thomas.
-
-   RETOURS DE THOMAS TRAITES DANS CETTE ITERATION
-   1. Montants alignes a DROITE.
-   2. Plus de soulignement pointille — l'affordance passe au survol.
-   3. Toutes les boites au meme format : un seul gabarit de carte.
-   4. Reequilibrage : « Informations » devient « Le bien » (caracteristiques,
-      photos, documents, notes) et le contact du vendeur descend dans
-      « Actions », renomme « Negociation ».
-   5. Bouton retour retravaille.
+   Tous les chiffres affiches ont ete recalcules a la main contre les formules
+   d'app.js (computeCF, rendement, emprunt) — voir le cartouche de la page.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-ui);
@@ -67,7 +60,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .sff-acts{ display:flex; gap:var(--sf-space-4); flex-wrap:wrap; }
 
 /* ── BANDEAU D'INDICATEURS ────────────────────────────────────────────────── */
-.sff-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+.sff-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
   gap:1px; background:var(--sf-border); border:var(--sf-border-width) solid var(--sf-border);
   border-radius:var(--sf-radius-md); overflow:hidden; margin-bottom:var(--sf-space-7); }
 .sff-kpi{ background:var(--sf-surface); padding:clamp(14px,1.2vw,22px);
@@ -86,8 +79,6 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight);
   line-height:var(--sf-lh-tight); font-variant-numeric:tabular-nums; white-space:nowrap; }
 .sff-kpi__v--gain{ color:var(--sf-gain); } .sff-kpi__v--loss{ color:var(--sf-loss); }
-.sff-kpi__v--none{ color:var(--sf-text-3); font-family:var(--sf-font-ui);
-  font-size:var(--sf-font-lead); font-weight:var(--sf-weight-regular); }
 .sff-kpi__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); }
 
 /* ── CORPS : rail fixe + contenu ──────────────────────────────────────────── */
@@ -108,6 +99,21 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-3); }
 .sff-rail__none{ font-size:var(--sf-font-body-sm); color:var(--sf-text-3);
   display:flex; flex-wrap:wrap; align-items:center; gap:var(--sf-space-4); }
+
+/* Pastille d'ajout — un seul libelle pour les deux emplacements. « Associer »
+   et « En ajouter une » disaient la meme chose de deux facons, et rien ne les
+   donnait pour des boutons : ils passaient pour du texte en gras. */
+.sff-add{ display:inline-flex; align-items:center; gap:var(--sf-space-2);
+  height:26px; padding:0 var(--sf-space-4) 0 var(--sf-space-3);
+  background:var(--sf-surface-2); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-full); color:var(--sf-text-2);
+  font-family:inherit; font-size:var(--sf-font-caption);
+  font-weight:var(--sf-weight-semibold); cursor:pointer;
+  transition:background var(--sf-dur) var(--sf-ease), border-color var(--sf-dur) var(--sf-ease),
+             color var(--sf-dur) var(--sf-ease); }
+.sff-add:hover{ background:var(--sf-surface-3); border-color:var(--sf-border-strong);
+  color:var(--sf-text); }
+
 .sff-prog{ background:var(--sf-surface-2); border-radius:var(--sf-radius-full);
   height:6px; overflow:hidden; }
 .sff-prog__f{ height:100%; border-radius:var(--sf-radius-full); background:var(--sf-gain); }
@@ -115,10 +121,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   font-weight:var(--sf-weight-semibold); display:flex; align-items:center; gap:var(--sf-space-3); }
 
 /* ── ONGLETS ────────────────────────────────────────────────────────────────
-   SIX au lieu de sept : « Finances » et « Financement » n'en font plus qu'un.
-   Ils affichaient les MEMES cinq postes d'acquisition, editables d'un cote et
-   en lecture seule de l'autre, et les memes trois montants mensuels, en
-   saisie d'un cote et en jauge de l'autre. */
+   SIX au lieu de sept : « Finances » et « Financement » n'en font plus qu'un. */
 .sff-tabs{ display:flex; gap:var(--sf-space-2); overflow-x:auto;
   border-bottom:var(--sf-border-width) solid var(--sf-border); margin-bottom:var(--sf-space-6); }
 .sff-tabs::-webkit-scrollbar{ display:none; }
@@ -136,33 +139,33 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .sff-pane[hidden]{ display:none; }
 
 /* ── GABARIT UNIQUE DE CARTE ────────────────────────────────────────────────
-   Chaque boite avait sa propre mise en page : titre colle au contenu ici,
-   bouton flottant au-dessus la, marges differentes d'un onglet a l'autre.
-   Un seul gabarit desormais — en-tete filete, corps a la meme retombee — et
-   toutes les boites de la fiche se ressemblent, quel que soit l'onglet.
+   En-tete filete + corps a la meme retombee, partout.
+   REGLE D'ACTION, valable dans toute la fiche : l'action principale est dans
+   l'EN-TETE quand la boite a du contenu, dans l'ETAT VIDE quand elle n'en a
+   pas. Jamais les deux : ce serait deux fois le meme bouton.
 
-   REGLE D'ACTION, valable partout : l'action principale est dans l'EN-TETE
-   quand la boite a du contenu, et dans l'ETAT VIDE quand elle n'en a pas. On
-   ne montre jamais les deux : ce serait deux fois le meme bouton. */
+   `display:flex` sur la carte et `flex:1` sur le corps : sans cela, deux
+   cartes voisines d'une meme rangee se terminaient a des hauteurs
+   differentes, la plus courte laissant un decroche disgracieux. */
 .sff-block{ background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
-  border-radius:var(--sf-radius-md); margin-bottom:var(--sf-space-5); min-width:0; overflow:hidden; }
+  border-radius:var(--sf-radius-md); margin-bottom:var(--sf-space-5); min-width:0;
+  overflow:hidden; display:flex; flex-direction:column; }
 .sff-block:last-child{ margin-bottom:0; }
 .sff-block__h{ display:flex; align-items:center; gap:var(--sf-space-5);
-  min-height:52px; padding:0 var(--sf-space-7);
+  min-height:52px; padding:0 var(--sf-space-7); flex-shrink:0;
   border-bottom:var(--sf-border-width) solid var(--sf-border); }
 .sff-block__t{ font-size:var(--sf-font-label); font-weight:var(--sf-weight-semibold);
   letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-3); margin:0; }
 .sff-block__n{ margin-left:auto; font-size:var(--sf-font-caption); color:var(--sf-text-3); }
-.sff-block__a{ margin-left:auto; display:flex; gap:var(--sf-space-4); }
-.sff-block__b{ padding:var(--sf-space-7); }
+.sff-block__b{ padding:var(--sf-space-7); flex:1; display:flex; flex-direction:column; }
+.sff-block__b--flush{ padding:0; }
 
 /* ── VALEUR MODIFIABLE SUR PLACE ────────────────────────────────────────────
    Le soulignement pointille signalait l'edition sur chaque valeur, en
-   permanence : une trame de tirets sur tout l'ecran pour un geste qu'on fait
-   trois fois par fiche. L'affordance passe au survol — la valeur est nue au
-   repos, le fond et le crayon n'apparaissent que quand on la vise.
-   Le crayon occupe sa place des le repos (opacite 0) : sans cela, son
-   apparition decalerait le nombre et casserait l'alignement de la colonne. */
+   permanence. L'affordance passe au survol — la valeur est nue au repos.
+   Le crayon occupe sa place des le repos (opacite 0) et sa PROPRE colonne de
+   grille : sinon son apparition decalerait le nombre et casserait
+   l'alignement entre lignes saisies et lignes calculees. */
 .sff-edit{ display:inline-flex; align-items:center; gap:var(--sf-space-3);
   padding:1px var(--sf-space-3); margin:-1px calc(-1 * var(--sf-space-3));
   border-radius:var(--sf-radius-xs); cursor:text; color:inherit;
@@ -173,14 +176,9 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .sff-line:hover .sff-pen, .sff-g:hover .sff-pen, .sff-f:hover .sff-pen,
 .sff-edit:hover .sff-pen{ opacity:1; }
 
-/* ── COUT D'ACQUISITION ─────────────────────────────────────────────────────
-   Le principe de l'ancien onglet « Financement », que Thomas veut garder :
-   chaque montant porte sa part visuelle. Il est ici ETENDU a la saisie —
-   la liste est la meme que celle qu'on modifiait dans « Finances ».
-
+/* ── LIGNES CHIFFREES ───────────────────────────────────────────────────────
    MONTANTS ALIGNES A DROITE (arbitrage de Thomas, 05/08/2026) : sur une
-   colonne d'argent, c'est l'unite qui doit s'aligner, pas la premiere lettre.
-   Le crayon occupe sa propre colonne pour ne pas decaler les chiffres. */
+   colonne d'argent, c'est l'unite qui doit s'aligner. */
 .sff-split{ display:flex; height:12px; border-radius:var(--sf-radius-full); overflow:hidden;
   background:var(--sf-surface-2); margin-bottom:var(--sf-space-6); }
 .sff-split__s{ min-width:2px; transition:filter var(--sf-dur) var(--sf-ease); }
@@ -208,7 +206,17 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
    chiffres restent alignes sur ceux du bloc voisin. */
 .sff-lines--plain .sff-line{ grid-template-columns:minmax(0,1fr) auto 16px; }
 
-/* ── EFFORT MENSUEL ─────────────────────────────────────────────────────── */
+/* Intertitre de sous-groupe */
+.sff-sep{ margin:var(--sf-space-7) 0 var(--sf-space-4); font-size:var(--sf-font-label);
+  font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-caps);
+  text-transform:uppercase; color:var(--sf-text-3); }
+.sff-sep:first-child{ margin-top:0; }
+
+/* ── EQUILIBRE MENSUEL ──────────────────────────────────────────────────────
+   Les jauges qui AGREGENT (loyer attendu, charges) sont en lecture seule et
+   leur composition se saisit juste en dessous ; celles qui n'agregent rien
+   (mensualite) restent modifiables sur place. Sans cette regle, modifier
+   « Loyer attendu » aurait ete ambigu : deux champs distincts s'y additionnent. */
 .sff-gauges{ display:flex; flex-direction:column; gap:var(--sf-space-5); }
 .sff-g{ display:grid; grid-template-columns:auto minmax(0,1fr) auto 16px;
   gap:var(--sf-space-5); align-items:center; }
@@ -226,15 +234,10 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight);
   font-variant-numeric:tabular-nums; margin-left:auto; }
 .sff-solde__s{ flex-basis:100%; font-size:var(--sf-font-caption); color:var(--sf-text-3); }
-.sff-sep{ margin:var(--sf-space-7) 0 var(--sf-space-5); font-size:var(--sf-font-caption);
-  color:var(--sf-text-3); }
 
-/* ── ETAT VIDE — un seul, identique partout ─────────────────────────────────
-   Hauteur minimale commune : sans elle, deux onglets vides cote a cote
-   n'avaient pas la meme boite, uniquement parce que leur texte differait
-   d'une ligne. */
+/* ── ETAT VIDE — un seul, identique partout ───────────────────────────────── */
 .sff-empty{ display:flex; flex-direction:column; align-items:center; justify-content:center;
-  text-align:center; gap:var(--sf-space-4); min-height:236px;
+  text-align:center; gap:var(--sf-space-4); min-height:236px; flex:1;
   padding:var(--sf-space-8) var(--sf-space-7); color:var(--sf-text-3); }
 .sff-empty__ic{ color:var(--sf-text-3); opacity:.55; }
 .sff-empty__t{ font-family:var(--sf-font-display); font-size:var(--sf-font-h3);
@@ -262,7 +265,8 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   margin-bottom:var(--sf-space-5); }
 .sff-msg svg{ flex-shrink:0; margin-top:1px; color:var(--sf-text-3); }
 
-.sff-grid2{ display:grid; grid-template-columns:1fr 1fr; gap:var(--sf-space-5); align-items:start; }
+.sff-grid2{ display:grid; grid-template-columns:1fr 1fr; gap:var(--sf-space-5);
+  align-items:stretch; }
 @media (max-width:1180px){ .sff-grid2{ grid-template-columns:1fr; } }
 .sff-grid2 > .sff-block{ margin-bottom:0; }
 </style>
@@ -271,20 +275,22 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 <div class="sff-wrap">
 
   <p class="sff-note">
-    <b>Maquette « Fiche bien » — itération 2, non déployée dans l'application.</b>
-    Données réelles de la fiche « T2 Bordeaux — Test ». Traité depuis l'itération 1 :
+    <b>Maquette « Fiche bien » — itération 3, non déployée dans l'application.</b>
+    Traité depuis l'itération 2 :
     <ul>
-      <li><b>Montants alignés à droite.</b> Le crayon d'édition occupe sa propre colonne pour
-          ne pas décaler les chiffres.</li>
-      <li><b>Plus de soulignement pointillé</b> : l'affordance passe au survol — fond léger sur
-          la valeur, crayon sur la ligne.</li>
-      <li><b>Un seul gabarit de carte</b> : en-tête fileté, corps à la même retombée, états vides
-          de hauteur identique. L'action principale est dans l'en-tête quand la boîte a du contenu,
-          dans l'état vide quand elle n'en a pas — jamais les deux.</li>
-      <li><b>Rééquilibrage</b> : « Informations » devient <b>« Le bien »</b> (caractéristiques,
-          photos, documents, notes — les deux derniers quittent le rail) et le contact du vendeur
-          descend dans <b>« Négociation »</b>, où le numéro se trouve au moment de consigner l'appel.</li>
-      <li><b>Bouton retour</b> repris en pastille, à la hauteur de contrôle des autres boutons.</li>
+      <li><b>Trois incohérences de données corrigées</b>, trouvées en recalculant chaque chiffre
+          contre les formules d'<code>app.js</code>. (1) Le statut affiché était réécrit à la main :
+          la valeur exacte de <code>PHASE_MAP</code> est <b>« Contre offre - Envoyée »</b>.
+          (2) L'indicateur « Apport à prévoir » promettait une saisie qui <b>n'existe dans aucun
+          champ de la base</b> — il est retiré, le bandeau passe à quatre indicateurs.
+          (3) « Charges refacturées au locataire » était rangée sous le détail des charges alors
+          qu'elle <b>s'ajoute au loyer</b> : elle rejoint la composition du loyer.</li>
+      <li><b>Les deux cartes de « Finances » ont la même hauteur.</b> « Coût d'acquisition » gagne
+          un pied de repères — coût au m² frais compris, et poids des frais d'acquisition.</li>
+      <li><b>Un seul bouton « Ajouter »</b> dans le rail, avec son icône : « Associer » et
+          « En ajouter une » disaient la même chose de deux façons.</li>
+      <li><b>Titres et libellés repris</b> : Coût d'acquisition · Équilibre mensuel · Solde mensuel ·
+          Plan de financement · Contact vendeur · Projection locative.</li>
     </ul>
   </p>
 
@@ -316,7 +322,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
     </div>
   </div>
 
-  <!-- ══ INDICATEURS ═══════════════════════════════════════════════════════ -->
+  <!-- ══ INDICATEURS — quatre, l'apport est retire faute de champ en base ══ -->
   <div class="sff-kpis">
     <div class="sff-kpi">
       <span class="sff-kpi__l">Prix affiché</span>
@@ -334,32 +340,23 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
       <span class="sff-kpi__s">par mois, sur données estimées</span>
     </div>
     <div class="sff-kpi">
-      <span class="sff-kpi__l">Total acquisition</span>
+      <span class="sff-kpi__l">Coût total de l'opération</span>
       <span class="sff-kpi__v">196&#8239;200&#8239;€</span>
       <span class="sff-kpi__s">frais et travaux compris</span>
-    </div>
-    <div class="sff-kpi">
-      <span class="sff-kpi__l">Apport à prévoir</span>
-      <span class="sff-kpi__v sff-kpi__v--none">Non renseigné</span>
-      <span class="sff-kpi__s">se saisit dans l'onglet Finances</span>
     </div>
   </div>
 
   <!-- ══ CORPS ═════════════════════════════════════════════════════════════ -->
   <div class="sff-body">
 
-    <!-- ── RAIL : l'etat du dossier, rien d'autre ────────────────────────────
-         La vignette photo et la liste de documents en sont sorties : les
-         photos ont desormais leur bloc dans « Le bien », ou on peut les
-         ajouter, et le rail n'affiche plus une grande boite vide quand la
-         fiche n'en a pas. Quand il y a des photos, la vignette revient en
-         tete de rail : c'est le visage du bien, visible depuis les six
-         onglets. -->
+    <!-- ── RAIL : l'etat du dossier, rien d'autre ──────────────────────────── -->
     <aside class="sff-rail">
       <div class="sff-rail__b">
         <span class="sff-rail__l">Statut</span>
+        <!-- Libelle EXACT de PHASE_MAP. Une enumeration ne se recopie jamais
+             a la main : « Contre-offre envoyée » n'existe pas en base. -->
         <span class="sf-pill sf-pill--alert" style="align-self:flex-start">
-          <span class="sf-dot"></span>Contre-offre envoyée
+          <span class="sf-dot"></span>Contre offre - Envoyée
         </span>
       </div>
 
@@ -372,7 +369,10 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
         <span class="sff-rail__l">SCI détentrice</span>
         <span class="sff-rail__none">
           Aucune
-          <button class="sf-btn sf-btn--ghost sf-btn--sm" style="padding:0 var(--sf-space-4)">Associer</button>
+          <button class="sff-add">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Ajouter
+          </button>
         </span>
       </div>
 
@@ -380,7 +380,10 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
         <span class="sff-rail__l">Dernière action</span>
         <span class="sff-rail__none">
           Aucune
-          <button class="sf-btn sf-btn--ghost sf-btn--sm" style="padding:0 var(--sf-space-4)">En ajouter une</button>
+          <button class="sff-add">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Ajouter
+          </button>
         </span>
       </div>
 
@@ -389,7 +392,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
         <div class="sff-prog"><div class="sff-prog__f" style="width:100%"></div></div>
         <span class="sff-prog__t">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
-          Tous les champs sont remplis
+          Tous les champs sont renseignés
         </span>
       </div>
     </aside>
@@ -428,13 +431,13 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
         <div class="sff-grid2">
 
           <div class="sff-block">
-            <div class="sff-block__h"><p class="sff-block__t">Ce que le bien coûte</p></div>
+            <div class="sff-block__h"><p class="sff-block__t">Coût d'acquisition</p></div>
             <div class="sff-block__b">
               <div class="sff-split">
                 <div class="sff-split__s" style="width:89.2%;background:var(--sf-brand-3)"  title="Prix affiché — 175 000 €"></div>
                 <div class="sff-split__s" style="width:6.2%;background:var(--sf-text-3)"    title="Frais de notaire — 12 250 €"></div>
                 <div class="sff-split__s" style="width:4.5%;background:var(--sf-info)"      title="Frais d'agence — 8 750 €"></div>
-                <div class="sff-split__s" style="width:0.1%;background:var(--sf-alert)"     title="Création SCI — 200 €"></div>
+                <div class="sff-split__s" style="width:0.1%;background:var(--sf-alert)"     title="Création de la SCI — 200 €"></div>
               </div>
 
               <div class="sff-lines">
@@ -461,7 +464,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
                 </div>
                 <div class="sff-line">
                   <span class="sff-line__d" style="background:var(--sf-alert)"></span>
-                  <span class="sff-line__l">Création de la SCI</span>
+                  <span class="sff-line__l">Constitution de la SCI</span>
                   <span class="sff-line__v"><span class="sff-edit">200&#8239;€</span></span>
                   <svg class="sff-pen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 6.5 17.5 9.5"/></svg>
                   <span class="sff-line__p">&lt;&#8239;1&#8239;%</span>
@@ -475,24 +478,43 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
                 </div>
                 <div class="sff-line sff-line--tot">
                   <span></span>
-                  <span class="sff-line__l">Total acquisition</span>
+                  <span class="sff-line__l">Coût total de l'opération</span>
                   <span class="sff-line__v">196&#8239;200&#8239;€</span>
                   <span></span>
                   <span></span>
+                </div>
+              </div>
+
+              <!-- Pied de reperes : deux grandeurs DERIVEES des montants
+                   ci-dessus, aucune donnee nouvelle a saisir. Elles donnent
+                   a la carte la hauteur de sa voisine sans meublage. -->
+              <!-- Grille COMPLETE, et non la variante `--plain` : sans la
+                   colonne de pourcentage, ces deux montants finissaient 50 px
+                   plus a droite que ceux du bloc au-dessus, dans la meme carte. -->
+              <p class="sff-sep" style="margin-top:auto">Repères</p>
+              <div class="sff-lines">
+                <div class="sff-line">
+                  <span></span>
+                  <span class="sff-line__l">Coût au m², frais compris</span>
+                  <span class="sff-line__v">4&#8239;360&#8239;€</span><span></span><span></span>
+                </div>
+                <div class="sff-line">
+                  <span></span>
+                  <span class="sff-line__l">Frais et honoraires <small>· 12,1&#8239;% du prix</small></span>
+                  <span class="sff-line__v">21&#8239;200&#8239;€</span><span></span><span></span>
                 </div>
               </div>
             </div>
           </div>
 
           <div class="sff-block">
-            <div class="sff-block__h"><p class="sff-block__t">Chaque mois</p></div>
+            <div class="sff-block__h"><p class="sff-block__t">Équilibre mensuel</p></div>
             <div class="sff-block__b">
               <div class="sff-gauges">
                 <div class="sff-g">
                   <span class="sff-g__l">Loyer attendu</span>
                   <div class="sff-g__bar"><div class="sff-g__f" style="width:100%;background:var(--sf-gain)"></div></div>
-                  <span class="sff-g__v"><span class="sff-edit">850&#8239;€</span></span>
-                  <svg class="sff-pen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 6.5 17.5 9.5"/></svg>
+                  <span class="sff-g__v">850&#8239;€</span><span></span>
                 </div>
                 <div class="sff-g">
                   <span class="sff-g__l">Mensualité de crédit</span>
@@ -503,18 +525,36 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
                 <div class="sff-g">
                   <span class="sff-g__l">Charges</span>
                   <div class="sff-g__bar"><div class="sff-g__f" style="width:10.9%;background:var(--sf-alert)"></div></div>
-                  <span class="sff-g__v">93&#8239;€</span>
-                  <span></span>
+                  <span class="sff-g__v">93&#8239;€</span><span></span>
                 </div>
               </div>
 
               <div class="sff-solde">
-                <span class="sff-solde__l">Il vous reste</span>
+                <span class="sff-solde__l">Solde mensuel</span>
                 <span class="sff-solde__v sf-gain">+57&#8239;€</span>
                 <span class="sff-solde__s">Le loyer couvre 121&#8239;% de la mensualité de crédit.</span>
               </div>
 
-              <p class="sff-sep">Détail des charges</p>
+              <!-- Composition des deux jauges qui agregent. Chaque sous-total
+                   est exact : 850 + 0 pour le loyer, 45 + 15 + 33 pour les
+                   charges. « Charges refacturées » est ici, du cote des
+                   RECETTES, parce qu'elle s'ajoute au loyer dans computeCF —
+                   la ranger avec les charges donnait a lire une depense. -->
+              <p class="sff-sep">Composition du loyer</p>
+              <div class="sff-lines sff-lines--plain">
+                <div class="sff-line">
+                  <span class="sff-line__l">Loyer hors charges</span>
+                  <span class="sff-line__v"><span class="sff-edit">850&#8239;€</span></span>
+                  <svg class="sff-pen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 6.5 17.5 9.5"/></svg>
+                </div>
+                <div class="sff-line">
+                  <span class="sff-line__l">Charges refacturées au locataire</span>
+                  <span class="sff-line__v"><span class="sff-edit">0&#8239;€</span></span>
+                  <svg class="sff-pen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 6.5 17.5 9.5"/></svg>
+                </div>
+              </div>
+
+              <p class="sff-sep">Composition des charges</p>
               <div class="sff-lines sff-lines--plain">
                 <div class="sff-line">
                   <span class="sff-line__l">Charges de copropriété</span>
@@ -522,18 +562,13 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
                   <svg class="sff-pen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 6.5 17.5 9.5"/></svg>
                 </div>
                 <div class="sff-line">
-                  <span class="sff-line__l">Assurance du logement</span>
+                  <span class="sff-line__l">Assurance propriétaire non occupant</span>
                   <span class="sff-line__v"><span class="sff-edit">15&#8239;€</span></span>
                   <svg class="sff-pen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 6.5 17.5 9.5"/></svg>
                 </div>
                 <div class="sff-line">
-                  <span class="sff-line__l">Taxe foncière</span>
+                  <span class="sff-line__l">Taxe foncière <small>· lissée sur 12 mois</small></span>
                   <span class="sff-line__v"><span class="sff-edit">33&#8239;€</span></span>
-                  <svg class="sff-pen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 6.5 17.5 9.5"/></svg>
-                </div>
-                <div class="sff-line">
-                  <span class="sff-line__l">Charges refacturées au locataire</span>
-                  <span class="sff-line__v"><span class="sff-edit">0&#8239;€</span></span>
                   <svg class="sff-pen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 6.5 17.5 9.5"/></svg>
                 </div>
               </div>
@@ -543,19 +578,19 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 
         <div class="sff-block" style="margin-top:var(--sf-space-5)">
           <div class="sff-block__h">
-            <p class="sff-block__t">Financement</p>
+            <p class="sff-block__t">Plan de financement</p>
             <span class="sff-block__n">Aucune simulation rattachée</span>
           </div>
-          <div class="sff-block__b" style="padding:0">
+          <div class="sff-block__b sff-block__b--flush">
             <div class="sff-empty">
               <div class="sff-empty__ic">
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5 12 4l9 5.5"/><path d="M5.5 9.5V19M9.8 9.5V19M14.2 9.5V19M18.5 9.5V19"/><path d="M3 21h18"/></svg>
               </div>
-              <div class="sff-empty__t">Aucun plan de financement chiffré</div>
+              <div class="sff-empty__t">Aucune simulation de crédit</div>
               <div class="sff-empty__x">
-                La mensualité de 700&#8239;€ saisie plus haut est une hypothèse. Une simulation calcule
-                la mensualité réelle à partir du taux, de la durée et de l'apport — et se retrouve
-                ensuite dans le dossier remis à la banque.
+                La mensualité de 700&#8239;€ renseignée plus haut est une hypothèse. Une simulation
+                établit la mensualité réelle à partir du taux, de la durée et de l'apport, puis
+                alimente le dossier remis à la banque.
               </div>
               <button class="sf-btn sf-btn--primary sf-btn--sm">Simuler ce crédit</button>
             </div>
@@ -577,7 +612,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
                 <div class="sff-f__l">Annonce d'origine</div>
                 <a class="sff-link" href="#">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>
-                  Ouvrir l'annonce
+                  Consulter l'annonce
                 </a>
               </div>
             </div>
@@ -586,14 +621,14 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 
         <div class="sff-block">
           <div class="sff-block__h"><p class="sff-block__t">Photos</p></div>
-          <div class="sff-block__b" style="padding:0">
+          <div class="sff-block__b sff-block__b--flush">
             <div class="sff-empty">
               <div class="sff-empty__ic">
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 17 5-4.5 4.5 4 3-2.5L20 18"/></svg>
               </div>
               <div class="sff-empty__t">Aucune photo</div>
               <div class="sff-empty__x">
-                Les photos de l'annonce et celles prises en visite se retrouvent ici. La première
+                Les visuels de l'annonce et les clichés pris en visite se rassemblent ici. Le premier
                 sert de vignette dans la liste de vos biens.
               </div>
               <button class="sf-btn sf-btn--primary sf-btn--sm">Ajouter des photos</button>
@@ -603,7 +638,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 
         <div class="sff-block">
           <div class="sff-block__h"><p class="sff-block__t">Documents</p></div>
-          <div class="sff-block__b" style="padding:0">
+          <div class="sff-block__b sff-block__b--flush">
             <div class="sff-empty">
               <div class="sff-empty__ic">
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7Z"/><path d="M9 13h6M9 17h4"/></svg>
@@ -611,7 +646,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
               <div class="sff-empty__t">Aucun document</div>
               <div class="sff-empty__x">
                 Diagnostics, règlement de copropriété, procès-verbaux d'assemblée générale, compromis :
-                tout ce que la banque et le notaire réclameront le moment venu.
+                les pièces que la banque et le notaire réclameront le moment venu.
               </div>
               <button class="sf-btn sf-btn--primary sf-btn--sm">Déposer un document</button>
             </div>
@@ -632,29 +667,29 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
       <section class="sff-pane" data-p="visites" hidden>
         <div class="sff-block">
           <div class="sff-block__h"><p class="sff-block__t">Comptes rendus de visite</p></div>
-          <div class="sff-block__b" style="padding:0">
+          <div class="sff-block__b sff-block__b--flush">
             <div class="sff-empty">
               <div class="sff-empty__ic">
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3h11a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 17.5 21h-11A2.5 2.5 0 0 1 4 18.5v-13A2.5 2.5 0 0 1 6.5 3Z"/><path d="M4 17.5h15"/><path d="M8.5 7.5h7"/></svg>
               </div>
               <div class="sff-empty__t">Aucune visite enregistrée</div>
               <div class="sff-empty__x">
-                Gardez une trace de chaque visite : impressions, points de vigilance, travaux à prévoir,
-                photos. Les comptes rendus se retrouvent ensuite ici et dans la section Outils.
+                Consignez chaque visite : impression générale, points de vigilance, travaux à prévoir,
+                photos. Les comptes rendus se retrouvent ici et dans la section Outils.
               </div>
-              <button class="sf-btn sf-btn--primary sf-btn--sm">Créer le premier compte rendu</button>
+              <button class="sf-btn sf-btn--primary sf-btn--sm">Rédiger le premier compte rendu</button>
             </div>
           </div>
         </div>
       </section>
 
       <!-- ══════════════ ONGLET NÉGOCIATION ══════════════
-           Le contact du vendeur descend ici depuis « Informations » : le
-           numero de telephone se trouve desormais a l'endroit exact ou l'on
-           vient consigner l'appel qu'on vient de passer. -->
+           Le contact du vendeur est descendu ici depuis « Informations » : le
+           numero se trouve desormais a l'endroit exact ou l'on vient consigner
+           l'appel qu'on vient de passer. -->
       <section class="sff-pane" data-p="nego" hidden>
         <div class="sff-block">
-          <div class="sff-block__h"><p class="sff-block__t">Le vendeur</p></div>
+          <div class="sff-block__h"><p class="sff-block__t">Contact vendeur</p></div>
           <div class="sff-block__b">
             <div class="sff-fields">
               <div class="sff-f"><div class="sff-f__l">Intermédiaire</div><div class="sff-f__v"><span class="sff-edit">Agence Victoire<svg class="sff-pen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 6.5 17.5 9.5"/></svg></span></div></div>
@@ -675,16 +710,16 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
         </div>
 
         <div class="sff-block">
-          <div class="sff-block__h"><p class="sff-block__t">Historique</p></div>
-          <div class="sff-block__b" style="padding:0">
+          <div class="sff-block__h"><p class="sff-block__t">Historique des échanges</p></div>
+          <div class="sff-block__b sff-block__b--flush">
             <div class="sff-empty">
               <div class="sff-empty__ic">
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
               </div>
               <div class="sff-empty__t">Aucun échange enregistré</div>
               <div class="sff-empty__x">
-                Consignez vos appels, offres, relances et rendez-vous : c'est cet historique qui vous
-                rappellera où vous en êtes avec ce vendeur dans trois semaines.
+                Appels, offres, relances et rendez-vous : cet historique vous rappellera où vous en
+                êtes avec ce vendeur dans trois semaines.
               </div>
               <button class="sf-btn sf-btn--primary sf-btn--sm">Enregistrer le premier échange</button>
             </div>
@@ -696,11 +731,11 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
       <section class="sff-pane" data-p="locatif" hidden>
         <div class="sff-msg">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.9" r=".7" fill="currentColor" stroke="none"/></svg>
-          <span>Ce bien est encore en prospection. Le suivi locatif — locataire, loyers encaissés,
-          charges réelles — s'ouvrira le jour où vous le passerez au statut « Acheté ».</span>
+          <span>Ce bien est en cours d'acquisition. Le suivi locatif — locataire, loyers encaissés,
+          charges réelles — s'ouvrira au passage au statut « Acheté ».</span>
         </div>
         <div class="sff-block">
-          <div class="sff-block__h"><p class="sff-block__t">Ce que donnerait ce bien une fois loué</p></div>
+          <div class="sff-block__h"><p class="sff-block__t">Projection locative</p></div>
           <div class="sff-block__b">
             <div class="sff-lines sff-lines--plain">
               <div class="sff-line">
@@ -708,7 +743,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
                 <span class="sff-line__v">850&#8239;€</span><span></span>
               </div>
               <div class="sff-line">
-                <span class="sff-line__l">Charges et crédit</span>
+                <span class="sff-line__l">Charges et mensualité de crédit</span>
                 <span class="sff-line__v">793&#8239;€</span><span></span>
               </div>
               <div class="sff-line sff-line--tot">
@@ -724,17 +759,17 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
       <section class="sff-pane" data-p="sci" hidden>
         <div class="sff-block">
           <div class="sff-block__h"><p class="sff-block__t">Société détentrice</p></div>
-          <div class="sff-block__b" style="padding:0">
+          <div class="sff-block__b sff-block__b--flush">
             <div class="sff-empty">
               <div class="sff-empty__ic">
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5 12 4l9 5.5"/><path d="M5.5 9.5V19M9.8 9.5V19M14.2 9.5V19M18.5 9.5V19"/><path d="M3 21h18"/></svg>
               </div>
-              <div class="sff-empty__t">Ce bien n'est rattaché à aucune SCI</div>
+              <div class="sff-empty__t">Aucune société rattachée</div>
               <div class="sff-empty__x">
                 Le rattachement sert à une seule chose, mais elle compte : les loyers encaissés et les
                 charges payées de ce bien alimentent alors le bilan comptable de la société.
               </div>
-              <button class="sf-btn sf-btn--primary sf-btn--sm">Associer une SCI</button>
+              <button class="sf-btn sf-btn--primary sf-btn--sm">Rattacher une SCI</button>
             </div>
           </div>
         </div>
