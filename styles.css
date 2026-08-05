@@ -3335,6 +3335,23 @@ table.sfb-t{ width:100%; border-collapse:collapse; font-size:clamp(13px, 0.85vw,
 
 .sfb-t .num{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums; white-space:nowrap; }
 
+/* ── MONTANTS ALIGNÉS À DROITE (arbitrage de Thomas, 05/08/2026) ─────────────
+   Sur une colonne d'argent, c'est l'unité qui doit s'aligner, pas la première
+   lettre. Cet écran était resté à gauche pendant que la fiche bien passait à
+   droite : les deux donnaient le même chiffre dans deux mises en forme.
+   L'en-tête suit sa colonne — à gauche au-dessus de chiffres à droite, elle
+   laissait un trou au milieu.
+   Les colonnes de TEXTE (Bien, Ville, Statut) restent à gauche : le sens de
+   lecture n'a pas changé, seule la nature des colonnes chiffrées le justifie. */
+.sfb-t td.sf-num, .sfb-t th.sf-num{ text-align:right; }
+.sfb-t td.sf-num .sfb-src, .sfb-t td.sf-num .sfb-part{ text-align:right; }
+
+/* Le rendement porte une barre suivie de sa valeur. En poussant simplement le
+   groupe à droite, les barres se décalaient les unes des autres au gré de la
+   largeur du nombre — une colonne de barres en dents de scie. La valeur reçoit
+   donc une largeur minimale : la barre retrouve une abscisse commune. */
+.sfb-rend__v{ min-width:52px; text-align:right; }
+
 .sfb-t .bien{ font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
 
 .sfb-t .sub{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
@@ -3364,7 +3381,7 @@ table.sfb-t{ width:100%; border-collapse:collapse; font-size:clamp(13px, 0.85vw,
 .sfb-part{ display:block; font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
 
 
-.sfb-rend{ display:flex; align-items:center; gap:var(--sf-space-4); }
+.sfb-rend{ display:flex; align-items:center; gap:var(--sf-space-4); justify-content:flex-end; }
 
 .sfb-rend__b{ width:44px; height:4px; border-radius:2px; background:var(--sf-surface-3); overflow:hidden; flex-shrink:0; }
 

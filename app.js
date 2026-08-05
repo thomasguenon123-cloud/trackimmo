@@ -2096,7 +2096,9 @@ function renderBiensContent(biens) {
 // chiffres entre eux, ce que l'alignement à droite assurait autrement.
 function renderBiensTableau(l) {
   const seuil = parseFloat(userPrefs?.seuil_rentabilite) || 5;
-  const th = (c,t) => `<th data-sort="${c}"${bienSortBy===c?` aria-sort="${bienSortAsc?'ascending':'descending'}"`:''}
+  // `num` aligne l'en-tête à droite avec sa colonne : une en-tête à gauche
+  // au-dessus de chiffres à droite laisse un trou au milieu de la colonne.
+  const th = (c,t,num) => `<th data-sort="${c}"${num?' class="sf-num"':''}${bienSortBy===c?` aria-sort="${bienSortAsc?'ascending':'descending'}"`:''}
       onclick="setTriBiens('${c}')" tabindex="0" onkeydown="if(event.key==='Enter')setTriBiens('${c}')">
       ${t}<span class="ar">${bienSortAsc?'↑':'↓'}</span></th>`;
   const tousCoches = l.length > 0 && l.every(b => bienSelection.has(b.id));
@@ -2105,8 +2107,8 @@ function renderBiensTableau(l) {
       <th class="sfb-t__case"><input type="checkbox" ${tousCoches?'checked':''}
         onclick="event.stopPropagation()" onchange="sfToutSelectionner(this.checked)"
         aria-label="Tout sélectionner"></th>
-      ${th('nom','Bien')}<th>Ville</th>${th('prix','Prix')}${th('loyer','Loyer')}
-      <th>Charges</th>${th('rend','Rendement')}${th('cf','Cashflow / mois')}<th>Statut</th>
+      ${th('nom','Bien')}<th>Ville</th>${th('prix','Prix',true)}${th('loyer','Loyer',true)}
+      <th class="sf-num">Charges</th>${th('rend','Rendement',true)}${th('cf','Cashflow / mois',true)}<th>Statut</th>
     </tr></thead>
     <tbody>${l.map(b => {
       const d = cfDisplayData(b), r = sfRendement(b), ch = sfCharges(b);
@@ -2125,17 +2127,17 @@ function renderBiensTableau(l) {
             <div class="sfb-t__s">${esc(b.code_postal || '')}</div></td>
         <td class="sf-num">${sfNum(b.prix_affiche,' €')}</td>
         <td class="sf-num">${sfNum(b.loyer_en_etat,' €')}</td>
-        <td class="sf-num sfb-charges">${ch>0 ? '− '+fmt(ch)+' €' : '<span class="sfb-vide-val">—</span>'}</td>
+        <td class="sf-num sfb-charges">${ch>0 ? '−'+sfEur(ch) : '<span class="sfb-vide-val">—</span>'}</td>
         <td class="sf-num">${r==null ? '<span class="sfb-vide-val">—</span>' : `
           <span class="sfb-rend"><span class="sfb-rend__b"><span class="sfb-rend__f"
             style="width:${Math.min(100, r/10*100)}%;background:${r>=seuil?'var(--sf-gain)':'var(--sf-alert)'}"></span></span>
-          <span class="${r>=seuil?'sf-gain':''}">${r.toFixed(1)} %</span></span>`}</td>
+          <span class="sfb-rend__v ${r>=seuil?'sf-gain':''}">${sfPct(r.toFixed(1).replace('.',','))}</span></span>`}</td>
         <td class="sf-num">${d.mode==='incomplet'
           ? `<span class="sfb-src sfb-src--manque sfb-src--seul">À compléter</span>
              <span class="sfb-part">${d.manque.map(x=>x.lab).join(', ')} à renseigner</span>`
           : d.value == null
             ? '<span class="sfb-vide-val">—</span>'
-            : `<span class="${d.value>0?'sf-gain':d.value<0?'sf-loss':''}">${(d.value>0?'+':'')+fmt(d.value)} €</span>
+            : `<span class="${d.value>0?'sf-gain':d.value<0?'sf-loss':''}">${(d.value>=0?'+':'−')+sfEur(Math.abs(d.value))}</span>
                <span class="sfb-src sfb-src--${srcCls}">${srcLbl}</span>`}</td>
         <td><span class="statut-pill phase-${(PHASE_MAP[b.statut]||'generic')}">${esc(b.statut || '—')}</span></td>
       </tr>`;
