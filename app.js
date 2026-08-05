@@ -553,11 +553,16 @@ const TI_BIENS = {
   SOURCES: ['SeLoger','LeBonCoin','PAP','Logic-Immo','Bien\'ici','Jinka','Réseau agence','Particulier','Autre'],
 
   // Une balise porte sa valeur, son emoji et sa classe CSS au meme endroit.
+  // La propriete `emoji` a ete supprimee : elle n'avait plus qu'UN
+  // consommateur, `inlineEditField`, qui remettait l'emoji dans la pastille
+  // apres une modification en ligne — alors que tous les autres rendus
+  // l'avaient abandonne. La meme balise s'affichait donc avec ou sans emoji
+  // selon qu'on venait ou non de la changer, jusqu'au rechargement suivant.
   BALISES: [
-    { v:'Veille',         emoji:'🔍', cls:'tag-veille' },
-    { v:'Négociation',    emoji:'💬', cls:'tag-negociation' },
-    { v:'Dossier banque', emoji:'🏦', cls:'tag-dossier-banque' },
-    { v:'Coup de cœur',   emoji:'⭐', cls:'tag-coup-de-coeur' },
+    { v:'Veille',         cls:'tag-veille' },
+    { v:'Négociation',    cls:'tag-negociation' },
+    { v:'Dossier banque', cls:'tag-dossier-banque' },
+    { v:'Coup de cœur',   cls:'tag-coup-de-coeur' },
   ],
 
   // Les 27 champs metier de la table biens (hors technique : id, user_id,
@@ -566,44 +571,52 @@ const TI_BIENS = {
   //   lab        libelle court, celui affiche dans l'app
   //   type       gouverne le formatage et, a terme, la coercion a l'ecriture
   //   groupe     section metier — sert au regroupement d'un futur export
-  //   tab        onglet de la fiche bien ou le champ se saisit
+  //   tab        onglet de la fiche bien ou le champ se saisit. Les cles sont
+  //              celles de TAB_DEFS dans renderBienDetail — c'est ce qui permet
+  //              au bouton « Completer » d'ouvrir le bon onglet. Depuis le
+  //              05/08/2026 : 'bien', 'finances', 'nego' (l'ancien couple
+  //              'infos'/'fin' a disparu avec la fusion des deux onglets
+  //              financiers et la descente du contact vendeur dans Negociation).
   //   completude rang du champ dans l'indicateur de completude (absent = exclu).
   //              L'ordre est une decision produit — il pilote les 3 noms cites
   //              dans le rail — et non un effet de bord de l'ordre du schema.
   //   cle        son absence empeche tout calcul de rentabilite
   CHAMPS: [
-    { k:'titre',                     lab:"Titre de l'annonce",   type:'texte',     groupe:'bien',        tab:'infos', requis:true },
-    { k:'ville',                     lab:'Ville',                type:'texte',     groupe:'bien',        tab:'infos' },
-    { k:'code_postal',               lab:'Code postal',          type:'texte',     groupe:'bien',        tab:'infos' },
-    { k:'type_bien',                 lab:'Type de bien',         type:'enum',      groupe:'bien',        tab:'infos', valeurs:'TYPES' },
-    { k:'surface_m2',                lab:'Surface',              type:'m2',        groupe:'bien',        tab:'infos', completude:4, cle:false },
-    { k:'statut',                    lab:'Statut',               type:'enum',      groupe:'bien',        tab:'infos', valeurs:'STATUTS' },
-    { k:'balise',                    lab:'Balise',               type:'enum',      groupe:'bien',        tab:'infos', valeurs:'BALISES' },
-    { k:'source',                    lab:'Source',               type:'enum',      groupe:'bien',        tab:'infos', valeurs:'SOURCES' },
-    { k:'lien_annonce',              lab:"Lien de l'annonce",    type:'url',       groupe:'bien',        tab:'infos' },
+    { k:'titre',                     lab:"Titre de l'annonce",   type:'texte',     groupe:'bien',        tab:'bien', requis:true },
+    { k:'ville',                     lab:'Ville',                type:'texte',     groupe:'bien',        tab:'bien' },
+    { k:'code_postal',               lab:'Code postal',          type:'texte',     groupe:'bien',        tab:'bien' },
+    { k:'type_bien',                 lab:'Type de bien',         type:'enum',      groupe:'bien',        tab:'bien', valeurs:'TYPES' },
+    { k:'surface_m2',                lab:'Surface',              type:'m2',        groupe:'bien',        tab:'bien', completude:4, cle:false },
+    { k:'statut',                    lab:'Statut',               type:'enum',      groupe:'bien',        tab:'bien', valeurs:'STATUTS' },
+    { k:'balise',                    lab:'Balise',               type:'enum',      groupe:'bien',        tab:'bien', valeurs:'BALISES' },
+    { k:'source',                    lab:'Source',               type:'enum',      groupe:'bien',        tab:'bien', valeurs:'SOURCES' },
+    { k:'lien_annonce',              lab:"Lien de l'annonce",    type:'url',       groupe:'bien',        tab:'bien' },
 
-    { k:'prix_affiche',              lab:'Prix affiché',         type:'euro',      groupe:'acquisition', tab:'fin',   completude:1, cle:true },
-    { k:'frais_notaire',             lab:'Frais de notaire',     type:'euro',      groupe:'acquisition', tab:'fin',   calcule:true },
-    { k:'travaux',                   lab:'Travaux',              type:'euro',      groupe:'acquisition', tab:'fin' },
-    { k:'frais_agence',              lab:"Frais d'agence",       type:'euro',      groupe:'acquisition', tab:'fin' },
-    { k:'creation_sci',              lab:'Création SCI',         type:'euro',      groupe:'acquisition', tab:'fin' },
+    { k:'prix_affiche',              lab:'Prix affiché',         type:'euro',      groupe:'acquisition', tab:'finances', completude:1, cle:true },
+    { k:'frais_notaire',             lab:'Frais de notaire',     type:'euro',      groupe:'acquisition', tab:'finances', calcule:true },
+    { k:'travaux',                   lab:'Travaux',              type:'euro',      groupe:'acquisition', tab:'finances' },
+    { k:'frais_agence',              lab:"Frais d'agence",       type:'euro',      groupe:'acquisition', tab:'finances' },
+    { k:'creation_sci',              lab:'Création SCI',         type:'euro',      groupe:'acquisition', tab:'finances' },
 
-    { k:'mensualite_credit',         lab:'Mensualité crédit',    type:'euro_mois', groupe:'credit',      tab:'fin',   completude:3, cle:true },
-    { k:'duree_credit_ans',          lab:'Durée du crédit',      type:'annees',    groupe:'credit',      tab:'fin' },
+    { k:'mensualite_credit',         lab:'Mensualité crédit',    type:'euro_mois', groupe:'credit',      tab:'finances', completude:3, cle:true },
+    { k:'duree_credit_ans',          lab:'Durée du crédit',      type:'annees',    groupe:'credit',      tab:'finances' },
 
-    { k:'charge_copro',              lab:'Charges copro',        type:'euro_mois', groupe:'charges',     tab:'fin',   completude:6, cle:false },
-    { k:'assurance_logement',        lab:'Assurance',            type:'euro_mois', groupe:'charges',     tab:'fin',   completude:7, cle:false },
-    { k:'taxe_fonciere',             lab:'Taxe foncière',        type:'euro_mois', groupe:'charges',     tab:'fin',   completude:5, cle:false },
+    { k:'charge_copro',              lab:'Charges copro',        type:'euro_mois', groupe:'charges',     tab:'finances', completude:6, cle:false },
+    { k:'assurance_logement',        lab:'Assurance',            type:'euro_mois', groupe:'charges',     tab:'finances', completude:7, cle:false },
+    { k:'taxe_fonciere',             lab:'Taxe foncière',        type:'euro_mois', groupe:'charges',     tab:'finances', completude:5, cle:false },
 
-    { k:'loyer_en_etat',             lab:'Loyer estimé',         type:'euro_mois', groupe:'loyers',      tab:'fin',   completude:2, cle:true },
-    { k:'charges_locataire_etat',    lab:'Charges locataire',    type:'euro_mois', groupe:'loyers',      tab:'fin' },
-    { k:'loyer_apres_travaux',       lab:'Loyer après travaux',  type:'euro_mois', groupe:'loyers',      tab:'fin' },
-    { k:'charges_locataire_travaux', lab:'Charges loc. après travaux', type:'euro_mois', groupe:'loyers', tab:'fin' },
+    { k:'loyer_en_etat',             lab:'Loyer estimé',         type:'euro_mois', groupe:'loyers',      tab:'finances', completude:2, cle:true },
+    { k:'charges_locataire_etat',    lab:'Charges locataire',    type:'euro_mois', groupe:'loyers',      tab:'finances' },
+    { k:'loyer_apres_travaux',       lab:'Loyer après travaux',  type:'euro_mois', groupe:'loyers',      tab:'finances' },
+    { k:'charges_locataire_travaux', lab:'Charges loc. après travaux', type:'euro_mois', groupe:'loyers', tab:'finances' },
 
-    { k:'intermediaire',             lab:'Intermédiaire',        type:'texte',     groupe:'contact',     tab:'infos' },
-    { k:'telephone',                 lab:'Téléphone',            type:'tel',       groupe:'contact',     tab:'infos' },
-    { k:'mail',                      lab:'Mail',                 type:'email',     groupe:'contact',     tab:'infos' },
-    { k:'notes',                     lab:'Notes',                type:'notes',     groupe:'contact',     tab:'infos' },
+    { k:'intermediaire',             lab:'Intermédiaire',        type:'texte',     groupe:'contact',     tab:'nego' },
+    { k:'telephone',                 lab:'Téléphone',            type:'tel',       groupe:'contact',     tab:'nego' },
+    { k:'mail',                      lab:'Mail',                 type:'email',     groupe:'contact',     tab:'nego' },
+    // Les notes restent EN DERNIER : `exportBiensCSV` construit ses colonnes
+    // dans l'ordre de cette liste, deplacer une entree deplacerait la colonne
+    // correspondante dans tous les fichiers exportes.
+    { k:'notes',                     lab:'Notes',                type:'notes',     groupe:'bien',        tab:'bien' },
   ],
 
   champ(k) { return this.CHAMPS.find(c => c.k === k) || null; },
@@ -1334,6 +1347,12 @@ function cfDisplayData(b) {
   return { mode:'previsionnel', value: hasPrev ? prev : null, prev, hasPrev, attenteReel: acquis, manque };
 }
 function fmt(n){return Math.round(n).toLocaleString('fr-FR');}
+
+// Montant et pourcentage avec l'ESPACE FINE INSECABLE U+202F devant l'unite.
+// Une espace ordinaire laisse le « € » ou le « % » passer seul a la ligne quand
+// la colonne se resserre — le nombre et son unite se retrouvent separes.
+function sfEur(n){ return fmt(n) + ' €'; }
+function sfPct(v){ return v + ' %'; }
 function cfCls(cf){return cf>0?'positive':cf<0?'negative':'neutral';}
 // Échappement HTML global (réutilisable partout)
 function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -1429,6 +1448,14 @@ const SF_ACC_ICONS = {
   colonne: '<path d="M3 9.5 12 4l9 5.5"/><path d="M5.5 9.5V19M9.8 9.5V19M14.2 9.5V19M18.5 9.5V19"/><path d="M3 21h18"/>',
   ville:   '<path d="M3 21h18"/><path d="M5 21V8l6-4v17"/><path d="M11 11h6a1 1 0 0 1 1 1v9"/><path d="M8 11v.01M8 15v.01M14 15v.01M14 18v.01"/>',
   gens:    '<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-5.2 6.5-5.2s6.5 1.9 6.5 5.2"/><path d="M16.5 5.4a3.2 3.2 0 0 1 0 6.2M18 14.4c2.1.6 3.5 2 3.5 4.1"/>',
+
+  // ── Remplacent les derniers caracteres hors police de la fiche bien ───────
+  // Les fleches Unicode et les emojis tombent en police systeme : leur dessin
+  // depend du systeme d'exploitation, pas de la charte.
+  retour:  '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  lien:    '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/>',
+  tel:     '<path d="M6.5 3.5h3l1.5 4-2 1.5a12 12 0 0 0 6 6L16.5 13l4 1.5v3a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.5 5.7a2 2 0 0 1 2-2.2Z"/>',
+  mail:    '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6 8.5-6"/>',
 };
 function sfAccIcon(n, t) {
   // Cle inconnue : on ne rend RIEN. La version precedente emettait un <svg>
@@ -3178,14 +3205,33 @@ async function purgeAllData() {
 // ─── Helpers d'édition inline (Notion-style) sur fiche bien ───
 // Pattern : un span affiche la valeur, clic → input/select inline → blur/Entrée → sauve en BDD
 //
-// Format invocation : ie('bien-id', 'champ', 'valeur', 'type', extras?)
+// Format invocation : ie('bien-id', 'champ', 'affichage', 'type', extras?, brut?)
 //   type : 'text' | 'number' | 'textarea' | 'select-statut' | 'select-type' | 'select-balise' | 'tel' | 'email'
-function ie(bienId, field, value, type, extras) {
+//
+// ⚠️ PERTE DE DONNEES CORRIGEE LE 05/08/2026 — `brut` n'existait pas.
+// `data-value` recevait la valeur AFFICHEE, mise en forme : « 175 000 € ».
+// `inlineEditField` la réinjectait dans un `<input type="number">`, qui refuse
+// tout ce qui n'est pas un nombre : le champ s'ouvrait donc VIDE. Cliquer
+// ailleurs sans rien saisir déclenchait alors une sauvegarde de la chaîne
+// vide, que `inlineSaveBienField` convertit en `null` — le montant était
+// effacé en base par un simple clic à côté. Tous les champs monétaires et la
+// surface étaient concernés.
+// Depuis : `brut` porte la valeur telle qu'elle est stockée, l'affichage reste
+// mis en forme. Sans `brut`, on retombe sur l'affichage — sans risque pour les
+// champs texte, où les deux coïncident.
+function ie(bienId, field, value, type, extras, brut) {
   const safeVal = (value === null || value === undefined) ? '' : String(value);
   const display = safeVal || '—';
   const dataType = type || 'text';
   const extra = extras ? ' ' + extras : '';
-  return `<span class="inline-edit" data-id="${bienId}" data-field="${field}" data-type="${dataType}" data-value="${safeVal.replace(/"/g,'&quot;')}"${extra} onclick="inlineEditField(this)">${display.replace(/</g,'&lt;')}</span>`;
+  const dataVal = (brut === null || brut === undefined) ? safeVal : String(brut);
+  return `<span class="inline-edit" data-id="${bienId}" data-field="${field}" data-type="${dataType}" data-value="${dataVal.replace(/"/g,'&quot;')}"${extra} onclick="inlineEditField(this)">${display.replace(/</g,'&lt;')}</span>`;
+}
+
+// Champ monétaire : affichage mis en forme, valeur brute conservée à part.
+function ieEur(bienId, field, brut) {
+  const v = parseFloat(brut) || 0;
+  return ie(bienId, field, v ? sfEur(v) : '', 'number', null, v || '');
 }
 
 // Sauvegarde en BDD + mise à jour de la cache locale
@@ -3317,17 +3363,20 @@ function inlineEditField(span) {
             span.dataset.value = newVal;
             const bmap = Object.fromEntries(TI_BIENS.BALISES.map(b => [b.v, b.cls]));
             if(newVal && bmap[newVal]) {
-              const emoji = Object.fromEntries(TI_BIENS.BALISES.map(b => [b.v, b.emoji]))[newVal];
-              span.innerHTML = `<span class="tag-pill ${bmap[newVal]}">${emoji} ${newVal}</span>`;
+              // Sans emoji : c'est ainsi que la balise est rendue partout
+              // ailleurs. Sa COULEUR la distingue deja.
+              span.innerHTML = `<span class="tag-pill ${bmap[newVal]}">${esc(newVal)}</span>`;
             } else {
               span.innerHTML = '— Sans balise —';
             }
           } else {
+            // `data-value` garde la valeur BRUTE : c'est elle qui repartira
+            // dans le champ à la prochaine ouverture, l'affichage seul est
+            // mis en forme. Voir la mise en garde sur `ie()`.
             span.dataset.value = String(newVal ?? '');
-            // Pour champs financiers : reformater avec fmt() + " €"
-            const moneyFields = ['prix_affiche','frais_notaire','travaux','frais_agence','creation_sci','mensualite_credit','loyer_en_etat','charges_locataire_etat','charge_copro','assurance_logement','taxe_fonciere'];
+            const moneyFields = ['prix_affiche','frais_notaire','travaux','frais_agence','creation_sci','mensualite_credit','loyer_en_etat','charges_locataire_etat','charge_copro','assurance_logement','taxe_fonciere','loyer_apres_travaux','charges_locataire_travaux'];
             if(moneyFields.includes(span.dataset.field) && newVal !== '') {
-              span.textContent = fmt(parseFloat(newVal)) + ' €';
+              span.textContent = sfEur(parseFloat(newVal));
             } else if(span.dataset.field === 'surface_m2' && newVal !== '') {
               span.textContent = newVal + ' m²';
             } else {
@@ -3364,7 +3413,7 @@ function inlineEditField(span) {
 // les expose toutes, au lieu d'obliger à savoir dans quelle section chaque
 // information a été rangée.
 let currentBienId = null;
-let bienDetailTab = 'infos';
+let bienDetailTab = 'bien';
 let bienDetailBack = 'biens';
 let bdPhotos = [];    // URLs résolues de la fiche courante (galerie)
 
@@ -3374,15 +3423,19 @@ function openDetail(id) {
   if(!b) { showNotif('Bien introuvable', true); return; }
   if(currentPage !== 'bien-detail') bienDetailBack = currentPage;
   currentBienId = id;
-  bienDetailTab = _reopenDetailTab || 'infos';
+  bienDetailTab = _reopenDetailTab || 'bien';
   _reopenDetailTab = null;
   navigate('bien-detail');
 }
 
 function switchBienTab(tab) {
   bienDetailTab = tab;
-  document.querySelectorAll('.bd-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  document.querySelectorAll('.bd-pane').forEach(p => { p.style.display = (p.dataset.pane === tab) ? 'block' : 'none'; });
+  document.querySelectorAll('.sff-tab').forEach(t =>
+    t.setAttribute('aria-selected', String(t.dataset.tab === tab)));
+  // `hidden` plutot qu'un style en ligne : l'attribut retire le panneau de
+  // l'arbre d'accessibilite en meme temps que de l'affichage, et il ne bat pas
+  // les regles de la feuille de style comme le faisait `style.display`.
+  document.querySelectorAll('.sff-pane').forEach(p => { p.hidden = (p.dataset.pane !== tab); });
 }
 
 // Re-rendu de la fiche courante (après ajout d'action, rattachement SCI…)
@@ -3426,7 +3479,10 @@ async function renderBienDetail(el) {
   const sims    = simRes.data || [];
   const photos = photoItems.map(x=>x.url);
   const docs = docItems;
-  const rendement = b.prix_affiche&&b.loyer_en_etat ? ((b.loyer_en_etat*12/b.prix_affiche)*100).toFixed(1)+'%' : '—';
+  // Virgule decimale et espace fine insecable : « 5.8% » etait de l'anglais,
+  // et le « % » colle au nombre finissait par passer seul a la ligne.
+  const rendementVal = (b.prix_affiche && b.loyer_en_etat) ? (b.loyer_en_etat*12/b.prix_affiche)*100 : null;
+  const rendement = rendementVal == null ? '—' : sfPct(rendementVal.toFixed(1).replace('.', ','));
   const emprunt = (b.prix_affiche||0)+(b.frais_notaire||0)+(b.travaux||0)+(b.frais_agence||0)+(b.creation_sci||0);
 
   const phase = getStatutPhase(b.statut || 'Renseignements Web');
@@ -3448,22 +3504,30 @@ async function renderBienDetail(el) {
   bdPhotos = photos;   // consultées par la galerie au clic sur la vignette
   const prixM2 = (b.prix_affiche && b.surface_m2) ? Math.round(b.prix_affiche / b.surface_m2) : null;
   const acquis = b.statut === 'Acheté';
-  const cfLab = dHero.mode === 'reel' ? 'Cashflow réel /mois' : 'Cashflow prévi /mois';
-  const cfVal = dHero.value != null ? (dHero.value>0?'+':'')+fmt(dHero.value)+' €' : 'Non calculé';
-  const cfSub = dHero.mode === 'reel' && dHero.hasPrev ? `prévi ${dHero.prev>0?'+':''}${fmt(dHero.prev)} €`
+  // Le « /mois » quittait le libellé pour le sous-titre : un indicateur dit ce
+  // qu'il EST, sa périodicité se lit en dessous avec le reste de sa qualification.
+  const cfLab = dHero.mode === 'reel' ? 'Cashflow réel' : 'Cashflow prévisionnel';
+  const cfVal = dHero.value != null ? (dHero.value>=0?'+':'−')+sfEur(Math.abs(dHero.value)) : 'Non calculé';
+  const cfSub = dHero.mode === 'reel' && dHero.hasPrev ? `par mois · prévisionnel ${dHero.prev>=0?'+':'−'}${sfEur(Math.abs(dHero.prev))}`
               : dHero.attenteReel ? 'réel dès la saisie des loyers'
-              : dHero.hasPrev ? 'sur données estimées' : 'loyer ou mensualité manquant';
+              : dHero.hasPrev ? 'par mois, sur données estimées' : 'loyer ou mensualité manquant';
 
-  // Ordre des onglets selon l'étape du cycle de vie : en prospection le locatif
-  // et la SCI n'ont rien à dire, une fois acquis ils passent devant.
+  // SIX onglets et non sept. « Finances » et « Financement » n'en font plus
+  // qu'un : ils affichaient les MEMES cinq postes d'acquisition — modifiables
+  // d'un cote, en lecture seule de l'autre — et les MEMES trois montants
+  // mensuels, en saisie d'un cote et en jauge de l'autre.
+  // « Actions » devient « Negociation » et accueille le contact du vendeur :
+  // le numero se trouve ainsi la ou l'on vient consigner l'appel qu'on vient
+  // de passer.
+  // Ordre selon l'etape du cycle de vie : en prospection le locatif et la SCI
+  // n'ont rien a dire, une fois acquis ils passent devant.
   const TAB_DEFS = {
-    infos:       { lab:sfAccIcon('doc',15)+' Informations', badge:'' },
-    fin:         { lab:sfAccIcon('euro',15)+' Finances', badge:'' },
-    financement: { lab:sfAccIcon('banque',15)+' Financement', badge: sims.length ? `<span class="bd-badge">${sims.length}</span>` : '' },
-    visites:     { lab:sfAccIcon('carnet',15)+' Visites', badge: visites.length ? `<span class="bd-badge">${visites.length}</span>` : '' },
-    actions:     { lab:sfAccIcon('agenda',15)+' Actions', badge: actions.length ? `<span class="bd-badge">${actions.length}</span>` : '' },
-    locatif:     { lab:sfAccIcon('cle',15)+' Locatif', badge: locActif ? '<span class="bd-badge on">1</span>' : '' },
-    sci:         { lab:sfAccIcon('colonne',15)+' SCI', badge: sciBien ? '<span class="bd-badge on">✓</span>' : '' },
+    bien:     { lab:sfAccIcon('maison',15)+' Le bien', badge:'' },
+    finances: { lab:sfAccIcon('euro',15)+' Finances', badge: sims.length ? `<span class="sff-tab__n">${sims.length}</span>` : '' },
+    visites:  { lab:sfAccIcon('carnet',15)+' Visites', badge: visites.length ? `<span class="sff-tab__n">${visites.length}</span>` : '' },
+    nego:     { lab:sfAccIcon('echange',15)+' Négociation', badge: actions.length ? `<span class="sff-tab__n">${actions.length}</span>` : '' },
+    locatif:  { lab:sfAccIcon('cle',15)+' Locatif', badge: locActif ? '<span class="sff-tab__n on">1</span>' : '' },
+    sci:      { lab:sfAccIcon('colonne',15)+' SCI', badge: sciBien ? `<span class="sff-tab__n on">${sfAccIcon('check',11)}</span>` : '' },
   };
   const etapesGestion = bdEtapesGestion(b);   // P4 : SCI, locataire, loyers
 
@@ -3478,381 +3542,552 @@ async function renderBienDetail(el) {
   const manquantsCle = manquants.filter(c => c.cle);
   const pctComplet   = Math.round((BD_CHAMPS.length - manquants.length) / BD_CHAMPS.length * 100);
   const compCls      = manquantsCle.length ? 'ko' : manquants.length ? 'warn' : 'ok';
-  const tabCible     = (manquantsCle[0] || manquants[0])?.tab || 'fin';
+  const tabCible     = (manquantsCle[0] || manquants[0])?.tab || 'finances';
 
-  // Onglet Financement : décomposition de l'acquisition et poids du crédit
-  const finSplit = [
-    { lab:'Prix',     val: parseFloat(b.prix_affiche)||0,  col:'var(--accent)' },
-    { lab:'Notaire',  val: parseFloat(b.frais_notaire)||0, col:'#9BAEA4' },
-    { lab:'Travaux',  val: parseFloat(b.travaux)||0,       col:'#F0B429' },
-    { lab:'Agence',   val: parseFloat(b.frais_agence)||0,  col:'#8CC0F0' },
-    { lab:'SCI',      val: parseFloat(b.creation_sci)||0,  col:'#BCA0F5' },
-  ].filter(s => s.val > 0).map(s => ({ ...s, pct: emprunt ? (s.val / emprunt) * 100 : 0 }));
+  // ── Onglet Finances ───────────────────────────────────────────────────────
+  // Decomposition du cout d'acquisition. Les cinq postes gardent chacun leur
+  // teinte : la pastille de la ligne et le segment de la barre sont le meme
+  // objet, on doit pouvoir passer de l'un a l'autre sans chercher.
+  // `travaux` figure dans la liste meme a zero — c'est un poste qu'on oublie
+  // de renseigner, le masquer le ferait disparaitre de l'attention.
+  const finPostes = [
+    { lab:'Prix affiché',          k:'prix_affiche',  col:'var(--sf-brand-3)',      fixe:false },
+    { lab:'Frais de notaire',      k:'frais_notaire', col:'var(--sf-text-3)',       fixe:true,
+      note:`calculés à ${+(notairePct()*100).toFixed(1)} %` },
+    { lab:"Frais d'agence",        k:'frais_agence',  col:'var(--sf-info)',         fixe:false },
+    { lab:'Constitution de la SCI',k:'creation_sci',  col:'var(--sf-alert)',        fixe:false },
+    { lab:'Travaux',               k:'travaux',       col:'var(--sf-border-strong)',fixe:false },
+  ].map(p => { const val = parseFloat(b[p.k]) || 0;
+    return { ...p, val, pct: emprunt ? (val / emprunt) * 100 : 0 }; });
+
   const mensu        = parseFloat(b.mensualite_credit) || 0;
-  const loyerAttendu = (parseFloat(b.loyer_en_etat)||0) + (parseFloat(b.charges_locataire_etat)||0);
+  const loyerHC      = parseFloat(b.loyer_en_etat) || 0;
+  const chargesLoc   = parseFloat(b.charges_locataire_etat) || 0;
+  const loyerAttendu = loyerHC + chargesLoc;
   const chargesFixes = (parseFloat(b.charge_copro)||0) + (parseFloat(b.assurance_logement)||0) + (parseFloat(b.taxe_fonciere)||0);
   const gaugeMax     = Math.max(mensu, loyerAttendu, chargesFixes, 1);
+  // Reperes : deux grandeurs DERIVEES des montants ci-dessus. Rien a saisir,
+  // rien d'invente — elles ne s'affichent que si leur denominateur existe.
+  const coutM2   = (emprunt && b.surface_m2) ? Math.round(emprunt / b.surface_m2) : null;
+  const fraisAcq = (parseFloat(b.frais_notaire)||0) + (parseFloat(b.frais_agence)||0) + (parseFloat(b.creation_sci)||0);
+  const fraisPct = (fraisAcq && b.prix_affiche) ? (fraisAcq / b.prix_affiche) * 100 : null;
+  // Meme formule que computeCF, mais sur les loyers d'apres travaux.
+  const cfTravaux = ((parseFloat(b.loyer_apres_travaux)||0) + (parseFloat(b.charges_locataire_travaux)||0))
+                  - (mensu + chargesFixes);
 
   const tabOrder = acquis
-    ? ['infos','locatif','fin','financement','actions','visites','sci']
-    : ['infos','fin','financement','visites','actions','locatif','sci'];
+    ? ['bien','locatif','finances','nego','visites','sci']
+    : ['bien','finances','visites','nego','locatif','sci'];
   const dimTabs = acquis ? [] : ['locatif','sci'];
-  if(!TAB_DEFS[bienDetailTab]) bienDetailTab = 'infos';
+  // Les anciennes cles ('infos', 'fin', 'financement', 'actions') peuvent
+  // encore etre en memoire quand la page est rouverte apres mise a jour.
+  if(!TAB_DEFS[bienDetailTab]) bienDetailTab = 'bien';
+
+  // Ligne d'un poste chiffré du bloc « Coût d'acquisition ». La colonne du
+  // crayon reste réservée même quand la valeur est calculée : sans elle, les
+  // montants saisis et les montants calculés ne s'aligneraient pas.
+  const ligneCout = p => `
+    <div class="sff-line${p.val ? '' : ' sff-line--zero'}">
+      <span class="sff-line__d" style="background:${p.col}"></span>
+      <span class="sff-line__l">${p.lab}${p.note ? ` <small>· ${p.note}</small>` : ''}</span>
+      <span class="sff-line__v">${p.fixe ? sfEur(p.val) : ieEur(b.id, p.k, p.val)}</span>
+      <span></span>
+      <span class="sff-line__p">${!emprunt ? '—' : p.val ? (p.pct < 1 ? '&lt; 1 %' : sfPct(Math.round(p.pct))) : '—'}</span>
+    </div>`;
+
+  // Ligne d'un sous-total modifiable, sans pastille ni pourcentage.
+  const lignePlate = (lab, k, note) => `
+    <div class="sff-line">
+      <span class="sff-line__l">${lab}${note ? ` <small>· ${note}</small>` : ''}</span>
+      <span class="sff-line__v">${ieEur(b.id, k, b[k])}</span>
+      <span></span>
+    </div>`;
 
   el.innerHTML = `
-  <div class="bd-page">
-    <div class="bd-topbar">
-      <div class="bd-title-wrap">
-        <button class="bd-back" onclick="navigate(bienDetailBack)">
-          <span class="bd-back-ic">←</span> ${esc(PAGE_LABELS[bienDetailBack] || 'Retour')}
-        </button>
-        <div class="bd-title">${esc(b.titre || 'Sans titre')}</div>
-        <div class="bd-sub">${[b.ville, b.code_postal, b.type_bien, b.surface_m2 ? b.surface_m2+' m²' : null].filter(Boolean).map(esc).join(' · ')}</div>
-      </div>
-      <div class="bd-topbar-actions">
-        ${b.ville ? `<button class="btn btn-secondary btn-sm" onclick="bdVoirMarche('${(b.ville||'').replace(/'/g,"\\'")}')">📍 Marché de ${esc(b.ville)}</button>` : ''}
-        <button class="btn btn-secondary btn-sm" onclick="openDossierModal('${b.id}')">📄 Dossier banque</button>
-        <button class="btn btn-primary btn-sm" onclick="editBien('${b.id}')">✏️ Édition complète</button>
+  <div class="sff-page">
+    <div class="sff-top">
+      <button class="sff-back" onclick="navigate(bienDetailBack)">
+        ${sfAccIcon('retour',14)} ${esc(PAGE_LABELS[bienDetailBack] || 'Retour')}
+      </button>
+      <div class="sff-titleline">
+        <div class="sff-titleline__id">
+          <h1 class="sff-h1">${esc(b.titre || 'Sans titre')}</h1>
+          <p class="sff-sub">${[b.ville, b.code_postal, b.type_bien, b.surface_m2 ? b.surface_m2+' m²' : null].filter(Boolean).map(esc).join(' · ')}</p>
+        </div>
+        <div class="sff-acts">
+          ${b.ville ? `<button class="btn btn-secondary btn-sm" onclick="bdVoirMarche('${(b.ville||'').replace(/'/g,"\\'")}')">${sfAccIcon('pin',15)} Le marché à ${esc(b.ville)}</button>` : ''}
+          <button class="btn btn-secondary btn-sm" onclick="openDossierModal('${b.id}')">${sfAccIcon('doc',15)} Dossier banque</button>
+          <button class="btn btn-secondary btn-sm" onclick="editBien('${b.id}')">${sfAccIcon('crayon',15)} Modifier la fiche</button>
+        </div>
       </div>
     </div>
 
-    <!-- Bandeau de KPIs : les chiffres qu'on vient chercher en premier -->
-    <div class="bd-kpis">
-      <div class="bd-kpi"><span class="l">Prix affiché</span><span class="v">${b.prix_affiche?fmt(b.prix_affiche)+' €':'—'}</span></div>
-      <div class="bd-kpi"><span class="l">Prix au m²</span><span class="v">${prixM2?fmt(prixM2)+' €':'—'}</span><span class="s">${b.surface_m2?b.surface_m2+' m²':'surface non renseignée'}</span></div>
-      <div class="bd-kpi"><span class="l">Rendement brut</span><span class="v ${rendement==='—'?'':parseFloat(rendement)>=userPrefs.seuil_rentabilite?'pos':'neg'}">${rendement}</span><span class="s">${rendement==='—'?'loyer non renseigné':(parseFloat(rendement)>=userPrefs.seuil_rentabilite?'≥ ':'< ')+'votre seuil de '+userPrefs.seuil_rentabilite+' %'}</span></div>
-      <div class="bd-kpi hi"><span class="l">${cfLab}</span><span class="v ${dHero.value==null?'':dHero.value>=0?'pos':'neg'}">${cfVal}</span><span class="s">${cfSub}</span></div>
-      <div class="bd-kpi"><span class="l">Total acquisition</span><span class="v">${emprunt?fmt(emprunt)+' €':'—'}</span><span class="s">prix + notaire + travaux</span></div>
+    <!-- Quatre indicateurs : ceux qu'on vient chercher en premier. Le prix au
+         m² est devenu le sous-titre du prix, dont il n'est qu'une lecture. -->
+    <div class="sff-kpis">
+      <div class="sff-kpi">
+        <span class="sff-kpi__l">Prix affiché</span>
+        <span class="sff-kpi__v${b.prix_affiche ? '' : ' sff-kpi__v--none'}">${b.prix_affiche ? sfEur(b.prix_affiche) : 'Non renseigné'}</span>
+        <span class="sff-kpi__s">${prixM2 ? sfEur(prixM2)+' le m²' : 'surface non renseignée'}</span>
+      </div>
+      <div class="sff-kpi">
+        <span class="sff-kpi__l">Rendement brut</span>
+        <span class="sff-kpi__v ${rendement==='—' ? 'sff-kpi__v--none' : parseFloat(rendement)>=userPrefs.seuil_rentabilite ? 'sff-kpi__v--gain' : 'sff-kpi__v--loss'}">${rendement==='—' ? 'Non calculé' : rendement}</span>
+        <span class="sff-kpi__s">${rendement==='—' ? 'loyer non renseigné' : (parseFloat(rendement)>=userPrefs.seuil_rentabilite ? 'au-dessus de' : 'en dessous de')+' votre seuil de '+sfPct(userPrefs.seuil_rentabilite)}</span>
+      </div>
+      <div class="sff-kpi sff-kpi--hi">
+        <span class="sff-kpi__l">${cfLab}</span>
+        <span class="sff-kpi__v ${dHero.value==null ? 'sff-kpi__v--none' : dHero.value>=0 ? 'sff-kpi__v--gain' : 'sff-kpi__v--loss'}">${cfVal}</span>
+        <span class="sff-kpi__s">${cfSub}</span>
+      </div>
+      <div class="sff-kpi">
+        <span class="sff-kpi__l">Coût total de l'opération</span>
+        <span class="sff-kpi__v${emprunt ? '' : ' sff-kpi__v--none'}">${emprunt ? sfEur(emprunt) : 'Non calculé'}</span>
+        <span class="sff-kpi__s">frais et travaux compris</span>
+      </div>
     </div>
 
-    <div class="bd-body">
-      <!-- Rail : identité et propriétés du bien, fixe au scroll -->
-      <aside class="bd-rail">
+    <div class="sff-body">
+      <!-- Rail : l'état du dossier, rien d'autre. Les photos et les documents
+           en sont sortis pour l'onglet « Le bien » — le rail n'affiche plus
+           une grande vignette vide quand la fiche n'a pas de photo, et les
+           documents ne sont plus une liste tronquée dans 262 px de large. -->
+      <aside class="sff-rail">
         ${photos.length ? `
-          <button class="bd-thumb" onclick="bdOpenGallery()" style="background-image:url('${photos[0]}')" title="Voir les ${photos.length} photos">
-            <span class="bd-thumb-count">🖼 ${photos.length} photo${photos.length>1?'s':''}</span>
-          </button>` : `
-          <div class="bd-thumb empty"><span>🏠</span><span class="t">Aucune photo</span></div>`}
+          <button class="sff-thumb sff-thumb--photo" onclick="bdOpenGallery()" style="background-image:url('${photos[0]}')" title="Voir les ${photos.length} photos">
+            <span class="sff-thumb__n">${sfAccIcon('image',13)} ${photos.length}</span>
+          </button>` : ''}
 
-        <div class="bd-rail-block">
-          <div class="bd-rail-lab">Statut</div>
-          <span class="inline-edit" data-id="${b.id}" data-field="statut" data-type="select-statut" data-value="${(b.statut||'').replace(/"/g,'&quot;')}" onclick="inlineEditField(this)"><span class="statut-pill phase-${phase}">${b.statut||'—'}</span></span>
+        <div class="sff-rail__b">
+          <span class="sff-rail__l">Statut</span>
+          <span class="inline-edit" data-id="${b.id}" data-field="statut" data-type="select-statut" data-value="${(b.statut||'').replace(/"/g,'&quot;')}" onclick="inlineEditField(this)"><span class="statut-pill phase-${phase}">${esc(b.statut||'—')}</span></span>
         </div>
-        <div class="bd-rail-block">
-          <div class="bd-rail-lab">Balise</div>
-          <span class="inline-edit" data-id="${b.id}" data-field="balise" data-type="select-balise" data-value="${(b.balise||'').replace(/"/g,'&quot;')}" onclick="inlineEditField(this)">${b.balise && bmap[b.balise] ? `<span class="tag-pill ${bmap[b.balise]}">${b.balise}</span>` : '<span class="bd-rail-none">— Sans balise —</span>'}</span>
+
+        <div class="sff-rail__b">
+          <span class="sff-rail__l">Balise</span>
+          <span class="inline-edit" data-id="${b.id}" data-field="balise" data-type="select-balise" data-value="${(b.balise||'').replace(/"/g,'&quot;')}" onclick="inlineEditField(this)">${b.balise && bmap[b.balise] ? `<span class="tag-pill ${bmap[b.balise]}">${esc(b.balise)}</span>` : '<span class="sff-rail__none">Sans balise</span>'}</span>
         </div>
-        <div class="bd-rail-block">
-          <div class="bd-rail-lab">SCI détentrice</div>
-          ${sciBien ? `<div class="bd-rail-val">🏛️ ${esc(sciBien.nom_sci)}</div>`
-                    : `<div class="bd-rail-none">Aucune — <button class="bd-link" onclick="editBien('${b.id}')">associer</button></div>`}
+
+        <div class="sff-rail__b">
+          <span class="sff-rail__l">SCI détentrice</span>
+          ${sciBien ? `<span class="sff-rail__v">${esc(sciBien.nom_sci)}</span>`
+                    : `<span class="sff-rail__none">Aucune
+                         <button class="sff-add" onclick="editBien('${b.id}')">${sfAccIcon('plus',13)} Ajouter</button>
+                       </span>`}
         </div>
-        <div class="bd-rail-block">
-          <div class="bd-rail-lab">Dernière action</div>
-          ${actions.length ? `<div class="bd-rail-val">${esc(actions[0].type_action)}</div><div class="bd-rail-sub">${fmtActionDate(actions[0].date_action)}</div>`
-                           : `<div class="bd-rail-none">Aucune — <button class="bd-link" onclick="openActionModal('${b.id}')">en ajouter</button></div>`}
+
+        <div class="sff-rail__b">
+          <span class="sff-rail__l">Dernière action</span>
+          ${actions.length ? `<span class="sff-rail__v">${esc(actions[0].type_action)}</span>
+                              <span class="sff-rail__s">${fmtActionDate(actions[0].date_action)}</span>`
+                           : `<span class="sff-rail__none">Aucune
+                                <button class="sff-add" onclick="openActionModal('${b.id}')">${sfAccIcon('plus',13)} Ajouter</button>
+                              </span>`}
         </div>
-        <div class="bd-rail-block">
-          <div class="bd-rail-lab">Complétude de la fiche</div>
-          <div class="bd-prog"><div class="bd-prog-fill ${compCls}" style="width:${pctComplet}%"></div></div>
+
+        <div class="sff-rail__b">
+          <span class="sff-rail__l">Complétude</span>
+          <div class="sff-prog"><div class="sff-prog__f ${compCls}" style="width:${pctComplet}%"></div></div>
           ${manquants.length === 0
-            ? `<div class="bd-prog-txt ok">✓ Tous les champs sont renseignés</div>`
-            : `<div class="bd-prog-txt ${compCls}">
-                 <strong>${manquants.length} champ${manquants.length>1?'s':''} manquant${manquants.length>1?'s':''}</strong>
-                 ${manquantsCle.length ? ' pour calculer la rentabilité' : ' pour affiner le cashflow'}
-               </div>
-               <div class="bd-prog-list">${manquants.slice(0,3).map(c=>`<span>· ${c.lab}</span>`).join('')}${manquants.length>3?`<span>· +${manquants.length-3} autre${manquants.length-3>1?'s':''}</span>`:''}</div>
-               <button class="bd-link" style="margin-top:2px" onclick="switchBienTab('${tabCible}')">✏️ Compléter</button>`}
+            ? `<span class="sff-prog__t ok">${sfAccIcon('check',14)} Tous les champs sont renseignés</span>`
+            : `<span class="sff-prog__t ${compCls}">
+                 ${manquants.length} champ${manquants.length>1?'s':''} manquant${manquants.length>1?'s':''}${manquantsCle.length ? ' pour calculer la rentabilité' : ' pour affiner le cashflow'}
+               </span>
+               <span class="sff-rail__s">${manquants.slice(0,3).map(c=>esc(c.lab)).join(' · ')}${manquants.length>3?` · +${manquants.length-3}`:''}</span>
+               <button class="sff-add" onclick="switchBienTab('${tabCible}')">${sfAccIcon('crayon',13)} Compléter</button>`}
         </div>
-        ${docs.length ? `
-        <div class="bd-rail-block">
-          <div class="bd-rail-lab">Documents · ${docs.length}</div>
-          ${docs.map(d=>`<div class="bd-rail-doc" onclick="openDoc('${d.url||''}')" title="${esc(d.name||'Document')}">📄 ${esc(d.name||'Document')}</div>`).join('')}
-        </div>` : ''}
       </aside>
 
-      <div class="bd-main">
-        <!-- Onglets : une entrée par famille de données reliée au bien -->
-        <div class="bd-tabs">
-          ${tabOrder.map(k => `<button class="bd-tab${dimTabs.includes(k)?' dim':''}" data-tab="${k}" onclick="switchBienTab('${k}')">${TAB_DEFS[k].lab}${TAB_DEFS[k].badge}</button>`).join('')}
+      <div class="sff-main">
+        <div class="sff-tabs" role="tablist">
+          ${tabOrder.map(k => `<button class="sff-tab${dimTabs.includes(k)?' sff-tab--dim':''}" role="tab" aria-selected="false" data-tab="${k}" onclick="switchBienTab('${k}')">${TAB_DEFS[k].lab}${TAB_DEFS[k].badge}</button>`).join('')}
         </div>
 
-    <div class="bd-pane" data-pane="infos">
-      <div style="font-size:10.5px;color:var(--c-muted);margin-bottom:10px;font-style:italic">💡 Cliquez sur une valeur pour la modifier directement</div>
-      <div class="detail-grid">
-        <div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">${ie(b.id,'type_bien',b.type_bien,'select-type')}</div></div>
-        <div class="detail-item"><div class="detail-label">Surface</div><div class="detail-value">${ie(b.id,'surface_m2',b.surface_m2 ? b.surface_m2 + ' m²' : '',(b.surface_m2 ? 'number' : 'number'))}</div></div>
-        <div class="detail-item"><div class="detail-label">Intermédiaire</div><div class="detail-value">${ie(b.id,'intermediaire',b.intermediaire,'text')}</div></div>
-        <div class="detail-item"><div class="detail-label">Téléphone</div><div class="detail-value">${ie(b.id,'telephone',b.telephone,'tel')}</div></div>
-        <div class="detail-item" style="grid-column:1/-1"><div class="detail-label">Mail</div><div class="detail-value">${ie(b.id,'mail',b.mail,'email')}</div></div>
-      </div>
-      ${b.lien_annonce?`<div style="margin-bottom:12px"><a href="${safeUrl(b.lien_annonce)}" target="_blank" rel="noopener" class="annonce-link">🔗 Voir l'annonce originale</a></div>`:''}
-      <div style="margin-top:10px"><div class="detail-label" style="margin-bottom:4px">Notes</div>${ie(b.id,'notes',b.notes,'textarea')}</div>
-    </div>
-
-    <div class="bd-pane" data-pane="fin">
-      <div style="font-size:10.5px;color:var(--c-muted);margin-bottom:10px;font-style:italic">💡 Cliquez sur un montant pour le modifier — frais notaire et cashflow recalculés automatiquement</div>
-      <div class="detail-grid">
-        <div class="detail-item"><div class="detail-label">Prix affiché</div><div class="detail-value" style="font-size:16px;font-weight:700">${ie(b.id,'prix_affiche',b.prix_affiche?fmt(b.prix_affiche)+' €':'','number')}</div></div>
-        <div class="detail-item"><div class="detail-label">Montant à emprunter</div><div class="detail-value" style="font-size:16px;font-weight:700;color:var(--accent)">${emprunt?fmt(emprunt)+' €':'—'}</div></div>
-        <div class="detail-item"><div class="detail-label">Frais notaire (${+(notairePct()*100).toFixed(1)}% auto)</div><div class="detail-value" style="opacity:0.7">${fmt(b.frais_notaire||0)} €</div></div>
-        <div class="detail-item"><div class="detail-label">Travaux</div><div class="detail-value">${ie(b.id,'travaux',b.travaux?fmt(b.travaux)+' €':'','number')}</div></div>
-        <div class="detail-item"><div class="detail-label">Frais agence</div><div class="detail-value">${ie(b.id,'frais_agence',b.frais_agence?fmt(b.frais_agence)+' €':'','number')}</div></div>
-        <div class="detail-item"><div class="detail-label">Création SCI</div><div class="detail-value">${ie(b.id,'creation_sci',b.creation_sci?fmt(b.creation_sci)+' €':'','number')}</div></div>
-        <div class="detail-item"><div class="detail-label">Mensualité crédit</div><div class="detail-value">${ie(b.id,'mensualite_credit',b.mensualite_credit?fmt(b.mensualite_credit)+' €':'','number')}</div></div>
-        <div class="detail-item"><div class="detail-label">Loyer estimé</div><div class="detail-value">${ie(b.id,'loyer_en_etat',b.loyer_en_etat?fmt(b.loyer_en_etat)+' €':'','number')}</div></div>
-        <div class="detail-item"><div class="detail-label">Charges locataire</div><div class="detail-value">${ie(b.id,'charges_locataire_etat',b.charges_locataire_etat?fmt(b.charges_locataire_etat)+' €':'','number')}</div></div>
-        <div class="detail-item"><div class="detail-label">Charges copro</div><div class="detail-value">${ie(b.id,'charge_copro',b.charge_copro?fmt(b.charge_copro)+' €':'','number')}</div></div>
-        <div class="detail-item"><div class="detail-label">Assurance logement</div><div class="detail-value">${ie(b.id,'assurance_logement',b.assurance_logement?fmt(b.assurance_logement)+' €':'','number')}</div></div>
-        <div class="detail-item"><div class="detail-label">Taxe foncière</div><div class="detail-value">${ie(b.id,'taxe_fonciere',b.taxe_fonciere?fmt(b.taxe_fonciere)+' €':'','number')}</div></div>
-        <div class="detail-item"><div class="detail-label">Rendement brut</div><div class="detail-value" style="color:${parseFloat(rendement)>userPrefs.seuil_rentabilite?'var(--positive-c)':'var(--c-text)'}">${rendement}</div></div>
-      </div>
-      ${(b.loyer_apres_travaux || b.charges_locataire_travaux) ? `
-      <div style="margin-top:14px">
-        <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--c-muted);margin-bottom:8px">🔨 Potentiel après travaux</div>
-        <div class="detail-grid">
-          <div class="detail-item"><div class="detail-label">Loyer après travaux</div><div class="detail-value">${b.loyer_apres_travaux ? fmt(b.loyer_apres_travaux) + ' €' : '—'}</div></div>
-          <div class="detail-item"><div class="detail-label">Charges locataire (après travaux)</div><div class="detail-value">${b.charges_locataire_travaux ? fmt(b.charges_locataire_travaux) + ' €' : '—'}</div></div>
-          <div class="detail-item"><div class="detail-label">Cashflow potentiel</div><div class="detail-value" style="font-weight:700;color:${(((b.loyer_apres_travaux||0)+(b.charges_locataire_travaux||0))-((b.mensualite_credit||0)+(b.charge_copro||0)+(b.assurance_logement||0)+(b.taxe_fonciere||0)))>=0?'var(--positive-c)':'var(--sf-loss)'}">${fmt(((b.loyer_apres_travaux||0)+(b.charges_locataire_travaux||0))-((b.mensualite_credit||0)+(b.charge_copro||0)+(b.assurance_logement||0)+(b.taxe_fonciere||0)))} €/mois</div></div>
-        </div>
-      </div>` : ''}
-    </div>
-
-    <div class="bd-pane" data-pane="actions">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-        <button class="btn btn-primary" style="padding:7px 14px;font-size:12px" onclick="openActionModal('${b.id}')">＋ Ajouter une action</button>
-      </div>
-      ${actions?.length
-        ? `<div class="action-list">${actions.map(a=>`<div class="action-item action-item-clickable" data-action-id="${a.id}" data-bien-id="${b.id}" onclick="openActionModal('${b.id}','${a.id}')" title="Cliquer pour modifier"><div class="action-date">${fmtActionDate(a.date_action)}</div><div style="flex:1"><div class="action-type">${esc(a.type_action)}</div>${a.commentaire?`<div class="action-comment">${esc(a.commentaire)}</div>`:''}</div><span class="action-edit-hint">✏️</span></div>`).join('')}</div>`
-        : `<div class="bd-empty-state">
-             <div class="bd-empty-ic">📅</div>
-             <div class="bd-empty-ttl">Aucune action enregistrée</div>
-             <div class="bd-empty-txt">Consignez vos appels, offres, relances et rendez-vous : c'est l'historique qui vous rappellera où vous en êtes avec ce vendeur dans trois semaines.</div>
-             <button class="btn btn-primary" onclick="openActionModal('${b.id}')">＋ Enregistrer la première action</button>
-           </div>`}
-    </div>
-
-    <!-- ── LOCATIF & LOYERS ── -->
-    <div class="bd-pane" data-pane="locatif">
-      ${b.statut !== 'Acheté' ? `
-        <div class="bd-note">🔑 Ce bien n'est pas encore au statut « Acheté ». Le suivi locatif (locataire, loyers encaissés, charges réelles) s'activera dès que vous le passerez en acquis.</div>` : ''}
-
-      ${acquis && etapesGestion.some(e => !e.fait) ? `
-      <div class="bd-gestion">
-        <div class="bd-gestion-head">
-          <div>
-            <div class="bd-gestion-ttl">🔑 Mise en gestion incomplète</div>
-            <div class="bd-gestion-sub">${etapesGestion.filter(e=>!e.fait).length} étape${etapesGestion.filter(e=>!e.fait).length>1?'s':''} avant que le suivi de ce bien soit opérationnel</div>
-          </div>
-          <button class="bd-link" onclick="bdOpenMiseEnGestion('${b.id}')">Reprendre</button>
-        </div>
-        <div class="bd-gestion-chips">
-          ${etapesGestion.map(e => `<span class="bd-chip ${e.fait?'done':''}">${e.fait?'✓':'○'} ${esc(e.lab)}</span>`).join('')}
-        </div>
-      </div>` : ''}
-
-      <div class="bd-grid-2">
-        <div class="bd-block">
-          <div class="bd-block-title">Locataire</div>
-          ${locActif ? `
-            <div class="bd-loc" onclick="openLocataireModal('${locActif.id}')">
-              <div class="bd-loc-av">${((locActif.prenom?.[0]||'')+(locActif.nom?.[0]||'')||'?').toUpperCase()}</div>
-              <div style="min-width:0">
-                <div class="bd-loc-name">${esc([locActif.prenom,locActif.nom].filter(Boolean).join(' ')||'—')}</div>
-                <div class="bd-loc-sub">${esc(locActif.email||locActif.telephone||'')}${locActif.loyer_bail_hc?` · ${fmt(locActif.loyer_bail_hc)} €/mois HC`:''}</div>
+        <!-- ══════════════ LE BIEN ══════════════ -->
+        <section class="sff-pane" data-pane="bien" hidden>
+          <div class="sff-block">
+            <div class="sff-block__h"><p class="sff-block__t">Caractéristiques</p></div>
+            <div class="sff-block__b">
+              <div class="sff-fields">
+                <div class="sff-f"><div class="sff-f__l">Type</div><div class="sff-f__v">${ie(b.id,'type_bien',b.type_bien,'select-type')}</div></div>
+                <div class="sff-f"><div class="sff-f__l">Surface</div><div class="sff-f__v">${ie(b.id,'surface_m2',b.surface_m2 ? b.surface_m2+' m²' : '','number',null,b.surface_m2||'')}</div></div>
+                <div class="sff-f"><div class="sff-f__l">Ville</div><div class="sff-f__v">${ie(b.id,'ville',b.ville,'text')}</div></div>
+                <div class="sff-f"><div class="sff-f__l">Code postal</div><div class="sff-f__v">${ie(b.id,'code_postal',b.code_postal,'text')}</div></div>
+                <div class="sff-f sff-f--wide">
+                  <div class="sff-f__l">Annonce d'origine</div>
+                  <div class="sff-f__v">${b.lien_annonce
+                    ? `<a class="sff-link" href="${safeUrl(b.lien_annonce)}" target="_blank" rel="noopener">${sfAccIcon('lien',15)} Consulter l'annonce</a>`
+                    : `<span class="sff-rail__none">Aucun lien enregistré</span>`}</div>
+                </div>
               </div>
-              <span class="bd-occ ${occupation.type}">${occupation.label}</span>
-            </div>` : `
-            <div class="bd-empty-inline">
-              Aucun locataire actif.
-              <button class="bd-link" onclick="openLocataireModal(null)">＋ Créer un locataire</button>
-            </div>`}
-          ${locataires.length > (locActif?1:0) ? `<div class="bd-hist">${locataires.filter(l=>l!==locActif).map(l=>`<div class="bd-hist-row" onclick="openLocataireModal('${l.id}')"><span>${esc([l.prenom,l.nom].filter(Boolean).join(' '))}</span><span class="st">${esc(l.statut||'')}</span></div>`).join('')}</div>` : ''}
-        </div>
-
-        ${b.statut === 'Acheté' ? `
-        <div class="bd-block">
-          <div class="bd-block-title">Réel sur 12 mois</div>
-          <div class="bd-stats">
-            <div><span class="l">Loyers encaissés</span><span class="v">${fmt(reel12.loyer_encaisse)} €</span></div>
-            <div><span class="l">Charges payées</span><span class="v">${fmt(reel12.charges_payees)} €</span></div>
-            <div><span class="l">Mensualités crédit</span><span class="v">${fmt(reel12.mensualites_credit)} €</span></div>
-            <div class="tot"><span class="l">Cashflow réel</span><span class="v ${reel12.cashflow>=0?'pos':'neg'}">${reel12.cashflow>=0?'+':''}${fmt(reel12.cashflow)} €</span></div>
-          </div>
-        </div>` : `
-        <div class="bd-block">
-          <div class="bd-block-title">Prévisionnel</div>
-          <div class="bd-stats">
-            <div><span class="l">Loyer estimé</span><span class="v">${fmt((parseFloat(b.loyer_en_etat)||0)+(parseFloat(b.charges_locataire_etat)||0))} €</span></div>
-            <div><span class="l">Charges + crédit</span><span class="v">${fmt((parseFloat(b.mensualite_credit)||0)+(parseFloat(b.charge_copro)||0)+(parseFloat(b.assurance_logement)||0)+(parseFloat(b.taxe_fonciere)||0))} €</span></div>
-            <div class="tot"><span class="l">Cashflow prévisionnel</span><span class="v ${cf>=0?'pos':'neg'}">${cf>=0?'+':''}${fmt(cf)} €/mois</span></div>
-          </div>
-        </div>`}
-      </div>
-
-      ${b.statut === 'Acheté' ? `
-      <div class="bd-block" style="margin-top:12px">
-        <div class="bd-block-title">Loyers ${annee}</div>
-        ${loyersAnnee.length === 0
-          ? `<div class="bd-empty-inline">Aucun loyer saisi pour ${annee}. <button class="bd-link" onclick="bdGoToSuivi('${b.id}')">Ouvrir le suivi mensuel →</button></div>`
-          : `<div class="bd-months">
-              ${MOIS_LABELS.map((lab,i) => {
-                const l = loyersAnnee.find(x => x.mois === i+1);
-                const st = !l ? 'none' : (l.statut==='Payé' ? 'ok' : l.statut==='Partiel' ? 'part' : 'ko');
-                const tip = !l ? `${lab} : rien de saisi` : `${lab} : ${esc(l.statut||'')} — ${fmt(l.montant_encaisse||0)} € / ${fmt(l.loyer_du||0)} € dus`;
-                return `<div class="bd-month ${st}" title="${tip}"><span>${lab}</span></div>`;
-              }).join('')}
-             </div>
-             <div class="bd-month-legend"><span><i class="ok"></i>Payé</span><span><i class="part"></i>Partiel</span><span><i class="ko"></i>Impayé</span><span><i class="none"></i>Non saisi</span></div>`}
-      </div>
-
-      <div class="bd-block" style="margin-top:12px">
-        <div class="bd-block-title">Charges ${annee}${chargesAnnee.length?` · ${fmt(chargesAnnee.reduce((s,c)=>s+(parseFloat(c.montant)||0),0))} €`:''}</div>
-        ${chargesAnnee.length === 0
-          ? `<div class="bd-empty-inline">Aucune charge enregistrée cette année.</div>`
-          : `<div class="bd-charges">${chargesAnnee.slice(0,8).map(c=>`
-              <div class="bd-charge-row">
-                <span class="cat">${esc(c.categorie||'Autre')}</span>
-                <span class="lib">${esc(c.libelle||'')}</span>
-                <span class="dt">${fmtActionDate(c.date_charge)}</span>
-                <span class="mt">${fmt(c.montant)} €</span>
-              </div>`).join('')}</div>
-             ${chargesAnnee.length>8?`<div class="bd-more">+ ${chargesAnnee.length-8} autre(s)</div>`:''}`}
-      </div>
-
-      <div class="bd-cta-row">
-        <button class="btn btn-secondary btn-sm" onclick="bdGoToSuivi('${b.id}')">📅 Suivi mensuel</button>
-        <button class="btn btn-secondary btn-sm" onclick="bdGoToRenta('${b.id}')">💶 Rentabilité</button>
-      </div>` : ''}
-    </div>
-
-    <!-- ── VISITES ── -->
-    <div class="bd-pane" data-pane="visites">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-        <button class="btn btn-primary" style="padding:7px 14px;font-size:12px" onclick="openNouvelleVisite('${b.id}')">＋ Nouveau compte rendu</button>
-      </div>
-      ${visites.length === 0
-        ? `<div class="bd-empty-state">
-             <div class="bd-empty-ic">📓</div>
-             <div class="bd-empty-ttl">Aucune visite enregistrée</div>
-             <div class="bd-empty-txt">Gardez une trace de chaque visite : impressions, points de vigilance, travaux à prévoir et photos. Les comptes rendus se retrouvent ensuite ici et dans la section Outils.</div>
-             <button class="btn btn-primary" onclick="openNouvelleVisite('${b.id}')">＋ Créer le premier compte rendu</button>
-           </div>`
-        : `<div class="bd-list">${visites.map(v=>`
-            <div class="bd-list-row" onclick="openDetailVisite('${v.id}')">
-              <div class="bd-list-date">${fmtActionDate(v.date_visite)}</div>
-              <div style="flex:1;min-width:0">
-                <div class="bd-list-main">${v.type_visite==='locataire'?'👤 Visite locataire':'🏠 Visite achat'}${v.adresse?` — ${esc(v.adresse)}`:''}</div>
-                ${v.notes?`<div class="bd-list-sub">${esc(v.notes.slice(0,110))}${v.notes.length>110?'…':''}</div>`:''}
-              </div>
-              ${v.note_sur_5?`<span class="bd-rating">${'⭐'.repeat(v.note_sur_5)}</span>`:''}
-            </div>`).join('')}</div>`}
-    </div>
-
-    <!-- ── FINANCEMENT ── -->
-    <div class="bd-pane" data-pane="financement">
-      <div class="bd-grid-2">
-        <div class="bd-block">
-          <div class="bd-block-title">Montant à financer</div>
-          <div class="bd-stats">
-            <div><span class="l">Prix affiché</span><span class="v">${b.prix_affiche?fmt(b.prix_affiche)+' €':'—'}</span></div>
-            <div><span class="l">Frais de notaire</span><span class="v">${fmt(b.frais_notaire||0)} €</span></div>
-            <div><span class="l">Travaux</span><span class="v">${fmt(b.travaux||0)} €</span></div>
-            <div><span class="l">Frais d'agence</span><span class="v">${fmt(b.frais_agence||0)} €</span></div>
-            ${(parseFloat(b.creation_sci)||0) > 0 ? `<div><span class="l">Création SCI</span><span class="v">${fmt(b.creation_sci)} €</span></div>` : ''}
-            <div class="tot"><span class="l">Total acquisition</span><span class="v">${emprunt?fmt(emprunt)+' €':'—'}</span></div>
-          </div>
-          ${emprunt ? `
-          <div style="margin-top:14px">
-            <div class="bd-split">
-              ${finSplit.map(s => `<div class="bd-split-seg" style="width:${s.pct}%;background:${s.col}" title="${s.lab} : ${fmt(s.val)} €">${s.pct >= 9 ? Math.round(s.pct)+'%' : ''}</div>`).join('')}
             </div>
-            <div class="bd-split-leg">
-              ${finSplit.map(s => `<span><i style="background:${s.col}"></i>${s.lab} <b>${fmt(s.val)} €</b></span>`).join('')}
+          </div>
+
+          <div class="sff-block">
+            <div class="sff-block__h">
+              <p class="sff-block__t">Photos</p>
+              ${photos.length ? `<span class="sff-block__n">${photos.length} photo${photos.length>1?'s':''}</span>` : ''}
+            </div>
+            <div class="sff-block__b${photos.length ? '' : ' sff-block__b--flush'}">
+              ${photos.length
+                ? `<div class="sff-gal">${photos.map((u,i)=>`<button class="sff-gal__i" style="background-image:url('${u}')" onclick="openLightbox('${u}')" aria-label="Photo ${i+1}"></button>`).join('')}</div>`
+                : `<div class="sff-empty">
+                     <div class="sff-empty__ic">${sfAccIcon('image',34)}</div>
+                     <div class="sff-empty__t">Aucune photo</div>
+                     <div class="sff-empty__x">Les visuels de l'annonce et les clichés pris en visite se rassemblent ici. Le premier sert de vignette dans la liste de vos biens.</div>
+                     <button class="btn btn-primary btn-sm" onclick="editBien('${b.id}')">Ajouter des photos</button>
+                   </div>`}
+            </div>
+          </div>
+
+          <div class="sff-block">
+            <div class="sff-block__h">
+              <p class="sff-block__t">Documents</p>
+              ${docs.length ? `<span class="sff-block__n">${docs.length} document${docs.length>1?'s':''}</span>` : ''}
+            </div>
+            <div class="sff-block__b${docs.length ? '' : ' sff-block__b--flush'}">
+              ${docs.length
+                ? `<div class="sff-docs">${docs.map(d=>`<button class="sff-doc" onclick="openDoc('${d.url||''}')" title="${esc(d.name||'Document')}">${sfAccIcon('doc',15)} <span>${esc(d.name||'Document')}</span></button>`).join('')}</div>`
+                : `<div class="sff-empty">
+                     <div class="sff-empty__ic">${sfAccIcon('doc',34)}</div>
+                     <div class="sff-empty__t">Aucun document</div>
+                     <div class="sff-empty__x">Diagnostics, règlement de copropriété, procès-verbaux d'assemblée générale, compromis : les pièces que la banque et le notaire réclameront le moment venu.</div>
+                     <button class="btn btn-primary btn-sm" onclick="editBien('${b.id}')">Déposer un document</button>
+                   </div>`}
+            </div>
+          </div>
+
+          <div class="sff-block">
+            <div class="sff-block__h"><p class="sff-block__t">Notes</p></div>
+            <div class="sff-block__b"><div class="sff-f__v sff-notes">${ie(b.id,'notes',b.notes,'textarea')}</div></div>
+          </div>
+        </section>
+
+        <!-- ══════════════ FINANCES ══════════════ -->
+        <section class="sff-pane" data-pane="finances" hidden>
+          <div class="sff-grid2">
+            <div class="sff-block">
+              <div class="sff-block__h"><p class="sff-block__t">Coût d'acquisition</p></div>
+              <div class="sff-block__b">
+                ${emprunt ? `<div class="sff-split">
+                  ${finPostes.filter(p=>p.val>0).map(p=>`<div class="sff-split__s" style="width:${p.pct}%;background:${p.col}" title="${p.lab} — ${sfEur(p.val)}"></div>`).join('')}
+                </div>` : ''}
+                <div class="sff-lines">
+                  ${finPostes.map(ligneCout).join('')}
+                  <div class="sff-line sff-line--tot">
+                    <span></span>
+                    <span class="sff-line__l">Coût total de l'opération</span>
+                    <span class="sff-line__v">${emprunt ? sfEur(emprunt) : '—'}</span>
+                    <span></span><span></span>
+                  </div>
+                </div>
+                ${(coutM2 || fraisPct != null) ? `
+                <p class="sff-sep sff-sep--pied">Repères</p>
+                <div class="sff-lines">
+                  ${coutM2 ? `<div class="sff-line"><span></span><span class="sff-line__l">Coût au m², frais compris</span><span class="sff-line__v">${sfEur(coutM2)}</span><span></span><span></span></div>` : ''}
+                  ${fraisPct != null ? `<div class="sff-line"><span></span><span class="sff-line__l">Frais et honoraires <small>· ${sfPct(fraisPct.toFixed(1).replace('.',','))} du prix</small></span><span class="sff-line__v">${sfEur(fraisAcq)}</span><span></span><span></span></div>` : ''}
+                </div>` : ''}
+              </div>
+            </div>
+
+            <div class="sff-block">
+              <div class="sff-block__h"><p class="sff-block__t">Équilibre mensuel</p></div>
+              <div class="sff-block__b">
+                ${(mensu || loyerAttendu || chargesFixes) ? `
+                  <div class="sff-gauges">
+                    <!-- Une jauge qui AGRÈGE reste en lecture seule : sa
+                         composition se saisit plus bas. Rendre « Loyer attendu »
+                         modifiable serait ambigu — deux champs s'y additionnent. -->
+                    <div class="sff-g">
+                      <span class="sff-g__l">Loyer attendu</span>
+                      <div class="sff-g__bar"><div class="sff-g__f" style="width:${Math.round(loyerAttendu/gaugeMax*100)}%;background:var(--sf-gain)"></div></div>
+                      <span class="sff-g__v">${sfEur(loyerAttendu)}</span><span></span>
+                    </div>
+                    <div class="sff-g">
+                      <span class="sff-g__l">Mensualité de crédit</span>
+                      <div class="sff-g__bar"><div class="sff-g__f" style="width:${Math.round(mensu/gaugeMax*100)}%;background:var(--sf-loss)"></div></div>
+                      <span class="sff-g__v">${ieEur(b.id,'mensualite_credit',mensu)}</span><span></span>
+                    </div>
+                    <div class="sff-g">
+                      <span class="sff-g__l">Charges</span>
+                      <div class="sff-g__bar"><div class="sff-g__f" style="width:${Math.round(chargesFixes/gaugeMax*100)}%;background:var(--sf-alert)"></div></div>
+                      <span class="sff-g__v">${sfEur(chargesFixes)}</span><span></span>
+                    </div>
+                  </div>
+                  <div class="sff-solde">
+                    <span class="sff-solde__l">Solde mensuel</span>
+                    <span class="sff-solde__v ${cf>=0?'sf-gain':'sf-loss'}">${cf>=0?'+':'−'}${sfEur(Math.abs(cf))}</span>
+                    ${mensu ? `<span class="sff-solde__s">Le loyer couvre ${sfPct(Math.round(loyerAttendu/mensu*100))} de la mensualité de crédit.</span>` : ''}
+                  </div>` : ''}
+
+                <p class="sff-sep">Composition du loyer</p>
+                <div class="sff-lines sff-lines--plain">
+                  ${lignePlate('Loyer hors charges','loyer_en_etat')}
+                  ${lignePlate('Charges refacturées au locataire','charges_locataire_etat')}
+                </div>
+
+                <p class="sff-sep">Composition des charges</p>
+                <div class="sff-lines sff-lines--plain">
+                  ${lignePlate('Charges de copropriété','charge_copro')}
+                  ${lignePlate('Assurance propriétaire non occupant','assurance_logement')}
+                  ${lignePlate('Taxe foncière','taxe_fonciere','lissée sur 12 mois')}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          ${(b.loyer_apres_travaux || b.charges_locataire_travaux) ? `
+          <div class="sff-block">
+            <div class="sff-block__h"><p class="sff-block__t">Après travaux</p></div>
+            <div class="sff-block__b">
+              <div class="sff-lines sff-lines--plain">
+                ${lignePlate('Loyer après travaux','loyer_apres_travaux')}
+                ${lignePlate('Charges refacturées après travaux','charges_locataire_travaux')}
+                <div class="sff-line sff-line--tot">
+                  <span class="sff-line__l">Solde mensuel après travaux</span>
+                  <span class="sff-line__v ${cfTravaux>=0?'sf-gain':'sf-loss'}">${cfTravaux>=0?'+':'−'}${sfEur(Math.abs(cfTravaux))}</span>
+                  <span></span>
+                </div>
+              </div>
             </div>
           </div>` : ''}
-        </div>
 
-        <div class="bd-block">
-          <div class="bd-block-title">Effort mensuel</div>
-          ${(mensu || loyerAttendu) ? `
-            <div class="bd-gauge">
-              <div class="bd-gauge-row">
-                <span class="lab">Loyer attendu</span>
-                <div class="bd-gauge-bar"><div class="bd-gauge-fill" style="width:${gaugeMax?Math.round(loyerAttendu/gaugeMax*100):0}%;background:var(--positive)"></div></div>
-                <span class="amt">${fmt(loyerAttendu)} €</span>
-              </div>
-              <div class="bd-gauge-row">
-                <span class="lab">Mensualité crédit</span>
-                <div class="bd-gauge-bar"><div class="bd-gauge-fill" style="width:${gaugeMax?Math.round(mensu/gaugeMax*100):0}%;background:var(--negative)"></div></div>
-                <span class="amt">${fmt(mensu)} €</span>
-              </div>
-              <div class="bd-gauge-row">
-                <span class="lab">Charges</span>
-                <div class="bd-gauge-bar"><div class="bd-gauge-fill" style="width:${gaugeMax?Math.round(chargesFixes/gaugeMax*100):0}%;background:var(--warning)"></div></div>
-                <span class="amt">${fmt(chargesFixes)} €</span>
-              </div>
+          <div class="sff-block">
+            <div class="sff-block__h">
+              <p class="sff-block__t">Plan de financement</p>
+              <span class="sff-block__n">${sims.length ? sims.length+' simulation'+(sims.length>1?'s':'') : 'Aucune simulation rattachée'}</span>
             </div>
-            <div class="bd-stats" style="margin-top:14px">
-              <div class="tot"><span class="l">${cf>=0?"Excédent mensuel":"Effort d'épargne"}</span><span class="v ${cf>=0?'pos':'neg'}">${cf>=0?'+':''}${fmt(cf)} €</span></div>
-              ${b.prix_affiche&&loyerAttendu ? `<div><span class="l">Loyer couvrant la mensualité</span><span class="v">${mensu?Math.round(loyerAttendu/mensu*100):0} %</span></div>` : ''}
-            </div>`
-          : `<div class="bd-empty-inline">Renseignez la mensualité de crédit et le loyer estimé dans l'onglet Finances pour visualiser l'effort mensuel.</div>`}
-        </div>
-      </div>
-
-      <div class="bd-block" style="margin-top:12px">
-        <div class="bd-block-title">Simulations de crédit rattachées</div>
-        ${sims.length === 0
-          ? `<div class="bd-empty-inline">Aucune simulation rattachée à ce bien. <button class="bd-link" onclick="navigate('simulateur')">🏦 Ouvrir le simulateur</button></div>`
-          : `<div class="bd-list">${sims.map(s=>`
-              <div class="bd-list-row" onclick="openReadSimulation('${s.id}')">
-                <div style="flex:1;min-width:0">
-                  <div class="bd-list-main">${esc(s.nom_simulation||'Simulation')}</div>
-                  <div class="bd-list-sub">${fmt(s.montant_emprunte||0)} € sur ${s.duree_ans||20} ans · ${(s.taux_interet||0).toFixed(2)} %</div>
-                </div>
-                <div class="bd-list-amount">${fmt(s.mensualite_calculee||0)} €/mois</div>
-              </div>`).join('')}</div>`}
-      </div>
-      <div class="bd-cta-row">
-        <button class="btn btn-secondary btn-sm" onclick="openDossierModal('${b.id}')">📄 Générer le dossier banque</button>
-        <button class="btn btn-secondary btn-sm" onclick="navigate('simulateur')">🏦 Simulateur crédit</button>
-      </div>
-    </div>
-
-    <!-- ── SCI & BILAN ── -->
-    <div class="bd-pane" data-pane="sci">
-      <div class="bd-block">
-        <div class="bd-block-title">Société détentrice</div>
-        ${sciBien ? `
-          <div class="bd-sci">
-            <div class="bd-sci-ic">🏛️</div>
-            <div style="flex:1;min-width:0">
-              <div class="bd-loc-name">${esc(sciBien.nom_sci)}</div>
-              <div class="bd-loc-sub">${sciBien.siret?`SIRET ${esc(sciBien.siret)}`:'SIRET non renseigné'}${sciBien.capital_social?` · capital ${fmt(sciBien.capital_social)} €`:''}</div>
+            <div class="sff-block__b${sims.length ? '' : ' sff-block__b--flush'}">
+              ${sims.length
+                ? `<div class="sff-list">${sims.map(s=>`
+                    <div class="sff-row" onclick="openReadSimulation('${s.id}')">
+                      <div class="sff-row__m">${esc(s.nom_simulation||'Simulation')}
+                        <div class="sff-row__s">${sfEur(s.montant_emprunte||0)} sur ${s.duree_ans||20} ans · ${sfPct((s.taux_interet||0).toFixed(2).replace('.',','))}</div>
+                      </div>
+                      <div class="sff-row__a">${sfEur(s.mensualite_calculee||0)} /mois</div>
+                    </div>`).join('')}</div>
+                   <div class="sff-cta">
+                     <button class="btn btn-secondary btn-sm" onclick="openDossierModal('${b.id}')">${sfAccIcon('doc',15)} Générer le dossier banque</button>
+                     <button class="btn btn-secondary btn-sm" onclick="navigate('simulateur')">${sfAccIcon('banque',15)} Nouvelle simulation</button>
+                   </div>`
+                : `<div class="sff-empty">
+                     <div class="sff-empty__ic">${sfAccIcon('banque',34)}</div>
+                     <div class="sff-empty__t">Aucune simulation de crédit</div>
+                     <div class="sff-empty__x">${mensu ? `La mensualité de ${sfEur(mensu)} renseignée plus haut est une hypothèse. Une` : 'Une'} simulation établit la mensualité réelle à partir du taux, de la durée et de l'apport, puis alimente le dossier remis à la banque.</div>
+                     <button class="btn btn-primary btn-sm" onclick="navigate('simulateur')">Simuler ce crédit</button>
+                   </div>`}
             </div>
-            <button class="bd-link" onclick="navigate('administration')">Administration →</button>
-          </div>` : `
-          <div class="bd-note warn">
-            🏷️ Aucune SCI associée à ce bien.<br>
-            <span style="font-weight:400">Le rattachement est nécessaire pour alimenter un bilan comptable depuis les loyers et charges réels.</span>
           </div>
-          <div class="bd-cta-row" style="margin-top:10px">
-            <button class="btn btn-secondary btn-sm" onclick="editBien('${b.id}')">✏️ Associer une SCI</button>
-          </div>`}
-      </div>
-      ${sciBien ? `
-      <div class="bd-block" style="margin-top:12px">
-        <div class="bd-block-title">Alimentation du bilan</div>
-        <div class="bd-empty-inline">
-          Les loyers encaissés et charges payées de ce bien alimentent le bilan de <strong>${esc(sciBien.nom_sci)}</strong>.
-          <button class="bd-link" onclick="bdGoToRenta('${b.id}')">Aller à Rentabilité →</button>
-        </div>
-      </div>` : ''}
-    </div>
+        </section>
 
-      </div><!-- /bd-main -->
-    </div><!-- /bd-body -->
+        <!-- ══════════════ VISITES ══════════════ -->
+        <section class="sff-pane" data-pane="visites" hidden>
+          <div class="sff-block">
+            <div class="sff-block__h">
+              <p class="sff-block__t">Comptes rendus de visite</p>
+              ${visites.length ? `<div class="sff-block__a"><button class="btn btn-secondary btn-sm" onclick="openNouvelleVisite('${b.id}')">${sfAccIcon('plus',15)} Nouveau compte rendu</button></div>` : ''}
+            </div>
+            <div class="sff-block__b${visites.length ? '' : ' sff-block__b--flush'}">
+              ${visites.length
+                ? `<div class="sff-list">${visites.map(v=>`
+                    <div class="sff-row" onclick="openDetailVisite('${v.id}')">
+                      <div class="sff-row__d">${fmtActionDate(v.date_visite)}</div>
+                      <div class="sff-row__m">${v.type_visite==='locataire'?'Visite locataire':'Visite achat'}${v.adresse?` — ${esc(v.adresse)}`:''}
+                        ${v.notes?`<div class="sff-row__s">${esc(v.notes.slice(0,110))}${v.notes.length>110?'…':''}</div>`:''}
+                      </div>
+                      ${v.note_sur_5?`<span class="sff-stars" title="${v.note_sur_5} sur 5">${sfAccIcon('etoile',13).repeat(v.note_sur_5)}</span>`:''}
+                    </div>`).join('')}</div>`
+                : `<div class="sff-empty">
+                     <div class="sff-empty__ic">${sfAccIcon('carnet',34)}</div>
+                     <div class="sff-empty__t">Aucune visite enregistrée</div>
+                     <div class="sff-empty__x">Consignez chaque visite : impression générale, points de vigilance, travaux à prévoir, photos. Les comptes rendus se retrouvent ici et dans la section Outils.</div>
+                     <button class="btn btn-primary btn-sm" onclick="openNouvelleVisite('${b.id}')">Rédiger le premier compte rendu</button>
+                   </div>`}
+            </div>
+          </div>
+        </section>
+
+        <!-- ══════════════ NÉGOCIATION ══════════════
+             Le contact du vendeur est descendu ici depuis « Informations » :
+             le numéro se trouve à l'endroit exact où l'on vient consigner
+             l'appel qu'on vient de passer. -->
+        <section class="sff-pane" data-pane="nego" hidden>
+          <div class="sff-block">
+            <div class="sff-block__h"><p class="sff-block__t">Contact vendeur</p></div>
+            <div class="sff-block__b">
+              <div class="sff-fields">
+                <div class="sff-f"><div class="sff-f__l">Intermédiaire</div><div class="sff-f__v">${ie(b.id,'intermediaire',b.intermediaire,'text')}</div></div>
+                <div class="sff-f">
+                  <div class="sff-f__l">Téléphone</div>
+                  <div class="sff-f__v sff-f__v--dual">${ie(b.id,'telephone',b.telephone,'tel')}${b.telephone ? `<a class="sff-link" href="tel:${esc(String(b.telephone).replace(/[^\d+]/g,''))}" title="Appeler">${sfAccIcon('tel',15)}</a>` : ''}</div>
+                </div>
+                <div class="sff-f sff-f--wide">
+                  <div class="sff-f__l">Adresse électronique</div>
+                  <div class="sff-f__v sff-f__v--dual">${ie(b.id,'mail',b.mail,'email')}${b.mail ? `<a class="sff-link" href="mailto:${esc(b.mail)}" title="Écrire">${sfAccIcon('mail',15)}</a>` : ''}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sff-block">
+            <div class="sff-block__h">
+              <p class="sff-block__t">Historique des échanges</p>
+              ${actions.length ? `<div class="sff-block__a"><button class="btn btn-secondary btn-sm" onclick="openActionModal('${b.id}')">${sfAccIcon('plus',15)} Ajouter un échange</button></div>` : ''}
+            </div>
+            <div class="sff-block__b${actions.length ? '' : ' sff-block__b--flush'}">
+              ${actions.length
+                ? `<div class="sff-list">${actions.map(a=>`
+                    <div class="sff-row" onclick="openActionModal('${b.id}','${a.id}')" title="Modifier">
+                      <div class="sff-row__d">${fmtActionDate(a.date_action)}</div>
+                      <div class="sff-row__m">${esc(a.type_action)}
+                        ${a.commentaire?`<div class="sff-row__s">${esc(a.commentaire)}</div>`:''}
+                      </div>
+                    </div>`).join('')}</div>`
+                : `<div class="sff-empty">
+                     <div class="sff-empty__ic">${sfAccIcon('agenda',34)}</div>
+                     <div class="sff-empty__t">Aucun échange enregistré</div>
+                     <div class="sff-empty__x">Appels, offres, relances et rendez-vous : cet historique vous rappellera où vous en êtes avec ce vendeur dans trois semaines.</div>
+                     <button class="btn btn-primary btn-sm" onclick="openActionModal('${b.id}')">Enregistrer le premier échange</button>
+                   </div>`}
+            </div>
+          </div>
+        </section>
+
+        <!-- ══════════════ LOCATIF ══════════════ -->
+        <section class="sff-pane" data-pane="locatif" hidden>
+          ${!acquis ? `
+            <div class="sff-msg">${sfAccIcon('info',17)}
+              <span>Ce bien est en cours d'acquisition. Le suivi locatif — locataire, loyers encaissés, charges réelles — s'ouvrira au passage au statut « Acheté ».</span>
+            </div>` : ''}
+
+          ${acquis && etapesGestion.some(e => !e.fait) ? `
+          <div class="sff-block">
+            <div class="sff-block__h">
+              <p class="sff-block__t">Mise en gestion</p>
+              <div class="sff-block__a"><button class="btn btn-secondary btn-sm" onclick="bdOpenMiseEnGestion('${b.id}')">Reprendre</button></div>
+            </div>
+            <div class="sff-block__b">
+              <p class="sff-inline">${etapesGestion.filter(e=>!e.fait).length} étape${etapesGestion.filter(e=>!e.fait).length>1?'s':''} avant que le suivi de ce bien soit opérationnel</p>
+              <div class="sff-chips">
+                ${etapesGestion.map(e => `<span class="sff-chip${e.fait?' done':''}">${e.fait?sfAccIcon('check',12):''} ${esc(e.lab)}</span>`).join('')}
+              </div>
+            </div>
+          </div>` : ''}
+
+          <div class="sff-grid2">
+            <div class="sff-block">
+              <div class="sff-block__h"><p class="sff-block__t">Locataire</p></div>
+              <div class="sff-block__b">
+                ${locActif ? `
+                  <div class="bd-loc" onclick="openLocataireModal('${locActif.id}')">
+                    <div class="bd-loc-av">${((locActif.prenom?.[0]||'')+(locActif.nom?.[0]||'')||'?').toUpperCase()}</div>
+                    <div style="min-width:0">
+                      <div class="bd-loc-name">${esc([locActif.prenom,locActif.nom].filter(Boolean).join(' ')||'—')}</div>
+                      <div class="bd-loc-sub">${esc(locActif.email||locActif.telephone||'')}${locActif.loyer_bail_hc?` · ${sfEur(locActif.loyer_bail_hc)} /mois HC`:''}</div>
+                    </div>
+                    <span class="bd-occ ${occupation.type}">${occupation.label}</span>
+                  </div>` : `
+                  <p class="sff-inline">Aucun locataire actif
+                    <button class="sff-add" onclick="openLocataireModal(null)">${sfAccIcon('plus',13)} Ajouter</button>
+                  </p>`}
+                ${locataires.length > (locActif?1:0) ? `<div class="bd-hist">${locataires.filter(l=>l!==locActif).map(l=>`<div class="bd-hist-row" onclick="openLocataireModal('${l.id}')"><span>${esc([l.prenom,l.nom].filter(Boolean).join(' '))}</span><span class="st">${esc(l.statut||'')}</span></div>`).join('')}</div>` : ''}
+              </div>
+            </div>
+
+            <div class="sff-block">
+              <div class="sff-block__h"><p class="sff-block__t">${acquis ? 'Réel sur 12 mois' : 'Projection locative'}</p></div>
+              <div class="sff-block__b">
+                <div class="sff-lines sff-lines--plain">
+                  ${acquis ? `
+                    <div class="sff-line"><span class="sff-line__l">Loyers encaissés</span><span class="sff-line__v">${sfEur(reel12.loyer_encaisse)}</span><span></span></div>
+                    <div class="sff-line"><span class="sff-line__l">Charges payées</span><span class="sff-line__v">${sfEur(reel12.charges_payees)}</span><span></span></div>
+                    <div class="sff-line"><span class="sff-line__l">Mensualités de crédit</span><span class="sff-line__v">${sfEur(reel12.mensualites_credit)}</span><span></span></div>
+                    <div class="sff-line sff-line--tot"><span class="sff-line__l">Cashflow réel</span><span class="sff-line__v ${reel12.cashflow>=0?'sf-gain':'sf-loss'}">${reel12.cashflow>=0?'+':'−'}${sfEur(Math.abs(reel12.cashflow))}</span><span></span></div>`
+                  : `
+                    <div class="sff-line"><span class="sff-line__l">Loyer encaissé</span><span class="sff-line__v">${sfEur(loyerAttendu)}</span><span></span></div>
+                    <div class="sff-line"><span class="sff-line__l">Charges et mensualité de crédit</span><span class="sff-line__v">${sfEur(mensu + chargesFixes)}</span><span></span></div>
+                    <div class="sff-line sff-line--tot"><span class="sff-line__l">Solde mensuel</span><span class="sff-line__v ${cf>=0?'sf-gain':'sf-loss'}">${cf>=0?'+':'−'}${sfEur(Math.abs(cf))}</span><span></span></div>`}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          ${acquis ? `
+          <div class="sff-block">
+            <div class="sff-block__h">
+              <p class="sff-block__t">Loyers ${annee}</p>
+              ${loyersAnnee.length ? `<div class="sff-block__a"><button class="btn btn-secondary btn-sm" onclick="bdGoToSuivi('${b.id}')">Suivi mensuel</button></div>` : ''}
+            </div>
+            <div class="sff-block__b">
+              ${loyersAnnee.length === 0
+                ? `<p class="sff-inline">Aucun loyer saisi pour ${annee}
+                     <button class="sff-add" onclick="bdGoToSuivi('${b.id}')">${sfAccIcon('chevron',13)} Ouvrir le suivi mensuel</button>
+                   </p>`
+                : `<div class="bd-months">
+                    ${MOIS_LABELS.map((lab,i) => {
+                      const l = loyersAnnee.find(x => x.mois === i+1);
+                      const st = !l ? 'none' : (l.statut==='Payé' ? 'ok' : l.statut==='Partiel' ? 'part' : 'ko');
+                      const tip = !l ? `${lab} : rien de saisi` : `${lab} : ${esc(l.statut||'')} — ${sfEur(l.montant_encaisse||0)} sur ${sfEur(l.loyer_du||0)} dus`;
+                      return `<div class="bd-month ${st}" title="${tip}"><span>${lab}</span></div>`;
+                    }).join('')}
+                   </div>
+                   <div class="bd-month-legend"><span><i class="ok"></i>Payé</span><span><i class="part"></i>Partiel</span><span><i class="ko"></i>Impayé</span><span><i class="none"></i>Non saisi</span></div>`}
+            </div>
+          </div>
+
+          <div class="sff-block">
+            <div class="sff-block__h">
+              <p class="sff-block__t">Charges ${annee}</p>
+              ${chargesAnnee.length ? `<span class="sff-block__n">${sfEur(chargesAnnee.reduce((s,c)=>s+(parseFloat(c.montant)||0),0))}</span>` : ''}
+            </div>
+            <div class="sff-block__b">
+              ${chargesAnnee.length === 0
+                ? `<p class="sff-inline">Aucune charge enregistrée cette année</p>`
+                : `<div class="sff-list">${chargesAnnee.slice(0,8).map(c=>`
+                    <div class="sff-row" style="cursor:default">
+                      <div class="sff-row__d">${fmtActionDate(c.date_charge)}</div>
+                      <div class="sff-row__m">${esc(c.categorie||'Autre')}
+                        ${c.libelle?`<div class="sff-row__s">${esc(c.libelle)}</div>`:''}
+                      </div>
+                      <div class="sff-row__a">${sfEur(c.montant)}</div>
+                    </div>`).join('')}</div>
+                   ${chargesAnnee.length>8?`<p class="sff-inline" style="margin-top:8px">+ ${chargesAnnee.length-8} autre${chargesAnnee.length-8>1?'s':''}</p>`:''}`}
+            </div>
+          </div>
+
+          <div class="sff-cta">
+            <button class="btn btn-secondary btn-sm" onclick="bdGoToSuivi('${b.id}')">${sfAccIcon('agenda',15)} Suivi mensuel</button>
+            <button class="btn btn-secondary btn-sm" onclick="bdGoToRenta('${b.id}')">${sfAccIcon('euro',15)} Rentabilité</button>
+          </div>` : ''}
+        </section>
+
+        <!-- ══════════════ SCI ══════════════ -->
+        <section class="sff-pane" data-pane="sci" hidden>
+          <div class="sff-block">
+            <div class="sff-block__h"><p class="sff-block__t">Société détentrice</p></div>
+            <div class="sff-block__b${sciBien ? '' : ' sff-block__b--flush'}">
+              ${sciBien ? `
+                <div class="sff-fields">
+                  <div class="sff-f"><div class="sff-f__l">Dénomination</div><div class="sff-f__v">${esc(sciBien.nom_sci)}</div></div>
+                  <div class="sff-f"><div class="sff-f__l">SIRET</div><div class="sff-f__v">${sciBien.siret?esc(sciBien.siret):'<span class="sff-rail__none">Non renseigné</span>'}</div></div>
+                  <div class="sff-f"><div class="sff-f__l">Capital social</div><div class="sff-f__v">${sciBien.capital_social?sfEur(sciBien.capital_social):'<span class="sff-rail__none">Non renseigné</span>'}</div></div>
+                </div>
+                <div class="sff-cta">
+                  <button class="btn btn-secondary btn-sm" onclick="navigate('administration')">Administration</button>
+                  <button class="btn btn-secondary btn-sm" onclick="bdGoToRenta('${b.id}')">Alimenter le bilan</button>
+                </div>`
+              : `<div class="sff-empty">
+                   <div class="sff-empty__ic">${sfAccIcon('colonne',34)}</div>
+                   <div class="sff-empty__t">Aucune société rattachée</div>
+                   <div class="sff-empty__x">Le rattachement sert à une seule chose, mais elle compte : les loyers encaissés et les charges payées de ce bien alimentent alors le bilan comptable de la société.</div>
+                   <button class="btn btn-primary btn-sm" onclick="editBien('${b.id}')">Rattacher une SCI</button>
+                 </div>`}
+            </div>
+          </div>
+        </section>
+
+      </div><!-- /sff-main -->
+    </div><!-- /sff-body -->
   </div>`;
 
   switchBienTab(bienDetailTab);
@@ -4037,7 +4272,7 @@ function bdOpenGallery() {
   if(!bdPhotos.length) return;
   const b = allBiens.find(x => x.id === currentBienId);
   document.getElementById('detail-titre').textContent =
-    `📸 ${bdPhotos.length} photo${bdPhotos.length>1?'s':''} — ${b?.titre || 'Bien'}`;
+    `${bdPhotos.length} photo${bdPhotos.length>1?'s':''} — ${b?.titre || 'Bien'}`;
   document.getElementById('detail-content').innerHTML = `
     <div style="padding:12px 16px 18px">
       <div class="bien-gallery">
