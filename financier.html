@@ -202,23 +202,78 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-legend i.loss{ background:var(--sf-loss); }
 .mfx-legend i.vide{ background:transparent; border:1px dashed var(--sf-border-strong); }
 
-/* ── Grille de saisie du suivi mensuel ───────────────────────────────────── */
+/* ── GRILLE DE SAISIE DU SUIVI MENSUEL ───────────────────────────────────────
+   ⚠️ L'itération 1 avait fait REGRESSER cet écran : j'avais remplacé une
+   grille de saisie par une liste de lecture, et perdu au passage la saisie des
+   charges mois par mois, la colonne Total, le montant affiché dans chaque
+   case et les actions groupées. Thomas l'a vu sur les captures.
+   Cette grille reprend tout ce que l'écran actuel fait bien. Elle ne corrige
+   que ce qui était faux : les mois À VENIR ne se confondent plus avec les
+   loyers échus non soldés, et les totaux ne comptent que les mois écoulés. */
 .mfx-grille{ width:100%; border-collapse:separate; border-spacing:2px;
   font-size:var(--sf-font-caption); }
 .mfx-grille th{ font-size:10px; text-transform:uppercase; letter-spacing:var(--sf-track-caps);
   color:var(--sf-text-3); font-weight:var(--sf-weight-semibold); padding:var(--sf-space-3);
-  text-align:center; }
-.mfx-grille th:first-child{ text-align:left; min-width:200px; }
-.mfx-grille td:first-child{ font-size:var(--sf-font-body-sm); color:var(--sf-text); }
+  text-align:center; white-space:nowrap; }
+.mfx-grille th:first-child{ text-align:left; min-width:190px; padding-left:var(--sf-space-6); }
+.mfx-grille th.tot{ text-align:right; padding-right:var(--sf-space-6); }
+/* Le mois courant est repéré : c'est celui où l'on saisit. */
+.mfx-grille th.encours{ color:var(--sf-text); }
+.mfx-grille th.encours::after{ content:''; display:block; height:2px; margin-top:3px;
+  background:var(--sf-brand-vivid); border-radius:1px; }
+.mfx-bien-cell{ padding:var(--sf-space-4) var(--sf-space-6); vertical-align:middle; }
+.mfx-bien-cell__n{ font-size:var(--sf-font-body-sm); font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
+.mfx-bien-cell__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
+/* La 2e ligne d'un bien (ses charges) n'a pas de nom : elle porte une étiquette
+   de rang, sinon on ne sait plus si l'on regarde des loyers ou des charges. */
+.mfx-rang{ font-size:10px; text-transform:uppercase; letter-spacing:var(--sf-track-caps);
+  color:var(--sf-text-3); padding:var(--sf-space-4) var(--sf-space-6); }
+.mfx-tot{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
+  text-align:right; padding:var(--sf-space-4) var(--sf-space-6); white-space:nowrap;
+  font-weight:var(--sf-weight-semibold); color:var(--sf-text); border-left:2px solid var(--sf-border); }
+
 .mfx-cell{ border-radius:var(--sf-radius-xs); padding:var(--sf-space-4) var(--sf-space-3);
-  text-align:center; font-family:var(--sf-font-num); cursor:pointer;
-  transition:filter var(--sf-dur) var(--sf-ease); }
-.mfx-cell:hover{ filter:brightness(1.25); }
+  text-align:center; font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
+  cursor:pointer; min-width:56px; line-height:1.35;
+  transition:filter var(--sf-dur) var(--sf-ease), background var(--sf-dur) var(--sf-ease); }
+.mfx-cell:hover{ filter:brightness(1.3); }
+.mfx-cell__ic{ display:block; line-height:0; margin-bottom:2px; }
 .mfx-cell--ok{ background:var(--sf-gain-wash); color:var(--sf-gain); }
 .mfx-cell--ko{ background:var(--sf-loss-wash); color:var(--sf-loss); }
+/* « À venir » : contour et non teinte — ce n'est pas un état de paiement,
+   c'est une échéance qui n'est pas arrivée. Même parti que la fiche bien. */
 .mfx-cell--avenir{ background:transparent; border:1px dashed var(--sf-border-strong);
   color:var(--sf-text-3); }
-.mfx-cell--none{ background:var(--sf-surface-2); color:var(--sf-text-3); }
+.mfx-cell--none{ background:var(--sf-surface-2); color:var(--sf-text-3); cursor:default; }
+/* Case de charge vide : le « + » n'apparaît qu'au survol de la ligne, sinon
+   douze croix par bien saturent la grille et noient les montants réels. */
+.mfx-cell--charge{ background:var(--sf-surface-2); color:var(--sf-text-3); }
+.mfx-cell--charge.pleine{ background:var(--sf-alert-wash); color:var(--sf-alert); }
+.mfx-cell--charge .plus{ opacity:0; transition:opacity var(--sf-dur) var(--sf-ease); }
+.mfx-grille tr:hover .mfx-cell--charge .plus{ opacity:1; }
+.mfx-cell--charge:hover{ background:var(--sf-surface-3); }
+
+/* Barre d'actions groupées, dans l'en-tête de la carte */
+.mfx-actions{ margin-left:auto; display:flex; gap:var(--sf-space-4); flex-wrap:wrap; }
+
+/* ── Échéancier des loyers à venir (onglet Locataires) ───────────────────── */
+.mfx-ech{ display:grid; grid-template-columns:auto minmax(0,1fr) auto;
+  gap:var(--sf-space-5); align-items:center; padding:var(--sf-space-5) 0;
+  border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.mfx-ech:last-child{ border-bottom:0; }
+.mfx-ech__d{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
+  color:var(--sf-text-3); min-width:96px; white-space:nowrap; }
+.mfx-ech__l{ font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
+.mfx-ech__v{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
+  text-align:right; white-space:nowrap; }
+.mfx-relance{ display:flex; align-items:center; gap:var(--sf-space-5);
+  background:var(--sf-loss-wash); border-left:3px solid var(--sf-loss);
+  border-radius:var(--sf-radius-sm); padding:var(--sf-space-5) var(--sf-space-6);
+  margin-bottom:var(--sf-space-6); }
+.mfx-relance__t{ font-size:var(--sf-font-body-sm); color:var(--sf-text); }
+/* --sf-text-3 retombe à 4,34:1 sur le lavis corail, plus clair que la surface —
+   même cause que la carte mise en avant de la fiche bien. Un cran plus clair. */
+.mfx-relance__s{ font-size:var(--sf-font-caption); color:var(--sf-text-2); margin-top:2px; }
 
 /* ── Comparaison réel / prévisionnel ─────────────────────────────────────── */
 .mfx-comp{ display:grid; grid-template-columns:auto minmax(0,1fr) auto;
@@ -260,8 +315,21 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 <div class="mfx-wrap">
 
   <p class="mfx-note">
-    <b>Maquette « Module financier » — itération 1, non déployée dans l'application.</b>
+    <b>Maquette « Module financier » — itération 2, non déployée dans l'application.</b>
     Données réelles, exercice 2026, recalculées en SQL sur la base.
+    <ul>
+      <li><b>Régression du Suivi mensuel corrigée.</b> L'itération 1 avait remplacé une grille de
+          saisie par une liste de lecture : on ne pouvait plus enregistrer une charge sur le mois
+          où elle est tombée. La grille reprend <b>tout ce que l'écran actuel fait bien</b> —
+          deux lignes par bien, case cliquable par mois, colonne Total, actions groupées — et ne
+          corrige que ce qui était faux : les mois <b>à venir</b> ne se confondent plus avec les
+          loyers échus non soldés, et les totaux ne comptent que les mois écoulés.</li>
+      <li><b>Le rendement net se calcule sur le loyer DÛ</b> : 1,36&nbsp;% au lieu de 0,67&nbsp;%.
+          Il dit ce que le bien vaut ; les impayés se lisent dans le cashflow constaté à côté.</li>
+      <li><b>L'onglet Locataires</b> porte désormais ce qu'un bailleur vient y chercher :
+          ce qu'il doit réclamer, et ce qu'il va recevoir.</li>
+    </ul>
+    <p style="margin:var(--sf-space-5) 0 0"><b>Rappel de l'itération 1 :</b></p>
     <ul>
       <li><b>Deux défauts de calcul corrigés, tes arbitrages appliqués.</b>
           (1) Le cashflow consolidé annonçait <code>−80 360 €</code> ; le réel constatable est
@@ -299,9 +367,12 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
       <span class="mfx-kpi__v mfx-kpi__v--loss">−19&#8239;135&#8239;€</span>
       <span class="mfx-kpi__s">8 mois écoulés, de janvier à août</span>
     </div>
+    <!-- Calculé sur le loyer DÛ (arbitrage de Thomas) : cet indicateur dit ce
+         que le bien vaut, pas ce que le locataire a payé. Les impayés se lisent
+         dans le cashflow constaté, juste à gauche, et dans la Rentabilité. -->
     <div class="mfx-kpi">
       <span class="mfx-kpi__l">Rendement net</span>
-      <span class="mfx-kpi__v mfx-kpi__v--loss">0,67&#8239;%</span>
+      <span class="mfx-kpi__v mfx-kpi__v--loss">1,36&#8239;%</span>
       <span class="mfx-kpi__s">en dessous de votre seuil de 5&#8239;%</span>
     </div>
     <div class="mfx-kpi">
@@ -374,7 +445,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
                     <span class="mfx-bar__v sf-loss">−19&#8239;135&#8239;€</span>
                   </span>
                 </td>
-                <td class="num">0,67&#8239;%</td>
+                <td class="num">1,36&#8239;%</td>
                 <td class="num sf-loss">−2&#8239;392&#8239;€</td>
                 <td><span class="sf-pill sf-pill--gain"><span class="sf-dot"></span>Loué</span></td>
               </tr>
@@ -437,78 +508,165 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
     </div>
   </section>
 
-  <!-- ══════════════ SUIVI MENSUEL ══════════════ -->
+  <!-- ══════════════ SUIVI MENSUEL ══════════════
+       C'est l'écran de SAISIE du module. Deux lignes par bien — les loyers,
+       puis ses charges — chaque case cliquable sur le mois concerné, et une
+       colonne Total à droite. C'est ce que fait l'écran actuel, et il le fait
+       bien : l'itération 1 l'avait remplacé par une liste, ce qui rendait
+       impossible d'enregistrer une charge sur le mois où elle est tombée. -->
   <section class="mfx-pane" data-p="suivi" hidden>
     <div class="sff-block">
       <div class="sff-block__h">
-        <p class="sff-block__t">Loyers encaissés</p>
-        <span class="sff-block__n">exercice 2026 · cliquez une case pour pointer</span>
+        <p class="sff-block__t">Loyers et charges, mois par mois</p>
+        <div class="mfx-actions">
+          <button class="sf-btn sf-btn--secondary sf-btn--sm">Générer les loyers 2026</button>
+          <button class="sf-btn sf-btn--secondary sf-btn--sm">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12"/><path d="m6 12 6 6 6-6"/><path d="M4 20h16"/></svg>
+            Exporter
+          </button>
+          <button class="sf-btn sf-btn--primary sf-btn--sm">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Ajouter une charge
+          </button>
+        </div>
       </div>
-      <div class="sff-block__b">
+      <div class="sff-block__b sff-block__b--flush">
         <div class="mfx-tw">
           <table class="mfx-grille">
             <thead><tr><th>Bien</th>
               <th>Jan</th><th>Fév</th><th>Mar</th><th>Avr</th><th>Mai</th><th>Jun</th>
-              <th>Jul</th><th>Aoû</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Déc</th></tr></thead>
+              <th>Jul</th><th class="encours">Aoû</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Déc</th>
+              <th class="tot">Total</th></tr></thead>
             <tbody>
+              <!-- Immeuble Paris 18e — loyers puis charges -->
               <tr>
-                <td>Immeuble Paris 18e</td>
-                <td class="mfx-cell mfx-cell--ok">830</td>
-                <td class="mfx-cell mfx-cell--ko">—</td>
-                <td class="mfx-cell mfx-cell--ok">830</td>
-                <td class="mfx-cell mfx-cell--ok">830</td>
-                <td class="mfx-cell mfx-cell--ok">830</td>
-                <td class="mfx-cell mfx-cell--ko">—</td>
-                <td class="mfx-cell mfx-cell--ko">—</td>
-                <td class="mfx-cell mfx-cell--ko">—</td>
-                <td class="mfx-cell mfx-cell--avenir">·</td>
-                <td class="mfx-cell mfx-cell--avenir">·</td>
-                <td class="mfx-cell mfx-cell--avenir">·</td>
-                <td class="mfx-cell mfx-cell--avenir">·</td>
+                <td class="mfx-bien-cell" rowspan="2">
+                  <div class="mfx-bien-cell__n">Immeuble Paris 18e</div>
+                  <div class="mfx-bien-cell__s">Paris 18e · 75018</div>
+                  <span class="sf-pill sf-pill--gain" style="margin-top:6px"><span class="sf-dot"></span>Loué</span>
+                </td>
+                <td class="mfx-cell mfx-cell--ok" title="Janvier : encaissé le 5"><span class="mfx-cell__ic"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>830</td>
+                <td class="mfx-cell mfx-cell--ko" title="Février : échu, non soldé">830</td>
+                <td class="mfx-cell mfx-cell--ok" title="Mars : encaissé le 5"><span class="mfx-cell__ic"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>830</td>
+                <td class="mfx-cell mfx-cell--ok" title="Avril : encaissé le 5"><span class="mfx-cell__ic"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>830</td>
+                <td class="mfx-cell mfx-cell--ok" title="Mai : encaissé le 5"><span class="mfx-cell__ic"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>830</td>
+                <td class="mfx-cell mfx-cell--ko" title="Juin : échu, non soldé">830</td>
+                <td class="mfx-cell mfx-cell--ko" title="Juillet : échu, non soldé">830</td>
+                <td class="mfx-cell mfx-cell--ko" title="Août : échu depuis le 6, non soldé">830</td>
+                <td class="mfx-cell mfx-cell--avenir" title="Septembre : échéance le 5">830</td>
+                <td class="mfx-cell mfx-cell--avenir" title="Octobre : échéance le 5">830</td>
+                <td class="mfx-cell mfx-cell--avenir" title="Novembre : échéance le 5">830</td>
+                <td class="mfx-cell mfx-cell--avenir" title="Décembre : échéance le 5">830</td>
+                <td class="mfx-tot sf-gain">3&#8239;320&#8239;€</td>
               </tr>
               <tr>
-                <td>T3 Lyon</td>
-                <td class="mfx-cell mfx-cell--none" colspan="12">Aucun bail actif sur cet exercice</td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge pleine" title="Avril : taxe test">55</td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-tot">55&#8239;€</td>
+              </tr>
+
+              <!-- T3 Lyon — vacant : les loyers n'existent pas, les charges si -->
+              <tr>
+                <td class="mfx-bien-cell" rowspan="2">
+                  <div class="mfx-bien-cell__n">T3 Lyon</div>
+                  <div class="mfx-bien-cell__s">Lyon · 69007</div>
+                  <span class="sf-pill sf-pill--alert" style="margin-top:6px"><span class="sf-dot"></span>Vacant</span>
+                </td>
+                <td class="mfx-cell mfx-cell--none" colspan="12">Aucun bail sur cet exercice</td>
+                <td class="mfx-tot" style="color:var(--sf-text-3)">—</td>
               </tr>
               <tr>
-                <td>T4+ Paris 16e</td>
-                <td class="mfx-cell mfx-cell--none" colspan="12">Aucun bail actif sur cet exercice</td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-tot" style="color:var(--sf-text-3)">—</td>
+              </tr>
+
+              <!-- T4+ Paris 16e -->
+              <tr>
+                <td class="mfx-bien-cell" rowspan="2">
+                  <div class="mfx-bien-cell__n">T4+ Paris 16e</div>
+                  <div class="mfx-bien-cell__s">Paris 16e · 75016</div>
+                  <span class="sf-pill sf-pill--alert" style="margin-top:6px"><span class="sf-dot"></span>Vacant</span>
+                </td>
+                <td class="mfx-cell mfx-cell--none" colspan="12">Aucun bail sur cet exercice</td>
+                <td class="mfx-tot" style="color:var(--sf-text-3)">—</td>
+              </tr>
+              <tr>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-tot" style="color:var(--sf-text-3)">—</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <div class="mfx-legend">
-          <span><i style="background:var(--sf-gain)"></i>Encaissé</span>
-          <span><i style="background:var(--sf-loss)"></i>Échu, non soldé</span>
-          <span><i class="vide"></i>À venir</span>
-          <span><i style="background:var(--sf-surface-2)"></i>Pas de bail</span>
-        </div>
       </div>
     </div>
 
-    <div class="sff-block">
-      <div class="sff-block__h">
-        <p class="sff-block__t">Charges payées</p>
-        <div class="sff-block__a"><button class="sf-btn sf-btn--secondary sf-btn--sm">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          Enregistrer une charge</button></div>
-      </div>
-      <div class="sff-block__b">
-        <div class="sff-lines">
-          <div class="sff-line">
-            <span class="sff-line__l">Autre <small>· taxe test · Immeuble Paris 18e · 15 avril 2026</small></span>
-            <span class="sff-line__v">55&#8239;€</span>
+    <div class="sff-grid2">
+      <div class="sff-block">
+        <div class="sff-block__h"><p class="sff-block__t">Légende</p></div>
+        <div class="sff-block__b">
+          <div class="mfx-legend" style="margin-top:0;flex-direction:column;gap:var(--sf-space-4)">
+            <span><i style="background:var(--sf-gain)"></i>Encaissé — le montant est celui reçu</span>
+            <span><i style="background:var(--sf-loss)"></i>Échu, non soldé — le montant est celui attendu</span>
+            <span><i class="vide"></i>À venir — l'échéance n'est pas arrivée</span>
+            <span><i style="background:var(--sf-alert)"></i>Charge enregistrée</span>
+            <span><i style="background:var(--sf-surface-2)"></i>Aucun bail sur la période</span>
           </div>
-          <div class="sff-line sff-line--tot">
-            <span class="sff-line__l">Total de l'exercice</span>
-            <span class="sff-line__v">55&#8239;€</span>
+        </div>
+      </div>
+      <div class="sff-block">
+        <div class="sff-block__h"><p class="sff-block__t">Bilan de l'exercice</p></div>
+        <div class="sff-block__b">
+          <div class="sff-lines">
+            <div class="sff-line"><span class="sff-line__l">Loyers encaissés</span><span class="sff-line__v sf-gain">3&#8239;320&#8239;€</span></div>
+            <div class="sff-line"><span class="sff-line__l">Charges payées</span><span class="sff-line__v">55&#8239;€</span></div>
+            <div class="sff-line"><span class="sff-line__l">Mensualités de crédit <small>· 8 mois écoulés</small></span><span class="sff-line__v">22&#8239;400&#8239;€</span></div>
+            <div class="sff-line sff-line--tot"><span class="sff-line__l">Cashflow constaté</span><span class="sff-line__v sf-loss">−19&#8239;135&#8239;€</span></div>
+          </div>
+          <p class="sff-sep">Reste à encaisser</p>
+          <div class="sff-lines">
+            <div class="sff-line"><span class="sff-line__l">Loyers échus non soldés <small>· 4 mois</small></span><span class="sff-line__v sf-loss">3&#8239;320&#8239;€</span></div>
+            <div class="sff-line"><span class="sff-line__l">Loyers à venir <small>· 4 mois</small></span><span class="sff-line__v">3&#8239;320&#8239;€</span></div>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ══════════════ LOCATAIRES ══════════════ -->
+  <!-- ══════════════ LOCATAIRES ══════════════
+       L'onglet ne portait qu'un annuaire. Il porte désormais ce qu'un bailleur
+       vient y chercher : ce qu'il doit réclamer, et ce qu'il va recevoir. -->
   <section class="mfx-pane" data-p="locataires" hidden>
     <div class="sff-block">
       <div class="sff-block__h">
@@ -526,7 +684,60 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
           </div>
           <div class="mfx-loc__m">
             <div>830&#8239;€ <span style="color:var(--sf-text-3);font-family:var(--sf-font-ui);font-size:var(--sf-font-caption)">/mois HC</span></div>
-            <div class="mfx-loc__s sf-loss">4 loyers échus non soldés</div>
+            <div class="mfx-loc__s">14 mois de bail</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sff-grid2">
+      <div class="sff-block">
+        <div class="sff-block__h">
+          <p class="sff-block__t">À réclamer</p>
+          <span class="sff-block__n">4 échéances</span>
+        </div>
+        <div class="sff-block__b">
+          <div class="mfx-relance">
+            <div>
+              <div class="mfx-relance__t"><b>3&#8239;320&#8239;€</b> dus par Test V1</div>
+              <div class="mfx-relance__s">Le plus ancien remonte à février, soit six mois.</div>
+            </div>
+            <button class="sf-btn sf-btn--secondary sf-btn--sm" style="margin-left:auto">Relancer</button>
+          </div>
+          <div class="sff-lines">
+            <div class="sff-line"><span class="sff-line__l">Février 2026 <small>· 6 mois de retard</small></span><span class="sff-line__v sf-loss">830&#8239;€</span></div>
+            <div class="sff-line"><span class="sff-line__l">Juin 2026 <small>· 2 mois de retard</small></span><span class="sff-line__v sf-loss">830&#8239;€</span></div>
+            <div class="sff-line"><span class="sff-line__l">Juillet 2026 <small>· 1 mois de retard</small></span><span class="sff-line__v sf-loss">830&#8239;€</span></div>
+            <div class="sff-line"><span class="sff-line__l">Août 2026 <small>· échu le 6</small></span><span class="sff-line__v sf-loss">830&#8239;€</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sff-block">
+        <div class="sff-block__h">
+          <p class="sff-block__t">Prochaines échéances</p>
+          <span class="sff-block__n">3&#8239;320&#8239;€ attendus</span>
+        </div>
+        <div class="sff-block__b">
+          <div class="mfx-ech">
+            <span class="mfx-ech__d">5 sept. 2026</span>
+            <span class="mfx-ech__l">Test V1 · Immeuble Paris 18e</span>
+            <span class="mfx-ech__v">830&#8239;€</span>
+          </div>
+          <div class="mfx-ech">
+            <span class="mfx-ech__d">5 oct. 2026</span>
+            <span class="mfx-ech__l">Test V1 · Immeuble Paris 18e</span>
+            <span class="mfx-ech__v">830&#8239;€</span>
+          </div>
+          <div class="mfx-ech">
+            <span class="mfx-ech__d">5 nov. 2026</span>
+            <span class="mfx-ech__l">Test V1 · Immeuble Paris 18e</span>
+            <span class="mfx-ech__v">830&#8239;€</span>
+          </div>
+          <div class="mfx-ech">
+            <span class="mfx-ech__d">5 déc. 2026</span>
+            <span class="mfx-ech__l">Test V1 · Immeuble Paris 18e</span>
+            <span class="mfx-ech__v">830&#8239;€</span>
           </div>
         </div>
       </div>
