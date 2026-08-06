@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stonefolio — Maquette « Module financier »</title>
+<!-- v=59 : la generation d'assets en cours. Cette maquette ne modifie ni
+     tokens.css ni components.css — le navigateur doit reutiliser les siens. -->
+<link rel="stylesheet" href="tokens.css?v=59">
+<link rel="stylesheet" href="components.css?v=59">
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAQUETTE « MODULE FINANCIER » — phase 5, iteration 1
+   Servie en production pour utiliser les VRAIS tokens.css et components.css.
+   Rien ne part dans styles.css/app.js tant que ce n'est pas valide.
+
+   LES COMPOSANTS SONT CEUX DE LA FICHE BIEN, repris a l'identique : meme
+   gabarit de carte (.sff-block), memes lignes chiffrees (.sff-line), memes
+   etats vides, meme affordance d'edition. C'est le mot d'ordre « uniforme »
+   rendu litteral — si ces composants ne suffisent pas ici, c'est qu'ils sont
+   incomplets, pas qu'il faut en inventer d'autres.
+
+   Donnees : celles de la base de Thomas, exercice 2026, recalculees en SQL.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-ui);
+      margin:0; font-size:var(--sf-font-body); }
+.mfx-wrap{ padding:clamp(16px, 1.6vw, 34px); max-width:1840px; margin:0 auto; }
+
+.mfx-note{ border:1px dashed var(--sf-border-strong); border-radius:var(--sf-radius-md);
+  padding:var(--sf-space-5) var(--sf-space-6); margin-bottom:var(--sf-space-8);
+  font-size:var(--sf-font-caption); color:var(--sf-text-2); line-height:var(--sf-lh-normal); }
+.mfx-note b{ color:var(--sf-text); }
+.mfx-note ul{ margin:var(--sf-space-4) 0 0; padding-left:var(--sf-space-7); }
+.mfx-note li{ margin-bottom:var(--sf-space-3); }
+.mfx-note code{ font-family:var(--sf-font-num); font-size:11px; }
+
+/* ── Bandeau de titre + sélecteur d'exercice ──────────────────────────────────
+   L'exercice est posé UNE fois, en haut du module, et vaut pour les quatre
+   onglets. Avant, la Vue d'ensemble raisonnait sur 12 mois glissants et la
+   Rentabilité sur l'année civile : deux chiffres du même module ne parlaient
+   pas de la même période, sans que rien ne le dise. */
+.mfx-top{ display:flex; align-items:flex-end; justify-content:space-between;
+  gap:var(--sf-space-6); flex-wrap:wrap; margin-bottom:var(--sf-space-7); }
+.mfx-h1{ font-family:var(--sf-font-display); font-size:clamp(26px, 2.3vw, 42px);
+  font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight);
+  line-height:var(--sf-lh-tight); margin:0; }
+.mfx-sub{ font-size:var(--sf-font-body); color:var(--sf-text-3); margin:var(--sf-space-3) 0 0; }
+.mfx-exo{ display:flex; align-items:center; gap:var(--sf-space-4); }
+.mfx-exo__l{ font-size:var(--sf-font-label); font-weight:var(--sf-weight-semibold);
+  letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-3); }
+.mfx-exo select{ height:var(--sf-control-h); padding:0 var(--sf-space-6);
+  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border-strong);
+  border-radius:var(--sf-radius-sm); color:var(--sf-text); font-family:var(--sf-font-num);
+  font-size:var(--sf-font-body); cursor:pointer; }
+
+/* ── Indicateurs ─────────────────────────────────────────────────────────── */
+.mfx-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+  gap:1px; background:var(--sf-border); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-md); overflow:hidden; }
+.mfx-kpi{ background:var(--sf-surface); padding:clamp(14px,1.2vw,22px);
+  display:flex; flex-direction:column; gap:var(--sf-space-2); min-width:0; position:relative; }
+.mfx-kpi--hi{ background:var(--sf-brand-wash); }
+.mfx-kpi--hi::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+  background:var(--sf-brand-vivid); }
+.mfx-kpi--hi .mfx-kpi__l, .mfx-kpi--hi .mfx-kpi__s{ color:var(--sf-text-2); }
+.mfx-kpi__l{ font-size:var(--sf-font-label); font-weight:var(--sf-weight-semibold);
+  letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-3); }
+.mfx-kpi__v{ font-family:var(--sf-font-display); font-size:clamp(24px,1.9vw,34px);
+  font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight);
+  line-height:var(--sf-lh-tight); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.mfx-kpi__v--gain{ color:var(--sf-gain); } .mfx-kpi__v--loss{ color:var(--sf-loss); }
+.mfx-kpi__v--none{ color:var(--sf-text-3); font-family:var(--sf-font-ui);
+  font-size:var(--sf-font-lead); font-weight:var(--sf-weight-regular); }
+.mfx-kpi__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); }
+
+/* Mention des biens écartés — sous le bandeau, jamais dedans : c'est une
+   réserve sur la portée du chiffre, pas un chiffre de plus. */
+.mfx-reserve{ display:flex; align-items:flex-start; gap:var(--sf-space-4);
+  margin:var(--sf-space-5) 0 var(--sf-space-7); font-size:var(--sf-font-body-sm);
+  color:var(--sf-text-3); line-height:var(--sf-lh-normal); }
+.mfx-reserve svg{ flex-shrink:0; margin-top:1px; }
+.mfx-reserve b{ color:var(--sf-alert); font-weight:var(--sf-weight-semibold); }
+
+/* ── Onglets ─────────────────────────────────────────────────────────────── */
+.mfx-tabs{ display:flex; gap:var(--sf-space-2); overflow-x:auto;
+  border-bottom:var(--sf-border-width) solid var(--sf-border); margin-bottom:var(--sf-space-6); }
+.mfx-tabs::-webkit-scrollbar{ display:none; }
+.mfx-tab{ position:relative; display:inline-flex; align-items:center; gap:var(--sf-space-3);
+  padding:var(--sf-space-5) var(--sf-space-5); border:0; background:transparent; cursor:pointer;
+  font-family:var(--sf-font-display); font-size:var(--sf-font-lead);
+  font-weight:var(--sf-weight-semibold); color:var(--sf-text-3);
+  letter-spacing:var(--sf-track-snug); white-space:nowrap; }
+.mfx-tab:hover{ color:var(--sf-text-2); }
+.mfx-tab[aria-selected="true"]{ color:var(--sf-text); }
+.mfx-tab[aria-selected="true"]::after{ content:''; position:absolute; left:var(--sf-space-5);
+  right:var(--sf-space-5); bottom:-1px; height:2px; background:var(--sf-brand-vivid); border-radius:1px; }
+.mfx-tab__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
+  font-weight:var(--sf-weight-semibold); color:var(--sf-text-3);
+  background:var(--sf-surface-2); border-radius:var(--sf-radius-full); padding:1px 7px; }
+.mfx-tab[aria-selected="true"] .mfx-tab__n{ background:var(--sf-brand-wash-2); color:var(--sf-brand-vivid); }
+.mfx-tab__n--alerte{ background:var(--sf-alert-wash); color:var(--sf-alert); }
+.mfx-pane[hidden]{ display:none; }
+
+/* ── GABARIT DE CARTE — identique a la fiche bien ───────────────────────── */
+.sff-block{ background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-md); margin-bottom:var(--sf-space-5); min-width:0;
+  overflow:hidden; display:flex; flex-direction:column; }
+.sff-block:last-child{ margin-bottom:0; }
+.sff-block__h{ display:flex; align-items:center; gap:var(--sf-space-5);
+  min-height:52px; padding:0 var(--sf-space-7); flex-shrink:0;
+  border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.sff-block__t{ font-size:var(--sf-font-label); font-weight:var(--sf-weight-semibold);
+  letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-3); margin:0; }
+.sff-block__n{ margin-left:auto; font-size:var(--sf-font-caption); color:var(--sf-text-3);
+  font-variant-numeric:tabular-nums; }
+.sff-block__a{ margin-left:auto; display:flex; gap:var(--sf-space-4); }
+.sff-block__b{ padding:var(--sf-space-7); flex:1; display:flex; flex-direction:column; }
+.sff-block__b--flush{ padding:0; }
+.sff-grid2{ display:grid; grid-template-columns:1fr 1fr; gap:var(--sf-space-5); align-items:stretch; }
+@media (max-width:1180px){ .sff-grid2{ grid-template-columns:1fr; } }
+.sff-grid2 > .sff-block{ margin-bottom:var(--sf-space-5); }
+
+.sff-lines{ display:flex; flex-direction:column; }
+.sff-line{ display:grid; grid-template-columns:minmax(0,1fr) auto;
+  gap:var(--sf-space-5); align-items:center; padding:var(--sf-space-4) 0;
+  border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.sff-line:last-of-type{ border-bottom:0; padding-bottom:0; }
+.sff-line__l{ font-size:var(--sf-font-body); color:var(--sf-text-2); min-width:0; }
+.sff-line__l small{ font-size:var(--sf-font-caption); color:var(--sf-text-3); }
+.sff-line__v{ font-family:var(--sf-font-num); font-size:var(--sf-font-body);
+  font-variant-numeric:tabular-nums; color:var(--sf-text); text-align:right; white-space:nowrap; }
+.sff-line--tot{ border-top:2px solid var(--sf-border-strong); border-bottom:0;
+  margin-top:var(--sf-space-4); padding-top:var(--sf-space-5); }
+.sff-line--tot .sff-line__l{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
+.sff-line--tot .sff-line__v{ font-size:var(--sf-font-lead); font-weight:var(--sf-weight-bold); }
+.sff-sep{ margin:var(--sf-space-7) 0 var(--sf-space-4); font-size:var(--sf-font-label);
+  font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-caps);
+  text-transform:uppercase; color:var(--sf-text-3); }
+.sff-sep:first-child{ margin-top:0; }
+
+.sff-empty{ display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; gap:var(--sf-space-4); min-height:236px; flex:1;
+  padding:var(--sf-space-8) var(--sf-space-7); color:var(--sf-text-3); }
+.sff-empty__ic{ color:var(--sf-text-3); opacity:.55; line-height:0; }
+.sff-empty__t{ font-family:var(--sf-font-display); font-size:var(--sf-font-h3);
+  font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
+.sff-empty__x{ font-size:var(--sf-font-body-sm); max-width:54ch; line-height:var(--sf-lh-normal); }
+.sff-empty .sf-btn{ margin-top:var(--sf-space-3); }
+
+/* ── Tableau du portefeuille ─────────────────────────────────────────────── */
+.mfx-tw{ overflow-x:auto; }
+.mfx-t{ width:100%; border-collapse:collapse; font-size:var(--sf-font-body-sm); }
+.mfx-t th{ text-align:left; font-size:var(--sf-font-caption); text-transform:uppercase;
+  letter-spacing:var(--sf-track-caps); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text-3); padding:var(--sf-space-4) var(--sf-space-6);
+  border-bottom:var(--sf-border-width) solid var(--sf-border); white-space:nowrap; }
+.mfx-t td{ padding:var(--sf-space-6); border-bottom:var(--sf-border-width) solid var(--sf-border);
+  vertical-align:middle; }
+.mfx-t tbody tr:last-child td{ border-bottom:0; }
+.mfx-t tbody tr{ cursor:pointer; }
+.mfx-t tbody tr:hover{ background:var(--sf-surface-2); }
+/* Montants a DROITE, en-tetes comprises — regle arretee le 05/08/2026 */
+.mfx-t .num{ text-align:right; font-family:var(--sf-font-num);
+  font-variant-numeric:tabular-nums; white-space:nowrap; }
+.mfx-t__b{ font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
+.mfx-t__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
+/* Une ligne sans donnee ne porte AUCUN chiffre : ni zero, ni tiret muet. */
+.mfx-t tr.vide{ background:repeating-linear-gradient(-45deg, transparent, transparent 9px,
+  rgba(240,180,41,.035) 9px, rgba(240,180,41,.035) 18px); }
+.mfx-t tr.vide td{ color:var(--sf-text-3); }
+.mfx-acompleter{ display:inline-flex; align-items:center; gap:var(--sf-space-3);
+  font-size:var(--sf-font-caption); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-alert); background:var(--sf-alert-wash);
+  border-radius:var(--sf-radius-full); padding:3px var(--sf-space-5); white-space:nowrap; }
+
+/* ── Barre de contribution ───────────────────────────────────────────────── */
+.mfx-bar{ display:flex; align-items:center; gap:var(--sf-space-4); justify-content:flex-end; }
+.mfx-bar__b{ width:70px; height:5px; border-radius:3px; background:var(--sf-surface-3);
+  overflow:hidden; flex-shrink:0; position:relative; }
+.mfx-bar__f{ display:block; height:100%; border-radius:3px; }
+.mfx-bar__v{ min-width:88px; text-align:right; }
+
+/* ── Graphique en barres, sans bibliotheque ──────────────────────────────────
+   Douze colonnes, une par mois. Les mois a venir sont en creux : ils ne
+   valent pas zero, ils ne sont pas encore arrives. */
+.mfx-chart{ display:grid; grid-template-columns:repeat(12,1fr); gap:var(--sf-space-3);
+  align-items:end; height:180px; padding-top:var(--sf-space-5); }
+.mfx-col{ display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+  height:100%; gap:var(--sf-space-3); }
+.mfx-col__b{ width:100%; max-width:36px; border-radius:3px 3px 0 0; min-height:2px; }
+.mfx-col__b--gain{ background:var(--sf-gain); }
+.mfx-col__b--loss{ background:var(--sf-loss); }
+.mfx-col__b--vide{ background:transparent; border:1px dashed var(--sf-border-strong);
+  border-bottom:0; border-radius:3px 3px 0 0; }
+.mfx-col__l{ font-size:10px; color:var(--sf-text-3); font-family:var(--sf-font-num); }
+.mfx-legend{ display:flex; gap:var(--sf-space-7); flex-wrap:wrap; margin-top:var(--sf-space-6);
+  font-size:var(--sf-font-caption); color:var(--sf-text-3); }
+.mfx-legend span{ display:inline-flex; align-items:center; gap:var(--sf-space-3); }
+.mfx-legend i{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+.mfx-legend i.gain{ background:var(--sf-gain); }
+.mfx-legend i.loss{ background:var(--sf-loss); }
+.mfx-legend i.vide{ background:transparent; border:1px dashed var(--sf-border-strong); }
+
+/* ── Grille de saisie du suivi mensuel ───────────────────────────────────── */
+.mfx-grille{ width:100%; border-collapse:separate; border-spacing:2px;
+  font-size:var(--sf-font-caption); }
+.mfx-grille th{ font-size:10px; text-transform:uppercase; letter-spacing:var(--sf-track-caps);
+  color:var(--sf-text-3); font-weight:var(--sf-weight-semibold); padding:var(--sf-space-3);
+  text-align:center; }
+.mfx-grille th:first-child{ text-align:left; min-width:200px; }
+.mfx-grille td:first-child{ font-size:var(--sf-font-body-sm); color:var(--sf-text); }
+.mfx-cell{ border-radius:var(--sf-radius-xs); padding:var(--sf-space-4) var(--sf-space-3);
+  text-align:center; font-family:var(--sf-font-num); cursor:pointer;
+  transition:filter var(--sf-dur) var(--sf-ease); }
+.mfx-cell:hover{ filter:brightness(1.25); }
+.mfx-cell--ok{ background:var(--sf-gain-wash); color:var(--sf-gain); }
+.mfx-cell--ko{ background:var(--sf-loss-wash); color:var(--sf-loss); }
+.mfx-cell--avenir{ background:transparent; border:1px dashed var(--sf-border-strong);
+  color:var(--sf-text-3); }
+.mfx-cell--none{ background:var(--sf-surface-2); color:var(--sf-text-3); }
+
+/* ── Comparaison réel / prévisionnel ─────────────────────────────────────── */
+.mfx-comp{ display:grid; grid-template-columns:auto minmax(0,1fr) auto;
+  gap:var(--sf-space-5); align-items:center; margin-bottom:var(--sf-space-5); }
+.mfx-comp__l{ font-size:var(--sf-font-body); color:var(--sf-text-2); white-space:nowrap; }
+.mfx-comp__bar{ background:var(--sf-surface-2); border-radius:var(--sf-radius-full);
+  height:13px; overflow:hidden; }
+.mfx-comp__f{ height:100%; border-radius:var(--sf-radius-full); min-width:2px; }
+.mfx-comp__v{ font-family:var(--sf-font-num); font-size:var(--sf-font-body);
+  font-variant-numeric:tabular-nums; text-align:right; min-width:104px; white-space:nowrap; }
+
+.mfx-verdict{ display:flex; gap:var(--sf-space-5); align-items:flex-start;
+  background:var(--sf-surface-2); border-left:3px solid var(--sf-loss);
+  border-radius:var(--sf-radius-sm); padding:var(--sf-space-6);
+  font-size:var(--sf-font-body-sm); color:var(--sf-text-2); line-height:var(--sf-lh-normal);
+  margin-top:var(--sf-space-6); }
+.mfx-verdict svg{ flex-shrink:0; margin-top:1px; color:var(--sf-loss); }
+.mfx-verdict b{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
+
+.mfx-sel{ display:flex; align-items:center; gap:var(--sf-space-5); flex-wrap:wrap;
+  margin-bottom:var(--sf-space-6); }
+.mfx-sel select{ height:var(--sf-control-h); padding:0 var(--sf-space-6);
+  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border-strong);
+  border-radius:var(--sf-radius-sm); color:var(--sf-text); font-family:inherit;
+  font-size:var(--sf-font-body); cursor:pointer; min-width:280px; }
+
+.mfx-loc{ display:flex; align-items:center; gap:var(--sf-space-5);
+  padding:var(--sf-space-5) 0; border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.mfx-loc:last-child{ border-bottom:0; }
+.mfx-loc__av{ width:38px; height:38px; border-radius:50%; background:var(--sf-brand-2);
+  color:var(--sf-text); display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:var(--sf-weight-bold); flex-shrink:0; }
+.mfx-loc__n{ font-size:var(--sf-font-body); font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
+.mfx-loc__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
+.mfx-loc__m{ margin-left:auto; font-family:var(--sf-font-num); text-align:right; white-space:nowrap; }
+</style>
+</head>
+<body>
+<div class="mfx-wrap">
+
+  <p class="mfx-note">
+    <b>Maquette « Module financier » — itération 1, non déployée dans l'application.</b>
+    Données réelles, exercice 2026, recalculées en SQL sur la base.
+    <ul>
+      <li><b>Deux défauts de calcul corrigés, tes arbitrages appliqués.</b>
+          (1) Le cashflow consolidé annonçait <code>−80 360 €</code> ; le réel constatable est
+          <code>−19 135 €</code>. L'écart venait de 12 mois de mensualités imputés quoi qu'il
+          arrive, et de deux biens sans aucune saisie qui pesaient <code>−53 400 €</code>.
+          (2) Le « Rendement net » retranchait le crédit : il est scindé en
+          <b>Rendement net</b> (hors crédit, comparable) et <b>Effort de trésorerie</b>.</li>
+      <li><b>Quatre onglets au lieu de cinq</b> : « Vue d'ensemble » et « Mes biens » portaient
+          les quatre mêmes indicateurs. Ils fusionnent en <b>Portefeuille</b>.</li>
+      <li><b>Un seul exercice pour tout le module</b>, posé en haut. La Vue d'ensemble
+          raisonnait sur 12 mois glissants pendant que la Rentabilité utilisait l'année civile.</li>
+      <li><b>Les composants sont ceux de la fiche bien</b>, repris à l'identique — même gabarit
+          de carte, mêmes lignes chiffrées, mêmes états vides.</li>
+    </ul>
+  </p>
+
+  <!-- ══ BANDEAU ═══════════════════════════════════════════════════════════ -->
+  <div class="mfx-top">
+    <div>
+      <h1 class="mfx-h1">Module financier</h1>
+      <p class="mfx-sub">Ce que vos biens ont réellement rapporté et coûté</p>
+    </div>
+    <div class="mfx-exo">
+      <span class="mfx-exo__l">Exercice</span>
+      <select aria-label="Exercice comptable">
+        <option>2026</option><option>2025</option><option>2024</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- ══ INDICATEURS CONSOLIDÉS ════════════════════════════════════════════ -->
+  <div class="mfx-kpis">
+    <div class="mfx-kpi mfx-kpi--hi">
+      <span class="mfx-kpi__l">Cashflow constaté</span>
+      <span class="mfx-kpi__v mfx-kpi__v--loss">−19&#8239;135&#8239;€</span>
+      <span class="mfx-kpi__s">8 mois écoulés, de janvier à août</span>
+    </div>
+    <div class="mfx-kpi">
+      <span class="mfx-kpi__l">Rendement net</span>
+      <span class="mfx-kpi__v mfx-kpi__v--loss">0,67&#8239;%</span>
+      <span class="mfx-kpi__s">en dessous de votre seuil de 5&#8239;%</span>
+    </div>
+    <div class="mfx-kpi">
+      <span class="mfx-kpi__l">Effort de trésorerie</span>
+      <span class="mfx-kpi__v mfx-kpi__v--loss">−2&#8239;392&#8239;€</span>
+      <span class="mfx-kpi__s">par mois, crédit compris</span>
+    </div>
+    <div class="mfx-kpi">
+      <span class="mfx-kpi__l">Occupation</span>
+      <span class="mfx-kpi__v">33&#8239;%</span>
+      <span class="mfx-kpi__s">1 bien loué sur 3</span>
+    </div>
+  </div>
+
+  <!-- La réserve est SOUS le bandeau, jamais dedans : elle qualifie la portée
+       des chiffres, elle n'est pas un chiffre de plus. -->
+  <p class="mfx-reserve">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.9" r=".7" fill="currentColor" stroke="none"/></svg>
+    <span><b>2 biens sur 3 sont écartés de ces indicateurs</b> : aucun loyer ni charge n'y a
+    encore été saisi. Les inclure ferait passer le cashflow de −19&#8239;135&#8239;€ à
+    −54&#8239;735&#8239;€ — un chiffre dont les deux tiers ne reposeraient sur aucune donnée.</span>
+  </p>
+
+  <!-- ══ ONGLETS ═══════════════════════════════════════════════════════════ -->
+  <div class="mfx-tabs" role="tablist">
+    <button class="mfx-tab" role="tab" aria-selected="true" data-t="portefeuille">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7.5" width="18" height="12.5" rx="2"/><path d="M9 7.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.5"/><path d="M3 13h18"/></svg>
+      Portefeuille
+    </button>
+    <button class="mfx-tab" role="tab" aria-selected="false" data-t="suivi">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+      Suivi mensuel
+      <span class="mfx-tab__n mfx-tab__n--alerte">4</span>
+    </button>
+    <button class="mfx-tab" role="tab" aria-selected="false" data-t="locataires">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-5.2 6.5-5.2s6.5 1.9 6.5 5.2"/><path d="M16.5 5.4a3.2 3.2 0 0 1 0 6.2M18 14.4c2.1.6 3.5 2 3.5 4.1"/></svg>
+      Locataires
+      <span class="mfx-tab__n">1</span>
+    </button>
+    <button class="mfx-tab" role="tab" aria-selected="false" data-t="renta">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V10M18 20V4M6 20v-6"/></svg>
+      Rentabilité
+    </button>
+  </div>
+
+  <!-- ══════════════ PORTEFEUILLE ══════════════ -->
+  <section class="mfx-pane" data-p="portefeuille">
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Vos biens</p>
+        <span class="sff-block__n">3 biens acquis · 1 927 000 € engagés</span>
+      </div>
+      <div class="sff-block__b sff-block__b--flush">
+        <div class="mfx-tw">
+          <table class="mfx-t">
+            <thead><tr>
+              <th>Bien</th>
+              <th class="num">Cashflow constaté</th>
+              <th class="num">Rendement net</th>
+              <th class="num">Effort /mois</th>
+              <th>Occupation</th>
+            </tr></thead>
+            <tbody>
+              <tr>
+                <td><div class="mfx-t__b">Immeuble Paris 18e</div>
+                    <div class="mfx-t__s">Paris · 728 200 € engagés</div></td>
+                <td class="num">
+                  <span class="mfx-bar">
+                    <span class="mfx-bar__b"><span class="mfx-bar__f" style="width:100%;background:var(--sf-loss)"></span></span>
+                    <span class="mfx-bar__v sf-loss">−19&#8239;135&#8239;€</span>
+                  </span>
+                </td>
+                <td class="num">0,67&#8239;%</td>
+                <td class="num sf-loss">−2&#8239;392&#8239;€</td>
+                <td><span class="sf-pill sf-pill--gain"><span class="sf-dot"></span>Loué</span></td>
+              </tr>
+              <tr class="vide">
+                <td><div class="mfx-t__b">T3 Lyon</div>
+                    <div class="mfx-t__s">Lyon · 246 600 € engagés</div></td>
+                <td class="num" colspan="3">
+                  <span class="mfx-acompleter">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                    Aucun loyer saisi
+                  </span>
+                </td>
+                <td><span class="sf-pill sf-pill--alert"><span class="sf-dot"></span>Vacant</span></td>
+              </tr>
+              <tr class="vide">
+                <td><div class="mfx-t__b">T4+ Paris 16e</div>
+                    <div class="mfx-t__s">Paris · 952 200 € engagés</div></td>
+                <td class="num" colspan="3">
+                  <span class="mfx-acompleter">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                    Aucun loyer saisi
+                  </span>
+                </td>
+                <td><span class="sf-pill sf-pill--alert"><span class="sf-dot"></span>Vacant</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Cashflow mois par mois</p>
+        <span class="sff-block__n">exercice 2026</span>
+      </div>
+      <div class="sff-block__b">
+        <div class="mfx-chart">
+          <!-- Hauteurs proportionnelles au plus fort mois (−2 800 €) :
+               −1 970 → 70 % · −2 025 → 72 % · −2 800 → 100 %. -->
+          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:70%" title="Janvier : −1 970 €"></span><span class="mfx-col__l">Jan</span></div>
+          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Février : −2 800 €, loyer non encaissé"></span><span class="mfx-col__l">Fév</span></div>
+          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:70%" title="Mars : −1 970 €"></span><span class="mfx-col__l">Mar</span></div>
+          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:72%" title="Avril : −2 025 €"></span><span class="mfx-col__l">Avr</span></div>
+          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:70%" title="Mai : −1 970 €"></span><span class="mfx-col__l">Mai</span></div>
+          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Juin : −2 800 €, loyer non encaissé"></span><span class="mfx-col__l">Jun</span></div>
+          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Juillet : −2 800 €, loyer non encaissé"></span><span class="mfx-col__l">Jul</span></div>
+          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Août : −2 800 €, loyer non encaissé"></span><span class="mfx-col__l">Aoû</span></div>
+          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--vide" style="height:40%"></span><span class="mfx-col__l">Sep</span></div>
+          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--vide" style="height:40%"></span><span class="mfx-col__l">Oct</span></div>
+          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--vide" style="height:40%"></span><span class="mfx-col__l">Nov</span></div>
+          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--vide" style="height:40%"></span><span class="mfx-col__l">Déc</span></div>
+        </div>
+        <div class="mfx-legend">
+          <span><i class="gain"></i>Mois positif</span>
+          <span><i class="loss"></i>Mois négatif</span>
+          <span><i class="vide"></i>À venir</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ SUIVI MENSUEL ══════════════ -->
+  <section class="mfx-pane" data-p="suivi" hidden>
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Loyers encaissés</p>
+        <span class="sff-block__n">exercice 2026 · cliquez une case pour pointer</span>
+      </div>
+      <div class="sff-block__b">
+        <div class="mfx-tw">
+          <table class="mfx-grille">
+            <thead><tr><th>Bien</th>
+              <th>Jan</th><th>Fév</th><th>Mar</th><th>Avr</th><th>Mai</th><th>Jun</th>
+              <th>Jul</th><th>Aoû</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Déc</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>Immeuble Paris 18e</td>
+                <td class="mfx-cell mfx-cell--ok">830</td>
+                <td class="mfx-cell mfx-cell--ko">—</td>
+                <td class="mfx-cell mfx-cell--ok">830</td>
+                <td class="mfx-cell mfx-cell--ok">830</td>
+                <td class="mfx-cell mfx-cell--ok">830</td>
+                <td class="mfx-cell mfx-cell--ko">—</td>
+                <td class="mfx-cell mfx-cell--ko">—</td>
+                <td class="mfx-cell mfx-cell--ko">—</td>
+                <td class="mfx-cell mfx-cell--avenir">·</td>
+                <td class="mfx-cell mfx-cell--avenir">·</td>
+                <td class="mfx-cell mfx-cell--avenir">·</td>
+                <td class="mfx-cell mfx-cell--avenir">·</td>
+              </tr>
+              <tr>
+                <td>T3 Lyon</td>
+                <td class="mfx-cell mfx-cell--none" colspan="12">Aucun bail actif sur cet exercice</td>
+              </tr>
+              <tr>
+                <td>T4+ Paris 16e</td>
+                <td class="mfx-cell mfx-cell--none" colspan="12">Aucun bail actif sur cet exercice</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="mfx-legend">
+          <span><i style="background:var(--sf-gain)"></i>Encaissé</span>
+          <span><i style="background:var(--sf-loss)"></i>Échu, non soldé</span>
+          <span><i class="vide"></i>À venir</span>
+          <span><i style="background:var(--sf-surface-2)"></i>Pas de bail</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Charges payées</p>
+        <div class="sff-block__a"><button class="sf-btn sf-btn--secondary sf-btn--sm">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Enregistrer une charge</button></div>
+      </div>
+      <div class="sff-block__b">
+        <div class="sff-lines">
+          <div class="sff-line">
+            <span class="sff-line__l">Autre <small>· taxe test · Immeuble Paris 18e · 15 avril 2026</small></span>
+            <span class="sff-line__v">55&#8239;€</span>
+          </div>
+          <div class="sff-line sff-line--tot">
+            <span class="sff-line__l">Total de l'exercice</span>
+            <span class="sff-line__v">55&#8239;€</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ LOCATAIRES ══════════════ -->
+  <section class="mfx-pane" data-p="locataires" hidden>
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Baux en cours</p>
+        <div class="sff-block__a"><button class="sf-btn sf-btn--secondary sf-btn--sm">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Ajouter un locataire</button></div>
+      </div>
+      <div class="sff-block__b">
+        <div class="mfx-loc">
+          <span class="mfx-loc__av">TV</span>
+          <div>
+            <div class="mfx-loc__n">Test V1</div>
+            <div class="mfx-loc__s">Immeuble Paris 18e · paiement le 5 du mois · entré le 1<sup>er</sup> juin 2025</div>
+          </div>
+          <div class="mfx-loc__m">
+            <div>830&#8239;€ <span style="color:var(--sf-text-3);font-family:var(--sf-font-ui);font-size:var(--sf-font-caption)">/mois HC</span></div>
+            <div class="mfx-loc__s sf-loss">4 loyers échus non soldés</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sff-block">
+      <div class="sff-block__h"><p class="sff-block__t">Biens sans locataire</p></div>
+      <div class="sff-block__b sff-block__b--flush">
+        <div class="sff-empty">
+          <div class="sff-empty__ic">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="12" r="4"/><path d="M12 12h9l-2.2 2.6M17.5 12v3"/></svg>
+          </div>
+          <div class="sff-empty__t">Deux biens acquis sans bail</div>
+          <div class="sff-empty__x">
+            T3 Lyon et T4+ Paris 16e sont à votre patrimoine mais ne produisent aucun loyer.
+            Leurs mensualités de crédit, elles, continuent de courir : 4 450&#8239;€ chaque mois.
+          </div>
+          <button class="sf-btn sf-btn--primary sf-btn--sm">Rattacher un locataire</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ RENTABILITÉ ══════════════ -->
+  <section class="mfx-pane" data-p="renta" hidden>
+    <div class="mfx-sel">
+      <select aria-label="Bien analysé">
+        <option>Immeuble Paris 18e — Paris</option>
+        <option>T3 Lyon — Lyon</option>
+        <option>T4+ Paris 16e — Paris</option>
+      </select>
+      <span style="font-size:var(--sf-font-caption);color:var(--sf-text-3)">SCI TEST Guénon</span>
+    </div>
+
+    <div class="sff-grid2">
+      <div class="sff-block">
+        <div class="sff-block__h"><p class="sff-block__t">Ce qui était prévu, ce qui s'est passé</p></div>
+        <div class="sff-block__b">
+          <div class="mfx-comp">
+            <span class="mfx-comp__l">Prévu</span>
+            <span class="mfx-comp__bar"><span class="mfx-comp__f" style="width:100%;background:var(--sf-gain)"></span></span>
+            <span class="mfx-comp__v sf-gain">+8&#8239;584&#8239;€</span>
+          </div>
+          <div class="mfx-comp">
+            <span class="mfx-comp__l">Constaté</span>
+            <span class="mfx-comp__bar"><span class="mfx-comp__f" style="width:0%;background:var(--sf-loss)"></span></span>
+            <span class="mfx-comp__v sf-loss">−19&#8239;135&#8239;€</span>
+          </div>
+          <div class="sff-lines" style="margin-top:var(--sf-space-6)">
+            <div class="sff-line sff-line--tot">
+              <span class="sff-line__l">Écart sur 8 mois</span>
+              <span class="sff-line__v sf-loss">−27&#8239;719&#8239;€</span>
+            </div>
+          </div>
+          <p class="mfx-verdict">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/><path d="M10.3 3.6 2.5 17.2A2 2 0 0 0 4.2 20h15.6a2 2 0 0 0 1.7-2.8L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg>
+            <span>La simulation tablait sur <b>+1 073&#8239;€ par mois</b> ; la réalité est de
+            <b>−2 392&#8239;€</b>. <b>Un loyer sur deux n'a pas été encaissé</b> — c'est la
+            première cause de l'écart, avant toute question de charges.</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="sff-block">
+        <div class="sff-block__h">
+          <p class="sff-block__t">Loyers non encaissés</p>
+          <span class="sff-block__n">50 % du dû</span>
+        </div>
+        <div class="sff-block__b">
+          <div class="sff-lines">
+            <div class="sff-line"><span class="sff-line__l">Février 2026</span><span class="sff-line__v sf-loss">830&#8239;€</span></div>
+            <div class="sff-line"><span class="sff-line__l">Juin 2026</span><span class="sff-line__v sf-loss">830&#8239;€</span></div>
+            <div class="sff-line"><span class="sff-line__l">Juillet 2026</span><span class="sff-line__v sf-loss">830&#8239;€</span></div>
+            <div class="sff-line"><span class="sff-line__l">Août 2026</span><span class="sff-line__v sf-loss">830&#8239;€</span></div>
+            <div class="sff-line sff-line--tot">
+              <span class="sff-line__l">Manque à encaisser</span>
+              <span class="sff-line__v sf-loss">3&#8239;320&#8239;€</span>
+            </div>
+          </div>
+          <p class="sff-sep">Composition du constaté</p>
+          <div class="sff-lines">
+            <div class="sff-line"><span class="sff-line__l">Loyers encaissés</span><span class="sff-line__v">3&#8239;320&#8239;€</span></div>
+            <div class="sff-line"><span class="sff-line__l">Charges payées</span><span class="sff-line__v">55&#8239;€</span></div>
+            <div class="sff-line"><span class="sff-line__l">Mensualités de crédit <small>· 8 mois</small></span><span class="sff-line__v">22&#8239;400&#8239;€</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Bilan comptable</p>
+        <span class="sff-block__n">SCI TEST Guénon · exercice 2026 · brouillon</span>
+      </div>
+      <div class="sff-block__b">
+        <p class="sff-line__l" style="margin:0 0 var(--sf-space-6)">
+          Les loyers encaissés et les charges payées de ce bien alimentent le bilan de la SCI.
+        </p>
+        <div style="display:flex;gap:var(--sf-space-4);flex-wrap:wrap">
+          <button class="sf-btn sf-btn--primary sf-btn--sm">Alimenter le bilan</button>
+          <button class="sf-btn sf-btn--secondary sf-btn--sm">Voir le bilan</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const tabs  = [...document.querySelectorAll('.mfx-tab')];
+const panes = [...document.querySelectorAll('.mfx-pane')];
+tabs.forEach(t => t.addEventListener('click', () => {
+  tabs.forEach(x => x.setAttribute('aria-selected', String(x === t)));
+  panes.forEach(p => { p.hidden = p.dataset.p !== t.dataset.t; });
+}));
+</script>
+</body>
+</html>
