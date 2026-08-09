@@ -4,23 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stonefolio — Maquette « Module financier »</title>
-<!-- v=59 : la generation d'assets en cours. Cette maquette ne modifie ni
-     tokens.css ni components.css — le navigateur doit reutiliser les siens. -->
 <link rel="stylesheet" href="tokens.css?v=59">
 <link rel="stylesheet" href="components.css?v=59">
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
-   MAQUETTE « MODULE FINANCIER » — phase 5, iteration 1
+   MAQUETTE « MODULE FINANCIER » — phase 5, iteration 3
    Servie en production pour utiliser les VRAIS tokens.css et components.css.
-   Rien ne part dans styles.css/app.js tant que ce n'est pas valide.
 
-   LES COMPOSANTS SONT CEUX DE LA FICHE BIEN, repris a l'identique : meme
-   gabarit de carte (.sff-block), memes lignes chiffrees (.sff-line), memes
-   etats vides, meme affordance d'edition. C'est le mot d'ordre « uniforme »
-   rendu litteral — si ces composants ne suffisent pas ici, c'est qu'ils sont
-   incomplets, pas qu'il faut en inventer d'autres.
+   Cette iteration REND les 21 capacites que le comparatif avait relevees
+   comme perdues (COMPARATIF-MODULE-FINANCIER.md). Le module financier est un
+   POSTE DE TRAVAIL, pas un ecran de lecture : sa densite est sa fonction.
 
-   Donnees : celles de la base de Thomas, exercice 2026, recalculees en SQL.
+   Donnees : base de Thomas, exercice 2026, series recalculees en SQL.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-ui);
@@ -35,11 +30,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-note li{ margin-bottom:var(--sf-space-3); }
 .mfx-note code{ font-family:var(--sf-font-num); font-size:11px; }
 
-/* ── Bandeau de titre + sélecteur d'exercice ──────────────────────────────────
-   L'exercice est posé UNE fois, en haut du module, et vaut pour les quatre
-   onglets. Avant, la Vue d'ensemble raisonnait sur 12 mois glissants et la
-   Rentabilité sur l'année civile : deux chiffres du même module ne parlaient
-   pas de la même période, sans que rien ne le dise. */
+/* ── Bandeau + exercice ──────────────────────────────────────────────────── */
 .mfx-top{ display:flex; align-items:flex-end; justify-content:space-between;
   gap:var(--sf-space-6); flex-wrap:wrap; margin-bottom:var(--sf-space-7); }
 .mfx-h1{ font-family:var(--sf-font-display); font-size:clamp(26px, 2.3vw, 42px);
@@ -70,12 +61,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight);
   line-height:var(--sf-lh-tight); font-variant-numeric:tabular-nums; white-space:nowrap; }
 .mfx-kpi__v--gain{ color:var(--sf-gain); } .mfx-kpi__v--loss{ color:var(--sf-loss); }
-.mfx-kpi__v--none{ color:var(--sf-text-3); font-family:var(--sf-font-ui);
-  font-size:var(--sf-font-lead); font-weight:var(--sf-weight-regular); }
 .mfx-kpi__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); }
-
-/* Mention des biens écartés — sous le bandeau, jamais dedans : c'est une
-   réserve sur la portée du chiffre, pas un chiffre de plus. */
 .mfx-reserve{ display:flex; align-items:flex-start; gap:var(--sf-space-4);
   margin:var(--sf-space-5) 0 var(--sf-space-7); font-size:var(--sf-font-body-sm);
   color:var(--sf-text-3); line-height:var(--sf-lh-normal); }
@@ -98,11 +84,12 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-tab__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
   font-weight:var(--sf-weight-semibold); color:var(--sf-text-3);
   background:var(--sf-surface-2); border-radius:var(--sf-radius-full); padding:1px 7px; }
-.mfx-tab[aria-selected="true"] .mfx-tab__n{ background:var(--sf-brand-wash-2); color:var(--sf-brand-vivid); }
+/* Même cause que les pastilles : le vif sur son propre lavis ne tient pas AA. */
+.mfx-tab[aria-selected="true"] .mfx-tab__n{ background:var(--sf-brand-wash-2); color:var(--sf-text); }
 .mfx-tab__n--alerte{ background:var(--sf-alert-wash); color:var(--sf-alert); }
 .mfx-pane[hidden]{ display:none; }
 
-/* ── GABARIT DE CARTE — identique a la fiche bien ───────────────────────── */
+/* ── Gabarit de carte, identique a la fiche bien ─────────────────────────── */
 .sff-block{ background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
   border-radius:var(--sf-radius-md); margin-bottom:var(--sf-space-5); min-width:0;
   overflow:hidden; display:flex; flex-direction:column; }
@@ -114,7 +101,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-3); margin:0; }
 .sff-block__n{ margin-left:auto; font-size:var(--sf-font-caption); color:var(--sf-text-3);
   font-variant-numeric:tabular-nums; }
-.sff-block__a{ margin-left:auto; display:flex; gap:var(--sf-space-4); }
+.sff-block__a{ margin-left:auto; display:flex; gap:var(--sf-space-4); flex-wrap:wrap; }
 .sff-block__b{ padding:var(--sf-space-7); flex:1; display:flex; flex-direction:column; }
 .sff-block__b--flush{ padding:0; }
 .sff-grid2{ display:grid; grid-template-columns:1fr 1fr; gap:var(--sf-space-5); align-items:stretch; }
@@ -138,7 +125,6 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-caps);
   text-transform:uppercase; color:var(--sf-text-3); }
 .sff-sep:first-child{ margin-top:0; }
-
 .sff-empty{ display:flex; flex-direction:column; align-items:center; justify-content:center;
   text-align:center; gap:var(--sf-space-4); min-height:236px; flex:1;
   padding:var(--sf-space-8) var(--sf-space-7); color:var(--sf-text-3); }
@@ -148,52 +134,97 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .sff-empty__x{ font-size:var(--sf-font-body-sm); max-width:54ch; line-height:var(--sf-lh-normal); }
 .sff-empty .sf-btn{ margin-top:var(--sf-space-3); }
 
-/* ── Tableau du portefeuille ─────────────────────────────────────────────── */
-.mfx-tw{ overflow-x:auto; }
-.mfx-t{ width:100%; border-collapse:collapse; font-size:var(--sf-font-body-sm); }
-.mfx-t th{ text-align:left; font-size:var(--sf-font-caption); text-transform:uppercase;
-  letter-spacing:var(--sf-track-caps); font-weight:var(--sf-weight-semibold);
-  color:var(--sf-text-3); padding:var(--sf-space-4) var(--sf-space-6);
-  border-bottom:var(--sf-border-width) solid var(--sf-border); white-space:nowrap; }
-.mfx-t td{ padding:var(--sf-space-6); border-bottom:var(--sf-border-width) solid var(--sf-border);
-  vertical-align:middle; }
-.mfx-t tbody tr:last-child td{ border-bottom:0; }
-.mfx-t tbody tr{ cursor:pointer; }
-.mfx-t tbody tr:hover{ background:var(--sf-surface-2); }
-/* Montants a DROITE, en-tetes comprises — regle arretee le 05/08/2026 */
-.mfx-t .num{ text-align:right; font-family:var(--sf-font-num);
-  font-variant-numeric:tabular-nums; white-space:nowrap; }
-.mfx-t__b{ font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
-.mfx-t__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
-/* Une ligne sans donnee ne porte AUCUN chiffre : ni zero, ni tiret muet. */
-.mfx-t tr.vide{ background:repeating-linear-gradient(-45deg, transparent, transparent 9px,
-  rgba(240,180,41,.035) 9px, rgba(240,180,41,.035) 18px); }
-.mfx-t tr.vide td{ color:var(--sf-text-3); }
-.mfx-acompleter{ display:inline-flex; align-items:center; gap:var(--sf-space-3);
-  font-size:var(--sf-font-caption); font-weight:var(--sf-weight-semibold);
-  color:var(--sf-alert); background:var(--sf-alert-wash);
-  border-radius:var(--sf-radius-full); padding:3px var(--sf-space-5); white-space:nowrap; }
+/* ── BARRE D'OUTILS : filtres + tri (R-06, R-07, R-08 rendus) ───────────── */
+.mfx-tools{ display:flex; gap:var(--sf-space-5); align-items:center; flex-wrap:wrap;
+  margin-bottom:var(--sf-space-6); }
+.mfx-pills{ display:flex; gap:var(--sf-space-3); flex-wrap:wrap; }
+.mfx-pill{ display:inline-flex; align-items:center; gap:var(--sf-space-3);
+  height:var(--sf-control-h-sm); padding:0 var(--sf-space-5);
+  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-full); color:var(--sf-text-2);
+  font-family:inherit; font-size:var(--sf-font-caption);
+  font-weight:var(--sf-weight-semibold); cursor:pointer; white-space:nowrap;
+  transition:background var(--sf-dur) var(--sf-ease), color var(--sf-dur) var(--sf-ease); }
+.mfx-pill:hover{ background:var(--sf-surface-2); color:var(--sf-text); }
+/* ⚠️ CONTRASTE — `--sf-brand-vivid` sur `--sf-brand-wash-2` ne tient que
+   4,16:1, sous le seuil AA. C'est la combinaison qu'on trouve un peu partout
+   pour marquer un état actif (pastilles, badges d'onglet). Le fond teinté
+   suffit à signaler l'état ; le texte prend la couleur pleine. */
+.mfx-pill[aria-pressed="true"]{ background:var(--sf-brand-wash-2); border-color:transparent;
+  color:var(--sf-text); }
+.mfx-pill__n{ font-family:var(--sf-font-num); font-size:11px; color:var(--sf-text-3); }
+.mfx-pill[aria-pressed="true"] .mfx-pill__n{ color:var(--sf-text-2); }
+.mfx-tri{ margin-left:auto; display:flex; align-items:center; gap:var(--sf-space-4); }
+.mfx-tri label{ font-size:var(--sf-font-caption); color:var(--sf-text-3); }
+.mfx-tri select{ height:var(--sf-control-h-sm); padding:0 var(--sf-space-5);
+  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); color:var(--sf-text); font-family:inherit;
+  font-size:var(--sf-font-caption); cursor:pointer; }
 
-/* ── Barre de contribution ───────────────────────────────────────────────── */
-.mfx-bar{ display:flex; align-items:center; gap:var(--sf-space-4); justify-content:flex-end; }
-.mfx-bar__b{ width:70px; height:5px; border-radius:3px; background:var(--sf-surface-3);
-  overflow:hidden; flex-shrink:0; position:relative; }
-.mfx-bar__f{ display:block; height:100%; border-radius:3px; }
-.mfx-bar__v{ min-width:88px; text-align:right; }
+/* ── CARTES DE BIEN (retour aux cartes, arbitrage du 10/08/2026) ─────────── */
+/* `min(370px, 100%)` et non `370px` : une piste minmax impose sa largeur même
+   quand le conteneur est plus étroit — la page débordait de 11 px en 375. */
+.mfx-cards{ display:grid; grid-template-columns:repeat(auto-fill,minmax(min(370px,100%),1fr));
+  gap:var(--sf-space-5); }
+.mfx-card{ background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-md); overflow:hidden; display:flex; flex-direction:column;
+  cursor:pointer; transition:border-color var(--sf-dur) var(--sf-ease); }
+.mfx-card:hover{ border-color:var(--sf-border-strong); }
+/* Un bien sans donnée saisie se signale par une trame, pas par un chiffre faux. */
+.mfx-card--vide{ background:var(--sf-surface);
+  background-image:repeating-linear-gradient(-45deg, transparent, transparent 10px,
+    rgba(240,180,41,.03) 10px, rgba(240,180,41,.03) 20px); }
+.mfx-card__h{ display:flex; align-items:center; gap:var(--sf-space-5);
+  padding:var(--sf-space-6); border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.mfx-card__ph{ width:52px; height:52px; border-radius:var(--sf-radius-sm); flex-shrink:0;
+  background:var(--sf-surface-2); background-size:cover; background-position:center;
+  display:flex; align-items:center; justify-content:center; color:var(--sf-text-3); }
+.mfx-card__t{ font-size:var(--sf-font-lead); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mfx-card__v{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
+.mfx-card__id{ min-width:0; flex:1; }
+.mfx-card__loc{ display:flex; align-items:center; gap:var(--sf-space-4);
+  padding:var(--sf-space-5) var(--sf-space-6); font-size:var(--sf-font-body-sm);
+  color:var(--sf-text-2); border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.mfx-card__loc svg{ flex-shrink:0; color:var(--sf-text-3); }
+.mfx-card__lien{ margin-left:auto; color:var(--sf-brand-vivid); text-decoration:none;
+  font-size:var(--sf-font-caption); font-weight:var(--sf-weight-semibold); white-space:nowrap; }
+.mfx-card__lien:hover{ text-decoration:underline; }
+.mfx-card__stats{ display:grid; grid-template-columns:1fr 1fr; gap:1px;
+  background:var(--sf-border); border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.mfx-stat{ background:var(--sf-surface); padding:var(--sf-space-5) var(--sf-space-6); }
+.mfx-card--vide .mfx-stat{ background:transparent; }
+.mfx-stat__l{ font-size:var(--sf-font-label); text-transform:uppercase;
+  letter-spacing:var(--sf-track-caps); color:var(--sf-text-3);
+  font-weight:var(--sf-weight-semibold); }
+.mfx-stat__v{ font-family:var(--sf-font-num); font-size:var(--sf-font-lead);
+  font-variant-numeric:tabular-nums; color:var(--sf-text); margin-top:var(--sf-space-2); }
+.mfx-stat__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
+.mfx-card__spark{ padding:var(--sf-space-5) var(--sf-space-6); }
+.mfx-spark__h{ display:flex; align-items:baseline; gap:var(--sf-space-4);
+  font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-bottom:var(--sf-space-4); }
+.mfx-spark__d{ margin-left:auto; font-family:var(--sf-font-num); }
+.mfx-card__cta{ padding:0 var(--sf-space-6) var(--sf-space-6); }
+.mfx-card__cta .sf-btn{ width:100%; }
 
-/* ── Graphique en barres, sans bibliotheque ──────────────────────────────────
-   Douze colonnes, une par mois. Les mois a venir sont en creux : ils ne
-   valent pas zero, ils ne sont pas encore arrives. */
-.mfx-chart{ display:grid; grid-template-columns:repeat(12,1fr); gap:var(--sf-space-3);
-  align-items:end; height:180px; padding-top:var(--sf-space-5); }
+/* ── GRAPHIQUES ──────────────────────────────────────────────────────────────
+   Trois graphiques retenus : cashflow consolidé par mois, entrées vs sorties
+   (Portefeuille), cumul sur l'exercice (Rentabilité). Dessinés ici en CSS et
+   SVG ; à l'implémentation ils passeront par Chart.js, déjà chargé. */
+.mfx-chart{ display:grid; grid-template-columns:repeat(8,1fr); gap:var(--sf-space-4);
+  align-items:end; height:170px; }
 .mfx-col{ display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
   height:100%; gap:var(--sf-space-3); }
-.mfx-col__b{ width:100%; max-width:36px; border-radius:3px 3px 0 0; min-height:2px; }
+.mfx-col__b{ width:100%; max-width:40px; border-radius:3px 3px 0 0; min-height:2px; }
 .mfx-col__b--gain{ background:var(--sf-gain); }
 .mfx-col__b--loss{ background:var(--sf-loss); }
-.mfx-col__b--vide{ background:transparent; border:1px dashed var(--sf-border-strong);
-  border-bottom:0; border-radius:3px 3px 0 0; }
 .mfx-col__l{ font-size:10px; color:var(--sf-text-3); font-family:var(--sf-font-num); }
+/* Entrées vs sorties : deux barres accolées par mois. */
+.mfx-duo{ display:flex; gap:2px; align-items:flex-end; width:100%; height:100%;
+  justify-content:center; }
+.mfx-duo span{ width:14px; border-radius:3px 3px 0 0; min-height:2px; }
+.mfx-duo .e{ background:var(--sf-gain); }
+.mfx-duo .s{ background:var(--sf-loss); }
 .mfx-legend{ display:flex; gap:var(--sf-space-7); flex-wrap:wrap; margin-top:var(--sf-space-6);
   font-size:var(--sf-font-caption); color:var(--sf-text-3); }
 .mfx-legend span{ display:inline-flex; align-items:center; gap:var(--sf-space-3); }
@@ -201,15 +232,10 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-legend i.gain{ background:var(--sf-gain); }
 .mfx-legend i.loss{ background:var(--sf-loss); }
 .mfx-legend i.vide{ background:transparent; border:1px dashed var(--sf-border-strong); }
+.mfx-legend i.trait{ height:0; border-top:2px dashed var(--sf-text-3); border-radius:0; width:16px; }
 
-/* ── GRILLE DE SAISIE DU SUIVI MENSUEL ───────────────────────────────────────
-   ⚠️ L'itération 1 avait fait REGRESSER cet écran : j'avais remplacé une
-   grille de saisie par une liste de lecture, et perdu au passage la saisie des
-   charges mois par mois, la colonne Total, le montant affiché dans chaque
-   case et les actions groupées. Thomas l'a vu sur les captures.
-   Cette grille reprend tout ce que l'écran actuel fait bien. Elle ne corrige
-   que ce qui était faux : les mois À VENIR ne se confondent plus avec les
-   loyers échus non soldés, et les totaux ne comptent que les mois écoulés. */
+/* ── Grille de saisie ────────────────────────────────────────────────────── */
+.mfx-tw{ overflow-x:auto; }
 .mfx-grille{ width:100%; border-collapse:separate; border-spacing:2px;
   font-size:var(--sf-font-caption); }
 .mfx-grille th{ font-size:10px; text-transform:uppercase; letter-spacing:var(--sf-track-caps);
@@ -217,46 +243,123 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   text-align:center; white-space:nowrap; }
 .mfx-grille th:first-child{ text-align:left; min-width:190px; padding-left:var(--sf-space-6); }
 .mfx-grille th.tot{ text-align:right; padding-right:var(--sf-space-6); }
-/* Le mois courant est repéré : c'est celui où l'on saisit. */
 .mfx-grille th.encours{ color:var(--sf-text); }
 .mfx-grille th.encours::after{ content:''; display:block; height:2px; margin-top:3px;
   background:var(--sf-brand-vivid); border-radius:1px; }
 .mfx-bien-cell{ padding:var(--sf-space-4) var(--sf-space-6); vertical-align:middle; }
 .mfx-bien-cell__n{ font-size:var(--sf-font-body-sm); font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
 .mfx-bien-cell__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
-/* La 2e ligne d'un bien (ses charges) n'a pas de nom : elle porte une étiquette
-   de rang, sinon on ne sait plus si l'on regarde des loyers ou des charges. */
-.mfx-rang{ font-size:10px; text-transform:uppercase; letter-spacing:var(--sf-track-caps);
-  color:var(--sf-text-3); padding:var(--sf-space-4) var(--sf-space-6); }
 .mfx-tot{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
   text-align:right; padding:var(--sf-space-4) var(--sf-space-6); white-space:nowrap;
   font-weight:var(--sf-weight-semibold); color:var(--sf-text); border-left:2px solid var(--sf-border); }
-
 .mfx-cell{ border-radius:var(--sf-radius-xs); padding:var(--sf-space-4) var(--sf-space-3);
   text-align:center; font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
-  cursor:pointer; min-width:56px; line-height:1.35;
+  cursor:pointer; min-width:56px; line-height:1.35; position:relative;
   transition:filter var(--sf-dur) var(--sf-ease), background var(--sf-dur) var(--sf-ease); }
 .mfx-cell:hover{ filter:brightness(1.3); }
 .mfx-cell__ic{ display:block; line-height:0; margin-bottom:2px; }
 .mfx-cell--ok{ background:var(--sf-gain-wash); color:var(--sf-gain); }
 .mfx-cell--ko{ background:var(--sf-loss-wash); color:var(--sf-loss); }
-/* « À venir » : contour et non teinte — ce n'est pas un état de paiement,
-   c'est une échéance qui n'est pas arrivée. Même parti que la fiche bien. */
+.mfx-cell--part{ background:var(--sf-alert-wash); color:var(--sf-alert); }
 .mfx-cell--avenir{ background:transparent; border:1px dashed var(--sf-border-strong);
   color:var(--sf-text-3); }
 .mfx-cell--none{ background:var(--sf-surface-2); color:var(--sf-text-3); cursor:default; }
-/* Case de charge vide : le « + » n'apparaît qu'au survol de la ligne, sinon
-   douze croix par bien saturent la grille et noient les montants réels. */
 .mfx-cell--charge{ background:var(--sf-surface-2); color:var(--sf-text-3); }
 .mfx-cell--charge.pleine{ background:var(--sf-alert-wash); color:var(--sf-alert); }
 .mfx-cell--charge .plus{ opacity:0; transition:opacity var(--sf-dur) var(--sf-ease); }
 .mfx-grille tr:hover .mfx-cell--charge .plus{ opacity:1; }
 .mfx-cell--charge:hover{ background:var(--sf-surface-3); }
+/* Le « ••• » ouvre la fenêtre d'encaissement détaillée (R-01). Il n'apparaît
+   qu'au survol : la case reste lisible, le geste avancé reste accessible. */
+.mfx-cell__more{ position:absolute; top:1px; right:3px; font-size:10px; line-height:1;
+  /* `currentColor` et non --sf-text-3 : sur les lavis colorés des cases, le gris
+     discret retombait à 4,04:1. La couleur de la case, elle, tient déjà AA. */
+  color:currentColor; opacity:0; transition:opacity var(--sf-dur) var(--sf-ease); }
+.mfx-cell:hover .mfx-cell__more{ opacity:1; }
 
-/* Barre d'actions groupées, dans l'en-tête de la carte */
-.mfx-actions{ margin-left:auto; display:flex; gap:var(--sf-space-4); flex-wrap:wrap; }
+/* Bandeau de filtre par bien (R-18) */
+.mfx-filtre{ display:flex; align-items:center; gap:var(--sf-space-5); flex-wrap:wrap;
+  background:var(--sf-brand-wash); border-left:3px solid var(--sf-brand-vivid);
+  border-radius:var(--sf-radius-sm); padding:var(--sf-space-5) var(--sf-space-6);
+  margin-bottom:var(--sf-space-5); font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
+.mfx-filtre b{ color:var(--sf-text); }
+.mfx-filtre .actions{ margin-left:auto; display:flex; gap:var(--sf-space-4); }
 
-/* ── Échéancier des loyers à venir (onglet Locataires) ───────────────────── */
+/* Liste des charges détaillées (R-02, R-03, R-05) */
+.mfx-charge{ display:grid; grid-template-columns:96px minmax(0,1fr) auto auto auto;
+  gap:var(--sf-space-5); align-items:center; padding:var(--sf-space-5) 0;
+  border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.mfx-charge:last-child{ border-bottom:0; }
+.mfx-charge__d{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); color:var(--sf-text-3); }
+.mfx-charge__c{ font-size:var(--sf-font-body-sm); color:var(--sf-text); }
+.mfx-charge__l{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
+.mfx-charge__tag{ font-size:10px; font-weight:var(--sf-weight-semibold);
+  text-transform:uppercase; letter-spacing:var(--sf-track-caps);
+  padding:2px var(--sf-space-4); border-radius:var(--sf-radius-full);
+  background:var(--sf-surface-3); color:var(--sf-text-2); white-space:nowrap; }
+.mfx-charge__v{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
+  text-align:right; min-width:88px; white-space:nowrap; }
+.mfx-charge__a{ display:flex; gap:var(--sf-space-3); opacity:0;
+  transition:opacity var(--sf-dur) var(--sf-ease); }
+.mfx-charge:hover .mfx-charge__a{ opacity:1; }
+.mfx-ic-btn{ width:28px; height:28px; display:inline-flex; align-items:center;
+  justify-content:center; background:transparent; border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); color:var(--sf-text-3); cursor:pointer;
+  transition:background var(--sf-dur) var(--sf-ease), color var(--sf-dur) var(--sf-ease); }
+.mfx-ic-btn:hover{ background:var(--sf-surface-3); color:var(--sf-text); }
+.mfx-ic-btn--danger:hover{ background:var(--sf-loss-wash); color:var(--sf-loss); }
+
+/* Aperçu de la fenêtre d'encaissement (R-01) */
+.mfx-popup{ max-width:420px; border:var(--sf-border-width) solid var(--sf-border-strong);
+  border-radius:var(--sf-radius-lg); background:var(--sf-surface-2); overflow:hidden;
+  box-shadow:var(--sf-elev-3); }
+.mfx-popup__h{ display:flex; align-items:center; padding:var(--sf-space-5) var(--sf-space-6);
+  border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.mfx-popup__t{ font-family:var(--sf-font-display); font-size:var(--sf-font-lead);
+  font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
+.mfx-popup__b{ padding:var(--sf-space-6); }
+.mfx-opt{ display:flex; align-items:center; gap:var(--sf-space-5);
+  padding:var(--sf-space-5); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); margin-bottom:var(--sf-space-3); cursor:pointer;
+  font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
+.mfx-opt:hover{ background:var(--sf-surface-3); }
+.mfx-opt[aria-checked="true"]{ border-color:var(--sf-brand-vivid);
+  background:var(--sf-brand-wash); color:var(--sf-text); }
+.mfx-opt__r{ width:15px; height:15px; border-radius:50%; flex-shrink:0;
+  border:2px solid var(--sf-border-strong); }
+.mfx-opt[aria-checked="true"] .mfx-opt__r{ border-color:var(--sf-brand-vivid);
+  background:radial-gradient(var(--sf-brand-vivid) 0 4px, transparent 4px); }
+.mfx-champ{ margin-top:var(--sf-space-5); }
+.mfx-champ label{ display:block; font-size:var(--sf-font-label); text-transform:uppercase;
+  letter-spacing:var(--sf-track-caps); color:var(--sf-text-3);
+  font-weight:var(--sf-weight-semibold); margin-bottom:var(--sf-space-3); }
+.mfx-champ input{ width:100%; height:var(--sf-control-h); padding:0 var(--sf-space-5);
+  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); color:var(--sf-text); font-family:var(--sf-font-num);
+  font-size:var(--sf-font-body); }
+.mfx-prorata{ display:flex; gap:var(--sf-space-4); align-items:flex-start;
+  font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-bottom:var(--sf-space-5);
+  line-height:var(--sf-lh-normal); }
+
+/* ── Locataires ──────────────────────────────────────────────────────────── */
+.mfx-loccards{ display:grid; grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));
+  gap:var(--sf-space-5); }
+.mfx-loccard{ background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-md); padding:var(--sf-space-6); cursor:pointer;
+  position:relative; transition:border-color var(--sf-dur) var(--sf-ease); }
+.mfx-loccard:hover{ border-color:var(--sf-border-strong); }
+.mfx-loccard__st{ position:absolute; top:var(--sf-space-5); right:var(--sf-space-5); }
+.mfx-loccard__h{ display:flex; align-items:center; gap:var(--sf-space-5);
+  margin-bottom:var(--sf-space-6); }
+.mfx-loccard__av{ width:42px; height:42px; border-radius:50%; background:var(--sf-brand-2);
+  color:var(--sf-text); display:flex; align-items:center; justify-content:center;
+  font-size:14px; font-weight:var(--sf-weight-bold); flex-shrink:0; }
+.mfx-loccard__n{ font-size:var(--sf-font-lead); font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
+.mfx-loccard__c{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
+.mfx-li{ display:flex; align-items:center; gap:var(--sf-space-4);
+  font-size:var(--sf-font-body-sm); color:var(--sf-text-2); padding:var(--sf-space-3) 0; }
+.mfx-li svg{ flex-shrink:0; color:var(--sf-text-3); }
+.mfx-li em{ font-style:normal; color:var(--sf-text-3); }
 .mfx-ech{ display:grid; grid-template-columns:auto minmax(0,1fr) auto;
   gap:var(--sf-space-5); align-items:center; padding:var(--sf-space-5) 0;
   border-bottom:var(--sf-border-width) solid var(--sf-border); }
@@ -266,16 +369,22 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-ech__l{ font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
 .mfx-ech__v{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
   text-align:right; white-space:nowrap; }
-.mfx-relance{ display:flex; align-items:center; gap:var(--sf-space-5);
+.mfx-relance{ display:flex; align-items:center; gap:var(--sf-space-5); flex-wrap:wrap;
   background:var(--sf-loss-wash); border-left:3px solid var(--sf-loss);
   border-radius:var(--sf-radius-sm); padding:var(--sf-space-5) var(--sf-space-6);
   margin-bottom:var(--sf-space-6); }
 .mfx-relance__t{ font-size:var(--sf-font-body-sm); color:var(--sf-text); }
-/* --sf-text-3 retombe à 4,34:1 sur le lavis corail, plus clair que la surface —
-   même cause que la carte mise en avant de la fiche bien. Un cran plus clair. */
 .mfx-relance__s{ font-size:var(--sf-font-caption); color:var(--sf-text-2); margin-top:2px; }
 
-/* ── Comparaison réel / prévisionnel ─────────────────────────────────────── */
+/* ── Rentabilité ─────────────────────────────────────────────────────────── */
+.mfx-sel{ display:flex; align-items:center; gap:var(--sf-space-5); flex-wrap:wrap;
+  margin-bottom:var(--sf-space-6); }
+.mfx-sel select{ height:var(--sf-control-h); padding:0 var(--sf-space-6);
+  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border-strong);
+  border-radius:var(--sf-radius-sm); color:var(--sf-text); font-family:inherit;
+  font-size:var(--sf-font-body); cursor:pointer; min-width:280px; }
+.mfx-sci{ display:flex; align-items:center; gap:var(--sf-space-4);
+  font-size:var(--sf-font-caption); color:var(--sf-text-3); }
 .mfx-comp{ display:grid; grid-template-columns:auto minmax(0,1fr) auto;
   gap:var(--sf-space-5); align-items:center; margin-bottom:var(--sf-space-5); }
 .mfx-comp__l{ font-size:var(--sf-font-body); color:var(--sf-text-2); white-space:nowrap; }
@@ -284,7 +393,6 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-comp__f{ height:100%; border-radius:var(--sf-radius-full); min-width:2px; }
 .mfx-comp__v{ font-family:var(--sf-font-num); font-size:var(--sf-font-body);
   font-variant-numeric:tabular-nums; text-align:right; min-width:104px; white-space:nowrap; }
-
 .mfx-verdict{ display:flex; gap:var(--sf-space-5); align-items:flex-start;
   background:var(--sf-surface-2); border-left:3px solid var(--sf-loss);
   border-radius:var(--sf-radius-sm); padding:var(--sf-space-6);
@@ -292,57 +400,44 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   margin-top:var(--sf-space-6); }
 .mfx-verdict svg{ flex-shrink:0; margin-top:1px; color:var(--sf-loss); }
 .mfx-verdict b{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
-
-.mfx-sel{ display:flex; align-items:center; gap:var(--sf-space-5); flex-wrap:wrap;
-  margin-bottom:var(--sf-space-6); }
-.mfx-sel select{ height:var(--sf-control-h); padding:0 var(--sf-space-6);
-  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border-strong);
-  border-radius:var(--sf-radius-sm); color:var(--sf-text); font-family:inherit;
-  font-size:var(--sf-font-body); cursor:pointer; min-width:280px; }
-
-.mfx-loc{ display:flex; align-items:center; gap:var(--sf-space-5);
-  padding:var(--sf-space-5) 0; border-bottom:var(--sf-border-width) solid var(--sf-border); }
-.mfx-loc:last-child{ border-bottom:0; }
-.mfx-loc__av{ width:38px; height:38px; border-radius:50%; background:var(--sf-brand-2);
-  color:var(--sf-text); display:flex; align-items:center; justify-content:center;
-  font-size:13px; font-weight:var(--sf-weight-bold); flex-shrink:0; }
-.mfx-loc__n{ font-size:var(--sf-font-body); font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
-.mfx-loc__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
-.mfx-loc__m{ margin-left:auto; font-family:var(--sf-font-num); text-align:right; white-space:nowrap; }
+/* Ligne d'impayé cliquable (R-19) */
+.mfx-imp{ display:grid; grid-template-columns:104px minmax(0,1fr) auto auto;
+  gap:var(--sf-space-5); align-items:center; padding:var(--sf-space-5) var(--sf-space-4);
+  margin:0 calc(-1 * var(--sf-space-4)); border-radius:var(--sf-radius-sm);
+  border-bottom:var(--sf-border-width) solid var(--sf-border); cursor:pointer;
+  transition:background var(--sf-dur) var(--sf-ease); }
+.mfx-imp:last-of-type{ border-bottom:0; }
+.mfx-imp:hover{ background:var(--sf-surface-2); }
+.mfx-imp__m{ font-size:var(--sf-font-body-sm); color:var(--sf-text); }
+.mfx-imp__l{ font-size:var(--sf-font-caption); color:var(--sf-text-3); }
+.mfx-imp__v{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
+  text-align:right; white-space:nowrap; }
 </style>
 </head>
 <body>
 <div class="mfx-wrap">
 
   <p class="mfx-note">
-    <b>Maquette « Module financier » — itération 2, non déployée dans l'application.</b>
-    Données réelles, exercice 2026, recalculées en SQL sur la base.
+    <b>Maquette « Module financier » — itération 3, non déployée dans l'application.</b>
+    Elle rend les <b>21 capacités</b> que le comparatif avait relevées comme perdues
+    (<code>COMPARATIF-MODULE-FINANCIER.md</code>). Le module financier est un <b>poste de
+    travail</b>, pas un écran de lecture : sa densité est sa fonction.
     <ul>
-      <li><b>Régression du Suivi mensuel corrigée.</b> L'itération 1 avait remplacé une grille de
-          saisie par une liste de lecture : on ne pouvait plus enregistrer une charge sur le mois
-          où elle est tombée. La grille reprend <b>tout ce que l'écran actuel fait bien</b> —
-          deux lignes par bien, case cliquable par mois, colonne Total, actions groupées — et ne
-          corrige que ce qui était faux : les mois <b>à venir</b> ne se confondent plus avec les
-          loyers échus non soldés, et les totaux ne comptent que les mois écoulés.</li>
-      <li><b>Le rendement net se calcule sur le loyer DÛ</b> : 1,36&nbsp;% au lieu de 0,67&nbsp;%.
-          Il dit ce que le bien vaut ; les impayés se lisent dans le cashflow constaté à côté.</li>
-      <li><b>L'onglet Locataires</b> porte désormais ce qu'un bailleur vient y chercher :
-          ce qu'il doit réclamer, et ce qu'il va recevoir.</li>
-    </ul>
-    <p style="margin:var(--sf-space-5) 0 0"><b>Rappel de l'itération 1 :</b></p>
-    <ul>
-      <li><b>Deux défauts de calcul corrigés, tes arbitrages appliqués.</b>
-          (1) Le cashflow consolidé annonçait <code>−80 360 €</code> ; le réel constatable est
-          <code>−19 135 €</code>. L'écart venait de 12 mois de mensualités imputés quoi qu'il
-          arrive, et de deux biens sans aucune saisie qui pesaient <code>−53 400 €</code>.
-          (2) Le « Rendement net » retranchait le crédit : il est scindé en
-          <b>Rendement net</b> (hors crédit, comparable) et <b>Effort de trésorerie</b>.</li>
-      <li><b>Quatre onglets au lieu de cinq</b> : « Vue d'ensemble » et « Mes biens » portaient
-          les quatre mêmes indicateurs. Ils fusionnent en <b>Portefeuille</b>.</li>
-      <li><b>Un seul exercice pour tout le module</b>, posé en haut. La Vue d'ensemble
-          raisonnait sur 12 mois glissants pendant que la Rentabilité utilisait l'année civile.</li>
-      <li><b>Les composants sont ceux de la fiche bien</b>, repris à l'identique — même gabarit
-          de carte, mêmes lignes chiffrées, mêmes états vides.</li>
+      <li><b>Retour aux cartes</b> pour le Portefeuille : photo, locataire cliquable, quatre
+          statistiques, mini-courbe sur 12 mois et son écart contre le mois précédent.
+          Plus les <b>quatre filtres</b> et le <b>tri</b>.</li>
+      <li><b>Trois graphiques</b>, ceux que tu as retenus : cashflow consolidé par mois et
+          entrées vs sorties dans le Portefeuille, cumul sur l'exercice dans la Rentabilité.</li>
+      <li><b>La fenêtre d'encaissement revient</b> — quatre statuts, montant partiel, date,
+          notes, prorata loi 1989. Elle est montrée dépliée en bas du Suivi mensuel.</li>
+      <li><b>Les charges détaillées reviennent</b> : filtres par catégorie, modification et
+          suppression de chaque ligne.</li>
+      <li><b>L'écart réel − prévisionnel consolidé revient</b> dans le bandeau. Il remplace
+          « Effort de trésorerie » qui faisait <b>doublon avec le cashflow constaté</b> — c'était
+          le même nombre à deux échelles. L'effort mensuel devient le sous-titre du cashflow.</li>
+      <li><b>Le bandeau de filtre par bien revient</b> : c'est là qu'atterrit le lien « Suivi
+          mensuel » d'une fiche bien. Il n'apparaît que dans ce cas ; il est montré ici pour que
+          tu puisses le juger.</li>
     </ul>
   </p>
 
@@ -354,31 +449,25 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
     </div>
     <div class="mfx-exo">
       <span class="mfx-exo__l">Exercice</span>
-      <select aria-label="Exercice comptable">
-        <option>2026</option><option>2025</option><option>2024</option>
-      </select>
+      <select aria-label="Exercice comptable"><option>2026</option><option>2025</option><option>2024</option></select>
     </div>
   </div>
 
-  <!-- ══ INDICATEURS CONSOLIDÉS ════════════════════════════════════════════ -->
   <div class="mfx-kpis">
     <div class="mfx-kpi mfx-kpi--hi">
       <span class="mfx-kpi__l">Cashflow constaté</span>
       <span class="mfx-kpi__v mfx-kpi__v--loss">−19&#8239;135&#8239;€</span>
-      <span class="mfx-kpi__s">8 mois écoulés, de janvier à août</span>
+      <span class="mfx-kpi__s">soit −2&#8239;392&#8239;€ par mois sur 8 mois écoulés</span>
     </div>
-    <!-- Calculé sur le loyer DÛ (arbitrage de Thomas) : cet indicateur dit ce
-         que le bien vaut, pas ce que le locataire a payé. Les impayés se lisent
-         dans le cashflow constaté, juste à gauche, et dans la Rentabilité. -->
     <div class="mfx-kpi">
       <span class="mfx-kpi__l">Rendement net</span>
       <span class="mfx-kpi__v mfx-kpi__v--loss">1,36&#8239;%</span>
       <span class="mfx-kpi__s">en dessous de votre seuil de 5&#8239;%</span>
     </div>
     <div class="mfx-kpi">
-      <span class="mfx-kpi__l">Effort de trésorerie</span>
-      <span class="mfx-kpi__v mfx-kpi__v--loss">−2&#8239;392&#8239;€</span>
-      <span class="mfx-kpi__s">par mois, crédit compris</span>
+      <span class="mfx-kpi__l">Écart réel − prévisionnel</span>
+      <span class="mfx-kpi__v mfx-kpi__v--loss">−27&#8239;719&#8239;€</span>
+      <span class="mfx-kpi__s">prévu +8&#8239;584&#8239;€ · constaté −19&#8239;135&#8239;€</span>
     </div>
     <div class="mfx-kpi">
       <span class="mfx-kpi__l">Occupation</span>
@@ -387,8 +476,6 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
     </div>
   </div>
 
-  <!-- La réserve est SOUS le bandeau, jamais dedans : elle qualifie la portée
-       des chiffres, elle n'est pas un chiffre de plus. -->
   <p class="mfx-reserve">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.9" r=".7" fill="currentColor" stroke="none"/></svg>
     <span><b>2 biens sur 3 sont écartés de ces indicateurs</b> : aucun loyer ni charge n'y a
@@ -404,13 +491,11 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
     </button>
     <button class="mfx-tab" role="tab" aria-selected="false" data-t="suivi">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
-      Suivi mensuel
-      <span class="mfx-tab__n mfx-tab__n--alerte">4</span>
+      Suivi mensuel <span class="mfx-tab__n mfx-tab__n--alerte">4</span>
     </button>
     <button class="mfx-tab" role="tab" aria-selected="false" data-t="locataires">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-5.2 6.5-5.2s6.5 1.9 6.5 5.2"/><path d="M16.5 5.4a3.2 3.2 0 0 1 0 6.2M18 14.4c2.1.6 3.5 2 3.5 4.1"/></svg>
-      Locataires
-      <span class="mfx-tab__n">1</span>
+      Locataires <span class="mfx-tab__n">1</span>
     </button>
     <button class="mfx-tab" role="tab" aria-selected="false" data-t="renta">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V10M18 20V4M6 20v-6"/></svg>
@@ -420,109 +505,196 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 
   <!-- ══════════════ PORTEFEUILLE ══════════════ -->
   <section class="mfx-pane" data-p="portefeuille">
-    <div class="sff-block">
-      <div class="sff-block__h">
-        <p class="sff-block__t">Vos biens</p>
-        <span class="sff-block__n">3 biens acquis · 1 927 000 € engagés</span>
+    <div class="mfx-tools">
+      <div class="mfx-pills">
+        <button class="mfx-pill" aria-pressed="true">Tous <span class="mfx-pill__n">3</span></button>
+        <button class="mfx-pill" aria-pressed="false">Loués <span class="mfx-pill__n">1</span></button>
+        <button class="mfx-pill" aria-pressed="false">Vacants <span class="mfx-pill__n">2</span></button>
+        <button class="mfx-pill" aria-pressed="false">Avec impayés <span class="mfx-pill__n">1</span></button>
       </div>
-      <div class="sff-block__b sff-block__b--flush">
-        <div class="mfx-tw">
-          <table class="mfx-t">
-            <thead><tr>
-              <th>Bien</th>
-              <th class="num">Cashflow constaté</th>
-              <th class="num">Rendement net</th>
-              <th class="num">Effort /mois</th>
-              <th>Occupation</th>
-            </tr></thead>
-            <tbody>
-              <tr>
-                <td><div class="mfx-t__b">Immeuble Paris 18e</div>
-                    <div class="mfx-t__s">Paris · 728 200 € engagés</div></td>
-                <td class="num">
-                  <span class="mfx-bar">
-                    <span class="mfx-bar__b"><span class="mfx-bar__f" style="width:100%;background:var(--sf-loss)"></span></span>
-                    <span class="mfx-bar__v sf-loss">−19&#8239;135&#8239;€</span>
-                  </span>
-                </td>
-                <td class="num">1,36&#8239;%</td>
-                <td class="num sf-loss">−2&#8239;392&#8239;€</td>
-                <td><span class="sf-pill sf-pill--gain"><span class="sf-dot"></span>Loué</span></td>
-              </tr>
-              <tr class="vide">
-                <td><div class="mfx-t__b">T3 Lyon</div>
-                    <div class="mfx-t__s">Lyon · 246 600 € engagés</div></td>
-                <td class="num" colspan="3">
-                  <span class="mfx-acompleter">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                    Aucun loyer saisi
-                  </span>
-                </td>
-                <td><span class="sf-pill sf-pill--alert"><span class="sf-dot"></span>Vacant</span></td>
-              </tr>
-              <tr class="vide">
-                <td><div class="mfx-t__b">T4+ Paris 16e</div>
-                    <div class="mfx-t__s">Paris · 952 200 € engagés</div></td>
-                <td class="num" colspan="3">
-                  <span class="mfx-acompleter">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                    Aucun loyer saisi
-                  </span>
-                </td>
-                <td><span class="sf-pill sf-pill--alert"><span class="sf-dot"></span>Vacant</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      <div class="mfx-tri">
+        <label for="tri">Trier par</label>
+        <select id="tri">
+          <option>Cashflow décroissant</option>
+          <option>Cashflow croissant</option>
+          <option>Rendement décroissant</option>
+          <option>Capital engagé</option>
+        </select>
       </div>
     </div>
 
-    <div class="sff-block">
-      <div class="sff-block__h">
-        <p class="sff-block__t">Cashflow mois par mois</p>
-        <span class="sff-block__n">exercice 2026</span>
-      </div>
-      <div class="sff-block__b">
-        <div class="mfx-chart">
-          <!-- Hauteurs proportionnelles au plus fort mois (−2 800 €) :
-               −1 970 → 70 % · −2 025 → 72 % · −2 800 → 100 %. -->
-          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:70%" title="Janvier : −1 970 €"></span><span class="mfx-col__l">Jan</span></div>
-          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Février : −2 800 €, loyer non encaissé"></span><span class="mfx-col__l">Fév</span></div>
-          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:70%" title="Mars : −1 970 €"></span><span class="mfx-col__l">Mar</span></div>
-          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:72%" title="Avril : −2 025 €"></span><span class="mfx-col__l">Avr</span></div>
-          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:70%" title="Mai : −1 970 €"></span><span class="mfx-col__l">Mai</span></div>
-          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Juin : −2 800 €, loyer non encaissé"></span><span class="mfx-col__l">Jun</span></div>
-          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Juillet : −2 800 €, loyer non encaissé"></span><span class="mfx-col__l">Jul</span></div>
-          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Août : −2 800 €, loyer non encaissé"></span><span class="mfx-col__l">Aoû</span></div>
-          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--vide" style="height:40%"></span><span class="mfx-col__l">Sep</span></div>
-          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--vide" style="height:40%"></span><span class="mfx-col__l">Oct</span></div>
-          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--vide" style="height:40%"></span><span class="mfx-col__l">Nov</span></div>
-          <div class="mfx-col"><span class="mfx-col__b mfx-col__b--vide" style="height:40%"></span><span class="mfx-col__l">Déc</span></div>
+    <div class="mfx-cards">
+      <!-- Bien documenté -->
+      <article class="mfx-card">
+        <div class="mfx-card__h">
+          <div class="mfx-card__ph">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 17 5-4.5 4.5 4 3-2.5L20 18"/></svg>
+          </div>
+          <div class="mfx-card__id">
+            <div class="mfx-card__t">Immeuble Paris 18e</div>
+            <div class="mfx-card__v">Paris · 75018 · 728 200 € engagés</div>
+          </div>
+          <span class="sf-pill sf-pill--loss"><span class="sf-dot"></span>Impayés</span>
         </div>
-        <div class="mfx-legend">
-          <span><i class="gain"></i>Mois positif</span>
-          <span><i class="loss"></i>Mois négatif</span>
-          <span><i class="vide"></i>À venir</span>
+        <div class="mfx-card__loc">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.2-5.6 7.5-5.6s7.5 2 7.5 5.6"/></svg>
+          Test V1
+          <a class="mfx-card__lien" href="#">Voir la fiche</a>
+        </div>
+        <div class="mfx-card__stats">
+          <div class="mfx-stat">
+            <div class="mfx-stat__l">Loyers encaissés</div>
+            <div class="mfx-stat__v sf-gain">3&#8239;320&#8239;€</div>
+            <div class="mfx-stat__s">sur 6&#8239;640&#8239;€ dus</div>
+          </div>
+          <div class="mfx-stat">
+            <div class="mfx-stat__l">Charges payées</div>
+            <div class="mfx-stat__v">55&#8239;€</div>
+            <div class="mfx-stat__s">1 charge enregistrée</div>
+          </div>
+          <div class="mfx-stat">
+            <div class="mfx-stat__l">Cashflow constaté</div>
+            <div class="mfx-stat__v sf-loss">−19&#8239;135&#8239;€</div>
+            <div class="mfx-stat__s">prévu +8&#8239;584&#8239;€</div>
+          </div>
+          <div class="mfx-stat">
+            <div class="mfx-stat__l">Rendement net</div>
+            <div class="mfx-stat__v">1,36&#8239;%</div>
+            <div class="mfx-stat__s">seuil 5&#8239;%</div>
+          </div>
+        </div>
+        <div class="mfx-card__spark">
+          <div class="mfx-spark__h">
+            <span>Cashflow mois par mois</span>
+            <span class="mfx-spark__d">stable vs juillet</span>
+          </div>
+          <svg viewBox="0 0 300 46" width="100%" height="46" preserveAspectRatio="none" aria-label="Cashflow mensuel de janvier à août">
+            <polyline fill="none" stroke="var(--sf-loss)" stroke-width="2" stroke-linejoin="round"
+              points="0,9 42.9,42 85.7,9 128.6,11 171.4,9 214.3,42 257.1,42 300,42"/>
+          </svg>
+        </div>
+        <div class="mfx-card__cta">
+          <button class="sf-btn sf-btn--secondary sf-btn--sm">Voir le suivi mensuel</button>
+        </div>
+      </article>
+
+      <!-- Biens sans donnée : aucun chiffre inventé -->
+      <article class="mfx-card mfx-card--vide">
+        <div class="mfx-card__h">
+          <div class="mfx-card__ph">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 17 5-4.5 4.5 4 3-2.5L20 18"/></svg>
+          </div>
+          <div class="mfx-card__id">
+            <div class="mfx-card__t">T3 Lyon</div>
+            <div class="mfx-card__v">Lyon · 69007 · 246 600 € engagés</div>
+          </div>
+          <span class="sf-pill sf-pill--alert"><span class="sf-dot"></span>Vacant</span>
+        </div>
+        <div class="sff-empty" style="min-height:200px">
+          <div class="sff-empty__t" style="font-size:var(--sf-font-lead)">Aucun loyer saisi</div>
+          <div class="sff-empty__x">
+            Ce bien est écarté des indicateurs consolidés. Sa mensualité de crédit court
+            pourtant : <b style="color:var(--sf-alert)">850&#8239;€ par mois</b>.
+          </div>
+          <button class="sf-btn sf-btn--primary sf-btn--sm">Rattacher un locataire</button>
+        </div>
+      </article>
+
+      <article class="mfx-card mfx-card--vide">
+        <div class="mfx-card__h">
+          <div class="mfx-card__ph">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 17 5-4.5 4.5 4 3-2.5L20 18"/></svg>
+          </div>
+          <div class="mfx-card__id">
+            <div class="mfx-card__t">T4+ Paris 16e</div>
+            <div class="mfx-card__v">Paris · 75016 · 952 200 € engagés</div>
+          </div>
+          <span class="sf-pill sf-pill--alert"><span class="sf-dot"></span>Vacant</span>
+        </div>
+        <div class="sff-empty" style="min-height:200px">
+          <div class="sff-empty__t" style="font-size:var(--sf-font-lead)">Aucun loyer saisi</div>
+          <div class="sff-empty__x">
+            Ce bien est écarté des indicateurs consolidés. Sa mensualité de crédit court
+            pourtant : <b style="color:var(--sf-alert)">3&#8239;600&#8239;€ par mois</b>.
+          </div>
+          <button class="sf-btn sf-btn--primary sf-btn--sm">Rattacher un locataire</button>
+        </div>
+      </article>
+    </div>
+
+    <div class="sff-grid2" style="margin-top:var(--sf-space-5)">
+      <div class="sff-block">
+        <div class="sff-block__h">
+          <p class="sff-block__t">Cashflow consolidé par mois</p>
+          <span class="sff-block__n">exercice 2026</span>
+        </div>
+        <div class="sff-block__b">
+          <div class="mfx-chart">
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:70%" title="Janvier : −1 970 €"></span><span class="mfx-col__l">Jan</span></div>
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Février : −2 800 €"></span><span class="mfx-col__l">Fév</span></div>
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:70%" title="Mars : −1 970 €"></span><span class="mfx-col__l">Mar</span></div>
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:72%" title="Avril : −2 025 €"></span><span class="mfx-col__l">Avr</span></div>
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:70%" title="Mai : −1 970 €"></span><span class="mfx-col__l">Mai</span></div>
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Juin : −2 800 €"></span><span class="mfx-col__l">Jun</span></div>
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Juillet : −2 800 €"></span><span class="mfx-col__l">Jul</span></div>
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Août : −2 800 €"></span><span class="mfx-col__l">Aoû</span></div>
+          </div>
+          <div class="mfx-legend">
+            <span><i class="gain"></i>Mois positif</span>
+            <span><i class="loss"></i>Mois négatif</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sff-block">
+        <div class="sff-block__h">
+          <p class="sff-block__t">Entrées et sorties</p>
+          <span class="sff-block__n">exercice 2026</span>
+        </div>
+        <div class="sff-block__b">
+          <div class="mfx-chart">
+            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:29%" title="Janvier encaissé : 830 €"></span><span class="s" style="height:98%" title="Janvier sorti : 2 800 €"></span></span><span class="mfx-col__l">Jan</span></div>
+            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:0%" title="Février encaissé : 0 €"></span><span class="s" style="height:98%" title="Février sorti : 2 800 €"></span></span><span class="mfx-col__l">Fév</span></div>
+            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:29%" title="Mars encaissé : 830 €"></span><span class="s" style="height:98%" title="Mars sorti : 2 800 €"></span></span><span class="mfx-col__l">Mar</span></div>
+            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:29%" title="Avril encaissé : 830 €"></span><span class="s" style="height:100%" title="Avril sorti : 2 855 €"></span></span><span class="mfx-col__l">Avr</span></div>
+            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:29%" title="Mai encaissé : 830 €"></span><span class="s" style="height:98%" title="Mai sorti : 2 800 €"></span></span><span class="mfx-col__l">Mai</span></div>
+            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:0%" title="Juin encaissé : 0 €"></span><span class="s" style="height:98%" title="Juin sorti : 2 800 €"></span></span><span class="mfx-col__l">Jun</span></div>
+            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:0%" title="Juillet encaissé : 0 €"></span><span class="s" style="height:98%" title="Juillet sorti : 2 800 €"></span></span><span class="mfx-col__l">Jul</span></div>
+            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:0%" title="Août encaissé : 0 €"></span><span class="s" style="height:98%" title="Août sorti : 2 800 €"></span></span><span class="mfx-col__l">Aoû</span></div>
+          </div>
+          <div class="mfx-legend">
+            <span><i class="gain"></i>Loyers encaissés</span>
+            <span><i class="loss"></i>Charges et mensualités</span>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ══════════════ SUIVI MENSUEL ══════════════
-       C'est l'écran de SAISIE du module. Deux lignes par bien — les loyers,
-       puis ses charges — chaque case cliquable sur le mois concerné, et une
-       colonne Total à droite. C'est ce que fait l'écran actuel, et il le fait
-       bien : l'itération 1 l'avait remplacé par une liste, ce qui rendait
-       impossible d'enregistrer une charge sur le mois où elle est tombée. -->
+  <!-- ══════════════ SUIVI MENSUEL ══════════════ -->
   <section class="mfx-pane" data-p="suivi" hidden>
+    <!-- R-18 : n'apparaît qu'en arrivant depuis une fiche bien. -->
+    <div class="mfx-filtre">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <span>Suivi filtré sur <b>Immeuble Paris 18e</b></span>
+      <div class="actions">
+        <button class="sf-btn sf-btn--ghost sf-btn--sm">Voir tous les biens</button>
+        <button class="sf-btn sf-btn--secondary sf-btn--sm">Retour à la fiche</button>
+      </div>
+    </div>
+
     <div class="sff-block">
       <div class="sff-block__h">
         <p class="sff-block__t">Loyers et charges, mois par mois</p>
-        <div class="mfx-actions">
+        <div class="sff-block__a">
           <button class="sf-btn sf-btn--secondary sf-btn--sm">Générer les loyers 2026</button>
           <button class="sf-btn sf-btn--secondary sf-btn--sm">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12"/><path d="m6 12 6 6 6-6"/><path d="M4 20h16"/></svg>
-            Exporter
+            Loyers
+          </button>
+          <button class="sf-btn sf-btn--secondary sf-btn--sm">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12"/><path d="m6 12 6 6 6-6"/><path d="M4 20h16"/></svg>
+            Charges
           </button>
           <button class="sf-btn sf-btn--primary sf-btn--sm">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -538,21 +710,20 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
               <th>Jul</th><th class="encours">Aoû</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Déc</th>
               <th class="tot">Total</th></tr></thead>
             <tbody>
-              <!-- Immeuble Paris 18e — loyers puis charges -->
               <tr>
                 <td class="mfx-bien-cell" rowspan="2">
                   <div class="mfx-bien-cell__n">Immeuble Paris 18e</div>
                   <div class="mfx-bien-cell__s">Paris 18e · 75018</div>
                   <span class="sf-pill sf-pill--gain" style="margin-top:6px"><span class="sf-dot"></span>Loué</span>
                 </td>
-                <td class="mfx-cell mfx-cell--ok" title="Janvier : encaissé le 5"><span class="mfx-cell__ic"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>830</td>
-                <td class="mfx-cell mfx-cell--ko" title="Février : échu, non soldé">830</td>
-                <td class="mfx-cell mfx-cell--ok" title="Mars : encaissé le 5"><span class="mfx-cell__ic"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>830</td>
-                <td class="mfx-cell mfx-cell--ok" title="Avril : encaissé le 5"><span class="mfx-cell__ic"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>830</td>
-                <td class="mfx-cell mfx-cell--ok" title="Mai : encaissé le 5"><span class="mfx-cell__ic"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>830</td>
-                <td class="mfx-cell mfx-cell--ko" title="Juin : échu, non soldé">830</td>
-                <td class="mfx-cell mfx-cell--ko" title="Juillet : échu, non soldé">830</td>
-                <td class="mfx-cell mfx-cell--ko" title="Août : échu depuis le 6, non soldé">830</td>
+                <td class="mfx-cell mfx-cell--ok" title="Janvier : encaissé le 5"><span class="mfx-cell__ic"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>830<span class="mfx-cell__more" title="Encaissement détaillé">•••</span></td>
+                <td class="mfx-cell mfx-cell--ko" title="Février : échu, non soldé">830<span class="mfx-cell__more" title="Encaissement détaillé">•••</span></td>
+                <td class="mfx-cell mfx-cell--ok" title="Mars : encaissé le 5"><span class="mfx-cell__ic"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>830<span class="mfx-cell__more">•••</span></td>
+                <td class="mfx-cell mfx-cell--ok" title="Avril : encaissé le 5"><span class="mfx-cell__ic"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>830<span class="mfx-cell__more">•••</span></td>
+                <td class="mfx-cell mfx-cell--ok" title="Mai : encaissé le 5"><span class="mfx-cell__ic"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>830<span class="mfx-cell__more">•••</span></td>
+                <td class="mfx-cell mfx-cell--ko" title="Juin : échu, non soldé">830<span class="mfx-cell__more">•••</span></td>
+                <td class="mfx-cell mfx-cell--ko" title="Juillet : échu, non soldé">830<span class="mfx-cell__more">•••</span></td>
+                <td class="mfx-cell mfx-cell--ko" title="Août : échu depuis le 6, non soldé">830<span class="mfx-cell__more">•••</span></td>
                 <td class="mfx-cell mfx-cell--avenir" title="Septembre : échéance le 5">830</td>
                 <td class="mfx-cell mfx-cell--avenir" title="Octobre : échéance le 5">830</td>
                 <td class="mfx-cell mfx-cell--avenir" title="Novembre : échéance le 5">830</td>
@@ -563,7 +734,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
                 <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
                 <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
                 <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge pleine" title="Avril : taxe test">55</td>
+                <td class="mfx-cell mfx-cell--charge pleine" title="Avril : 1 charge — cliquer pour le détail">55</td>
                 <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
                 <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
                 <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
@@ -574,120 +745,150 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
                 <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
                 <td class="mfx-tot">55&#8239;€</td>
               </tr>
-
-              <!-- T3 Lyon — vacant : les loyers n'existent pas, les charges si -->
-              <tr>
-                <td class="mfx-bien-cell" rowspan="2">
-                  <div class="mfx-bien-cell__n">T3 Lyon</div>
-                  <div class="mfx-bien-cell__s">Lyon · 69007</div>
-                  <span class="sf-pill sf-pill--alert" style="margin-top:6px"><span class="sf-dot"></span>Vacant</span>
-                </td>
-                <td class="mfx-cell mfx-cell--none" colspan="12">Aucun bail sur cet exercice</td>
-                <td class="mfx-tot" style="color:var(--sf-text-3)">—</td>
-              </tr>
-              <tr>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-tot" style="color:var(--sf-text-3)">—</td>
-              </tr>
-
-              <!-- T4+ Paris 16e -->
-              <tr>
-                <td class="mfx-bien-cell" rowspan="2">
-                  <div class="mfx-bien-cell__n">T4+ Paris 16e</div>
-                  <div class="mfx-bien-cell__s">Paris 16e · 75016</div>
-                  <span class="sf-pill sf-pill--alert" style="margin-top:6px"><span class="sf-dot"></span>Vacant</span>
-                </td>
-                <td class="mfx-cell mfx-cell--none" colspan="12">Aucun bail sur cet exercice</td>
-                <td class="mfx-tot" style="color:var(--sf-text-3)">—</td>
-              </tr>
-              <tr>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-tot" style="color:var(--sf-text-3)">—</td>
-              </tr>
             </tbody>
           </table>
         </div>
       </div>
     </div>
 
-    <div class="sff-grid2">
-      <div class="sff-block">
-        <div class="sff-block__h"><p class="sff-block__t">Légende</p></div>
-        <div class="sff-block__b">
-          <div class="mfx-legend" style="margin-top:0;flex-direction:column;gap:var(--sf-space-4)">
-            <span><i style="background:var(--sf-gain)"></i>Encaissé — le montant est celui reçu</span>
-            <span><i style="background:var(--sf-loss)"></i>Échu, non soldé — le montant est celui attendu</span>
-            <span><i class="vide"></i>À venir — l'échéance n'est pas arrivée</span>
-            <span><i style="background:var(--sf-alert)"></i>Charge enregistrée</span>
-            <span><i style="background:var(--sf-surface-2)"></i>Aucun bail sur la période</span>
+    <!-- R-02, R-03, R-05 : les charges détaillées reviennent -->
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Charges détaillées</p>
+        <span class="sff-block__n">1 charge · 55&#8239;€</span>
+      </div>
+      <div class="sff-block__b">
+        <div class="mfx-pills" style="margin-bottom:var(--sf-space-6)">
+          <button class="mfx-pill" aria-pressed="true">Toutes <span class="mfx-pill__n">1</span></button>
+          <button class="mfx-pill" aria-pressed="false">Autre <span class="mfx-pill__n">1</span></button>
+        </div>
+        <div class="mfx-charge">
+          <span class="mfx-charge__d">15 avr. 2026</span>
+          <span>
+            <span class="mfx-charge__c">Autre</span>
+            <span class="mfx-charge__l">taxe test · Immeuble Paris 18e</span>
+          </span>
+          <span class="mfx-charge__tag">Ponctuelle</span>
+          <span class="mfx-charge__v">55&#8239;€</span>
+          <span class="mfx-charge__a">
+            <button class="mfx-ic-btn" title="Modifier">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 6.5 17.5 9.5"/></svg>
+            </button>
+            <button class="mfx-ic-btn mfx-ic-btn--danger" title="Supprimer">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2"/><path d="M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/></svg>
+            </button>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- R-01 : la fenêtre d'encaissement, montrée dépliée -->
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Fenêtre d'encaissement</p>
+        <span class="sff-block__n">s'ouvre au clic sur ••• d'une case de loyer</span>
+      </div>
+      <div class="sff-block__b">
+        <div class="mfx-popup">
+          <div class="mfx-popup__h"><span class="mfx-popup__t">Encaissement · février 2026</span></div>
+          <div class="mfx-popup__b">
+            <p class="mfx-prorata">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v16M7 20h10"/><path d="M4 8h16"/><path d="M4 8 1.5 14a2.8 2.8 0 0 0 5 0L4 8Z"/><path d="M20 8l-2.5 6a2.8 2.8 0 0 0 5 0L20 8Z"/></svg>
+              <span>Immeuble Paris 18e · loyer dû <b style="color:var(--sf-text)">830&#8239;€</b>.
+              Le prorata loi 1989 s'affiche ici quand le locataire entre en cours de mois.</span>
+            </p>
+            <div class="mfx-opt" aria-checked="false"><span class="mfx-opt__r"></span>Payé intégralement — 830&#8239;€</div>
+            <div class="mfx-opt" aria-checked="true"><span class="mfx-opt__r"></span>Partiel — saisir le montant</div>
+            <div class="mfx-opt" aria-checked="false"><span class="mfx-opt__r"></span>En retard — toujours dû</div>
+            <div class="mfx-opt" aria-checked="false"><span class="mfx-opt__r"></span>Impayé définitif</div>
+            <div class="mfx-champ"><label for="enc-m">Montant encaissé</label><input id="enc-m" value="400" inputmode="numeric"></div>
+            <div class="mfx-champ"><label for="enc-d">Date d'encaissement</label><input id="enc-d" value="2026-02-12"></div>
+            <div class="mfx-champ"><label for="enc-n">Notes</label><input id="enc-n" value="Solde promis avant fin mars"></div>
+            <div style="display:flex;gap:var(--sf-space-4);justify-content:flex-end;margin-top:var(--sf-space-6)">
+              <button class="sf-btn sf-btn--ghost sf-btn--sm">Annuler</button>
+              <button class="sf-btn sf-btn--primary sf-btn--sm">Confirmer</button>
+            </div>
           </div>
         </div>
       </div>
-      <div class="sff-block">
-        <div class="sff-block__h"><p class="sff-block__t">Bilan de l'exercice</p></div>
-        <div class="sff-block__b">
-          <div class="sff-lines">
-            <div class="sff-line"><span class="sff-line__l">Loyers encaissés</span><span class="sff-line__v sf-gain">3&#8239;320&#8239;€</span></div>
-            <div class="sff-line"><span class="sff-line__l">Charges payées</span><span class="sff-line__v">55&#8239;€</span></div>
-            <div class="sff-line"><span class="sff-line__l">Mensualités de crédit <small>· 8 mois écoulés</small></span><span class="sff-line__v">22&#8239;400&#8239;€</span></div>
-            <div class="sff-line sff-line--tot"><span class="sff-line__l">Cashflow constaté</span><span class="sff-line__v sf-loss">−19&#8239;135&#8239;€</span></div>
-          </div>
-          <p class="sff-sep">Reste à encaisser</p>
-          <div class="sff-lines">
-            <div class="sff-line"><span class="sff-line__l">Loyers échus non soldés <small>· 4 mois</small></span><span class="sff-line__v sf-loss">3&#8239;320&#8239;€</span></div>
-            <div class="sff-line"><span class="sff-line__l">Loyers à venir <small>· 4 mois</small></span><span class="sff-line__v">3&#8239;320&#8239;€</span></div>
-          </div>
+    </div>
+
+    <div class="sff-block">
+      <div class="sff-block__h"><p class="sff-block__t">Bilan de l'exercice</p></div>
+      <div class="sff-block__b">
+        <div class="sff-lines">
+          <div class="sff-line"><span class="sff-line__l">Loyers encaissés</span><span class="sff-line__v sf-gain">3&#8239;320&#8239;€</span></div>
+          <div class="sff-line"><span class="sff-line__l">Charges payées</span><span class="sff-line__v">55&#8239;€</span></div>
+          <div class="sff-line"><span class="sff-line__l">Mensualités de crédit <small>· 8 mois écoulés</small></span><span class="sff-line__v">22&#8239;400&#8239;€</span></div>
+          <div class="sff-line sff-line--tot"><span class="sff-line__l">Cashflow constaté</span><span class="sff-line__v sf-loss">−19&#8239;135&#8239;€</span></div>
+        </div>
+        <p class="sff-sep">Reste à encaisser</p>
+        <div class="sff-lines">
+          <div class="sff-line"><span class="sff-line__l">Loyers échus non soldés <small>· 4 mois</small></span><span class="sff-line__v sf-loss">3&#8239;320&#8239;€</span></div>
+          <div class="sff-line"><span class="sff-line__l">Loyers à venir <small>· 4 mois</small></span><span class="sff-line__v">3&#8239;320&#8239;€</span></div>
+        </div>
+        <div class="mfx-legend">
+          <span><i class="gain"></i>Encaissé</span>
+          <span><i class="loss"></i>Échu, non soldé</span>
+          <span><i style="background:var(--sf-alert)"></i>Partiel ou charge</span>
+          <span><i class="vide"></i>À venir</span>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ══════════════ LOCATAIRES ══════════════
-       L'onglet ne portait qu'un annuaire. Il porte désormais ce qu'un bailleur
-       vient y chercher : ce qu'il doit réclamer, et ce qu'il va recevoir. -->
+  <!-- ══════════════ LOCATAIRES ══════════════ -->
   <section class="mfx-pane" data-p="locataires" hidden>
-    <div class="sff-block">
-      <div class="sff-block__h">
-        <p class="sff-block__t">Baux en cours</p>
-        <div class="sff-block__a"><button class="sf-btn sf-btn--secondary sf-btn--sm">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          Ajouter un locataire</button></div>
+    <div class="mfx-kpis" style="margin-bottom:var(--sf-space-6)">
+      <div class="mfx-kpi"><span class="mfx-kpi__l">Locataires</span><span class="mfx-kpi__v">1</span><span class="mfx-kpi__s">toutes situations</span></div>
+      <div class="mfx-kpi"><span class="mfx-kpi__l">Baux actifs</span><span class="mfx-kpi__v mfx-kpi__v--gain">1</span><span class="mfx-kpi__s">sur 3 biens acquis</span></div>
+      <div class="mfx-kpi"><span class="mfx-kpi__l">Candidats</span><span class="mfx-kpi__v">0</span><span class="mfx-kpi__s">aucun dossier en cours</span></div>
+      <div class="mfx-kpi"><span class="mfx-kpi__l">Loyer mensuel actif</span><span class="mfx-kpi__v">830&#8239;€</span><span class="mfx-kpi__s">charges comprises</span></div>
+    </div>
+
+    <div class="mfx-tools">
+      <div class="mfx-pills">
+        <button class="mfx-pill" aria-pressed="true">Tous <span class="mfx-pill__n">1</span></button>
+        <button class="mfx-pill" aria-pressed="false">Candidats <span class="mfx-pill__n">0</span></button>
+        <button class="mfx-pill" aria-pressed="false">Actifs <span class="mfx-pill__n">1</span></button>
+        <button class="mfx-pill" aria-pressed="false">Préavis <span class="mfx-pill__n">0</span></button>
+        <button class="mfx-pill" aria-pressed="false">Sortis <span class="mfx-pill__n">0</span></button>
       </div>
-      <div class="sff-block__b">
-        <div class="mfx-loc">
-          <span class="mfx-loc__av">TV</span>
-          <div>
-            <div class="mfx-loc__n">Test V1</div>
-            <div class="mfx-loc__s">Immeuble Paris 18e · paiement le 5 du mois · entré le 1<sup>er</sup> juin 2025</div>
-          </div>
-          <div class="mfx-loc__m">
-            <div>830&#8239;€ <span style="color:var(--sf-text-3);font-family:var(--sf-font-ui);font-size:var(--sf-font-caption)">/mois HC</span></div>
-            <div class="mfx-loc__s">14 mois de bail</div>
+      <div class="mfx-tri">
+        <button class="sf-btn sf-btn--primary sf-btn--sm">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Nouveau locataire
+        </button>
+      </div>
+    </div>
+
+    <div class="mfx-loccards" style="margin-bottom:var(--sf-space-5)">
+      <article class="mfx-loccard">
+        <span class="mfx-loccard__st sf-pill sf-pill--gain"><span class="sf-dot"></span>Actif</span>
+        <div class="mfx-loccard__h">
+          <span class="mfx-loccard__av">TV</span>
+          <div style="min-width:0">
+            <div class="mfx-loccard__n">Test V1</div>
+            <div class="mfx-loccard__c">test@exemple.fr</div>
           </div>
         </div>
-      </div>
+        <div class="mfx-li">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M6 21V9l6-5 6 5v12M10 21v-5h4v5"/></svg>
+          Immeuble Paris 18e <em>— Paris</em>
+        </div>
+        <div class="mfx-li">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 6.5A6.5 6.5 0 0 0 7 12a6.5 6.5 0 0 0 10.5 5.5"/><path d="M4.5 10.5h8M4.5 14h8"/></svg>
+          830&#8239;€ <em>/mois HC · dépôt de garantie 830&#8239;€</em>
+        </div>
+        <div class="mfx-li">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+          Entré le 01/06/2025 <em>· en cours · paiement le 5</em>
+        </div>
+        <div class="mfx-li">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11.5 12 19.4a5 5 0 0 1-7.1-7.1l8.5-8.4a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4l7.7-7.6"/></svg>
+          1 document <em>joint</em>
+        </div>
+      </article>
     </div>
 
     <div class="sff-grid2">
@@ -719,26 +920,10 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
           <span class="sff-block__n">3&#8239;320&#8239;€ attendus</span>
         </div>
         <div class="sff-block__b">
-          <div class="mfx-ech">
-            <span class="mfx-ech__d">5 sept. 2026</span>
-            <span class="mfx-ech__l">Test V1 · Immeuble Paris 18e</span>
-            <span class="mfx-ech__v">830&#8239;€</span>
-          </div>
-          <div class="mfx-ech">
-            <span class="mfx-ech__d">5 oct. 2026</span>
-            <span class="mfx-ech__l">Test V1 · Immeuble Paris 18e</span>
-            <span class="mfx-ech__v">830&#8239;€</span>
-          </div>
-          <div class="mfx-ech">
-            <span class="mfx-ech__d">5 nov. 2026</span>
-            <span class="mfx-ech__l">Test V1 · Immeuble Paris 18e</span>
-            <span class="mfx-ech__v">830&#8239;€</span>
-          </div>
-          <div class="mfx-ech">
-            <span class="mfx-ech__d">5 déc. 2026</span>
-            <span class="mfx-ech__l">Test V1 · Immeuble Paris 18e</span>
-            <span class="mfx-ech__v">830&#8239;€</span>
-          </div>
+          <div class="mfx-ech"><span class="mfx-ech__d">5 sept. 2026</span><span class="mfx-ech__l">Test V1 · Immeuble Paris 18e</span><span class="mfx-ech__v">830&#8239;€</span></div>
+          <div class="mfx-ech"><span class="mfx-ech__d">5 oct. 2026</span><span class="mfx-ech__l">Test V1 · Immeuble Paris 18e</span><span class="mfx-ech__v">830&#8239;€</span></div>
+          <div class="mfx-ech"><span class="mfx-ech__d">5 nov. 2026</span><span class="mfx-ech__l">Test V1 · Immeuble Paris 18e</span><span class="mfx-ech__v">830&#8239;€</span></div>
+          <div class="mfx-ech"><span class="mfx-ech__d">5 déc. 2026</span><span class="mfx-ech__l">Test V1 · Immeuble Paris 18e</span><span class="mfx-ech__v">830&#8239;€</span></div>
         </div>
       </div>
     </div>
@@ -769,7 +954,31 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
         <option>T3 Lyon — Lyon</option>
         <option>T4+ Paris 16e — Paris</option>
       </select>
-      <span style="font-size:var(--sf-font-caption);color:var(--sf-text-3)">SCI TEST Guénon</span>
+      <span class="mfx-sci">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5 12 4l9 5.5"/><path d="M5.5 9.5V19M9.8 9.5V19M14.2 9.5V19M18.5 9.5V19"/><path d="M3 21h18"/></svg>
+        SCI TEST Guénon
+        <button class="sf-btn sf-btn--ghost sf-btn--sm" style="padding:0 var(--sf-space-4)">Changer</button>
+      </span>
+    </div>
+
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Cumul sur l'exercice</p>
+        <span class="sff-block__n">réel contre prévisionnel</span>
+      </div>
+      <div class="sff-block__b">
+        <svg viewBox="0 0 320 120" width="100%" height="180" preserveAspectRatio="none" aria-label="Trajectoire cumulée réelle et prévisionnelle">
+          <line x1="0" y1="60" x2="320" y2="60" stroke="var(--sf-border-strong)" stroke-width="1"/>
+          <polyline fill="none" stroke="var(--sf-text-3)" stroke-width="2" stroke-dasharray="5 4"
+            points="0.0,57.0 45.7,53.9 91.4,50.9 137.1,47.9 182.9,44.9 228.6,41.8 274.3,38.8 320.0,35.8"/>
+          <polyline fill="none" stroke="var(--sf-loss)" stroke-width="2.5" stroke-linejoin="round"
+            points="0.0,65.6 45.7,73.5 91.4,79.0 137.1,84.7 182.9,90.3 228.6,98.2 274.3,106.1 320.0,114.0"/>
+        </svg>
+        <div class="mfx-legend">
+          <span><i class="loss"></i>Trajectoire réelle · −19 135 €</span>
+          <span><i class="trait"></i>Trajectoire prévue · +8 584 €</span>
+        </div>
+      </div>
     </div>
 
     <div class="sff-grid2">
@@ -803,19 +1012,33 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 
       <div class="sff-block">
         <div class="sff-block__h">
-          <p class="sff-block__t">Loyers non encaissés</p>
+          <p class="sff-block__t">Loyers non soldés</p>
           <span class="sff-block__n">50 % du dû</span>
         </div>
         <div class="sff-block__b">
-          <div class="sff-lines">
-            <div class="sff-line"><span class="sff-line__l">Février 2026</span><span class="sff-line__v sf-loss">830&#8239;€</span></div>
-            <div class="sff-line"><span class="sff-line__l">Juin 2026</span><span class="sff-line__v sf-loss">830&#8239;€</span></div>
-            <div class="sff-line"><span class="sff-line__l">Juillet 2026</span><span class="sff-line__v sf-loss">830&#8239;€</span></div>
-            <div class="sff-line"><span class="sff-line__l">Août 2026</span><span class="sff-line__v sf-loss">830&#8239;€</span></div>
-            <div class="sff-line sff-line--tot">
-              <span class="sff-line__l">Manque à encaisser</span>
-              <span class="sff-line__v sf-loss">3&#8239;320&#8239;€</span>
-            </div>
+          <div class="mfx-imp" title="Ouvrir le suivi mensuel sur ce mois">
+            <span class="mfx-imp__m">Février 2026</span>
+            <span><span class="mfx-imp__l">Test V1</span></span>
+            <span class="sf-pill sf-pill--loss">Non soldé</span>
+            <span class="mfx-imp__v sf-loss">−830&#8239;€</span>
+          </div>
+          <div class="mfx-imp" title="Ouvrir le suivi mensuel sur ce mois">
+            <span class="mfx-imp__m">Juin 2026</span>
+            <span><span class="mfx-imp__l">Test V1</span></span>
+            <span class="sf-pill sf-pill--loss">Non soldé</span>
+            <span class="mfx-imp__v sf-loss">−830&#8239;€</span>
+          </div>
+          <div class="mfx-imp" title="Ouvrir le suivi mensuel sur ce mois">
+            <span class="mfx-imp__m">Juillet 2026</span>
+            <span><span class="mfx-imp__l">Test V1</span></span>
+            <span class="sf-pill sf-pill--loss">Non soldé</span>
+            <span class="mfx-imp__v sf-loss">−830&#8239;€</span>
+          </div>
+          <div class="mfx-imp" title="Ouvrir le suivi mensuel sur ce mois">
+            <span class="mfx-imp__m">Août 2026</span>
+            <span><span class="mfx-imp__l">Test V1</span></span>
+            <span class="sf-pill sf-pill--loss">Non soldé</span>
+            <span class="mfx-imp__v sf-loss">−830&#8239;€</span>
           </div>
           <p class="sff-sep">Composition du constaté</p>
           <div class="sff-lines">
@@ -852,6 +1075,16 @@ tabs.forEach(t => t.addEventListener('click', () => {
   tabs.forEach(x => x.setAttribute('aria-selected', String(x === t)));
   panes.forEach(p => { p.hidden = p.dataset.p !== t.dataset.t; });
 }));
+/* Pastilles de filtre : démonstration de l'état pressé. */
+document.querySelectorAll('.mfx-pills').forEach(g => {
+  const ps = [...g.querySelectorAll('.mfx-pill')];
+  ps.forEach(p => p.addEventListener('click', () =>
+    ps.forEach(x => x.setAttribute('aria-pressed', String(x === p)))));
+});
+/* Options de la fenêtre d'encaissement. */
+const opts = [...document.querySelectorAll('.mfx-opt')];
+opts.forEach(o => o.addEventListener('click', () =>
+  opts.forEach(x => x.setAttribute('aria-checked', String(x === o)))));
 </script>
 </body>
 </html>
