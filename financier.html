@@ -8,42 +8,57 @@
 <link rel="stylesheet" href="components.css?v=59">
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
-   MAQUETTE « MODULE FINANCIER » — phase 5, iteration 3
+   MAQUETTE « MODULE FINANCIER » — phase 5, iteration 4
    Servie en production pour utiliser les VRAIS tokens.css et components.css.
-
-   Cette iteration REND les 21 capacites que le comparatif avait relevees
-   comme perdues (COMPARATIF-MODULE-FINANCIER.md). Le module financier est un
-   POSTE DE TRAVAIL, pas un ecran de lecture : sa densite est sa fonction.
-
    Donnees : base de Thomas, exercice 2026, series recalculees en SQL.
+
+   REGLE DE PERIMETRE, arretee le 10/08/2026 — elle gouverne tous les chiffres.
+   Un bien VACANT n'est pas une donnee manquante : on sait qu'il ne rapporte
+   rien et que son credit court, son cashflow est donc calculable et vrai. Il
+   est COMPTE. Seul un bien LOUE dont les loyers ne sont pas saisis est ecarte,
+   parce que la on ignore vraiment ce qui s'est passe.
+
+   STRUCTURE : Performance (consolide) · Portefeuille (bien par bien) ·
+   Suivi mensuel (saisie) · Locataires.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-ui);
       margin:0; font-size:var(--sf-font-body); }
 .mfx-wrap{ padding:clamp(16px, 1.6vw, 34px); max-width:1840px; margin:0 auto; }
 
-.mfx-note{ border:1px dashed var(--sf-border-strong); border-radius:var(--sf-radius-md);
-  padding:var(--sf-space-5) var(--sf-space-6); margin-bottom:var(--sf-space-8);
-  font-size:var(--sf-font-caption); color:var(--sf-text-2); line-height:var(--sf-lh-normal); }
-.mfx-note b{ color:var(--sf-text); }
-.mfx-note ul{ margin:var(--sf-space-4) 0 0; padding-left:var(--sf-space-7); }
-.mfx-note li{ margin-bottom:var(--sf-space-3); }
-.mfx-note code{ font-family:var(--sf-font-num); font-size:11px; }
-
-/* ── Bandeau + exercice ──────────────────────────────────────────────────── */
+/* ── Bandeau ─────────────────────────────────────────────────────────────── */
 .mfx-top{ display:flex; align-items:flex-end; justify-content:space-between;
   gap:var(--sf-space-6); flex-wrap:wrap; margin-bottom:var(--sf-space-7); }
 .mfx-h1{ font-family:var(--sf-font-display); font-size:clamp(26px, 2.3vw, 42px);
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight);
   line-height:var(--sf-lh-tight); margin:0; }
 .mfx-sub{ font-size:var(--sf-font-body); color:var(--sf-text-3); margin:var(--sf-space-3) 0 0; }
-.mfx-exo{ display:flex; align-items:center; gap:var(--sf-space-4); }
-.mfx-exo__l{ font-size:var(--sf-font-label); font-weight:var(--sf-weight-semibold);
-  letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-3); }
-.mfx-exo select{ height:var(--sf-control-h); padding:0 var(--sf-space-6);
-  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border-strong);
-  border-radius:var(--sf-radius-sm); color:var(--sf-text); font-family:var(--sf-font-num);
-  font-size:var(--sf-font-body); cursor:pointer; }
+.mfx-champ-lab{ font-size:var(--sf-font-label); font-weight:var(--sf-weight-semibold);
+  letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-3);
+  display:block; margin-bottom:var(--sf-space-3); }
+
+/* ── LISTE DEROULANTE — le composant maison de la plateforme ─────────────────
+   Reprise de `.sf-pick` (components.css) : un bouton dessine par-dessus un
+   <select> natif qui reste la source de verite. Les selects du module
+   financier etaient restes natifs ; ils sont desormais habilles comme partout
+   ailleurs. Sous 720 px le natif reprend la main, comme le prevoit le
+   composant d'origine. */
+.mfx-pick{ position:relative; display:inline-flex; }
+.mfx-pick__natif{ position:absolute; opacity:0; pointer-events:none;
+  width:100%; height:100%; left:0; top:0; margin:0; border:0; padding:0; }
+.mfx-pick__btn{ display:inline-flex; align-items:center; gap:var(--sf-space-4);
+  height:var(--sf-control-h); padding:0 var(--sf-space-5);
+  background:var(--sf-surface-2); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); color:var(--sf-text);
+  font-family:var(--sf-font-ui); font-size:var(--sf-font-body-sm);
+  cursor:pointer; white-space:nowrap; width:100%; text-align:left;
+  transition:border-color var(--sf-dur) var(--sf-ease), background-color var(--sf-dur) var(--sf-ease); }
+.mfx-pick__btn:hover{ border-color:var(--sf-border-strong); }
+.mfx-pick__btn:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus);
+  outline-offset:var(--sf-focus-offset); }
+.mfx-pick__val{ flex:1; overflow:hidden; text-overflow:ellipsis; }
+.mfx-pick__chev{ flex-shrink:0; color:var(--sf-text-3); }
+.mfx-pick--lg .mfx-pick__btn{ min-width:280px; }
 
 /* ── Indicateurs ─────────────────────────────────────────────────────────── */
 .mfx-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
@@ -62,11 +77,11 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   line-height:var(--sf-lh-tight); font-variant-numeric:tabular-nums; white-space:nowrap; }
 .mfx-kpi__v--gain{ color:var(--sf-gain); } .mfx-kpi__v--loss{ color:var(--sf-loss); }
 .mfx-kpi__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); }
-.mfx-reserve{ display:flex; align-items:flex-start; gap:var(--sf-space-4);
+.mfx-fait{ display:flex; align-items:flex-start; gap:var(--sf-space-4);
   margin:var(--sf-space-5) 0 var(--sf-space-7); font-size:var(--sf-font-body-sm);
   color:var(--sf-text-3); line-height:var(--sf-lh-normal); }
-.mfx-reserve svg{ flex-shrink:0; margin-top:1px; }
-.mfx-reserve b{ color:var(--sf-alert); font-weight:var(--sf-weight-semibold); }
+.mfx-fait svg{ flex-shrink:0; margin-top:1px; }
+.mfx-fait b{ color:var(--sf-alert); font-weight:var(--sf-weight-semibold); }
 
 /* ── Onglets ─────────────────────────────────────────────────────────────── */
 .mfx-tabs{ display:flex; gap:var(--sf-space-2); overflow-x:auto;
@@ -84,7 +99,8 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-tab__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
   font-weight:var(--sf-weight-semibold); color:var(--sf-text-3);
   background:var(--sf-surface-2); border-radius:var(--sf-radius-full); padding:1px 7px; }
-/* Même cause que les pastilles : le vif sur son propre lavis ne tient pas AA. */
+/* ⚠️ `--sf-brand-vivid` sur `--sf-brand-wash-2` ne tient que 4,16:1. Le fond
+   teinte suffit a signaler l'etat, le texte prend la couleur pleine. */
 .mfx-tab[aria-selected="true"] .mfx-tab__n{ background:var(--sf-brand-wash-2); color:var(--sf-text); }
 .mfx-tab__n--alerte{ background:var(--sf-alert-wash); color:var(--sf-alert); }
 .mfx-pane[hidden]{ display:none; }
@@ -107,7 +123,6 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .sff-grid2{ display:grid; grid-template-columns:1fr 1fr; gap:var(--sf-space-5); align-items:stretch; }
 @media (max-width:1180px){ .sff-grid2{ grid-template-columns:1fr; } }
 .sff-grid2 > .sff-block{ margin-bottom:var(--sf-space-5); }
-
 .sff-lines{ display:flex; flex-direction:column; }
 .sff-line{ display:grid; grid-template-columns:minmax(0,1fr) auto;
   gap:var(--sf-space-5); align-items:center; padding:var(--sf-space-4) 0;
@@ -134,8 +149,8 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .sff-empty__x{ font-size:var(--sf-font-body-sm); max-width:54ch; line-height:var(--sf-lh-normal); }
 .sff-empty .sf-btn{ margin-top:var(--sf-space-3); }
 
-/* ── BARRE D'OUTILS : filtres + tri (R-06, R-07, R-08 rendus) ───────────── */
-.mfx-tools{ display:flex; gap:var(--sf-space-5); align-items:center; flex-wrap:wrap;
+/* ── Barre d'outils ──────────────────────────────────────────────────────── */
+.mfx-tools{ display:flex; gap:var(--sf-space-5); align-items:flex-end; flex-wrap:wrap;
   margin-bottom:var(--sf-space-6); }
 .mfx-pills{ display:flex; gap:var(--sf-space-3); flex-wrap:wrap; }
 .mfx-pill{ display:inline-flex; align-items:center; gap:var(--sf-space-3);
@@ -146,34 +161,19 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   font-weight:var(--sf-weight-semibold); cursor:pointer; white-space:nowrap;
   transition:background var(--sf-dur) var(--sf-ease), color var(--sf-dur) var(--sf-ease); }
 .mfx-pill:hover{ background:var(--sf-surface-2); color:var(--sf-text); }
-/* ⚠️ CONTRASTE — `--sf-brand-vivid` sur `--sf-brand-wash-2` ne tient que
-   4,16:1, sous le seuil AA. C'est la combinaison qu'on trouve un peu partout
-   pour marquer un état actif (pastilles, badges d'onglet). Le fond teinté
-   suffit à signaler l'état ; le texte prend la couleur pleine. */
 .mfx-pill[aria-pressed="true"]{ background:var(--sf-brand-wash-2); border-color:transparent;
   color:var(--sf-text); }
 .mfx-pill__n{ font-family:var(--sf-font-num); font-size:11px; color:var(--sf-text-3); }
 .mfx-pill[aria-pressed="true"] .mfx-pill__n{ color:var(--sf-text-2); }
-.mfx-tri{ margin-left:auto; display:flex; align-items:center; gap:var(--sf-space-4); }
-.mfx-tri label{ font-size:var(--sf-font-caption); color:var(--sf-text-3); }
-.mfx-tri select{ height:var(--sf-control-h-sm); padding:0 var(--sf-space-5);
-  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
-  border-radius:var(--sf-radius-sm); color:var(--sf-text); font-family:inherit;
-  font-size:var(--sf-font-caption); cursor:pointer; }
+.mfx-tools__fin{ margin-left:auto; display:flex; align-items:flex-end; gap:var(--sf-space-5); }
 
-/* ── CARTES DE BIEN (retour aux cartes, arbitrage du 10/08/2026) ─────────── */
-/* `min(370px, 100%)` et non `370px` : une piste minmax impose sa largeur même
-   quand le conteneur est plus étroit — la page débordait de 11 px en 375. */
+/* ── Cartes de bien ──────────────────────────────────────────────────────── */
 .mfx-cards{ display:grid; grid-template-columns:repeat(auto-fill,minmax(min(370px,100%),1fr));
   gap:var(--sf-space-5); }
 .mfx-card{ background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
   border-radius:var(--sf-radius-md); overflow:hidden; display:flex; flex-direction:column;
   cursor:pointer; transition:border-color var(--sf-dur) var(--sf-ease); }
 .mfx-card:hover{ border-color:var(--sf-border-strong); }
-/* Un bien sans donnée saisie se signale par une trame, pas par un chiffre faux. */
-.mfx-card--vide{ background:var(--sf-surface);
-  background-image:repeating-linear-gradient(-45deg, transparent, transparent 10px,
-    rgba(240,180,41,.03) 10px, rgba(240,180,41,.03) 20px); }
 .mfx-card__h{ display:flex; align-items:center; gap:var(--sf-space-5);
   padding:var(--sf-space-6); border-bottom:var(--sf-border-width) solid var(--sf-border); }
 .mfx-card__ph{ width:52px; height:52px; border-radius:var(--sf-radius-sm); flex-shrink:0;
@@ -187,13 +187,13 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   padding:var(--sf-space-5) var(--sf-space-6); font-size:var(--sf-font-body-sm);
   color:var(--sf-text-2); border-bottom:var(--sf-border-width) solid var(--sf-border); }
 .mfx-card__loc svg{ flex-shrink:0; color:var(--sf-text-3); }
+.mfx-card__loc em{ font-style:normal; color:var(--sf-text-3); }
 .mfx-card__lien{ margin-left:auto; color:var(--sf-brand-vivid); text-decoration:none;
   font-size:var(--sf-font-caption); font-weight:var(--sf-weight-semibold); white-space:nowrap; }
 .mfx-card__lien:hover{ text-decoration:underline; }
 .mfx-card__stats{ display:grid; grid-template-columns:1fr 1fr; gap:1px;
   background:var(--sf-border); border-bottom:var(--sf-border-width) solid var(--sf-border); }
 .mfx-stat{ background:var(--sf-surface); padding:var(--sf-space-5) var(--sf-space-6); }
-.mfx-card--vide .mfx-stat{ background:transparent; }
 .mfx-stat__l{ font-size:var(--sf-font-label); text-transform:uppercase;
   letter-spacing:var(--sf-track-caps); color:var(--sf-text-3);
   font-weight:var(--sf-weight-semibold); }
@@ -207,24 +207,15 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-card__cta{ padding:0 var(--sf-space-6) var(--sf-space-6); }
 .mfx-card__cta .sf-btn{ width:100%; }
 
-/* ── GRAPHIQUES ──────────────────────────────────────────────────────────────
-   Trois graphiques retenus : cashflow consolidé par mois, entrées vs sorties
-   (Portefeuille), cumul sur l'exercice (Rentabilité). Dessinés ici en CSS et
-   SVG ; à l'implémentation ils passeront par Chart.js, déjà chargé. */
+/* ── Graphiques ──────────────────────────────────────────────────────────── */
 .mfx-chart{ display:grid; grid-template-columns:repeat(8,1fr); gap:var(--sf-space-4);
-  align-items:end; height:170px; }
+  align-items:end; height:180px; }
 .mfx-col{ display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
   height:100%; gap:var(--sf-space-3); }
-.mfx-col__b{ width:100%; max-width:40px; border-radius:3px 3px 0 0; min-height:2px; }
+.mfx-col__b{ width:100%; max-width:42px; border-radius:3px 3px 0 0; min-height:2px; }
 .mfx-col__b--gain{ background:var(--sf-gain); }
 .mfx-col__b--loss{ background:var(--sf-loss); }
 .mfx-col__l{ font-size:10px; color:var(--sf-text-3); font-family:var(--sf-font-num); }
-/* Entrées vs sorties : deux barres accolées par mois. */
-.mfx-duo{ display:flex; gap:2px; align-items:flex-end; width:100%; height:100%;
-  justify-content:center; }
-.mfx-duo span{ width:14px; border-radius:3px 3px 0 0; min-height:2px; }
-.mfx-duo .e{ background:var(--sf-gain); }
-.mfx-duo .s{ background:var(--sf-loss); }
 .mfx-legend{ display:flex; gap:var(--sf-space-7); flex-wrap:wrap; margin-top:var(--sf-space-6);
   font-size:var(--sf-font-caption); color:var(--sf-text-3); }
 .mfx-legend span{ display:inline-flex; align-items:center; gap:var(--sf-space-3); }
@@ -233,6 +224,9 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-legend i.loss{ background:var(--sf-loss); }
 .mfx-legend i.vide{ background:transparent; border:1px dashed var(--sf-border-strong); }
 .mfx-legend i.trait{ height:0; border-top:2px dashed var(--sf-text-3); border-radius:0; width:16px; }
+.mfx-svg{ display:block; width:100%; }
+.mfx-mois{ display:grid; grid-template-columns:repeat(8,1fr); margin-top:var(--sf-space-4);
+  font-size:10px; color:var(--sf-text-3); font-family:var(--sf-font-num); text-align:center; }
 
 /* ── Grille de saisie ────────────────────────────────────────────────────── */
 .mfx-tw{ overflow-x:auto; }
@@ -260,7 +254,6 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-cell__ic{ display:block; line-height:0; margin-bottom:2px; }
 .mfx-cell--ok{ background:var(--sf-gain-wash); color:var(--sf-gain); }
 .mfx-cell--ko{ background:var(--sf-loss-wash); color:var(--sf-loss); }
-.mfx-cell--part{ background:var(--sf-alert-wash); color:var(--sf-alert); }
 .mfx-cell--avenir{ background:transparent; border:1px dashed var(--sf-border-strong);
   color:var(--sf-text-3); }
 .mfx-cell--none{ background:var(--sf-surface-2); color:var(--sf-text-3); cursor:default; }
@@ -269,15 +262,10 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-cell--charge .plus{ opacity:0; transition:opacity var(--sf-dur) var(--sf-ease); }
 .mfx-grille tr:hover .mfx-cell--charge .plus{ opacity:1; }
 .mfx-cell--charge:hover{ background:var(--sf-surface-3); }
-/* Le « ••• » ouvre la fenêtre d'encaissement détaillée (R-01). Il n'apparaît
-   qu'au survol : la case reste lisible, le geste avancé reste accessible. */
 .mfx-cell__more{ position:absolute; top:1px; right:3px; font-size:10px; line-height:1;
-  /* `currentColor` et non --sf-text-3 : sur les lavis colorés des cases, le gris
-     discret retombait à 4,04:1. La couleur de la case, elle, tient déjà AA. */
   color:currentColor; opacity:0; transition:opacity var(--sf-dur) var(--sf-ease); }
 .mfx-cell:hover .mfx-cell__more{ opacity:1; }
 
-/* Bandeau de filtre par bien (R-18) */
 .mfx-filtre{ display:flex; align-items:center; gap:var(--sf-space-5); flex-wrap:wrap;
   background:var(--sf-brand-wash); border-left:3px solid var(--sf-brand-vivid);
   border-radius:var(--sf-radius-sm); padding:var(--sf-space-5) var(--sf-space-6);
@@ -285,7 +273,6 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-filtre b{ color:var(--sf-text); }
 .mfx-filtre .actions{ margin-left:auto; display:flex; gap:var(--sf-space-4); }
 
-/* Liste des charges détaillées (R-02, R-03, R-05) */
 .mfx-charge{ display:grid; grid-template-columns:96px minmax(0,1fr) auto auto auto;
   gap:var(--sf-space-5); align-items:center; padding:var(--sf-space-5) 0;
   border-bottom:var(--sf-border-width) solid var(--sf-border); }
@@ -309,7 +296,6 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-ic-btn:hover{ background:var(--sf-surface-3); color:var(--sf-text); }
 .mfx-ic-btn--danger:hover{ background:var(--sf-loss-wash); color:var(--sf-loss); }
 
-/* Aperçu de la fenêtre d'encaissement (R-01) */
 .mfx-popup{ max-width:420px; border:var(--sf-border-width) solid var(--sf-border-strong);
   border-radius:var(--sf-radius-lg); background:var(--sf-surface-2); overflow:hidden;
   box-shadow:var(--sf-elev-3); }
@@ -376,15 +362,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-relance__t{ font-size:var(--sf-font-body-sm); color:var(--sf-text); }
 .mfx-relance__s{ font-size:var(--sf-font-caption); color:var(--sf-text-2); margin-top:2px; }
 
-/* ── Rentabilité ─────────────────────────────────────────────────────────── */
-.mfx-sel{ display:flex; align-items:center; gap:var(--sf-space-5); flex-wrap:wrap;
-  margin-bottom:var(--sf-space-6); }
-.mfx-sel select{ height:var(--sf-control-h); padding:0 var(--sf-space-6);
-  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border-strong);
-  border-radius:var(--sf-radius-sm); color:var(--sf-text); font-family:inherit;
-  font-size:var(--sf-font-body); cursor:pointer; min-width:280px; }
-.mfx-sci{ display:flex; align-items:center; gap:var(--sf-space-4);
-  font-size:var(--sf-font-caption); color:var(--sf-text-3); }
+/* ── Performance ─────────────────────────────────────────────────────────── */
 .mfx-comp{ display:grid; grid-template-columns:auto minmax(0,1fr) auto;
   gap:var(--sf-space-5); align-items:center; margin-bottom:var(--sf-space-5); }
 .mfx-comp__l{ font-size:var(--sf-font-body); color:var(--sf-text-2); white-space:nowrap; }
@@ -400,7 +378,6 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   margin-top:var(--sf-space-6); }
 .mfx-verdict svg{ flex-shrink:0; margin-top:1px; color:var(--sf-loss); }
 .mfx-verdict b{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
-/* Ligne d'impayé cliquable (R-19) */
 .mfx-imp{ display:grid; grid-template-columns:104px minmax(0,1fr) auto auto;
   gap:var(--sf-space-5); align-items:center; padding:var(--sf-space-5) var(--sf-space-4);
   margin:0 calc(-1 * var(--sf-space-4)); border-radius:var(--sf-radius-sm);
@@ -417,57 +394,41 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 <body>
 <div class="mfx-wrap">
 
-  <p class="mfx-note">
-    <b>Maquette « Module financier » — itération 3, non déployée dans l'application.</b>
-    Elle rend les <b>21 capacités</b> que le comparatif avait relevées comme perdues
-    (<code>COMPARATIF-MODULE-FINANCIER.md</code>). Le module financier est un <b>poste de
-    travail</b>, pas un écran de lecture : sa densité est sa fonction.
-    <ul>
-      <li><b>Retour aux cartes</b> pour le Portefeuille : photo, locataire cliquable, quatre
-          statistiques, mini-courbe sur 12 mois et son écart contre le mois précédent.
-          Plus les <b>quatre filtres</b> et le <b>tri</b>.</li>
-      <li><b>Trois graphiques</b>, ceux que tu as retenus : cashflow consolidé par mois et
-          entrées vs sorties dans le Portefeuille, cumul sur l'exercice dans la Rentabilité.</li>
-      <li><b>La fenêtre d'encaissement revient</b> — quatre statuts, montant partiel, date,
-          notes, prorata loi 1989. Elle est montrée dépliée en bas du Suivi mensuel.</li>
-      <li><b>Les charges détaillées reviennent</b> : filtres par catégorie, modification et
-          suppression de chaque ligne.</li>
-      <li><b>L'écart réel − prévisionnel consolidé revient</b> dans le bandeau. Il remplace
-          « Effort de trésorerie » qui faisait <b>doublon avec le cashflow constaté</b> — c'était
-          le même nombre à deux échelles. L'effort mensuel devient le sous-titre du cashflow.</li>
-      <li><b>Le bandeau de filtre par bien revient</b> : c'est là qu'atterrit le lien « Suivi
-          mensuel » d'une fiche bien. Il n'apparaît que dans ce cas ; il est montré ici pour que
-          tu puisses le juger.</li>
-    </ul>
-  </p>
-
   <!-- ══ BANDEAU ═══════════════════════════════════════════════════════════ -->
   <div class="mfx-top">
     <div>
       <h1 class="mfx-h1">Module financier</h1>
       <p class="mfx-sub">Ce que vos biens ont réellement rapporté et coûté</p>
     </div>
-    <div class="mfx-exo">
-      <span class="mfx-exo__l">Exercice</span>
-      <select aria-label="Exercice comptable"><option>2026</option><option>2025</option><option>2024</option></select>
+    <div>
+      <span class="mfx-champ-lab">Exercice</span>
+      <span class="mfx-pick">
+        <select class="mfx-pick__natif" aria-label="Exercice comptable" tabindex="-1">
+          <option>2026</option><option>2025</option><option>2024</option>
+        </select>
+        <button class="mfx-pick__btn" aria-haspopup="listbox" aria-expanded="false">
+          <span class="mfx-pick__val">2026</span>
+          <svg class="mfx-pick__chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+      </span>
     </div>
   </div>
 
   <div class="mfx-kpis">
     <div class="mfx-kpi mfx-kpi--hi">
       <span class="mfx-kpi__l">Cashflow constaté</span>
-      <span class="mfx-kpi__v mfx-kpi__v--loss">−19&#8239;135&#8239;€</span>
-      <span class="mfx-kpi__s">soit −2&#8239;392&#8239;€ par mois sur 8 mois écoulés</span>
+      <span class="mfx-kpi__v mfx-kpi__v--loss">−54&#8239;735&#8239;€</span>
+      <span class="mfx-kpi__s">soit −6&#8239;842&#8239;€ par mois sur 8 mois écoulés</span>
     </div>
     <div class="mfx-kpi">
       <span class="mfx-kpi__l">Rendement net</span>
-      <span class="mfx-kpi__v mfx-kpi__v--loss">1,36&#8239;%</span>
+      <span class="mfx-kpi__v mfx-kpi__v--loss">0,51&#8239;%</span>
       <span class="mfx-kpi__s">en dessous de votre seuil de 5&#8239;%</span>
     </div>
     <div class="mfx-kpi">
       <span class="mfx-kpi__l">Écart réel − prévisionnel</span>
-      <span class="mfx-kpi__v mfx-kpi__v--loss">−27&#8239;719&#8239;€</span>
-      <span class="mfx-kpi__s">prévu +8&#8239;584&#8239;€ · constaté −19&#8239;135&#8239;€</span>
+      <span class="mfx-kpi__v mfx-kpi__v--loss">−55&#8239;831&#8239;€</span>
+      <span class="mfx-kpi__s">prévu +1&#8239;096&#8239;€ · constaté −54&#8239;735&#8239;€</span>
     </div>
     <div class="mfx-kpi">
       <span class="mfx-kpi__l">Occupation</span>
@@ -476,18 +437,24 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
     </div>
   </div>
 
-  <p class="mfx-reserve">
+  <!-- Un FAIT, plus une réserve : les vacants sont désormais comptés, et ce
+       sont eux qui expliquent l'essentiel du résultat. -->
+  <p class="mfx-fait">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.9" r=".7" fill="currentColor" stroke="none"/></svg>
-    <span><b>2 biens sur 3 sont écartés de ces indicateurs</b> : aucun loyer ni charge n'y a
-    encore été saisi. Les inclure ferait passer le cashflow de −19&#8239;135&#8239;€ à
-    −54&#8239;735&#8239;€ — un chiffre dont les deux tiers ne reposeraient sur aucune donnée.</span>
+    <span><b>Deux de vos trois biens sont vacants.</b> Leurs mensualités de crédit —
+    35&#8239;600&#8239;€ depuis janvier — courent sans aucun loyer en face : elles représentent
+    65&#8239;% de votre cashflow négatif.</span>
   </p>
 
   <!-- ══ ONGLETS ═══════════════════════════════════════════════════════════ -->
   <div class="mfx-tabs" role="tablist">
-    <button class="mfx-tab" role="tab" aria-selected="true" data-t="portefeuille">
+    <button class="mfx-tab" role="tab" aria-selected="true" data-t="performance">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V10M18 20V4M6 20v-6"/></svg>
+      Performance
+    </button>
+    <button class="mfx-tab" role="tab" aria-selected="false" data-t="portefeuille">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7.5" width="18" height="12.5" rx="2"/><path d="M9 7.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.5"/><path d="M3 13h18"/></svg>
-      Portefeuille
+      Portefeuille <span class="mfx-tab__n">3</span>
     </button>
     <button class="mfx-tab" role="tab" aria-selected="false" data-t="suivi">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
@@ -497,132 +464,29 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-5.2 6.5-5.2s6.5 1.9 6.5 5.2"/><path d="M16.5 5.4a3.2 3.2 0 0 1 0 6.2M18 14.4c2.1.6 3.5 2 3.5 4.1"/></svg>
       Locataires <span class="mfx-tab__n">1</span>
     </button>
-    <button class="mfx-tab" role="tab" aria-selected="false" data-t="renta">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V10M18 20V4M6 20v-6"/></svg>
-      Rentabilité
-    </button>
   </div>
 
-  <!-- ══════════════ PORTEFEUILLE ══════════════ -->
-  <section class="mfx-pane" data-p="portefeuille">
+  <!-- ══════════════ PERFORMANCE ══════════════ -->
+  <section class="mfx-pane" data-p="performance">
     <div class="mfx-tools">
-      <div class="mfx-pills">
-        <button class="mfx-pill" aria-pressed="true">Tous <span class="mfx-pill__n">3</span></button>
-        <button class="mfx-pill" aria-pressed="false">Loués <span class="mfx-pill__n">1</span></button>
-        <button class="mfx-pill" aria-pressed="false">Vacants <span class="mfx-pill__n">2</span></button>
-        <button class="mfx-pill" aria-pressed="false">Avec impayés <span class="mfx-pill__n">1</span></button>
-      </div>
-      <div class="mfx-tri">
-        <label for="tri">Trier par</label>
-        <select id="tri">
-          <option>Cashflow décroissant</option>
-          <option>Cashflow croissant</option>
-          <option>Rendement décroissant</option>
-          <option>Capital engagé</option>
-        </select>
+      <div>
+        <span class="mfx-champ-lab">Périmètre</span>
+        <span class="mfx-pick mfx-pick--lg">
+          <select class="mfx-pick__natif" aria-label="Périmètre analysé" tabindex="-1">
+            <option>Tous les biens</option>
+            <option>Immeuble Paris 18e — Paris</option>
+            <option>T3 Lyon — Lyon</option>
+            <option>T4+ Paris 16e — Paris</option>
+          </select>
+          <button class="mfx-pick__btn" aria-haspopup="listbox" aria-expanded="false">
+            <span class="mfx-pick__val">Tous les biens</span>
+            <svg class="mfx-pick__chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+        </span>
       </div>
     </div>
 
-    <div class="mfx-cards">
-      <!-- Bien documenté -->
-      <article class="mfx-card">
-        <div class="mfx-card__h">
-          <div class="mfx-card__ph">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 17 5-4.5 4.5 4 3-2.5L20 18"/></svg>
-          </div>
-          <div class="mfx-card__id">
-            <div class="mfx-card__t">Immeuble Paris 18e</div>
-            <div class="mfx-card__v">Paris · 75018 · 728 200 € engagés</div>
-          </div>
-          <span class="sf-pill sf-pill--loss"><span class="sf-dot"></span>Impayés</span>
-        </div>
-        <div class="mfx-card__loc">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.2-5.6 7.5-5.6s7.5 2 7.5 5.6"/></svg>
-          Test V1
-          <a class="mfx-card__lien" href="#">Voir la fiche</a>
-        </div>
-        <div class="mfx-card__stats">
-          <div class="mfx-stat">
-            <div class="mfx-stat__l">Loyers encaissés</div>
-            <div class="mfx-stat__v sf-gain">3&#8239;320&#8239;€</div>
-            <div class="mfx-stat__s">sur 6&#8239;640&#8239;€ dus</div>
-          </div>
-          <div class="mfx-stat">
-            <div class="mfx-stat__l">Charges payées</div>
-            <div class="mfx-stat__v">55&#8239;€</div>
-            <div class="mfx-stat__s">1 charge enregistrée</div>
-          </div>
-          <div class="mfx-stat">
-            <div class="mfx-stat__l">Cashflow constaté</div>
-            <div class="mfx-stat__v sf-loss">−19&#8239;135&#8239;€</div>
-            <div class="mfx-stat__s">prévu +8&#8239;584&#8239;€</div>
-          </div>
-          <div class="mfx-stat">
-            <div class="mfx-stat__l">Rendement net</div>
-            <div class="mfx-stat__v">1,36&#8239;%</div>
-            <div class="mfx-stat__s">seuil 5&#8239;%</div>
-          </div>
-        </div>
-        <div class="mfx-card__spark">
-          <div class="mfx-spark__h">
-            <span>Cashflow mois par mois</span>
-            <span class="mfx-spark__d">stable vs juillet</span>
-          </div>
-          <svg viewBox="0 0 300 46" width="100%" height="46" preserveAspectRatio="none" aria-label="Cashflow mensuel de janvier à août">
-            <polyline fill="none" stroke="var(--sf-loss)" stroke-width="2" stroke-linejoin="round"
-              points="0,9 42.9,42 85.7,9 128.6,11 171.4,9 214.3,42 257.1,42 300,42"/>
-          </svg>
-        </div>
-        <div class="mfx-card__cta">
-          <button class="sf-btn sf-btn--secondary sf-btn--sm">Voir le suivi mensuel</button>
-        </div>
-      </article>
-
-      <!-- Biens sans donnée : aucun chiffre inventé -->
-      <article class="mfx-card mfx-card--vide">
-        <div class="mfx-card__h">
-          <div class="mfx-card__ph">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 17 5-4.5 4.5 4 3-2.5L20 18"/></svg>
-          </div>
-          <div class="mfx-card__id">
-            <div class="mfx-card__t">T3 Lyon</div>
-            <div class="mfx-card__v">Lyon · 69007 · 246 600 € engagés</div>
-          </div>
-          <span class="sf-pill sf-pill--alert"><span class="sf-dot"></span>Vacant</span>
-        </div>
-        <div class="sff-empty" style="min-height:200px">
-          <div class="sff-empty__t" style="font-size:var(--sf-font-lead)">Aucun loyer saisi</div>
-          <div class="sff-empty__x">
-            Ce bien est écarté des indicateurs consolidés. Sa mensualité de crédit court
-            pourtant : <b style="color:var(--sf-alert)">850&#8239;€ par mois</b>.
-          </div>
-          <button class="sf-btn sf-btn--primary sf-btn--sm">Rattacher un locataire</button>
-        </div>
-      </article>
-
-      <article class="mfx-card mfx-card--vide">
-        <div class="mfx-card__h">
-          <div class="mfx-card__ph">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 17 5-4.5 4.5 4 3-2.5L20 18"/></svg>
-          </div>
-          <div class="mfx-card__id">
-            <div class="mfx-card__t">T4+ Paris 16e</div>
-            <div class="mfx-card__v">Paris · 75016 · 952 200 € engagés</div>
-          </div>
-          <span class="sf-pill sf-pill--alert"><span class="sf-dot"></span>Vacant</span>
-        </div>
-        <div class="sff-empty" style="min-height:200px">
-          <div class="sff-empty__t" style="font-size:var(--sf-font-lead)">Aucun loyer saisi</div>
-          <div class="sff-empty__x">
-            Ce bien est écarté des indicateurs consolidés. Sa mensualité de crédit court
-            pourtant : <b style="color:var(--sf-alert)">3&#8239;600&#8239;€ par mois</b>.
-          </div>
-          <button class="sf-btn sf-btn--primary sf-btn--sm">Rattacher un locataire</button>
-        </div>
-      </article>
-    </div>
-
-    <div class="sff-grid2" style="margin-top:var(--sf-space-5)">
+    <div class="sff-grid2">
       <div class="sff-block">
         <div class="sff-block__h">
           <p class="sff-block__t">Cashflow consolidé par mois</p>
@@ -630,14 +494,14 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
         </div>
         <div class="sff-block__b">
           <div class="mfx-chart">
-            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:70%" title="Janvier : −1 970 €"></span><span class="mfx-col__l">Jan</span></div>
-            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Février : −2 800 €"></span><span class="mfx-col__l">Fév</span></div>
-            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:70%" title="Mars : −1 970 €"></span><span class="mfx-col__l">Mar</span></div>
-            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:72%" title="Avril : −2 025 €"></span><span class="mfx-col__l">Avr</span></div>
-            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:70%" title="Mai : −1 970 €"></span><span class="mfx-col__l">Mai</span></div>
-            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Juin : −2 800 €"></span><span class="mfx-col__l">Jun</span></div>
-            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Juillet : −2 800 €"></span><span class="mfx-col__l">Jul</span></div>
-            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Août : −2 800 €"></span><span class="mfx-col__l">Aoû</span></div>
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:89%" title="Janvier : −6 420 €"></span><span class="mfx-col__l">Jan</span></div>
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Février : −7 250 €"></span><span class="mfx-col__l">Fév</span></div>
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:89%" title="Mars : −6 420 €"></span><span class="mfx-col__l">Mar</span></div>
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:89%" title="Avril : −6 475 €"></span><span class="mfx-col__l">Avr</span></div>
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:89%" title="Mai : −6 420 €"></span><span class="mfx-col__l">Mai</span></div>
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Juin : −7 250 €"></span><span class="mfx-col__l">Jun</span></div>
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Juillet : −7 250 €"></span><span class="mfx-col__l">Jul</span></div>
+            <div class="mfx-col"><span class="mfx-col__b mfx-col__b--loss" style="height:100%" title="Août : −7 250 €"></span><span class="mfx-col__l">Aoû</span></div>
           </div>
           <div class="mfx-legend">
             <span><i class="gain"></i>Mois positif</span>
@@ -652,16 +516,17 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
           <span class="sff-block__n">exercice 2026</span>
         </div>
         <div class="sff-block__b">
-          <div class="mfx-chart">
-            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:29%" title="Janvier encaissé : 830 €"></span><span class="s" style="height:98%" title="Janvier sorti : 2 800 €"></span></span><span class="mfx-col__l">Jan</span></div>
-            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:0%" title="Février encaissé : 0 €"></span><span class="s" style="height:98%" title="Février sorti : 2 800 €"></span></span><span class="mfx-col__l">Fév</span></div>
-            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:29%" title="Mars encaissé : 830 €"></span><span class="s" style="height:98%" title="Mars sorti : 2 800 €"></span></span><span class="mfx-col__l">Mar</span></div>
-            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:29%" title="Avril encaissé : 830 €"></span><span class="s" style="height:100%" title="Avril sorti : 2 855 €"></span></span><span class="mfx-col__l">Avr</span></div>
-            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:29%" title="Mai encaissé : 830 €"></span><span class="s" style="height:98%" title="Mai sorti : 2 800 €"></span></span><span class="mfx-col__l">Mai</span></div>
-            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:0%" title="Juin encaissé : 0 €"></span><span class="s" style="height:98%" title="Juin sorti : 2 800 €"></span></span><span class="mfx-col__l">Jun</span></div>
-            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:0%" title="Juillet encaissé : 0 €"></span><span class="s" style="height:98%" title="Juillet sorti : 2 800 €"></span></span><span class="mfx-col__l">Jul</span></div>
-            <div class="mfx-col"><span class="mfx-duo"><span class="e" style="height:0%" title="Août encaissé : 0 €"></span><span class="s" style="height:98%" title="Août sorti : 2 800 €"></span></span><span class="mfx-col__l">Aoû</span></div>
-          </div>
+          <svg class="mfx-svg" viewBox="0 0 320 120" height="180" preserveAspectRatio="none" aria-label="Loyers encaissés et sorties, de janvier à août">
+            <polygon fill="var(--sf-loss)" fill-opacity="0.14"
+              points="0,120 0.0,6.9 45.7,6.9 91.4,6.9 137.1,6.0 182.9,6.9 228.6,6.9 274.3,6.9 320.0,6.9 320,120"/>
+            <polyline fill="none" stroke="var(--sf-loss)" stroke-width="2"
+              points="0.0,6.9 45.7,6.9 91.4,6.9 137.1,6.0 182.9,6.9 228.6,6.9 274.3,6.9 320.0,6.9"/>
+            <polygon fill="var(--sf-gain)" fill-opacity="0.18"
+              points="0,120 0.0,107.0 45.7,120.0 91.4,107.0 137.1,107.0 182.9,107.0 228.6,120.0 274.3,120.0 320.0,120.0 320,120"/>
+            <polyline fill="none" stroke="var(--sf-gain)" stroke-width="2"
+              points="0.0,107.0 45.7,120.0 91.4,107.0 137.1,107.0 182.9,107.0 228.6,120.0 274.3,120.0 320.0,120.0"/>
+          </svg>
+          <div class="mfx-mois"><span>Jan</span><span>Fév</span><span>Mar</span><span>Avr</span><span>Mai</span><span>Jun</span><span>Jul</span><span>Aoû</span></div>
           <div class="mfx-legend">
             <span><i class="gain"></i>Loyers encaissés</span>
             <span><i class="loss"></i>Charges et mensualités</span>
@@ -669,11 +534,248 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
         </div>
       </div>
     </div>
+
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Cumul sur l'exercice</p>
+        <span class="sff-block__n">réel contre prévisionnel</span>
+      </div>
+      <div class="sff-block__b">
+        <svg class="mfx-svg" viewBox="0 0 320 120" height="190" preserveAspectRatio="none" aria-label="Trajectoire cumulée réelle et prévisionnelle">
+          <line x1="0" y1="60" x2="320" y2="60" stroke="var(--sf-border-strong)" stroke-width="1"/>
+          <polyline fill="none" stroke="var(--sf-text-3)" stroke-width="2" stroke-dasharray="5 4"
+            points="0.0,59.9 45.7,59.7 91.4,59.6 137.1,59.5 182.9,59.3 228.6,59.2 274.3,59.1 320.0,58.9"/>
+          <polyline fill="none" stroke="var(--sf-loss)" stroke-width="2.5" stroke-linejoin="round"
+            points="0.0,66.3 45.7,73.5 91.4,79.8 137.1,86.2 182.9,92.5 228.6,99.7 274.3,106.8 320.0,114.0"/>
+        </svg>
+        <div class="mfx-mois"><span>Jan</span><span>Fév</span><span>Mar</span><span>Avr</span><span>Mai</span><span>Jun</span><span>Jul</span><span>Aoû</span></div>
+        <div class="mfx-legend">
+          <span><i class="loss"></i>Trajectoire réelle · −54&#8239;735&#8239;€</span>
+          <span><i class="trait"></i>Trajectoire prévue · +1&#8239;096&#8239;€</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sff-grid2">
+      <div class="sff-block">
+        <div class="sff-block__h"><p class="sff-block__t">Ce qui était prévu, ce qui s'est passé</p></div>
+        <div class="sff-block__b">
+          <div class="mfx-comp">
+            <span class="mfx-comp__l">Prévu</span>
+            <span class="mfx-comp__bar"><span class="mfx-comp__f" style="width:2%;background:var(--sf-gain)"></span></span>
+            <span class="mfx-comp__v sf-gain">+1&#8239;096&#8239;€</span>
+          </div>
+          <div class="mfx-comp">
+            <span class="mfx-comp__l">Constaté</span>
+            <span class="mfx-comp__bar"><span class="mfx-comp__f" style="width:100%;background:var(--sf-loss)"></span></span>
+            <span class="mfx-comp__v sf-loss">−54&#8239;735&#8239;€</span>
+          </div>
+          <div class="sff-lines" style="margin-top:var(--sf-space-6)">
+            <div class="sff-line sff-line--tot">
+              <span class="sff-line__l">Écart sur 8 mois</span>
+              <span class="sff-line__v sf-loss">−55&#8239;831&#8239;€</span>
+            </div>
+          </div>
+          <p class="mfx-verdict">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/><path d="M10.3 3.6 2.5 17.2A2 2 0 0 0 4.2 20h15.6a2 2 0 0 0 1.7-2.8L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg>
+            <span>Deux causes, dans cet ordre. <b>La vacance de deux biens</b> pèse
+            35&#8239;600&#8239;€ de crédit sans loyer en face. Puis, sur le bien loué,
+            <b>un loyer sur deux n'a pas été encaissé</b> — 3&#8239;320&#8239;€ manquants.</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="sff-block">
+        <div class="sff-block__h">
+          <p class="sff-block__t">Loyers non soldés</p>
+          <span class="sff-block__n">50&#8239;% du dû</span>
+        </div>
+        <div class="sff-block__b">
+          <div class="mfx-imp" title="Ouvrir le suivi mensuel sur ce mois">
+            <span class="mfx-imp__m">Février 2026</span>
+            <span><span class="mfx-imp__l">Test V1 · Immeuble Paris 18e</span></span>
+            <span class="sf-pill sf-pill--loss">Non soldé</span>
+            <span class="mfx-imp__v sf-loss">−830&#8239;€</span>
+          </div>
+          <div class="mfx-imp" title="Ouvrir le suivi mensuel sur ce mois">
+            <span class="mfx-imp__m">Juin 2026</span>
+            <span><span class="mfx-imp__l">Test V1 · Immeuble Paris 18e</span></span>
+            <span class="sf-pill sf-pill--loss">Non soldé</span>
+            <span class="mfx-imp__v sf-loss">−830&#8239;€</span>
+          </div>
+          <div class="mfx-imp" title="Ouvrir le suivi mensuel sur ce mois">
+            <span class="mfx-imp__m">Juillet 2026</span>
+            <span><span class="mfx-imp__l">Test V1 · Immeuble Paris 18e</span></span>
+            <span class="sf-pill sf-pill--loss">Non soldé</span>
+            <span class="mfx-imp__v sf-loss">−830&#8239;€</span>
+          </div>
+          <div class="mfx-imp" title="Ouvrir le suivi mensuel sur ce mois">
+            <span class="mfx-imp__m">Août 2026</span>
+            <span><span class="mfx-imp__l">Test V1 · Immeuble Paris 18e</span></span>
+            <span class="sf-pill sf-pill--loss">Non soldé</span>
+            <span class="mfx-imp__v sf-loss">−830&#8239;€</span>
+          </div>
+          <p class="sff-sep">Composition du constaté</p>
+          <div class="sff-lines">
+            <div class="sff-line"><span class="sff-line__l">Loyers encaissés</span><span class="sff-line__v">3&#8239;320&#8239;€</span></div>
+            <div class="sff-line"><span class="sff-line__l">Charges payées</span><span class="sff-line__v">55&#8239;€</span></div>
+            <div class="sff-line"><span class="sff-line__l">Mensualités de crédit <small>· 3 biens × 8 mois</small></span><span class="sff-line__v">58&#8239;000&#8239;€</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Bilan comptable</p>
+        <span class="sff-block__n">SCI TEST Guénon · exercice 2026 · brouillon</span>
+      </div>
+      <div class="sff-block__b">
+        <p class="sff-line__l" style="margin:0 0 var(--sf-space-6)">
+          Les loyers encaissés et les charges payées alimentent le bilan de la SCI.
+        </p>
+        <div style="display:flex;gap:var(--sf-space-4);flex-wrap:wrap">
+          <button class="sf-btn sf-btn--primary sf-btn--sm">Alimenter le bilan</button>
+          <button class="sf-btn sf-btn--secondary sf-btn--sm">Voir le bilan</button>
+          <button class="sf-btn sf-btn--ghost sf-btn--sm">Changer de SCI</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ PORTEFEUILLE ══════════════
+       Uniquement des cartes de biens acquis. Aucun graphique : les cartes
+       portent deja leur propre lecture, et les graphiques consolides vivent
+       desormais dans Performance. -->
+  <section class="mfx-pane" data-p="portefeuille" hidden>
+    <div class="mfx-tools">
+      <div class="mfx-pills">
+        <button class="mfx-pill" aria-pressed="true">Tous <span class="mfx-pill__n">3</span></button>
+        <button class="mfx-pill" aria-pressed="false">Loués <span class="mfx-pill__n">1</span></button>
+        <button class="mfx-pill" aria-pressed="false">Vacants <span class="mfx-pill__n">2</span></button>
+        <button class="mfx-pill" aria-pressed="false">Avec impayés <span class="mfx-pill__n">1</span></button>
+      </div>
+      <div class="mfx-tools__fin">
+        <div>
+          <span class="mfx-champ-lab">Trier par</span>
+          <span class="mfx-pick">
+            <select class="mfx-pick__natif" aria-label="Trier les biens" tabindex="-1">
+              <option>Cashflow décroissant</option><option>Cashflow croissant</option>
+              <option>Rendement décroissant</option><option>Capital engagé</option>
+            </select>
+            <button class="mfx-pick__btn" aria-haspopup="listbox" aria-expanded="false">
+              <span class="mfx-pick__val">Cashflow décroissant</span>
+              <svg class="mfx-pick__chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mfx-cards">
+      <article class="mfx-card">
+        <div class="mfx-card__h">
+          <div class="mfx-card__ph">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 17 5-4.5 4.5 4 3-2.5L20 18"/></svg>
+          </div>
+          <div class="mfx-card__id">
+            <div class="mfx-card__t">Immeuble Paris 18e</div>
+            <div class="mfx-card__v">Paris · 75018 · 728 200 € engagés</div>
+          </div>
+          <span class="sf-pill sf-pill--loss"><span class="sf-dot"></span>Impayés</span>
+        </div>
+        <div class="mfx-card__loc">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.2-5.6 7.5-5.6s7.5 2 7.5 5.6"/></svg>
+          Test V1 <em>· depuis juin 2025</em>
+          <a class="mfx-card__lien" href="#">Voir la fiche</a>
+        </div>
+        <div class="mfx-card__stats">
+          <div class="mfx-stat"><div class="mfx-stat__l">Loyers encaissés</div><div class="mfx-stat__v sf-gain">3&#8239;320&#8239;€</div><div class="mfx-stat__s">sur 6&#8239;640&#8239;€ dus</div></div>
+          <div class="mfx-stat"><div class="mfx-stat__l">Charges payées</div><div class="mfx-stat__v">55&#8239;€</div><div class="mfx-stat__s">1 charge enregistrée</div></div>
+          <div class="mfx-stat"><div class="mfx-stat__l">Cashflow constaté</div><div class="mfx-stat__v sf-loss">−19&#8239;135&#8239;€</div><div class="mfx-stat__s">prévu +8&#8239;584&#8239;€</div></div>
+          <div class="mfx-stat"><div class="mfx-stat__l">Rendement net</div><div class="mfx-stat__v">1,36&#8239;%</div><div class="mfx-stat__s">seuil 5&#8239;%</div></div>
+        </div>
+        <div class="mfx-card__spark">
+          <div class="mfx-spark__h"><span>Cashflow mois par mois</span><span class="mfx-spark__d">stable vs juillet</span></div>
+          <svg viewBox="0 0 300 46" width="100%" height="46" preserveAspectRatio="none" aria-label="Cashflow mensuel de janvier à août">
+            <polyline fill="none" stroke="var(--sf-loss)" stroke-width="2" stroke-linejoin="round"
+              points="0.0,30.7 42.9,42.0 85.7,30.7 128.6,31.5 171.4,30.7 214.3,42.0 257.1,42.0 300.0,42.0"/>
+          </svg>
+        </div>
+        <div class="mfx-card__cta"><button class="sf-btn sf-btn--secondary sf-btn--sm">Voir le suivi mensuel</button></div>
+      </article>
+
+      <!-- Bien VACANT. Ses chiffres sont reels et comptes : un bien vide
+           rapporte zero, ce n'est pas une donnee manquante. La vacance est
+           nommee comme la CAUSE, et l'action qui suit est coherente avec elle. -->
+      <article class="mfx-card">
+        <div class="mfx-card__h">
+          <div class="mfx-card__ph">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 17 5-4.5 4.5 4 3-2.5L20 18"/></svg>
+          </div>
+          <div class="mfx-card__id">
+            <div class="mfx-card__t">T3 Lyon</div>
+            <div class="mfx-card__v">Lyon · 69007 · 246 600 € engagés</div>
+          </div>
+          <span class="sf-pill sf-pill--alert"><span class="sf-dot"></span>Vacant</span>
+        </div>
+        <div class="mfx-card__loc">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.2-5.6 7.5-5.6s7.5 2 7.5 5.6"/></svg>
+          <em>Aucun bail en cours</em>
+          <a class="mfx-card__lien" href="#">Rattacher un locataire</a>
+        </div>
+        <div class="mfx-card__stats">
+          <div class="mfx-stat"><div class="mfx-stat__l">Loyers encaissés</div><div class="mfx-stat__v">0&#8239;€</div><div class="mfx-stat__s">aucun bail sur l'exercice</div></div>
+          <div class="mfx-stat"><div class="mfx-stat__l">Charges payées</div><div class="mfx-stat__v">0&#8239;€</div><div class="mfx-stat__s">aucune charge enregistrée</div></div>
+          <div class="mfx-stat"><div class="mfx-stat__l">Cashflow constaté</div><div class="mfx-stat__v sf-loss">−6&#8239;800&#8239;€</div><div class="mfx-stat__s">prévu +744&#8239;€</div></div>
+          <div class="mfx-stat"><div class="mfx-stat__l">Rendement net</div><div class="mfx-stat__v">0&#8239;%</div><div class="mfx-stat__s">le bien ne produit rien</div></div>
+        </div>
+        <div class="mfx-card__spark">
+          <div class="mfx-spark__h"><span>Cashflow mois par mois</span><span class="mfx-spark__d">−850&#8239;€ chaque mois</span></div>
+          <svg viewBox="0 0 300 46" width="100%" height="46" preserveAspectRatio="none" aria-label="Cashflow mensuel constant">
+            <polyline fill="none" stroke="var(--sf-loss)" stroke-width="2"
+              points="0.0,42.0 42.9,42.0 85.7,42.0 128.6,42.0 171.4,42.0 214.3,42.0 257.1,42.0 300.0,42.0"/>
+          </svg>
+        </div>
+        <div class="mfx-card__cta"><button class="sf-btn sf-btn--secondary sf-btn--sm">Voir le suivi mensuel</button></div>
+      </article>
+
+      <article class="mfx-card">
+        <div class="mfx-card__h">
+          <div class="mfx-card__ph">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 17 5-4.5 4.5 4 3-2.5L20 18"/></svg>
+          </div>
+          <div class="mfx-card__id">
+            <div class="mfx-card__t">T4+ Paris 16e</div>
+            <div class="mfx-card__v">Paris · 75016 · 952 200 € engagés</div>
+          </div>
+          <span class="sf-pill sf-pill--alert"><span class="sf-dot"></span>Vacant</span>
+        </div>
+        <div class="mfx-card__loc">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.2-5.6 7.5-5.6s7.5 2 7.5 5.6"/></svg>
+          <em>Aucun bail en cours</em>
+          <a class="mfx-card__lien" href="#">Rattacher un locataire</a>
+        </div>
+        <div class="mfx-card__stats">
+          <div class="mfx-stat"><div class="mfx-stat__l">Loyers encaissés</div><div class="mfx-stat__v">0&#8239;€</div><div class="mfx-stat__s">aucun bail sur l'exercice</div></div>
+          <div class="mfx-stat"><div class="mfx-stat__l">Charges payées</div><div class="mfx-stat__v">0&#8239;€</div><div class="mfx-stat__s">aucune charge enregistrée</div></div>
+          <div class="mfx-stat"><div class="mfx-stat__l">Cashflow constaté</div><div class="mfx-stat__v sf-loss">−28&#8239;800&#8239;€</div><div class="mfx-stat__s">prévu −8&#8239;232&#8239;€</div></div>
+          <div class="mfx-stat"><div class="mfx-stat__l">Rendement net</div><div class="mfx-stat__v">0&#8239;%</div><div class="mfx-stat__s">le bien ne produit rien</div></div>
+        </div>
+        <div class="mfx-card__spark">
+          <div class="mfx-spark__h"><span>Cashflow mois par mois</span><span class="mfx-spark__d">−3&#8239;600&#8239;€ chaque mois</span></div>
+          <svg viewBox="0 0 300 46" width="100%" height="46" preserveAspectRatio="none" aria-label="Cashflow mensuel constant">
+            <polyline fill="none" stroke="var(--sf-loss)" stroke-width="2"
+              points="0.0,42.0 42.9,42.0 85.7,42.0 128.6,42.0 171.4,42.0 214.3,42.0 257.1,42.0 300.0,42.0"/>
+          </svg>
+        </div>
+        <div class="mfx-card__cta"><button class="sf-btn sf-btn--secondary sf-btn--sm">Voir le suivi mensuel</button></div>
+      </article>
+    </div>
   </section>
 
   <!-- ══════════════ SUIVI MENSUEL ══════════════ -->
   <section class="mfx-pane" data-p="suivi" hidden>
-    <!-- R-18 : n'apparaît qu'en arrivant depuis une fiche bien. -->
     <div class="mfx-filtre">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <span>Suivi filtré sur <b>Immeuble Paris 18e</b></span>
@@ -751,7 +853,6 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
       </div>
     </div>
 
-    <!-- R-02, R-03, R-05 : les charges détaillées reviennent -->
     <div class="sff-block">
       <div class="sff-block__h">
         <p class="sff-block__t">Charges détaillées</p>
@@ -782,7 +883,6 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
       </div>
     </div>
 
-    <!-- R-01 : la fenêtre d'encaissement, montrée dépliée -->
     <div class="sff-block">
       <div class="sff-block__h">
         <p class="sff-block__t">Fenêtre d'encaissement</p>
@@ -814,13 +914,13 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
     </div>
 
     <div class="sff-block">
-      <div class="sff-block__h"><p class="sff-block__t">Bilan de l'exercice</p></div>
+      <div class="sff-block__h"><p class="sff-block__t">Totaux de l'exercice</p></div>
       <div class="sff-block__b">
         <div class="sff-lines">
           <div class="sff-line"><span class="sff-line__l">Loyers encaissés</span><span class="sff-line__v sf-gain">3&#8239;320&#8239;€</span></div>
           <div class="sff-line"><span class="sff-line__l">Charges payées</span><span class="sff-line__v">55&#8239;€</span></div>
-          <div class="sff-line"><span class="sff-line__l">Mensualités de crédit <small>· 8 mois écoulés</small></span><span class="sff-line__v">22&#8239;400&#8239;€</span></div>
-          <div class="sff-line sff-line--tot"><span class="sff-line__l">Cashflow constaté</span><span class="sff-line__v sf-loss">−19&#8239;135&#8239;€</span></div>
+          <div class="sff-line"><span class="sff-line__l">Mensualités de crédit <small>· 3 biens × 8 mois</small></span><span class="sff-line__v">58&#8239;000&#8239;€</span></div>
+          <div class="sff-line sff-line--tot"><span class="sff-line__l">Cashflow constaté</span><span class="sff-line__v sf-loss">−54&#8239;735&#8239;€</span></div>
         </div>
         <p class="sff-sep">Reste à encaisser</p>
         <div class="sff-lines">
@@ -830,7 +930,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
         <div class="mfx-legend">
           <span><i class="gain"></i>Encaissé</span>
           <span><i class="loss"></i>Échu, non soldé</span>
-          <span><i style="background:var(--sf-alert)"></i>Partiel ou charge</span>
+          <span><i style="background:var(--sf-alert)"></i>Charge enregistrée</span>
           <span><i class="vide"></i>À venir</span>
         </div>
       </div>
@@ -854,7 +954,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
         <button class="mfx-pill" aria-pressed="false">Préavis <span class="mfx-pill__n">0</span></button>
         <button class="mfx-pill" aria-pressed="false">Sortis <span class="mfx-pill__n">0</span></button>
       </div>
-      <div class="mfx-tri">
+      <div class="mfx-tools__fin">
         <button class="sf-btn sf-btn--primary sf-btn--sm">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           Nouveau locataire
@@ -945,127 +1045,6 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
       </div>
     </div>
   </section>
-
-  <!-- ══════════════ RENTABILITÉ ══════════════ -->
-  <section class="mfx-pane" data-p="renta" hidden>
-    <div class="mfx-sel">
-      <select aria-label="Bien analysé">
-        <option>Immeuble Paris 18e — Paris</option>
-        <option>T3 Lyon — Lyon</option>
-        <option>T4+ Paris 16e — Paris</option>
-      </select>
-      <span class="mfx-sci">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5 12 4l9 5.5"/><path d="M5.5 9.5V19M9.8 9.5V19M14.2 9.5V19M18.5 9.5V19"/><path d="M3 21h18"/></svg>
-        SCI TEST Guénon
-        <button class="sf-btn sf-btn--ghost sf-btn--sm" style="padding:0 var(--sf-space-4)">Changer</button>
-      </span>
-    </div>
-
-    <div class="sff-block">
-      <div class="sff-block__h">
-        <p class="sff-block__t">Cumul sur l'exercice</p>
-        <span class="sff-block__n">réel contre prévisionnel</span>
-      </div>
-      <div class="sff-block__b">
-        <svg viewBox="0 0 320 120" width="100%" height="180" preserveAspectRatio="none" aria-label="Trajectoire cumulée réelle et prévisionnelle">
-          <line x1="0" y1="60" x2="320" y2="60" stroke="var(--sf-border-strong)" stroke-width="1"/>
-          <polyline fill="none" stroke="var(--sf-text-3)" stroke-width="2" stroke-dasharray="5 4"
-            points="0.0,57.0 45.7,53.9 91.4,50.9 137.1,47.9 182.9,44.9 228.6,41.8 274.3,38.8 320.0,35.8"/>
-          <polyline fill="none" stroke="var(--sf-loss)" stroke-width="2.5" stroke-linejoin="round"
-            points="0.0,65.6 45.7,73.5 91.4,79.0 137.1,84.7 182.9,90.3 228.6,98.2 274.3,106.1 320.0,114.0"/>
-        </svg>
-        <div class="mfx-legend">
-          <span><i class="loss"></i>Trajectoire réelle · −19 135 €</span>
-          <span><i class="trait"></i>Trajectoire prévue · +8 584 €</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="sff-grid2">
-      <div class="sff-block">
-        <div class="sff-block__h"><p class="sff-block__t">Ce qui était prévu, ce qui s'est passé</p></div>
-        <div class="sff-block__b">
-          <div class="mfx-comp">
-            <span class="mfx-comp__l">Prévu</span>
-            <span class="mfx-comp__bar"><span class="mfx-comp__f" style="width:100%;background:var(--sf-gain)"></span></span>
-            <span class="mfx-comp__v sf-gain">+8&#8239;584&#8239;€</span>
-          </div>
-          <div class="mfx-comp">
-            <span class="mfx-comp__l">Constaté</span>
-            <span class="mfx-comp__bar"><span class="mfx-comp__f" style="width:0%;background:var(--sf-loss)"></span></span>
-            <span class="mfx-comp__v sf-loss">−19&#8239;135&#8239;€</span>
-          </div>
-          <div class="sff-lines" style="margin-top:var(--sf-space-6)">
-            <div class="sff-line sff-line--tot">
-              <span class="sff-line__l">Écart sur 8 mois</span>
-              <span class="sff-line__v sf-loss">−27&#8239;719&#8239;€</span>
-            </div>
-          </div>
-          <p class="mfx-verdict">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/><path d="M10.3 3.6 2.5 17.2A2 2 0 0 0 4.2 20h15.6a2 2 0 0 0 1.7-2.8L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg>
-            <span>La simulation tablait sur <b>+1 073&#8239;€ par mois</b> ; la réalité est de
-            <b>−2 392&#8239;€</b>. <b>Un loyer sur deux n'a pas été encaissé</b> — c'est la
-            première cause de l'écart, avant toute question de charges.</span>
-          </p>
-        </div>
-      </div>
-
-      <div class="sff-block">
-        <div class="sff-block__h">
-          <p class="sff-block__t">Loyers non soldés</p>
-          <span class="sff-block__n">50 % du dû</span>
-        </div>
-        <div class="sff-block__b">
-          <div class="mfx-imp" title="Ouvrir le suivi mensuel sur ce mois">
-            <span class="mfx-imp__m">Février 2026</span>
-            <span><span class="mfx-imp__l">Test V1</span></span>
-            <span class="sf-pill sf-pill--loss">Non soldé</span>
-            <span class="mfx-imp__v sf-loss">−830&#8239;€</span>
-          </div>
-          <div class="mfx-imp" title="Ouvrir le suivi mensuel sur ce mois">
-            <span class="mfx-imp__m">Juin 2026</span>
-            <span><span class="mfx-imp__l">Test V1</span></span>
-            <span class="sf-pill sf-pill--loss">Non soldé</span>
-            <span class="mfx-imp__v sf-loss">−830&#8239;€</span>
-          </div>
-          <div class="mfx-imp" title="Ouvrir le suivi mensuel sur ce mois">
-            <span class="mfx-imp__m">Juillet 2026</span>
-            <span><span class="mfx-imp__l">Test V1</span></span>
-            <span class="sf-pill sf-pill--loss">Non soldé</span>
-            <span class="mfx-imp__v sf-loss">−830&#8239;€</span>
-          </div>
-          <div class="mfx-imp" title="Ouvrir le suivi mensuel sur ce mois">
-            <span class="mfx-imp__m">Août 2026</span>
-            <span><span class="mfx-imp__l">Test V1</span></span>
-            <span class="sf-pill sf-pill--loss">Non soldé</span>
-            <span class="mfx-imp__v sf-loss">−830&#8239;€</span>
-          </div>
-          <p class="sff-sep">Composition du constaté</p>
-          <div class="sff-lines">
-            <div class="sff-line"><span class="sff-line__l">Loyers encaissés</span><span class="sff-line__v">3&#8239;320&#8239;€</span></div>
-            <div class="sff-line"><span class="sff-line__l">Charges payées</span><span class="sff-line__v">55&#8239;€</span></div>
-            <div class="sff-line"><span class="sff-line__l">Mensualités de crédit <small>· 8 mois</small></span><span class="sff-line__v">22&#8239;400&#8239;€</span></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="sff-block">
-      <div class="sff-block__h">
-        <p class="sff-block__t">Bilan comptable</p>
-        <span class="sff-block__n">SCI TEST Guénon · exercice 2026 · brouillon</span>
-      </div>
-      <div class="sff-block__b">
-        <p class="sff-line__l" style="margin:0 0 var(--sf-space-6)">
-          Les loyers encaissés et les charges payées de ce bien alimentent le bilan de la SCI.
-        </p>
-        <div style="display:flex;gap:var(--sf-space-4);flex-wrap:wrap">
-          <button class="sf-btn sf-btn--primary sf-btn--sm">Alimenter le bilan</button>
-          <button class="sf-btn sf-btn--secondary sf-btn--sm">Voir le bilan</button>
-        </div>
-      </div>
-    </div>
-  </section>
 </div>
 
 <script>
@@ -1075,13 +1054,11 @@ tabs.forEach(t => t.addEventListener('click', () => {
   tabs.forEach(x => x.setAttribute('aria-selected', String(x === t)));
   panes.forEach(p => { p.hidden = p.dataset.p !== t.dataset.t; });
 }));
-/* Pastilles de filtre : démonstration de l'état pressé. */
 document.querySelectorAll('.mfx-pills').forEach(g => {
   const ps = [...g.querySelectorAll('.mfx-pill')];
   ps.forEach(p => p.addEventListener('click', () =>
     ps.forEach(x => x.setAttribute('aria-pressed', String(x === p)))));
 });
-/* Options de la fenêtre d'encaissement. */
 const opts = [...document.querySelectorAll('.mfx-opt')];
 opts.forEach(o => o.addEventListener('click', () =>
   opts.forEach(x => x.setAttribute('aria-checked', String(x === o)))));
