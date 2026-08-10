@@ -37,28 +37,20 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-3);
   display:block; margin-bottom:var(--sf-space-3); }
 
-/* ── LISTE DEROULANTE — le composant maison de la plateforme ─────────────────
-   Reprise de `.sf-pick` (components.css) : un bouton dessine par-dessus un
-   <select> natif qui reste la source de verite. Les selects du module
-   financier etaient restes natifs ; ils sont desormais habilles comme partout
-   ailleurs. Sous 720 px le natif reprend la main, comme le prevoit le
-   composant d'origine. */
-.mfx-pick{ position:relative; display:inline-flex; }
-.mfx-pick__natif{ position:absolute; opacity:0; pointer-events:none;
-  width:100%; height:100%; left:0; top:0; margin:0; border:0; padding:0; }
-.mfx-pick__btn{ display:inline-flex; align-items:center; gap:var(--sf-space-4);
-  height:var(--sf-control-h); padding:0 var(--sf-space-5);
-  background:var(--sf-surface-2); border:var(--sf-border-width) solid var(--sf-border);
-  border-radius:var(--sf-radius-sm); color:var(--sf-text);
-  font-family:var(--sf-font-ui); font-size:var(--sf-font-body-sm);
-  cursor:pointer; white-space:nowrap; width:100%; text-align:left;
-  transition:border-color var(--sf-dur) var(--sf-ease), background-color var(--sf-dur) var(--sf-ease); }
-.mfx-pick__btn:hover{ border-color:var(--sf-border-strong); }
-.mfx-pick__btn:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus);
-  outline-offset:var(--sf-focus-offset); }
-.mfx-pick__val{ flex:1; overflow:hidden; text-overflow:ellipsis; }
-.mfx-pick__chev{ flex-shrink:0; color:var(--sf-text-3); }
-.mfx-pick--lg .mfx-pick__btn{ min-width:280px; }
+/* ── LISTES DEROULANTES ──────────────────────────────────────────────────────
+   AUCUN style de composant ici, volontairement. L'iteration 4 avait recopie le
+   CSS de `.sf-pick` sans son JS : le <select> restait en `pointer-events:none`
+   et le bouton n'avait aucun gestionnaire, donc AUCUNE des trois listes de la
+   maquette ne s'ouvrait. On emploie desormais le vrai `.sf-pick` de
+   components.css avec le vrai moteur d'app.js, porte en pied de page.
+   Une copie ne peut pas diverger si elle n'existe pas.
+
+   Seul ajout local : `.sf-pick` est en `width:100%` par defaut
+   (components.css:814) avec une liste d'exceptions (`.sfb-tools`,
+   `.filter-bar`). Les conteneurs de ce module s'y ajoutent.
+   ⚠️ A REPORTER dans components.css a l'implementation. */
+.mfx-top .sf-pick, .mfx-tools .sf-pick, .sff-block__a .sf-pick{ width:auto; }
+.mfx-pick-lg .sf-pick__btn{ min-width:280px; }
 
 /* ── Indicateurs ─────────────────────────────────────────────────────────── */
 .mfx-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
@@ -81,7 +73,8 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   margin:var(--sf-space-5) 0 var(--sf-space-7); font-size:var(--sf-font-body-sm);
   color:var(--sf-text-3); line-height:var(--sf-lh-normal); }
 .mfx-fait svg{ flex-shrink:0; margin-top:1px; }
-.mfx-fait b{ color:var(--sf-alert); font-weight:var(--sf-weight-semibold); }
+/* `--sf-text` et non `--sf-alert` : c'est un fait, pas une alarme. */
+.mfx-fait b{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
 
 /* ── Onglets ─────────────────────────────────────────────────────────────── */
 .mfx-tabs{ display:flex; gap:var(--sf-space-2); overflow-x:auto;
@@ -289,6 +282,20 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-charge__a{ display:flex; gap:var(--sf-space-3); opacity:0;
   transition:opacity var(--sf-dur) var(--sf-ease); }
 .mfx-charge:hover .mfx-charge__a{ opacity:1; }
+/* ⚠️ DEFAUT DE L'ITERATION 4, trouve en mesurant le rendu a 375 px.
+   Cinq colonnes dont une figee a 96 px et une a 88 px de minimum : la rangee
+   depassait sa carte de 64 px, et `.sff-block` est en `overflow:hidden` — les
+   boutons Modifier et Supprimer etaient donc ROGNES ET INATTEIGNABLES.
+   Second defaut sur le meme element : ils ne se revelent qu'au `:hover`, qui
+   n'existe pas au doigt. On repasse en deux colonnes et on les rend visibles. */
+@media (max-width:720px){
+  .mfx-charge{ grid-template-columns:minmax(0,1fr) auto; row-gap:var(--sf-space-4); }
+  .mfx-charge__d{ grid-column:1; grid-row:1; }
+  .mfx-charge__tag{ grid-column:2; grid-row:1; justify-self:end; }
+  .mfx-charge > div{ grid-column:1; grid-row:2; }
+  .mfx-charge__v{ grid-column:2; grid-row:2; text-align:right; }
+  .mfx-charge__a{ grid-column:1 / -1; grid-row:3; opacity:1; }
+}
 .mfx-ic-btn{ width:28px; height:28px; display:inline-flex; align-items:center;
   justify-content:center; background:transparent; border:var(--sf-border-width) solid var(--sf-border);
   border-radius:var(--sf-radius-sm); color:var(--sf-text-3); cursor:pointer;
@@ -363,14 +370,19 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-relance__s{ font-size:var(--sf-font-caption); color:var(--sf-text-2); margin-top:2px; }
 
 /* ── Performance ─────────────────────────────────────────────────────────── */
-.mfx-comp{ display:grid; grid-template-columns:auto minmax(0,1fr) auto;
-  gap:var(--sf-space-5); align-items:center; margin-bottom:var(--sf-space-5); }
-.mfx-comp__l{ font-size:var(--sf-font-body); color:var(--sf-text-2); white-space:nowrap; }
-.mfx-comp__bar{ background:var(--sf-surface-2); border-radius:var(--sf-radius-full);
-  height:13px; overflow:hidden; }
-.mfx-comp__f{ height:100%; border-radius:var(--sf-radius-full); min-width:2px; }
-.mfx-comp__v{ font-family:var(--sf-font-num); font-size:var(--sf-font-body);
-  font-variant-numeric:tabular-nums; text-align:right; min-width:104px; white-space:nowrap; }
+/* `.mfx-comp*` supprime avec la carte « Ce qui etait prevu, ce qui s'est
+   passe » : elle redessinait en barres les TROIS MEMES nombres que le KPI
+   « Ecart reel − previsionnel » du bandeau (prevu +1 096 €, constate
+   −54 735 €, ecart −55 831 €). Le comparatif de non-regression lui reprochait
+   deja cela (R-11) : ce sont les TRAJECTOIRES qui manquaient, pas les totaux.
+   Le cumul prend sa place ; le style part avec elle plutot que de rester en
+   code mort. */
+
+/* Le cumul passe en demi-largeur, a cote de « Loyers non soldes » qui est
+   nettement plus haut. Le graphique grandit pour remplir : sans cela la carte
+   voisine imposerait sa hauteur et celle-ci finirait en blanc. */
+.mfx-fill{ flex:1; display:flex; min-height:190px; }
+.mfx-fill .mfx-svg{ height:100%; }
 .mfx-verdict{ display:flex; gap:var(--sf-space-5); align-items:flex-start;
   background:var(--sf-surface-2); border-left:3px solid var(--sf-loss);
   border-radius:var(--sf-radius-sm); padding:var(--sf-space-6);
@@ -378,6 +390,9 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   margin-top:var(--sf-space-6); }
 .mfx-verdict svg{ flex-shrink:0; margin-top:1px; color:var(--sf-loss); }
 .mfx-verdict b{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
+/* Un bilan perime n'est pas une perte, c'est une chose a faire. */
+.mfx-verdict--alerte{ border-left-color:var(--sf-alert); }
+.mfx-verdict--alerte svg{ color:var(--sf-alert); }
 .mfx-imp{ display:grid; grid-template-columns:104px minmax(0,1fr) auto auto;
   gap:var(--sf-space-5); align-items:center; padding:var(--sf-space-5) var(--sf-space-4);
   margin:0 calc(-1 * var(--sf-space-4)); border-radius:var(--sf-radius-sm);
@@ -389,6 +404,32 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-imp__l{ font-size:var(--sf-font-caption); color:var(--sf-text-3); }
 .mfx-imp__v{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
   text-align:right; white-space:nowrap; }
+
+/* ── Bilan comptable ──────────────────────────────────────────────────────────
+   La carte ne portait que trois boutons. Elle affiche desormais le bilan.
+
+   ⚠️ SON PERIMETRE N'EST PAS CELUI DU MODULE. Le bilan ne comptabilise que les
+   biens rattaches a la SCI ; mesure en base le 10/08/2026 : 2 des 3 biens
+   acquis. Deux perimetres sur le meme ecran ne se distinguent que si l'un des
+   deux le DIT — d'ou `.mfx-scope`, qui le nomme et porte l'action de
+   rattachement. Sans cela on reproduit le defaut « computeCF vs
+   cfDisplayData » : deux chiffres justes, faux l'un a cote de l'autre. */
+.mfx-badge{ display:inline-flex; align-items:center; height:21px; padding:0 8px;
+  border-radius:var(--sf-radius-full); background:var(--sf-surface-2);
+  color:var(--sf-text-2); font-size:var(--sf-font-caption);
+  font-weight:var(--sf-weight-semibold); white-space:nowrap; }
+.mfx-scope{ display:flex; align-items:center; gap:var(--sf-space-5); flex-wrap:wrap;
+  background:var(--sf-surface-2); border-radius:var(--sf-radius-sm);
+  padding:var(--sf-space-5) var(--sf-space-6); margin-bottom:var(--sf-space-6);
+  font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
+.mfx-scope svg{ flex-shrink:0; color:var(--sf-text-3); }
+.mfx-scope b{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
+.mfx-scope__a{ margin-left:auto; }
+.mfx-bilan{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:var(--sf-space-7) var(--sf-space-8); align-items:start; }
+@media (max-width:900px){ .mfx-bilan{ grid-template-columns:minmax(0,1fr); } }
+.mfx-acts{ display:flex; gap:var(--sf-space-4); flex-wrap:wrap;
+  margin-top:var(--sf-space-7); }
 </style>
 </head>
 <body>
@@ -397,20 +438,17 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   <!-- ══ BANDEAU ═══════════════════════════════════════════════════════════ -->
   <div class="mfx-top">
     <div>
-      <h1 class="mfx-h1">Module financier</h1>
+      <h1 class="mfx-h1">Suivi financier</h1>
       <p class="mfx-sub">Ce que vos biens ont réellement rapporté et coûté</p>
     </div>
     <div>
       <span class="mfx-champ-lab">Exercice</span>
-      <span class="mfx-pick">
-        <select class="mfx-pick__natif" aria-label="Exercice comptable" tabindex="-1">
-          <option>2026</option><option>2025</option><option>2024</option>
-        </select>
-        <button class="mfx-pick__btn" aria-haspopup="listbox" aria-expanded="false">
-          <span class="mfx-pick__val">2026</span>
-          <svg class="mfx-pick__chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        </button>
-      </span>
+      <!-- Un <select> nu : le moteur `.sf-pick` l'habille au chargement, comme
+           dans l'application. Seules les annees qui portent des donnees sont
+           proposees — loyers en base sur 2025 et 2026, rien avant. -->
+      <select aria-label="Exercice comptable">
+        <option>2026</option><option>2025</option>
+      </select>
     </div>
   </div>
 
@@ -437,13 +475,19 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
     </div>
   </div>
 
-  <!-- Un FAIT, plus une réserve : les vacants sont désormais comptés, et ce
-       sont eux qui expliquent l'essentiel du résultat. -->
+  <!-- La contrepartie de la regle de perimetre : on compte les vacants, donc il
+       faut dire qu'ils sont la, sinon −54 735 € ne se comprend pas.
+
+       Raccourcie et NEUTRALISEE (iteration 5). Elle portait quatre nombres
+       (2 sur 3, 35 600 €, « depuis janvier », 65 %) au-dessus d'un bandeau qui
+       en porte deja quatre avec leurs sous-titres. Le 65 % se deduit et sort.
+       Surtout, elle etait en gras orange `--sf-alert` en permanence : c'est
+       « l'alerte permanente qui cesse d'alerter », retiree de « Mes biens » le
+       03/08/2026. Un fait n'a pas besoin d'etre orange. -->
   <p class="mfx-fait">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.9" r=".7" fill="currentColor" stroke="none"/></svg>
-    <span><b>Deux de vos trois biens sont vacants.</b> Leurs mensualités de crédit —
-    35&#8239;600&#8239;€ depuis janvier — courent sans aucun loyer en face : elles représentent
-    65&#8239;% de votre cashflow négatif.</span>
+    <span><b>Deux de vos trois biens sont vacants</b> — 35&#8239;600&#8239;€ de crédit sans
+    loyer en face.</span>
   </p>
 
   <!-- ══ ONGLETS ═══════════════════════════════════════════════════════════ -->
@@ -469,20 +513,14 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
   <!-- ══════════════ PERFORMANCE ══════════════ -->
   <section class="mfx-pane" data-p="performance">
     <div class="mfx-tools">
-      <div>
+      <div class="mfx-pick-lg">
         <span class="mfx-champ-lab">Périmètre</span>
-        <span class="mfx-pick mfx-pick--lg">
-          <select class="mfx-pick__natif" aria-label="Périmètre analysé" tabindex="-1">
-            <option>Tous les biens</option>
-            <option>Immeuble Paris 18e — Paris</option>
-            <option>T3 Lyon — Lyon</option>
-            <option>T4+ Paris 16e — Paris</option>
-          </select>
-          <button class="mfx-pick__btn" aria-haspopup="listbox" aria-expanded="false">
-            <span class="mfx-pick__val">Tous les biens</span>
-            <svg class="mfx-pick__chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-          </button>
-        </span>
+        <select aria-label="Périmètre analysé">
+          <option>Tous les biens</option>
+          <option>Immeuble Paris 18e — Paris</option>
+          <option>T3 Lyon — Lyon</option>
+          <option>T4+ Paris 16e — Paris</option>
+        </select>
       </div>
     </div>
 
@@ -535,46 +573,33 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
       </div>
     </div>
 
-    <div class="sff-block">
-      <div class="sff-block__h">
-        <p class="sff-block__t">Cumul sur l'exercice</p>
-        <span class="sff-block__n">réel contre prévisionnel</span>
-      </div>
-      <div class="sff-block__b">
-        <svg class="mfx-svg" viewBox="0 0 320 120" height="190" preserveAspectRatio="none" aria-label="Trajectoire cumulée réelle et prévisionnelle">
-          <line x1="0" y1="60" x2="320" y2="60" stroke="var(--sf-border-strong)" stroke-width="1"/>
-          <polyline fill="none" stroke="var(--sf-text-3)" stroke-width="2" stroke-dasharray="5 4"
-            points="0.0,59.9 45.7,59.7 91.4,59.6 137.1,59.5 182.9,59.3 228.6,59.2 274.3,59.1 320.0,58.9"/>
-          <polyline fill="none" stroke="var(--sf-loss)" stroke-width="2.5" stroke-linejoin="round"
-            points="0.0,66.3 45.7,73.5 91.4,79.8 137.1,86.2 182.9,92.5 228.6,99.7 274.3,106.8 320.0,114.0"/>
-        </svg>
-        <div class="mfx-mois"><span>Jan</span><span>Fév</span><span>Mar</span><span>Avr</span><span>Mai</span><span>Jun</span><span>Jul</span><span>Aoû</span></div>
-        <div class="mfx-legend">
-          <span><i class="loss"></i>Trajectoire réelle · −54&#8239;735&#8239;€</span>
-          <span><i class="trait"></i>Trajectoire prévue · +1&#8239;096&#8239;€</span>
-        </div>
-      </div>
-    </div>
-
+    <!-- Le cumul passe en demi-largeur a la place de « Ce qui etait prevu, ce
+         qui s'est passe ». Cette carte redessinait en barres les TROIS MEMES
+         nombres que le KPI « Ecart reel − previsionnel » du bandeau. Le
+         comparatif de non-regression lui reprochait deja cela (R-11) : ce sont
+         les TRAJECTOIRES qui manquaient, pas les totaux. Sa seule information
+         propre — le diagnostic des deux causes — est reprise ci-dessous, sous
+         la courbe : c'est la qu'on regarde l'ecart se creuser. -->
     <div class="sff-grid2">
       <div class="sff-block">
-        <div class="sff-block__h"><p class="sff-block__t">Ce qui était prévu, ce qui s'est passé</p></div>
+        <div class="sff-block__h">
+          <p class="sff-block__t">Cumul sur l'exercice</p>
+          <span class="sff-block__n">réel contre prévisionnel</span>
+        </div>
         <div class="sff-block__b">
-          <div class="mfx-comp">
-            <span class="mfx-comp__l">Prévu</span>
-            <span class="mfx-comp__bar"><span class="mfx-comp__f" style="width:2%;background:var(--sf-gain)"></span></span>
-            <span class="mfx-comp__v sf-gain">+1&#8239;096&#8239;€</span>
+          <div class="mfx-fill">
+            <svg class="mfx-svg" viewBox="0 0 320 120" preserveAspectRatio="none" aria-label="Trajectoire cumulée réelle et prévisionnelle">
+              <line x1="0" y1="60" x2="320" y2="60" stroke="var(--sf-border-strong)" stroke-width="1"/>
+              <polyline fill="none" stroke="var(--sf-text-3)" stroke-width="2" stroke-dasharray="5 4"
+                points="0.0,59.9 45.7,59.7 91.4,59.6 137.1,59.5 182.9,59.3 228.6,59.2 274.3,59.1 320.0,58.9"/>
+              <polyline fill="none" stroke="var(--sf-loss)" stroke-width="2.5" stroke-linejoin="round"
+                points="0.0,66.3 45.7,73.5 91.4,79.8 137.1,86.2 182.9,92.5 228.6,99.7 274.3,106.8 320.0,114.0"/>
+            </svg>
           </div>
-          <div class="mfx-comp">
-            <span class="mfx-comp__l">Constaté</span>
-            <span class="mfx-comp__bar"><span class="mfx-comp__f" style="width:100%;background:var(--sf-loss)"></span></span>
-            <span class="mfx-comp__v sf-loss">−54&#8239;735&#8239;€</span>
-          </div>
-          <div class="sff-lines" style="margin-top:var(--sf-space-6)">
-            <div class="sff-line sff-line--tot">
-              <span class="sff-line__l">Écart sur 8 mois</span>
-              <span class="sff-line__v sf-loss">−55&#8239;831&#8239;€</span>
-            </div>
+          <div class="mfx-mois"><span>Jan</span><span>Fév</span><span>Mar</span><span>Avr</span><span>Mai</span><span>Jun</span><span>Jul</span><span>Aoû</span></div>
+          <div class="mfx-legend">
+            <span><i class="loss"></i>Trajectoire réelle · −54&#8239;735&#8239;€</span>
+            <span><i class="trait"></i>Trajectoire prévue · +1&#8239;096&#8239;€</span>
           </div>
           <p class="mfx-verdict">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/><path d="M10.3 3.6 2.5 17.2A2 2 0 0 0 4.2 20h15.6a2 2 0 0 0 1.7-2.8L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg>
@@ -625,19 +650,90 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
       </div>
     </div>
 
+    <!-- ── BILAN COMPTABLE ────────────────────────────────────────────────────
+         L'iteration 4 ne portait que trois boutons. Le bilan s'affiche
+         desormais ici, avec son propre selecteur d'exercice.
+
+         Chiffres recalcules en SQL le 10/08/2026 selon les regles EXACTES de
+         `mfBilanFeedCompute()` (app.js:7522) : loyers de statut 'Paye' ou
+         'Partiel', charges non recuperables, ventilees par ligne Cerfa 2044.
+
+         ⚠️ SELECTEUR D'EXERCICE PROPRE A LA CARTE. L'arbitrage 3 dit
+         « selecteur d'exercice unique en haut ». Ici les deux horloges
+         different vraiment : on prepare la declaration 2025 pendant qu'on
+         analyse l'exploitation 2026. La carte annonce donc son exercice, et le
+         dit quand il s'ecarte de celui du module. A confirmer par Thomas.
+
+         ⚠️ « Changer de SCI » ABSENT : il n'y a qu'une SCI en base. Un bouton
+         qui n'a rien a changer n'est pas un bouton. Il n'apparait qu'a partir
+         de deux SCI ; en dessous le nom s'affiche en clair. -->
     <div class="sff-block">
       <div class="sff-block__h">
         <p class="sff-block__t">Bilan comptable</p>
-        <span class="sff-block__n">SCI TEST Guénon · exercice 2026 · brouillon</span>
+        <span class="sff-block__a">
+          <select aria-label="Exercice du bilan comptable">
+            <option>Exercice 2026</option><option>Exercice 2025</option>
+          </select>
+        </span>
       </div>
       <div class="sff-block__b">
-        <p class="sff-line__l" style="margin:0 0 var(--sf-space-6)">
-          Les loyers encaissés et les charges payées alimentent le bilan de la SCI.
-        </p>
-        <div style="display:flex;gap:var(--sf-space-4);flex-wrap:wrap">
-          <button class="sf-btn sf-btn--primary sf-btn--sm">Alimenter le bilan</button>
-          <button class="sf-btn sf-btn--secondary sf-btn--sm">Voir le bilan</button>
-          <button class="sf-btn sf-btn--ghost sf-btn--sm">Changer de SCI</button>
+        <!-- Dit CE QUE C'EST, pas comment il se calcule : c'est ce qui evite de
+             lire « +3 265 € » comme une contradiction du « −54 735 € » du
+             bandeau, sans avoir a gloser sur le traitement du credit. -->
+        <div class="mfx-bilan__meta" style="display:flex;align-items:center;gap:var(--sf-space-4);flex-wrap:wrap;margin-bottom:var(--sf-space-6)">
+          <span class="sff-line__l" style="margin:0">Ce que la SCI déclare au fisc</span>
+          <span class="mfx-badge">SCI TEST Guénon</span>
+          <span class="mfx-badge">Régime IR · déclaration 2044</span>
+          <span class="mfx-badge">Brouillon</span>
+        </div>
+
+        <!-- LE PERIMETRE, NOMME. 2 des 3 biens acquis sont rattaches a la SCI.
+             Sans cette ligne, « +3 265 € » et « −54 735 € » se lisent comme
+             deux mesures du meme ensemble. -->
+        <div class="mfx-scope">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.9" r=".7" fill="currentColor" stroke="none"/></svg>
+          <span><b>2 de vos 3 biens.</b> T4+ Paris 16e n'est rattaché à aucune SCI :
+          ni ses loyers ni ses charges n'entrent dans ce bilan.</span>
+          <span class="mfx-scope__a">
+            <button class="sf-btn sf-btn--secondary sf-btn--sm">Rattacher ce bien</button>
+          </span>
+        </div>
+
+        <div class="mfx-bilan">
+          <div>
+            <p class="sff-sep">Déclaration 2044</p>
+            <div class="sff-lines">
+              <div class="sff-line">
+                <span class="sff-line__l">Loyers perçus</span>
+                <span class="sff-line__v">3&#8239;320&#8239;€</span>
+              </div>
+              <div class="sff-line">
+                <span class="sff-line__l">L.224 — Réparation, entretien, amélioration</span>
+                <span class="sff-line__v">−55&#8239;€</span>
+              </div>
+              <div class="sff-line sff-line--tot">
+                <span class="sff-line__l">Résultat foncier</span>
+                <span class="sff-line__v sf-gain">+3&#8239;265&#8239;€</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <!-- Le bilan ENREGISTRE est perime : ecrit le 25/07/2026, il porte
+                 0 € de loyers percus et un seul bien dans `source_bien_ids`.
+                 C'est precisement ce qu'une carte a trois boutons ne pouvait
+                 pas montrer. -->
+            <p class="mfx-verdict mfx-verdict--alerte" style="margin-top:0">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/><path d="M10.3 3.6 2.5 17.2A2 2 0 0 0 4.2 20h15.6a2 2 0 0 0 1.7-2.8L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg>
+              <span>Le bilan enregistré date du <b>25 juillet</b> et porte 0&#8239;€ de
+              loyers perçus. <b>3&#8239;320&#8239;€ ont été encaissés depuis.</b></span>
+            </p>
+            <div class="mfx-acts">
+              <button class="sf-btn sf-btn--primary sf-btn--sm">Mettre à jour le bilan</button>
+              <button class="sf-btn sf-btn--secondary sf-btn--sm">Exporter le détail</button>
+              <button class="sf-btn sf-btn--secondary sf-btn--sm">Exporter la synthèse</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -658,16 +754,10 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
       <div class="mfx-tools__fin">
         <div>
           <span class="mfx-champ-lab">Trier par</span>
-          <span class="mfx-pick">
-            <select class="mfx-pick__natif" aria-label="Trier les biens" tabindex="-1">
-              <option>Cashflow décroissant</option><option>Cashflow croissant</option>
-              <option>Rendement décroissant</option><option>Capital engagé</option>
-            </select>
-            <button class="mfx-pick__btn" aria-haspopup="listbox" aria-expanded="false">
-              <span class="mfx-pick__val">Cashflow décroissant</span>
-              <svg class="mfx-pick__chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-          </span>
+          <select aria-label="Trier les biens">
+            <option>Cashflow décroissant</option><option>Cashflow croissant</option>
+            <option>Rendement décroissant</option><option>Capital engagé</option>
+          </select>
         </div>
       </div>
     </div>
@@ -1062,6 +1152,187 @@ document.querySelectorAll('.mfx-pills').forEach(g => {
 const opts = [...document.querySelectorAll('.mfx-opt')];
 opts.forEach(o => o.addEventListener('click', () =>
   opts.forEach(x => x.setAttribute('aria-checked', String(x === o)))));
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LISTES DEROULANTES — moteur porte VERBATIM depuis app.js:11545.
+
+   L'iteration 4 avait recopie le CSS de `.sf-pick` sans son JS : le <select>
+   restait en `pointer-events:none` et le bouton n'avait aucun gestionnaire.
+   AUCUNE des trois listes ne s'ouvrait — ni Perimetre, ni Exercice, ni le tri
+   du Portefeuille.
+
+   A L'IMPLEMENTATION : rien a faire. `sfObserverSelects()` habille deja tout
+   <select> qui apparait dans le DOM de l'application.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const esc = s => String(s ?? '').replace(/[&<>"']/g,
+  c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+
+const SF_SEUIL_MOBILE = '(max-width: 720px)';
+let sfSelectOuvert = null;   // { natif, bouton, panneau, index }
+let sfSelectEnCours = false; // garde-fou anti-boucle de l'observateur
+
+function sfSelectMobile() { return window.matchMedia(SF_SEUIL_MOBILE).matches; }
+
+function sfSelectLibelle(natif) {
+  const o = natif.options[natif.selectedIndex];
+  return o ? o.textContent : '';
+}
+
+function sfSelectInit(natif) {
+  if (natif.dataset.sfHabille || natif.multiple || natif.size > 1) return;
+  natif.dataset.sfHabille = '1';
+
+  const enveloppe = document.createElement('div');
+  enveloppe.className = 'sf-pick';
+  natif.parentNode.insertBefore(enveloppe, natif);
+  enveloppe.appendChild(natif);
+  // Le natif reste present (source de verite) mais sort du parcours clavier :
+  // c'est le bouton qui porte l'interaction.
+  natif.classList.add('sf-pick__natif');
+  natif.setAttribute('tabindex', '-1');
+
+  const bouton = document.createElement('button');
+  bouton.type = 'button';
+  bouton.className = 'sf-pick__btn';
+  bouton.setAttribute('aria-haspopup', 'listbox');
+  bouton.setAttribute('aria-expanded', 'false');
+  if (natif.getAttribute('aria-label')) bouton.setAttribute('aria-label', natif.getAttribute('aria-label'));
+  if (natif.disabled) bouton.disabled = true;
+  bouton.innerHTML = `<span class="sf-pick__val"></span>
+    <svg class="sf-pick__chev" width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+      aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
+  enveloppe.appendChild(bouton);
+
+  const sync = () => { bouton.querySelector('.sf-pick__val').textContent = sfSelectLibelle(natif); };
+  sync();
+  natif.addEventListener('change', sync);
+
+  bouton.addEventListener('click', e => {
+    e.preventDefault(); e.stopPropagation();
+    sfSelectOuvert && sfSelectOuvert.natif === natif ? sfSelectFermer() : sfSelectOuvrir(natif, bouton);
+  });
+  bouton.addEventListener('keydown', e => {
+    if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) {
+      e.preventDefault(); sfSelectOuvrir(natif, bouton);
+    }
+  });
+}
+
+function sfSelectOuvrir(natif, bouton) {
+  sfSelectFermer();
+  if (natif.disabled || !natif.options.length) return;
+
+  const panneau = document.createElement('div');
+  panneau.className = 'sf-pick__panel';
+  panneau.setAttribute('role', 'listbox');
+  panneau.innerHTML = [...natif.options].map((o, i) => `
+    <div class="sf-pick__opt${i === natif.selectedIndex ? ' est-choisi' : ''}"
+         role="option" aria-selected="${i === natif.selectedIndex}" data-i="${i}">
+      <span class="sf-pick__lbl">${esc(o.textContent)}</span>
+      <svg class="sf-pick__ok" width="14" height="14" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"
+        aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+    </div>`).join('');
+  document.body.appendChild(panneau);
+
+  // Positionnement : sous le bouton, ou au-dessus s'il n'y a pas la place.
+  const r = bouton.getBoundingClientRect();
+  panneau.style.minWidth = r.width + 'px';
+  const h = panneau.offsetHeight;
+  const dessous = window.innerHeight - r.bottom;
+  panneau.style.left = Math.max(8, Math.min(r.left, window.innerWidth - panneau.offsetWidth - 8)) + 'px';
+  panneau.style.top = (dessous < h + 12 && r.top > h + 12 ? r.top - h - 6 : r.bottom + 6) + 'px';
+
+  bouton.setAttribute('aria-expanded', 'true');
+  sfSelectOuvert = { natif, bouton, panneau, index: natif.selectedIndex };
+
+  panneau.addEventListener('mousedown', e => {
+    const opt = e.target.closest('.sf-pick__opt');
+    if (!opt) return;
+    e.preventDefault();
+    sfSelectChoisir(parseInt(opt.dataset.i, 10));
+  });
+  sfSelectSurligner(natif.selectedIndex, false);
+  panneau.querySelector('.est-choisi')?.scrollIntoView({ block: 'nearest' });
+}
+
+function sfSelectSurligner(i, defiler = true) {
+  if (!sfSelectOuvert) return;
+  const opts = sfSelectOuvert.panneau.querySelectorAll('.sf-pick__opt');
+  if (!opts.length) return;
+  const n = ((i % opts.length) + opts.length) % opts.length;
+  opts.forEach(o => o.classList.remove('est-survole'));
+  opts[n].classList.add('est-survole');
+  if (defiler) opts[n].scrollIntoView({ block: 'nearest' });
+  sfSelectOuvert.index = n;
+}
+
+function sfSelectChoisir(i) {
+  if (!sfSelectOuvert) return;
+  const { natif } = sfSelectOuvert;
+  if (natif.selectedIndex !== i) {
+    natif.selectedIndex = i;
+    natif.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  sfSelectFermer();
+}
+
+function sfSelectFermer() {
+  if (!sfSelectOuvert) return;
+  sfSelectOuvert.panneau.remove();
+  sfSelectOuvert.bouton.setAttribute('aria-expanded', 'false');
+  sfSelectOuvert = null;
+}
+
+// Clavier au niveau du document : le panneau n'a pas le focus (il est dans
+// <body>), c'est le bouton qui le garde — donc on ecoute globalement.
+document.addEventListener('keydown', e => {
+  if (!sfSelectOuvert) return;
+  const n = sfSelectOuvert.panneau.querySelectorAll('.sf-pick__opt').length;
+  switch (e.key) {
+    case 'Escape':    e.preventDefault(); sfSelectOuvert.bouton.focus(); sfSelectFermer(); break;
+    case 'ArrowDown': e.preventDefault(); sfSelectSurligner(sfSelectOuvert.index + 1); break;
+    case 'ArrowUp':   e.preventDefault(); sfSelectSurligner(sfSelectOuvert.index - 1); break;
+    case 'Home':      e.preventDefault(); sfSelectSurligner(0); break;
+    case 'End':       e.preventDefault(); sfSelectSurligner(n - 1); break;
+    case 'Enter':
+    case ' ':         e.preventDefault(); sfSelectChoisir(sfSelectOuvert.index); sfSelectOuvert?.bouton.focus(); break;
+    case 'Tab':       sfSelectFermer(); break;
+    default:
+      if (e.key.length === 1) {
+        const o = [...sfSelectOuvert.panneau.querySelectorAll('.sf-pick__lbl')];
+        const j = o.findIndex(x => x.textContent.trim().toLowerCase().startsWith(e.key.toLowerCase()));
+        if (j >= 0) sfSelectSurligner(j);
+      }
+  }
+});
+document.addEventListener('mousedown', e => {
+  if (sfSelectOuvert && !e.target.closest('.sf-pick')) sfSelectFermer();
+});
+window.addEventListener('resize', sfSelectFermer);
+// `true` : la phase de capture attrape aussi le defilement d'un conteneur
+// interne, qui ne remonte pas jusqu'a window.
+window.addEventListener('scroll', sfSelectFermer, true);
+
+function sfAmeliorerSelects() {
+  if (sfSelectMobile()) return;
+  sfSelectEnCours = true;
+  try { document.querySelectorAll('select:not([data-sf-habille])').forEach(sfSelectInit); }
+  finally { sfSelectEnCours = false; }
+}
+sfAmeliorerSelects();
+
+/* ⚠️ TROUVE EN VERIFIANT CETTE MAQUETTE, ET VALABLE POUR app.js.
+   `sfAmeliorerSelects()` sort tout de suite sous 720 px : c'est voulu, le
+   natif fait mieux sur mobile. Mais la decision n'est prise qu'une fois. Une
+   page ouverte etroite puis elargie garde donc ses listes nues.
+   Dans l'application, l'observateur de mutations finit par rattraper au
+   premier redessin ; ici rien ne mute, donc rien ne rattraperait — je l'ai
+   constate a l'ecran. On rejoue au franchissement du seuil.
+   → A REPORTER dans app.js : le rattrapage y est fortuit, pas prevu. */
+window.matchMedia(SF_SEUIL_MOBILE).addEventListener('change', sfAmeliorerSelects);
+window.addEventListener('load', sfAmeliorerSelects);
 </script>
 </body>
 </html>
