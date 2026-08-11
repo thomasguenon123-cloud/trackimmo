@@ -111,6 +111,14 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .sff-block__n{ margin-left:auto; font-size:var(--sf-font-caption); color:var(--sf-text-3);
   font-variant-numeric:tabular-nums; }
 .sff-block__a{ margin-left:auto; display:flex; gap:var(--sf-space-4); flex-wrap:wrap; }
+/* ⚠️ DEFAUT LATENT DE styles.css:2169-2171, revele ici. `__n` et `__a` sont
+   TOUS DEUX en `margin-left:auto` : cote a cote, ils se PARTAGENT l'espace
+   libre et la meta « exercice 2026 » flottait au milieu de l'en-tete, sans
+   rattachement visuel — le defaut que Thomas avait deja signale ailleurs.
+   Seul le premier doit prendre la marge automatique.
+   Pas encore visible dans l'app : aucun en-tete n'y combine les deux.
+   ⚠️ A REPORTER dans styles.css a l'implementation, le module les combine. */
+.sff-block__h .sff-block__n + .sff-block__a{ margin-left:var(--sf-space-5); }
 .sff-block__b{ padding:var(--sf-space-7); flex:1; display:flex; flex-direction:column; }
 .sff-block__b--flush{ padding:0; }
 .sff-grid2{ display:grid; grid-template-columns:1fr 1fr; gap:var(--sf-space-5); align-items:stretch; }
@@ -405,15 +413,19 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-imp__v{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
   text-align:right; white-space:nowrap; }
 
-/* ── Bilan comptable ──────────────────────────────────────────────────────────
-   La carte ne portait que trois boutons. Elle affiche desormais le bilan.
+/* ── Declaration fiscale ──────────────────────────────────────────────────────
+   La carte ne portait que trois boutons. Elle affiche desormais la declaration.
 
-   ⚠️ SON PERIMETRE N'EST PAS CELUI DU MODULE. Le bilan ne comptabilise que les
-   biens rattaches a la SCI ; mesure en base le 10/08/2026 : 2 des 3 biens
-   acquis. Deux perimetres sur le meme ecran ne se distinguent que si l'un des
-   deux le DIT — d'ou `.mfx-scope`, qui le nomme et porte l'action de
-   rattachement. Sans cela on reproduit le defaut « computeCF vs
-   cfDisplayData » : deux chiffres justes, faux l'un a cote de l'autre. */
+   ⚠️ SON PERIMETRE N'EST PAS CELUI DU MODULE, et il ne le sera jamais : une
+   declaration porte sur un DECLARANT (une SCI, ou la personne physique), le
+   module sur le portefeuille entier. Deux perimetres sur le meme ecran ne se
+   distinguent que si l'un des deux le DIT — sans quoi on reproduit le defaut
+   « computeCF vs cfDisplayData » : deux chiffres justes, faux l'un a cote de
+   l'autre. Il est donc nomme POSITIVEMENT, par la liste « Biens declares ».
+   `.mfx-scope` ne sert plus qu'a la reprise de l'existant : un bien acquis
+   avant la regle de detention, dont le mode reste a renseigner. */
+.mfx-bilan__meta{ display:flex; align-items:center; gap:var(--sf-space-4);
+  flex-wrap:wrap; margin-bottom:var(--sf-space-6); }
 .mfx-badge{ display:inline-flex; align-items:center; height:21px; padding:0 8px;
   border-radius:var(--sf-radius-full); background:var(--sf-surface-2);
   color:var(--sf-text-2); font-size:var(--sf-font-caption);
@@ -650,52 +662,62 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
       </div>
     </div>
 
-    <!-- ── BILAN COMPTABLE ────────────────────────────────────────────────────
-         L'iteration 4 ne portait que trois boutons. Le bilan s'affiche
-         desormais ici, avec son propre selecteur d'exercice.
+    <!-- ── DECLARATION FISCALE ────────────────────────────────────────────────
+         « Bilan comptable » devient « Declaration fiscale » : une personne
+         physique n'a pas de bilan, elle a une declaration de revenus fonciers.
+         Un vrai bilan n'existe que pour une SCI a l'IS. Le titre couvre les
+         deux declarants.
 
-         Chiffres recalcules en SQL le 10/08/2026 selon les regles EXACTES de
-         `mfBilanFeedCompute()` (app.js:7522) : loyers de statut 'Paye' ou
-         'Partiel', charges non recuperables, ventilees par ligne Cerfa 2044.
+         REGLE DE DETENTION (arretee par Thomas le 12/08/2026). Tout bien qui
+         passe en « Achete » doit declarer son mode : EN PROPRE (personne
+         physique) ou VIA UNE SCI (personne morale). Chaque bien acquis
+         appartient donc a exactement un declarant, et la phrase orpheline
+         « T4+ Paris 16e n'est rattache a aucune SCI » disparait PAR
+         CONSTRUCTION — on ne la masque pas, elle devient impossible.
+         ⚠️ Exige une migration DDL (colonne `biens.mode_detention`), a la
+         charge de Thomas : mon acces Supabase est en lecture seule.
 
-         ⚠️ SELECTEUR D'EXERCICE PROPRE A LA CARTE. L'arbitrage 3 dit
-         « selecteur d'exercice unique en haut ». Ici les deux horloges
-         different vraiment : on prepare la declaration 2025 pendant qu'on
-         analyse l'exploitation 2026. La carte annonce donc son exercice, et le
-         dit quand il s'ecarte de celui du module. A confirmer par Thomas.
+         MISE A JOUR : plus de bouton. Un exercice en BROUILLON est recalcule a
+         chaque affichage — le volume mesure (19 loyers, 1 charge, 208 ko) rend
+         tout cache inutile, et un cache est precisement ce qui perimait.
+         L'ecriture ne subsiste qu'a la VALIDATION, ou figer a un sens legal :
+         une declaration deposee ne doit pas bouger si l'on corrige un loyer
+         ensuite. `bilans_comptables.statut` encodait deja cet etat.
+         ⚠️ En regime IS les dotations aux amortissements restent SAISIES : le
+         calcul en direct couvre les produits et les charges, pas elles.
 
-         ⚠️ « Changer de SCI » ABSENT : il n'y a qu'une SCI en base. Un bouton
-         qui n'a rien a changer n'est pas un bouton. Il n'apparait qu'a partir
-         de deux SCI ; en dessous le nom s'affiche en clair. -->
+         Chiffres recalcules en SQL selon les regles EXACTES de
+         `mfBilanFeedCompute()` (app.js:7522). -->
     <div class="sff-block">
       <div class="sff-block__h">
-        <p class="sff-block__t">Bilan comptable</p>
+        <p class="sff-block__t">Déclaration fiscale</p>
+        <span class="sff-block__n">exercice 2026</span>
         <span class="sff-block__a">
-          <select aria-label="Exercice du bilan comptable">
-            <option>Exercice 2026</option><option>Exercice 2025</option>
+          <select aria-label="Déclarant">
+            <option>SCI TEST Guénon</option>
+            <option>En propre — personne physique</option>
           </select>
         </span>
       </div>
       <div class="sff-block__b">
-        <!-- Dit CE QUE C'EST, pas comment il se calcule : c'est ce qui evite de
-             lire « +3 265 € » comme une contradiction du « −54 735 € » du
-             bandeau, sans avoir a gloser sur le traitement du credit. -->
-        <div class="mfx-bilan__meta" style="display:flex;align-items:center;gap:var(--sf-space-4);flex-wrap:wrap;margin-bottom:var(--sf-space-6)">
-          <span class="sff-line__l" style="margin:0">Ce que la SCI déclare au fisc</span>
-          <span class="mfx-badge">SCI TEST Guénon</span>
+        <!-- Plus de phrase d'explication : « Resultat foncier » est le terme
+             exact et suffit a le distinguer du cashflow. Les pastilles disent
+             l'etat, pas la methode. -->
+        <div class="mfx-bilan__meta">
           <span class="mfx-badge">Régime IR · déclaration 2044</span>
           <span class="mfx-badge">Brouillon</span>
         </div>
 
-        <!-- LE PERIMETRE, NOMME. 2 des 3 biens acquis sont rattaches a la SCI.
-             Sans cette ligne, « +3 265 € » et « −54 735 € » se lisent comme
-             deux mesures du meme ensemble. -->
+        <!-- REPRISE DE L'EXISTANT. Le bien deja en base sans mode de detention
+             est SIGNALE, pas devine — on n'ecrit pas une donnee a portee
+             fiscale par defaut. Cette ligne ne concerne que l'existant : la
+             regle rend le cas impossible pour tout nouveau bien. -->
         <div class="mfx-scope">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.9" r=".7" fill="currentColor" stroke="none"/></svg>
-          <span><b>2 de vos 3 biens.</b> T4+ Paris 16e n'est rattaché à aucune SCI :
-          ni ses loyers ni ses charges n'entrent dans ce bilan.</span>
+          <span><b>T4+ Paris 16e n'a pas encore de mode de détention.</b> Ses loyers et
+          ses charges n'entrent dans aucune déclaration tant qu'il n'est pas renseigné.</span>
           <span class="mfx-scope__a">
-            <button class="sf-btn sf-btn--secondary sf-btn--sm">Rattacher ce bien</button>
+            <button class="sf-btn sf-btn--secondary sf-btn--sm">Renseigner</button>
           </span>
         </div>
 
@@ -718,18 +740,23 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
             </div>
           </div>
 
+          <!-- Le perimetre, NOMME POSITIVEMENT. La colonne de droite portait un
+               avertissement de peremption, devenu impossible : elle liste
+               desormais les biens du declarant et ce que chacun a rapporte. -->
           <div>
-            <!-- Le bilan ENREGISTRE est perime : ecrit le 25/07/2026, il porte
-                 0 € de loyers percus et un seul bien dans `source_bien_ids`.
-                 C'est precisement ce qu'une carte a trois boutons ne pouvait
-                 pas montrer. -->
-            <p class="mfx-verdict mfx-verdict--alerte" style="margin-top:0">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/><path d="M10.3 3.6 2.5 17.2A2 2 0 0 0 4.2 20h15.6a2 2 0 0 0 1.7-2.8L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg>
-              <span>Le bilan enregistré date du <b>25 juillet</b> et porte 0&#8239;€ de
-              loyers perçus. <b>3&#8239;320&#8239;€ ont été encaissés depuis.</b></span>
-            </p>
+            <p class="sff-sep">Biens déclarés</p>
+            <div class="sff-lines">
+              <div class="sff-line">
+                <span class="sff-line__l">Immeuble Paris 18e</span>
+                <span class="sff-line__v">3&#8239;320&#8239;€</span>
+              </div>
+              <div class="sff-line">
+                <span class="sff-line__l">T3 Lyon <small>· aucun bail en cours</small></span>
+                <span class="sff-line__v">0&#8239;€</span>
+              </div>
+            </div>
             <div class="mfx-acts">
-              <button class="sf-btn sf-btn--primary sf-btn--sm">Mettre à jour le bilan</button>
+              <button class="sf-btn sf-btn--primary sf-btn--sm">Valider l'exercice</button>
               <button class="sf-btn sf-btn--secondary sf-btn--sm">Exporter le détail</button>
               <button class="sf-btn sf-btn--secondary sf-btn--sm">Exporter la synthèse</button>
             </div>
