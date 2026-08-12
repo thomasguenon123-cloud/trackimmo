@@ -7879,6 +7879,128 @@ function mfCashflowMensuel12M(bien) {
 // (Avant, la formule était dupliquée ici mot pour mot : divergence garantie.)
 function mfCashflowPrevisionnel(bien) { return computeCF(bien); }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SUIVI FINANCIER — LE CALCUL DU RÉEL, SOURCE UNIQUE DU MODULE
+   Arbitrage du 10/08/2026 : le module raisonne en ANNÉE CIVILE (exercice), et
+   non plus en 12 mois glissants. Un seul sélecteur d'exercice en haut.
+
+   ⚠️ POURQUOI CES FONCTIONS EXISTENT. Deux définitions du « réel » cohabitaient :
+   `mfCashflowReel12M` imputait DOUZE mois de mensualités quoi qu'il arrive,
+   tandis que l'ancien onglet Rentabilité bornait aux mois écoulés. Un bien avec
+   huit mois de loyers était donc confronté à douze mois de crédit — visible en
+   production : « MENSUALITÉS CRÉDIT 43 800 € » pour 3 650 €/mois alors que huit
+   mois seulement étaient écoulés.
+
+   `mfCashflowReel12M` est CONSERVÉ tel quel : il sert `cfDisplayData()`, donc
+   « Mes biens » et l'accueil, sur une fenêtre GLISSANTE de 12 mois. Fenêtre
+   glissante et exercice comptable sont deux questions différentes, pas deux
+   réponses à la même — les confondre serait recréer le défaut à l'envers.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// Mois écoulés d'un exercice : 12 pour une année révolue, le mois courant pour
+// l'année en cours, 0 pour une année à venir.
+function mfMoisEcoules(annee) {
+  const now = new Date();
+  if (annee < now.getFullYear()) return 12;
+  if (annee > now.getFullYear()) return 0;
+  return now.getMonth() + 1;
+}
+
+// Loyer DÛ d'un mois — la base, pas le loyer théorique de la fiche : c'est la
+// ligne de `loyers_mensuels` qui fait foi, prorata loi 1989 compris.
+function mfLoyerDuMois(bienId, mois, annee) {
+  const l = allLoyers.find(x => x.bien_id === bienId && x.mois === mois && x.annee === annee);
+  return l ? (parseFloat(l.loyer_du) || 0) : 0;
+}
+
+// Le réel d'un bien sur un exercice, borné aux mois ÉCOULÉS.
+function mfReelExercice(bien, annee) {
+  const nb = mfMoisEcoules(annee);
+  let loyer = 0, charges = 0, du = 0;
+  for (let m = 1; m <= nb; m++) {
+    loyer   += mfLoyerEncaisseMois(bien.id, m, annee);
+    charges += mfChargesMois(bien.id, m, annee);
+    du      += mfLoyerDuMois(bien.id, m, annee);
+  }
+  const mensualites = (parseFloat(bien.mensualite_credit) || 0) * nb;
+  return {
+    mois: nb,
+    loyer_encaisse: loyer,
+    loyer_du: du,
+    charges_payees: charges,
+    mensualites_credit: mensualites,
+    cashflow: loyer - charges - mensualites,
+  };
+}
+
+// Cashflow mois par mois sur l'exercice — alimente le mini-graphique des cartes
+// et le graphique consolidé. `null` au-delà des mois écoulés : un mois à venir
+// n'a pas de cashflow, et le tracer à zéro le ferait lire comme un équilibre.
+function mfCashflowMensuelExercice(bien, annee) {
+  const nb = mfMoisEcoules(annee);
+  const mensu = parseFloat(bien.mensualite_credit) || 0;
+  const out = [];
+  for (let m = 1; m <= 12; m++) {
+    if (m > nb) { out.push({ mois: m, cashflow: null, encaisse: false }); continue; }
+    const l = mfLoyerEncaisseMois(bien.id, m, annee);
+    const du = mfLoyerDuMois(bien.id, m, annee);
+    out.push({
+      mois: m,
+      cashflow: l - mfChargesMois(bien.id, m, annee) - mensu,
+      // « non encaissé » ne se déduit QUE d'un loyer dû resté impayé — un bien
+      // vacant ne doit pas être signalé comme tel, il n'a rien à encaisser.
+      encaisse: du > 0 && l >= du,
+      manque: du > 0 && l < du,
+    });
+  }
+  return out;
+}
+
+/* ⚠️ « RENDEMENT NET » — REDÉFINI, l'ancien n'en était pas un.
+   Il calculait `(loyers − charges − mensualités) / coût total` : il retranchait
+   le remboursement du crédit — dont la part de capital est de l'ÉPARGNE, pas
+   une perte — et divisait par le coût au lieu de l'apport. D'où les « −4,14 % »
+   affichés en production.
+   Nouvelle définition, arbitrée par Thomas : HORS CRÉDIT, sur le loyer DÛ,
+   annualisé, rapporté au coût d'acquisition. Le loyer dû et non encaissé :
+   l'impayé est un problème de recouvrement, pas de rendement du bien — il est
+   dit ailleurs, par le taux d'impayés et les loyers non soldés.
+   Retourne `null` quand le rendement n'est pas calculable, jamais 0 : un coût
+   d'acquisition absent n'est pas un rendement nul. */
+function mfRendementNet(biens, annee) {
+  const liste = Array.isArray(biens) ? biens : [biens];
+  const nb = mfMoisEcoules(annee);
+  if (!nb) return null;
+  let net = 0, cout = 0;
+  for (const b of liste) {
+    const r = mfReelExercice(b, annee);
+    net  += r.loyer_du - r.charges_payees;
+    cout += mfMontantAcquisition(b);
+  }
+  if (cout <= 0) return null;
+  return ((net * (12 / nb)) / cout) * 100;
+}
+
+/* ⚠️ RÈGLE DE PÉRIMÈTRE — elle gouverne tous les chiffres du module.
+   Ma première règle (« écarter les biens sans donnée ») confondait deux cas
+   opposés. Un bien VACANT n'est PAS une donnée manquante : on sait qu'il ne
+   rapporte rien et que son crédit court, son cashflow est calculable et vrai →
+   il est COMPTÉ. Seul un bien LOUÉ dont aucun loyer n'est saisi sur l'exercice
+   est écarté — là on ignore vraiment ce qui s'est passé.
+   Mesuré à l'arbitrage : le consolidé passe de −19 135 € à −54 735 €, dont
+   35 600 € de crédit sur les biens vides. La vacance cesse d'être invisible. */
+function mfDansLePerimetre(bien, annee) {
+  if (bien.statut !== 'Acheté') return false;
+  const loue = allLocataires.some(l => l.bien_id === bien.id && l.statut === 'Actif');
+  if (!loue) return true;
+  return allLoyers.some(l => l.bien_id === bien.id && l.annee === annee);
+}
+
+// Les biens du module pour un exercice, dans l'ordre d'affichage par défaut.
+function mfBiensExercice(annee) {
+  return allBiens.filter(b => mfDansLePerimetre(b, annee));
+}
+
 // Statut occupation d'un bien
 function mfStatutOccupation(bienId) {
   const locataireActif = allLocataires.find(l =>
