@@ -312,11 +312,32 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
 .mfx-cell--avenir{ background:transparent; border:1px dashed var(--sf-border-strong);
   color:var(--sf-text-3); }
 .mfx-cell--none{ background:var(--sf-surface-2); color:var(--sf-text-3); cursor:default; }
-.mfx-cell--charge{ background:var(--sf-surface-2); color:var(--sf-text-3); }
-.mfx-cell--charge.pleine{ background:var(--sf-alert-wash); color:var(--sf-alert); }
-.mfx-cell--charge .plus{ opacity:0; transition:opacity var(--sf-dur) var(--sf-ease); }
-.mfx-grille tr:hover .mfx-cell--charge .plus{ opacity:1; }
+.mfx-cell--charge{ background:var(--sf-surface-2); color:var(--sf-text-3); padding:0; }
+.mfx-cell--charge.pleine{ background:var(--sf-alert-wash); color:var(--sf-alert);
+  padding:var(--sf-space-4) var(--sf-space-3); }
 .mfx-cell--charge:hover{ background:var(--sf-surface-3); }
+/* ⚠️ LE « + » ETAIT A `opacity:0`, revele au seul survol de la ligne.
+   C'est L'ACTION PRINCIPALE de l'onglet — c'est par la qu'on enregistre une
+   charge sur le mois ou elle est tombee. La cacher refaisait en miniature
+   l'erreur de l'iteration 1 : transformer un poste de travail en ecran de
+   lecture. L'ecran en ligne, lui, l'affiche en permanence.
+   Il devient un vrai <button> : le <td> nu n'etait atteignable NI au clavier
+   NI au doigt (0 element focusable, mesure). */
+.mfx-cell--charge .plus{ display:block; width:100%; border:0; background:transparent;
+  color:var(--sf-text-3); font-family:inherit; font-size:var(--sf-font-caption);
+  line-height:1; padding:var(--sf-space-4) var(--sf-space-3); cursor:pointer;
+  border-radius:var(--sf-radius-xs);
+  transition:color var(--sf-dur) var(--sf-ease); }
+.mfx-cell--charge:hover .plus{ color:var(--sf-text); }
+.mfx-cell--charge .plus:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus);
+  outline-offset:-2px; color:var(--sf-text); }
+/* Le numero de ligne Cerfa 2044 de la charge — c'est le fil entre cet ecran de
+   saisie et la « Declaration fiscale ». L'ecran en ligne le porte, la maquette
+   l'avait perdu. */
+.mfx-charge__cerfa{ font-family:var(--sf-font-num); font-size:10px;
+  color:var(--sf-text-2); background:var(--sf-surface-2);
+  padding:1px 6px; border-radius:var(--sf-radius-full); margin-left:var(--sf-space-3);
+  white-space:nowrap; }
 .mfx-cell__more{ position:absolute; top:1px; right:3px; font-size:10px; line-height:1;
   color:currentColor; opacity:0; transition:opacity var(--sf-dur) var(--sf-ease); }
 .mfx-cell:hover .mfx-cell__more{ opacity:1; }
@@ -351,10 +372,14 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
    Second defaut sur le meme element : ils ne se revelent qu'au `:hover`, qui
    n'existe pas au doigt. On repasse en deux colonnes et on les rend visibles. */
 @media (max-width:720px){
-  .mfx-charge{ grid-template-columns:minmax(0,1fr) auto; row-gap:var(--sf-space-4); }
+  .mfx-charge{ grid-template-columns:minmax(0,1fr) auto; row-gap:var(--sf-space-4);
+    align-items:center; }
   .mfx-charge__d{ grid-column:1; grid-row:1; }
   .mfx-charge__tag{ grid-column:2; grid-row:1; justify-self:end; }
-  .mfx-charge > div{ grid-column:1; grid-row:2; }
+  /* ⚠️ Ce selecteur visait `> div` — or le conteneur du libelle est un <span>.
+     Il ne ciblait donc RIEN, et le placement ne tenait que par le placement
+     automatique de la grille. Il marchait par accident, pas par regle. */
+  .mfx-charge__x{ grid-column:1; grid-row:2; }
   .mfx-charge__v{ grid-column:2; grid-row:2; text-align:right; }
   .mfx-charge__a{ grid-column:1 / -1; grid-row:3; opacity:1; }
 }
@@ -1045,18 +1070,18 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
                 <td class="mfx-tot sf-gain">3&#8239;320&#8239;€</td>
               </tr>
               <tr>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><button class="plus" title="Ajouter une charge sur ce mois">+</button></td>
+                <td class="mfx-cell mfx-cell--charge"><button class="plus" title="Ajouter une charge sur ce mois">+</button></td>
+                <td class="mfx-cell mfx-cell--charge"><button class="plus" title="Ajouter une charge sur ce mois">+</button></td>
                 <td class="mfx-cell mfx-cell--charge pleine" title="Avril : 1 charge — cliquer pour le détail">55</td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
-                <td class="mfx-cell mfx-cell--charge"><span class="plus">+</span></td>
+                <td class="mfx-cell mfx-cell--charge"><button class="plus" title="Ajouter une charge sur ce mois">+</button></td>
+                <td class="mfx-cell mfx-cell--charge"><button class="plus" title="Ajouter une charge sur ce mois">+</button></td>
+                <td class="mfx-cell mfx-cell--charge"><button class="plus" title="Ajouter une charge sur ce mois">+</button></td>
+                <td class="mfx-cell mfx-cell--charge"><button class="plus" title="Ajouter une charge sur ce mois">+</button></td>
+                <td class="mfx-cell mfx-cell--charge"><button class="plus" title="Ajouter une charge sur ce mois">+</button></td>
+                <td class="mfx-cell mfx-cell--charge"><button class="plus" title="Ajouter une charge sur ce mois">+</button></td>
+                <td class="mfx-cell mfx-cell--charge"><button class="plus" title="Ajouter une charge sur ce mois">+</button></td>
+                <td class="mfx-cell mfx-cell--charge"><button class="plus" title="Ajouter une charge sur ce mois">+</button></td>
                 <td class="mfx-tot">55&#8239;€</td>
               </tr>
             </tbody>
@@ -1077,8 +1102,8 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
         </div>
         <div class="mfx-charge">
           <span class="mfx-charge__d">15 avr. 2026</span>
-          <span>
-            <span class="mfx-charge__c">Autre</span>
+          <span class="mfx-charge__x">
+            <span class="mfx-charge__c">Autre</span><span class="mfx-charge__cerfa">L.224</span>
             <span class="mfx-charge__l">taxe test · Immeuble Paris 18e</span>
           </span>
           <span class="mfx-charge__tag">Ponctuelle</span>
@@ -1098,7 +1123,12 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
     <div class="sff-block">
       <div class="sff-block__h">
         <p class="sff-block__t">Fenêtre d'encaissement</p>
-        <span class="sff-block__n">s'ouvre au clic sur ••• d'une case de loyer</span>
+        <!-- ⚠️ Signale comme EXEMPLE : en base, fevrier est « En attente » sans
+             montant encaisse. Le cas d'un paiement partiel est le seul qui
+             montre le champ « Montant encaisse » et les notes — mais rien ne
+             disait que ces 400 € n'etaient pas des donnees reelles, sur une
+             maquette dont la regle est « jamais de chiffre invente ». -->
+        <span class="sff-block__n">Exemple de saisie · s'ouvre au clic sur ••• d'une case</span>
       </div>
       <div class="sff-block__b">
         <div class="mfx-popup">
@@ -1125,14 +1155,30 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
       </div>
     </div>
 
+    <!-- ⚠️ CE BLOC SUIT LE FILTRE. Il affichait le PORTEFEUILLE ENTIER
+         (« 3 biens × 8 mois », cashflow −54 735 €) sur un ecran qui annonce
+         « Suivi filtre sur Immeuble Paris 18e » et dont la grille ne montre
+         que ce bien.
+         Ce qui rendait le defaut dangereux : les deux premieres lignes
+         COINCIDENT — Immeuble Paris 18e est le seul bien qui encaisse — donc
+         le bloc paraissait coherent et basculait de perimetre a la troisieme
+         ligne. On lisait « ce bien a coute 54 735 € » quand sa carte dans
+         Portefeuille dit −19 135 €. Deux ecrans, un meme bien, 35 600 €
+         d'ecart : exactement le defaut « computeCF vs cfDisplayData ».
+         Desormais : mensualites 2 800 € × 8 mois = 22 400 €, cashflow
+         3 320 − 55 − 22 400 = −19 135 €, le chiffre de sa carte. Et le
+         perimetre est NOMME dans l'en-tete. -->
     <div class="sff-block">
-      <div class="sff-block__h"><p class="sff-block__t">Totaux de l'exercice</p></div>
+      <div class="sff-block__h">
+        <p class="sff-block__t">Totaux de l'exercice</p>
+        <span class="sff-block__n">Immeuble Paris 18e</span>
+      </div>
       <div class="sff-block__b">
         <div class="sff-lines">
           <div class="sff-line"><span class="sff-line__l">Loyers encaissés</span><span class="sff-line__v sf-gain">3&#8239;320&#8239;€</span></div>
           <div class="sff-line"><span class="sff-line__l">Charges payées</span><span class="sff-line__v">55&#8239;€</span></div>
-          <div class="sff-line"><span class="sff-line__l">Mensualités de crédit <small>· 3 biens × 8 mois</small></span><span class="sff-line__v">58&#8239;000&#8239;€</span></div>
-          <div class="sff-line sff-line--tot"><span class="sff-line__l">Cashflow constaté</span><span class="sff-line__v sf-loss">−54&#8239;735&#8239;€</span></div>
+          <div class="sff-line"><span class="sff-line__l">Mensualités de crédit <small>· 8 mois écoulés</small></span><span class="sff-line__v">22&#8239;400&#8239;€</span></div>
+          <div class="sff-line sff-line--tot"><span class="sff-line__l">Cashflow constaté</span><span class="sff-line__v sf-loss">−19&#8239;135&#8239;€</span></div>
         </div>
         <p class="sff-sep">Reste à encaisser</p>
         <div class="sff-lines">
