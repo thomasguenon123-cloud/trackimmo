@@ -206,14 +206,23 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
    bloc se dit une fois, pas sous chaque chiffre). Elle leve l'ambiguite
    signalee par Thomas : la carte melait un CUMUL (−19 135 €) et un MENSUEL
    (« −850 € chaque mois ») sans jamais dire lequel etait lequel. */
+/* ⚠️ En bas de casse et en graisse normale, VOLONTAIREMENT. En capitales
+   semi-grasses, cette ligne avait EXACTEMENT le meme style calcule que
+   `.mfx-stat__l` (Instrument Sans, 11 px, 600, uppercase, meme couleur) : elle
+   se lisait comme un CINQUIEME LIBELLE de statistique et non comme le titre
+   qui coiffe les quatre. Mesure a l'appui, pas a l'oeil. */
 .mfx-card__per{ margin:0; padding:var(--sf-space-5) var(--sf-space-6) 0;
-  font-size:var(--sf-font-label); font-weight:var(--sf-weight-semibold);
-  letter-spacing:var(--sf-track-caps); text-transform:uppercase;
-  color:var(--sf-text-3); }
+  font-size:var(--sf-font-caption); color:var(--sf-text-3); }
 .mfx-card__spark{ padding:var(--sf-space-5) var(--sf-space-6); }
 .mfx-spark__h{ display:flex; align-items:baseline; gap:var(--sf-space-4);
   font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-bottom:var(--sf-space-4); }
-.mfx-spark__d{ margin-left:auto; font-family:var(--sf-font-num); color:var(--sf-text-2); }
+/* La chasse fixe est reservee aux CHIFFRES — c'est sa raison d'etre, aligner
+   des colonnes. Le mot « aout » etait rendu en JetBrains Mono avec le reste de
+   la legende, d'ou l'espacement large visible a l'ecran. Seul le montant la
+   garde. */
+.mfx-spark__d{ margin-left:auto; color:var(--sf-text-2); }
+.mfx-spark__d b{ font-family:var(--sf-font-num); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text); }
 
 /* ── Mini-graphique mensuel des cartes ────────────────────────────────────────
    Remplace la sparkline, qui cumulait TROIS defauts :
@@ -863,7 +872,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
              courbe contenait sans pouvoir le dire. Et c'est le meme 4 que le
              badge ambre de l'onglet « Suivi mensuel ». -->
         <div class="mfx-card__spark">
-          <div class="mfx-spark__h"><span>Cashflow mois par mois</span><span class="mfx-spark__d">août : −2&#8239;800&#8239;€</span></div>
+          <div class="mfx-spark__h"><span>Cashflow mois par mois</span><span class="mfx-spark__d">août <b>−2&#8239;800&#8239;€</b></span></div>
           <div class="mfx-mini" role="img" aria-label="Cashflow mensuel de janvier à août : −1 970, −2 800, −1 970, −2 025, −1 970, −2 800, −2 800, −2 800 euros">
             <span class="mfx-mini__b" style="height:70%" title="Janvier : −1 970 €"></span>
             <span class="mfx-mini__b mfx-mini__b--ko" style="height:100%" title="Février : −2 800 € · loyer non encaissé"></span>
@@ -875,8 +884,8 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
             <span class="mfx-mini__b mfx-mini__b--ko" style="height:100%" title="Août : −2 800 € · loyer non encaissé"></span>
           </div>
           <div class="mfx-mini__x">
-            <span>J</span><span class="ko">F</span><span>M</span><span>A</span>
-            <span>M</span><span class="ko">J</span><span class="ko">J</span><span class="ko">A</span>
+            <span>Jan</span><span class="ko">Fév</span><span>Mar</span><span>Avr</span>
+            <span>Mai</span><span class="ko">Jun</span><span class="ko">Jul</span><span class="ko">Aoû</span>
           </div>
           <p class="mfx-mini__lg"><i></i>Mois dont le loyer n'a pas été encaissé</p>
         </div>
@@ -913,7 +922,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
              « non encaisse » — pas de barre ambre, et pas de legende. La perte
              est constante et elle se voit : huit barres identiques. -->
         <div class="mfx-card__spark">
-          <div class="mfx-spark__h"><span>Cashflow mois par mois</span><span class="mfx-spark__d">août : −850&#8239;€</span></div>
+          <div class="mfx-spark__h"><span>Cashflow mois par mois</span><span class="mfx-spark__d">août <b>−850&#8239;€</b></span></div>
           <div class="mfx-mini" role="img" aria-label="Cashflow mensuel constant de −850 euros, de janvier à août">
             <span class="mfx-mini__b" style="height:100%" title="Janvier : −850 €"></span>
             <span class="mfx-mini__b" style="height:100%" title="Février : −850 €"></span>
@@ -925,8 +934,8 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
             <span class="mfx-mini__b" style="height:100%" title="Août : −850 €"></span>
           </div>
           <div class="mfx-mini__x">
-            <span>J</span><span>F</span><span>M</span><span>A</span>
-            <span>M</span><span>J</span><span>J</span><span>A</span>
+            <span>Jan</span><span>Fév</span><span>Mar</span><span>Avr</span>
+            <span>Mai</span><span>Jun</span><span>Jul</span><span>Aoû</span>
           </div>
         </div>
         <div class="mfx-card__cta"><button class="sf-btn sf-btn--secondary sf-btn--sm">Voir le suivi mensuel</button></div>
@@ -956,7 +965,7 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
           <div class="mfx-stat"><div class="mfx-stat__l">Rendement net</div><div class="mfx-stat__v">0&#8239;%</div><div class="mfx-stat__s">le bien ne produit rien</div></div>
         </div>
         <div class="mfx-card__spark">
-          <div class="mfx-spark__h"><span>Cashflow mois par mois</span><span class="mfx-spark__d">août : −3&#8239;600&#8239;€</span></div>
+          <div class="mfx-spark__h"><span>Cashflow mois par mois</span><span class="mfx-spark__d">août <b>−3&#8239;600&#8239;€</b></span></div>
           <div class="mfx-mini" role="img" aria-label="Cashflow mensuel constant de −3 600 euros, de janvier à août">
             <span class="mfx-mini__b" style="height:100%" title="Janvier : −3 600 €"></span>
             <span class="mfx-mini__b" style="height:100%" title="Février : −3 600 €"></span>
@@ -968,8 +977,8 @@ body{ background:var(--sf-bg); color:var(--sf-text); font-family:var(--sf-font-u
             <span class="mfx-mini__b" style="height:100%" title="Août : −3 600 €"></span>
           </div>
           <div class="mfx-mini__x">
-            <span>J</span><span>F</span><span>M</span><span>A</span>
-            <span>M</span><span>J</span><span>J</span><span>A</span>
+            <span>Jan</span><span>Fév</span><span>Mar</span><span>Avr</span>
+            <span>Mai</span><span>Jun</span><span>Jul</span><span>Aoû</span>
           </div>
         </div>
         <div class="mfx-card__cta"><button class="sf-btn sf-btn--secondary sf-btn--sm">Voir le suivi mensuel</button></div>
