@@ -1353,6 +1353,16 @@ function fmt(n){return Math.round(n).toLocaleString('fr-FR');}
 // la colonne se resserre — le nombre et son unite se retrouvent separes.
 function sfEur(n){ return fmt(n) + ' €'; }
 function sfPct(v){ return v + ' %'; }
+// ⚠️ `sfPct` attend une valeur DEJA mise en forme : il ne fait que coller
+// l'espace fine et le signe. Un nombre brut y passerait tel quel
+// (« 0.5126582278481 % »). Pour un resultat de calcul, passer par celui-ci, qui
+// arrondit et pose la virgule francaise. Retourne « non disponible » et jamais
+// 0 quand la valeur ne l'est pas : un indicateur incalculable n'est pas nul.
+function sfPctNum(v, dec = 2){
+  if (v === null || v === undefined || !Number.isFinite(Number(v))) return 'non disponible';
+  return sfPct(Number(v).toLocaleString('fr-FR',
+    { minimumFractionDigits: dec, maximumFractionDigits: dec }));
+}
 function cfCls(cf){return cf>0?'positive':cf<0?'negative':'neutral';}
 // Échappement HTML global (réutilisable partout)
 function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -3480,8 +3490,11 @@ function bdGoToSuivi(bienId) {
   mfSuiviBienFilter = bienId; mfSuiviPreviousBienId = bienId; mfTab = 'suivi';
   navigate('module-financier');
 }
+// « Rentabilité » a fusionné dans « Performance », qui est consolidée : le pont
+// depuis la fiche bien pose donc le PÉRIMÈTRE sur ce bien, ce qui reproduit
+// exactement l'ancien comportement (un bien à la fois) sans onglet dédié.
 function bdGoToRenta(bienId) {
-  mfRentaBienId = bienId; mfTab = 'renta';
+  mfPerfBienId = bienId; mfRentaBienId = bienId; mfTab = 'performance';
   navigate('module-financier');
 }
 
@@ -5545,7 +5558,7 @@ function navigate(page) {
 //  MODULE FINANCIER — Page principale (squelette V1)
 // ══════════════════════════════════════════════════════
 
-let mfTab = 'overview';
+let mfTab = 'performance';
 
 // ─── STATUTS — Code couleur par phase ───────────────────────
 // Chaque statut bien est rattaché à une "phase" macro pour colorisation visuelle
@@ -5594,6 +5607,15 @@ let allCharges = [];         // toutes les lignes charges_reelles du user
 let mfBiensFilter = 'all';   // 'all' | 'occupied' | 'vacant' | 'unpaid'
 let mfBiensSort = 'cf-desc'; // 'cf-desc' | 'cf-asc' | 'rendement-desc' | 'titre' | 'ville'
 let mfbCharts = {};          // registre des Chart.js instances par bien_id (cleanup)
+
+// ─── Suivi financier : exercice UNIQUE pour tout le module ───
+// Arbitrage : « année civile partout, sélecteur d'exercice unique en haut ».
+// Avant, la Vue d'ensemble raisonnait sur 12 mois glissants et la Rentabilité
+// sur l'année civile, chacune avec son propre navigateur d'année.
+let mfExercice = new Date().getFullYear();
+// Périmètre de l'onglet Performance : null = tous les biens, sinon un bien_id.
+// C'est lui qui préserve l'analyse par bien après la fusion des onglets.
+let mfPerfBienId = null;
 
 // ─── Suivi mensuel (étape 4) ───
 let mfSuiviYear = new Date().getFullYear();
@@ -5684,34 +5706,170 @@ const TYPES_BAIL = ['Vide','Meublé','Saisonnier','Bail mobilité'];
 // Limite de taille fichier (50 MB pour Free plan Supabase Storage en V2)
 const MAX_DOC_SIZE_MB = 25; // V1 base64 - on reste plus conservateur que les 50MB Storage
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SUIVI FINANCIER — bandeau et onglets
+
+   « Module financier » devient « Suivi financier » : « module » est un mot de
+   logiciel, pas un mot d'utilisateur, et aucun des écrans déjà migrés ne porte
+   de nom de composant.
+
+   QUATRE onglets au lieu de cinq. « Vue d'ensemble » et « Mes biens » portaient
+   LES QUATRE MÊMES INDICATEURS : ils fusionnent en « Portefeuille ».
+   « Rentabilité » devient « Performance », passe en tête et devient consolidée,
+   avec un sélecteur de périmètre qui préserve l'analyse d'un bien.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// Les exercices proposés : ceux qui portent des données, plus l'année en cours.
+// Jamais une liste figée — un utilisateur qui saisit 2024 doit pouvoir y revenir.
+function mfExercicesDisponibles() {
+  const s = new Set([new Date().getFullYear()]);
+  allLoyers.forEach(l => { if (l.annee) s.add(l.annee); });
+  allCharges.forEach(c => { const a = new Date(c.date_charge).getFullYear(); if (a) s.add(a); });
+  return [...s].sort((a, b) => b - a);
+}
+
+// Le consolidé du bandeau. Passe par mfReelExercice pour chaque bien du
+// périmètre — jamais par une somme réécrite ailleurs.
+function mfConsolide(annee) {
+  const biens = mfBiensExercice(annee);
+  const nb = mfMoisEcoules(annee);
+  let encaisse = 0, du = 0, charges = 0, mensualites = 0, prev = 0;
+  let loues = 0, vacants = 0, mensuVacants = 0;
+  for (const b of biens) {
+    const r = mfReelExercice(b, annee);
+    encaisse += r.loyer_encaisse; du += r.loyer_du;
+    charges += r.charges_payees; mensualites += r.mensualites_credit;
+    prev += computeCF(b) * nb;
+    if (allLocataires.some(l => l.bien_id === b.id && l.statut === 'Actif')) loues++;
+    else { vacants++; mensuVacants += r.mensualites_credit; }
+  }
+  const cashflow = encaisse - charges - mensualites;
+  return {
+    biens, nb, encaisse, du, charges, mensualites, cashflow,
+    previsionnel: prev, ecart: cashflow - prev,
+    loues, vacants, mensuVacants,
+    occupation: biens.length ? (loues / biens.length) * 100 : null,
+    rendementNet: mfRendementNet(biens, annee),
+  };
+}
+
+// Loyers échus et non soldés. ⚠️ L'état vient de `sfLoyerEtat()`, source unique :
+// un impayé se déduit de l'ÉCHÉANCE, jamais du libellé du statut — en base, seuls
+// « Payé » et « En attente » sont écrits par la saisie courante.
+function mfLoyersNonSoldes(annee, bienId) {
+  const out = [];
+  for (const l of allLoyers) {
+    if (l.annee !== annee) continue;
+    if (bienId && l.bien_id !== bienId) continue;
+    const bien = allBiens.find(b => b.id === l.bien_id);
+    if (!bien || !mfDansLePerimetre(bien, annee)) continue;
+    const loc = allLocataires.find(x => x.id === l.locataire_id)
+             || allLocataires.find(x => x.bien_id === l.bien_id && x.statut === 'Actif');
+    const etat = sfLoyerEtat(l, l.mois, annee, loc);
+    if (etat !== 'ko' && etat !== 'part') continue;
+    const du = parseFloat(l.loyer_du) || 0;
+    const enc = parseFloat(l.montant_encaisse) || 0;
+    out.push({ ligne: l, bien, locataire: loc, mois: l.mois, reste: du - enc, etat });
+  }
+  return out.sort((a, b) => a.mois - b.mois);
+}
+
 async function renderModuleFinancier(el) {
+  el.innerHTML = `<div class="mf-page"><div class="mfx-wrap">
+    <div class="loading"><div class="spinner"></div>Chargement…</div>
+  </div></div>`;
+
+  if(!allBiens.length && currentUser) await loadBiens();
+  // allSCI alimente la « Déclaration fiscale » de l'onglet Performance
+  await Promise.all([loadLocataires(), loadMfFinancialData(), allSCI.length ? null : loadSCIList()]);
+
+  mfRenderShell();
+}
+
+function mfRenderShell() {
+  const el = document.getElementById('content');
+  if (!el) return;
+  const annees = mfExercicesDisponibles();
+  if (!annees.includes(mfExercice)) mfExercice = annees[0];
+  const k = mfConsolide(mfExercice);
+  const nonSoldes = mfLoyersNonSoldes(mfExercice).length;
+  const locActifs = allLocataires.filter(l => l.statut === 'Actif').length;
+
+  // ⚠️ « non disponible » plutôt qu'un zéro trompeur : un rendement incalculable
+  // n'est pas un rendement nul. C'est la variante `--none` du composant KPI.
+  const rn = k.rendementNet;
+  const seuil = parseFloat(userPrefs?.seuil_rentabilite) || 5;
+
   el.innerHTML = `
-  <div class="mf-page">
-    <div class="adm-hero">
+  <div class="mf-page"><div class="mfx-wrap">
+    <div class="mfx-top">
       <div>
-        <div class="adm-hero-label">Gestion</div>
-        <div class="adm-hero-title">Module financier</div>
-        <div class="adm-hero-sub">Suivi locatif réel : loyers encaissés, charges payées, rentabilité post-achat</div>
+        <h1 class="mfx-h1">Suivi financier</h1>
+        <p class="mfx-sub">Ce que vos biens ont réellement rapporté et coûté</p>
+      </div>
+      <div>
+        <span class="mfx-champ-lab">Exercice</span>
+        <select id="mf-exercice" aria-label="Exercice comptable" onchange="mfSetExercice(this.value)">
+          ${annees.map(a => `<option value="${a}" ${a === mfExercice ? 'selected' : ''}>${a}</option>`).join('')}
+        </select>
       </div>
     </div>
 
-    <div class="adm-tabs">
-      <button class="adm-tab" id="mf-tab-overview"   onclick="switchMfTab('overview')">💼 Vue d'ensemble</button>
-      <button class="adm-tab" id="mf-tab-biens"      onclick="switchMfTab('biens')">🔑 Mes biens</button>
-      <button class="adm-tab" id="mf-tab-suivi"      onclick="switchMfTab('suivi')">📅 Suivi mensuel</button>
-      <button class="adm-tab" id="mf-tab-locataires" onclick="switchMfTab('locataires')">👥 Locataires</button>
-      <button class="adm-tab" id="mf-tab-renta"      onclick="switchMfTab('renta')">💶 Rentabilité</button>
+    ${k.biens.length ? `
+    <div class="mfx-kpis">
+      <div class="mfx-kpi mfx-kpi--hi">
+        <span class="mfx-kpi__l">Cashflow constaté</span>
+        <span class="mfx-kpi__v ${k.cashflow >= 0 ? 'mfx-kpi__v--gain' : 'mfx-kpi__v--loss'}">${sfEur(k.cashflow)}</span>
+        <span class="mfx-kpi__s">soit ${sfEur(k.nb ? k.cashflow / k.nb : 0)} par mois sur ${k.nb} mois écoulé${k.nb > 1 ? 's' : ''}</span>
+      </div>
+      <div class="mfx-kpi">
+        <span class="mfx-kpi__l">Rendement net</span>
+        <span class="mfx-kpi__v ${rn === null ? 'mfx-kpi__v--none' : (rn >= seuil ? 'mfx-kpi__v--gain' : 'mfx-kpi__v--loss')}">${rn === null ? 'non disponible' : sfPctNum(rn)}</span>
+        <span class="mfx-kpi__s">${rn === null ? "coût d'acquisition non renseigné" : (rn >= seuil ? `au-dessus de votre seuil de ${sfPctNum(seuil, 0)}` : `en dessous de votre seuil de ${sfPctNum(seuil, 0)}`)}</span>
+      </div>
+      <div class="mfx-kpi">
+        <span class="mfx-kpi__l">Écart réel − prévisionnel</span>
+        <span class="mfx-kpi__v ${k.ecart >= 0 ? 'mfx-kpi__v--gain' : 'mfx-kpi__v--loss'}">${sfEur(k.ecart)}</span>
+        <span class="mfx-kpi__s">prévu ${k.previsionnel >= 0 ? '+' : ''}${sfEur(k.previsionnel)} · constaté ${sfEur(k.cashflow)}</span>
+      </div>
+      <div class="mfx-kpi">
+        <span class="mfx-kpi__l">Occupation</span>
+        <span class="mfx-kpi__v">${sfPctNum(k.occupation, 0)}</span>
+        <span class="mfx-kpi__s">${k.loues} bien${k.loues > 1 ? 's' : ''} loué${k.loues > 1 ? 's' : ''} sur ${k.biens.length}</span>
+      </div>
+    </div>
+    ${k.vacants ? `
+    <p class="mfx-fait">
+      ${sfAccIcon('info', 16)}
+      <span><b>${k.vacants === 1 ? 'Un de vos' : 'Deux de vos'} ${k.biens.length} biens ${k.vacants === 1 ? 'est vacant' : 'sont vacants'}</b> — ${sfEur(k.mensuVacants)} de crédit sans loyer en face.</span>
+    </p>` : ''}
+    ` : ''}
+
+    <div class="mfx-tabs" role="tablist">
+      ${[
+        ['performance', 'Performance',   'graph',     null],
+        ['portefeuille','Portefeuille',  'mallette',  k.biens.length || null],
+        ['suivi',       'Suivi mensuel', 'agenda',    nonSoldes || null],
+        ['locataires',  'Locataires',    'personnes', locActifs || null],
+      ].map(([id, lab, ic, n]) => `
+        <button class="mfx-tab" role="tab" aria-selected="${mfTab === id}" onclick="switchMfTab('${id}')">
+          ${sfAccIcon(ic, 16)} ${lab}${n ? `<span class="mfx-tab__n${id === 'suivi' ? ' mfx-tab__n--alerte' : ''}">${n}</span>` : ''}
+        </button>`).join('')}
     </div>
 
-    <div id="mf-content" class="adm-tab-content"><div class="loading"><div class="spinner"></div>Chargement…</div></div>
-  </div>`;
-
-  // Chargement parallèle des données nécessaires (biens déjà chargés via init, locataires à charger)
-  if(!allBiens.length && currentUser) await loadBiens();
-  // allSCI alimente le rappel « SCI associée » de l'onglet Rentabilité
-  await Promise.all([loadLocataires(), loadMfFinancialData(), allSCI.length ? null : loadSCIList()]);
+    <div id="mf-content"></div>
+  </div></div>`;
 
   switchMfTab(mfTab);
+}
+
+// Changer d'exercice redessine TOUT : le bandeau comme l'onglet. Sans quoi les
+// quatre indicateurs resteraient sur l'ancienne année pendant que la grille
+// afficherait la nouvelle — deux périmètres sur le même écran.
+function mfSetExercice(v) {
+  mfExercice = parseInt(v, 10) || new Date().getFullYear();
+  mfSuiviYear = mfExercice;   // la grille de saisie suit le sélecteur unique
+  mfRenderShell();
 }
 
 function switchMfTab(tab) {
@@ -5721,17 +5879,242 @@ function switchMfTab(tab) {
     mfbCharts = {};
   }
   mfTab = tab;
-  ['overview','biens','suivi','locataires','renta'].forEach(t => {
-    document.getElementById('mf-tab-'+t)?.classList.toggle('active', t === tab);
+  document.querySelectorAll('.mfx-tab').forEach(b => {
+    b.setAttribute('aria-selected', String(b.getAttribute('onclick') === `switchMfTab('${tab}')`));
   });
   const c = document.getElementById('mf-content');
   if(!c) return;
-  if(tab === 'overview')         renderMfOverview(c);
-  else if(tab === 'biens')       renderMfBiens(c);
+  if(tab === 'performance')      renderMfPerformance(c);
+  else if(tab === 'portefeuille') renderMfPortefeuille(c);
   else if(tab === 'suivi')       renderMfSuivi(c);
   else if(tab === 'locataires')  renderMfLocataires(c);
-  else if(tab === 'renta')       renderMfRenta(c);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PERFORMANCE — l'onglet consolidé
+   Fusion de « Vue d'ensemble » et de « Rentabilité ». Un sélecteur de PÉRIMÈTRE
+   y préserve l'analyse d'un bien : c'est lui qui remplace l'ancien onglet
+   Rentabilité, et c'est sur lui que pointe désormais `bdGoToRenta`.
+
+   Graphiques en CSS et SVG, comme la maquette validée à l'écran. Chart.js reste
+   chargé pour d'autres écrans ; l'introduire ici produirait un rendu que Thomas
+   n'a pas vu, et rouvrirait la question du cycle de vie des instances.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const MF_MOIS_COURTS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+const MF_MOIS_LONGS  = ['Janvier','Février','Mars','Avril','Mai','Juin',
+                        'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+// Trace une polyligne SVG à partir d'une série. `min`/`max` communs pour que
+// deux courbes superposées partagent la même échelle — sans quoi elles se
+// croiseraient sans que le croisement veuille dire quoi que ce soit.
+function mfPolyline(serie, min, max, larg = 320, haut = 120) {
+  const n = serie.length;
+  if (n < 2 || max === min) return '';
+  return serie.map((v, i) => {
+    const x = (i / (n - 1)) * larg;
+    const y = haut - ((v - min) / (max - min)) * haut;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+}
+
+function renderMfPerformance(c) {
+  const annee = mfExercice;
+  const tous  = mfBiensExercice(annee);
+
+  if (!tous.length) {
+    c.innerHTML = `
+      <div class="sff-block"><div class="sff-block__b">
+        <div class="sff-empty">
+          <div class="sff-empty__ic">${sfAccIcon('graph', 34)}</div>
+          <div class="sff-empty__t">Aucun bien à suivre sur ${annee}</div>
+          <div class="sff-empty__x">La performance consolide les biens passés au statut
+            « Acheté ». Un bien vacant y compte : on sait qu'il ne rapporte rien et que son
+            crédit court.</div>
+          <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="navigate('biens')">Aller à Mes biens</button>
+        </div>
+      </div></div>`;
+    return;
+  }
+
+  // Périmètre : tous les biens, ou celui posé par le pont depuis la fiche bien.
+  if (mfPerfBienId && !tous.some(b => b.id === mfPerfBienId)) mfPerfBienId = null;
+  const perim = mfPerfBienId ? tous.filter(b => b.id === mfPerfBienId) : tous;
+  const nb = mfMoisEcoules(annee);
+
+  // ── Séries mensuelles du périmètre ──
+  const mensu = perim.reduce((s, b) => s + (parseFloat(b.mensualite_credit) || 0), 0);
+  const entrees = [], sorties = [], solde = [];
+  for (let m = 1; m <= 12; m++) {
+    if (m > nb) { entrees.push(null); sorties.push(null); solde.push(null); continue; }
+    const e = perim.reduce((s, b) => s + mfLoyerEncaisseMois(b.id, m, annee), 0);
+    const s2 = mensu + perim.reduce((s, b) => s + mfChargesMois(b.id, m, annee), 0);
+    entrees.push(e); sorties.push(s2); solde.push(e - s2);
+  }
+  const soldeVus = solde.filter(v => v !== null);
+  const ampli = Math.max(1, ...soldeVus.map(v => Math.abs(v)));
+
+  // ── Cumuls réel et prévisionnel ──
+  const prevMois = perim.reduce((s, b) => s + computeCF(b), 0);
+  const cumReel = [], cumPrev = [];
+  let ar = 0, ap = 0;
+  for (let i = 0; i < nb; i++) { ar += solde[i]; ap += prevMois; cumReel.push(ar); cumPrev.push(ap); }
+  const bornes = [...cumReel, ...cumPrev, 0];
+  const cMin = Math.min(...bornes), cMax = Math.max(...bornes);
+
+  // ── Totaux du périmètre ──
+  let encaisse = 0, charges = 0, mensualites = 0;
+  for (const b of perim) {
+    const r = mfReelExercice(b, annee);
+    encaisse += r.loyer_encaisse; charges += r.charges_payees; mensualites += r.mensualites_credit;
+  }
+  const cashflow = encaisse - charges - mensualites;
+  const previsionnel = prevMois * nb;
+  const nonSoldes = mfLoyersNonSoldes(annee, mfPerfBienId);
+  const resteDu = nonSoldes.reduce((s, x) => s + x.reste, 0);
+  const totalDu = perim.reduce((s, b) => s + mfReelExercice(b, annee).loyer_du, 0);
+  const vacants = perim.filter(b => !allLocataires.some(l => l.bien_id === b.id && l.statut === 'Actif'));
+  const mensuVacants = vacants.reduce((s, b) => s + (parseFloat(b.mensualite_credit) || 0) * nb, 0);
+
+  c.innerHTML = `
+    <div class="mfx-tools">
+      <div class="mfx-pick-lg">
+        <span class="mfx-champ-lab">Périmètre</span>
+        <select aria-label="Périmètre analysé" onchange="mfSetPerfBien(this.value)">
+          <option value="">Tous les biens</option>
+          ${tous.map(b => `<option value="${b.id}" ${b.id === mfPerfBienId ? 'selected' : ''}>${esc(b.titre || 'Bien')}${b.ville ? ' — ' + esc(b.ville) : ''}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div class="sff-grid2">
+      <div class="sff-block">
+        <div class="sff-block__h">
+          <p class="sff-block__t">Cashflow consolidé par mois</p>
+          <span class="sff-block__n">exercice ${annee}</span>
+        </div>
+        <div class="sff-block__b">
+          <div class="mfx-chart">
+            ${solde.map((v, i) => v === null
+              ? `<div class="mfx-col"><span class="mfx-col__b mfx-col__b--vide" style="height:6%"></span><span class="mfx-col__l">${MF_MOIS_COURTS[i]}</span></div>`
+              : `<div class="mfx-col"><span class="mfx-col__b ${v >= 0 ? 'mfx-col__b--gain' : 'mfx-col__b--loss'}" style="height:${Math.max(2, (Math.abs(v) / ampli) * 100)}%" title="${MF_MOIS_LONGS[i]} : ${sfEur(v)}"></span><span class="mfx-col__l">${MF_MOIS_COURTS[i]}</span></div>`).join('')}
+          </div>
+          <div class="mfx-legend">
+            <span><i class="gain"></i>Mois positif</span>
+            <span><i class="loss"></i>Mois négatif</span>
+            <span><i class="vide"></i>À venir</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sff-block">
+        <div class="sff-block__h">
+          <p class="sff-block__t">Entrées et sorties</p>
+          <span class="sff-block__n">exercice ${annee}</span>
+        </div>
+        <div class="sff-block__b">
+          ${(() => {
+            const vus = [...entrees.slice(0, nb), ...sorties.slice(0, nb), 0];
+            const mn = Math.min(...vus), mx = Math.max(...vus);
+            const pe = mfPolyline(entrees.slice(0, nb), mn, mx);
+            const ps = mfPolyline(sorties.slice(0, nb), mn, mx);
+            if (!pe || !ps) return `<p class="sff-line__l">Pas encore assez de mois écoulés pour tracer une courbe.</p>`;
+            return `
+            <svg class="mfx-svg" viewBox="0 0 320 120" height="180" preserveAspectRatio="none" aria-label="Loyers encaissés et sorties, mois par mois">
+              <polyline fill="none" stroke="var(--sf-loss)" stroke-width="2" points="${ps}"/>
+              <polyline fill="none" stroke="var(--sf-gain)" stroke-width="2" points="${pe}"/>
+            </svg>
+            <div class="mfx-mois">${MF_MOIS_COURTS.map((m, i) => `<span>${i < nb ? m : ''}</span>`).join('')}</div>
+            <div class="mfx-legend">
+              <span><i class="gain"></i>Loyers encaissés</span>
+              <span><i class="loss"></i>Charges et mensualités</span>
+            </div>`;
+          })()}
+        </div>
+      </div>
+    </div>
+
+    <div class="sff-grid2">
+      <div class="sff-block">
+        <div class="sff-block__h">
+          <p class="sff-block__t">Cumul sur l'exercice</p>
+          <span class="sff-block__n">réel contre prévisionnel</span>
+        </div>
+        <div class="sff-block__b">
+          ${cumReel.length > 1 ? `
+          <div class="mfx-fill">
+            <svg class="mfx-svg" viewBox="0 0 320 120" preserveAspectRatio="none" aria-label="Trajectoire cumulée réelle et prévisionnelle">
+              ${cMin < 0 && cMax > 0 ? `<line x1="0" y1="${(120 - ((0 - cMin) / (cMax - cMin)) * 120).toFixed(1)}" x2="320" y2="${(120 - ((0 - cMin) / (cMax - cMin)) * 120).toFixed(1)}" stroke="var(--sf-border-strong)" stroke-width="1"/>` : ''}
+              <polyline fill="none" stroke="var(--sf-text-3)" stroke-width="2" stroke-dasharray="5 4" points="${mfPolyline(cumPrev, cMin, cMax)}"/>
+              <polyline fill="none" stroke="var(--sf-loss)" stroke-width="2.5" stroke-linejoin="round" points="${mfPolyline(cumReel, cMin, cMax)}"/>
+            </svg>
+          </div>
+          <div class="mfx-mois">${MF_MOIS_COURTS.map((m, i) => `<span>${i < nb ? m : ''}</span>`).join('')}</div>
+          <div class="mfx-legend">
+            <span><i class="loss"></i>Trajectoire réelle · ${sfEur(cashflow)}</span>
+            <span><i class="trait"></i>Trajectoire prévue · ${previsionnel >= 0 ? '+' : ''}${sfEur(previsionnel)}</span>
+          </div>` : `<p class="sff-line__l">Pas encore assez de mois écoulés pour tracer une trajectoire.</p>`}
+          ${(vacants.length || resteDu > 0) ? `
+          <p class="mfx-verdict">
+            ${sfAccIcon('alerte', 17)}
+            <span>${[
+              vacants.length ? `<b>La vacance de ${vacants.length === 1 ? 'un bien' : vacants.length + ' biens'}</b> pèse ${sfEur(mensuVacants)} de crédit sans loyer en face.` : '',
+              resteDu > 0 ? `<b>${nonSoldes.length} loyer${nonSoldes.length > 1 ? 's' : ''} non soldé${nonSoldes.length > 1 ? 's' : ''}</b> — ${sfEur(resteDu)} manquants.` : '',
+            ].filter(Boolean).join(' Puis, ')}</span>
+          </p>` : ''}
+        </div>
+      </div>
+
+      <div class="sff-block">
+        <div class="sff-block__h">
+          <p class="sff-block__t">Loyers non soldés</p>
+          <span class="sff-block__n">${totalDu > 0 ? sfPctNum((resteDu / totalDu) * 100, 0) + ' du dû' : 'aucun loyer dû'}</span>
+        </div>
+        <div class="sff-block__b">
+          ${nonSoldes.length ? nonSoldes.map(x => `
+            <button class="mfx-imp" onclick="mfGoToSuiviMois('${x.bien.id}')" title="Ouvrir le suivi mensuel sur ce bien">
+              <span class="mfx-imp__m">${MF_MOIS_LONGS[x.mois - 1]} ${annee}</span>
+              <span><span class="mfx-imp__l">${x.locataire ? esc([x.locataire.prenom, x.locataire.nom].filter(Boolean).join(' ')) + ' · ' : ''}${esc(x.bien.titre || 'Bien')}</span></span>
+              <span class="sf-pill sf-pill--loss">${x.etat === 'part' ? 'Partiel' : 'Non soldé'}</span>
+              <span class="mfx-imp__v sf-loss">${sfEur(-x.reste)}</span>
+            </button>`).join('')
+          : `<p class="sff-line__l">Aucun loyer échu ne reste à encaisser sur ${annee}.</p>`}
+          <p class="sff-sep">Composition du constaté</p>
+          <div class="sff-lines">
+            <div class="sff-line"><span class="sff-line__l">Loyers encaissés</span><span class="sff-line__v">${sfEur(encaisse)}</span></div>
+            <div class="sff-line"><span class="sff-line__l">Charges payées</span><span class="sff-line__v">${sfEur(charges)}</span></div>
+            <div class="sff-line"><span class="sff-line__l">Mensualités de crédit <small>· ${perim.length} bien${perim.length > 1 ? 's' : ''} × ${nb} mois</small></span><span class="sff-line__v">${sfEur(mensualites)}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// Le périmètre redessine l'onglet seul : le bandeau reste consolidé, c'est son
+// rôle. Deux périmètres coexistent donc à l'écran — mais le sélecteur est juste
+// au-dessus des cartes qu'il gouverne, et le bandeau porte ses propres libellés.
+function mfSetPerfBien(v) {
+  mfPerfBienId = v || null;
+  const c = document.getElementById('mf-content');
+  if (c) renderMfPerformance(c);
+}
+
+// Ouvre le suivi mensuel sur un bien depuis un loyer non soldé — le pont R-19
+// du comparatif de non-régression.
+function mfGoToSuiviMois(bienId) {
+  mfSuiviBienFilter = bienId;
+  mfSuiviPreviousBienId = bienId;
+  mfSuiviYear = mfExercice;
+  switchMfTab('suivi');
+}
+
+/* Le Portefeuille garde pour l'instant le rendu de l'ancien onglet « Mes biens ».
+   ⚠️ ÉTAPE SUIVANTE : le remplacer par les cartes de la maquette (mini-barres
+   mensuelles, période en tête des statistiques, légende du dernier mois).
+   L'alias existe pour que le module reste ENTIÈREMENT fonctionnel à chaque
+   commit : une migration qui casse un onglet en cours de route n'est pas
+   vérifiable. */
+function renderMfPortefeuille(c) { renderMfBiens(c); }
 
 // L'écart réel/prévisionnel doit s'afficher en EUROS. Le pourcentage n'a de sens
 // que si la base ne frôle pas zéro : constaté le 01/08/2026 en prod, un
@@ -6611,7 +6994,7 @@ function mfSuiviReturnToBiens() {
   const bienId = mfSuiviPreviousBienId;
   mfSuiviBienFilter = null;
   mfSuiviPreviousBienId = null;
-  switchMfTab('biens');
+  switchMfTab('portefeuille');
   // Highlight la carte du bien dans Mes biens
   if(bienId) {
     setTimeout(() => {
