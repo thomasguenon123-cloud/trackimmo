@@ -1360,8 +1360,20 @@ function sfPct(v){ return v + ' %'; }
 // 0 quand la valeur ne l'est pas : un indicateur incalculable n'est pas nul.
 function sfPctNum(v, dec = 2){
   if (v === null || v === undefined || !Number.isFinite(Number(v))) return 'non disponible';
+  // `minimumFractionDigits:0` : les decimales nulles tombent. « 0 % » et non
+  // « 0,00 % », « 33 % » et non « 33,00 % » — c'est ce que montre la maquette,
+  // et une decimale a zero n'apporte aucune precision.
   return sfPct(Number(v).toLocaleString('fr-FR',
-    { minimumFractionDigits: dec, maximumFractionDigits: dec }));
+    { minimumFractionDigits: 0, maximumFractionDigits: dec }));
+}
+// Petits nombres en toutes lettres dans une PHRASE — « Deux de vos 3 biens »
+// melait les deux registres. Au-dela de neuf, le chiffre reste plus lisible.
+// `majuscule` sert quand le nombre ouvre la phrase.
+const SF_LETTRES = ['zéro','un','deux','trois','quatre','cinq','six','sept','huit','neuf'];
+function sfNombreEnLettres(n, majuscule = false){
+  const m = SF_LETTRES[n];
+  if (m === undefined) return String(n);
+  return majuscule ? m.charAt(0).toUpperCase() + m.slice(1) : m;
 }
 function cfCls(cf){return cf>0?'positive':cf<0?'negative':'neutral';}
 // Échappement HTML global (réutilisable partout)
@@ -5841,7 +5853,7 @@ function mfRenderShell() {
     ${k.vacants ? `
     <p class="mfx-fait">
       ${sfAccIcon('info', 16)}
-      <span><b>${k.vacants === 1 ? 'Un de vos' : 'Deux de vos'} ${k.biens.length} biens ${k.vacants === 1 ? 'est vacant' : 'sont vacants'}</b> — ${sfEur(k.mensuVacants)} de crédit sans loyer en face.</span>
+      <span><b>${sfNombreEnLettres(k.vacants, true)} de vos ${sfNombreEnLettres(k.biens.length)} biens ${k.vacants === 1 ? 'est vacant' : 'sont vacants'}</b> — ${sfEur(k.mensuVacants)} de crédit sans loyer en face.</span>
     </p>` : ''}
     ` : ''}
 
@@ -6058,8 +6070,8 @@ function renderMfPerformance(c) {
           <p class="mfx-verdict">
             ${sfAccIcon('alerte', 17)}
             <span>${[
-              vacants.length ? `<b>La vacance de ${vacants.length === 1 ? 'un bien' : vacants.length + ' biens'}</b> pèse ${sfEur(mensuVacants)} de crédit sans loyer en face.` : '',
-              resteDu > 0 ? `<b>${nonSoldes.length} loyer${nonSoldes.length > 1 ? 's' : ''} non soldé${nonSoldes.length > 1 ? 's' : ''}</b> — ${sfEur(resteDu)} manquants.` : '',
+              vacants.length ? `<b>La vacance de ${sfNombreEnLettres(vacants.length)} bien${vacants.length > 1 ? 's' : ''}</b> pèse ${sfEur(mensuVacants)} de crédit sans loyer en face.` : '',
+              resteDu > 0 ? `<b>${sfNombreEnLettres(nonSoldes.length)} loyer${nonSoldes.length > 1 ? 's' : ''} non soldé${nonSoldes.length > 1 ? 's' : ''}</b> — ${sfEur(resteDu)} manquants.` : '',
             ].filter(Boolean).join(' Puis, ')}</span>
           </p>` : ''}
         </div>
@@ -6108,13 +6120,202 @@ function mfGoToSuiviMois(bienId) {
   switchMfTab('suivi');
 }
 
-/* Le Portefeuille garde pour l'instant le rendu de l'ancien onglet « Mes biens ».
-   ⚠️ ÉTAPE SUIVANTE : le remplacer par les cartes de la maquette (mini-barres
-   mensuelles, période en tête des statistiques, légende du dernier mois).
-   L'alias existe pour que le module reste ENTIÈREMENT fonctionnel à chaque
-   commit : une migration qui casse un onglet en cours de route n'est pas
-   vérifiable. */
-function renderMfPortefeuille(c) { renderMfBiens(c); }
+/* ═══════════════════════════════════════════════════════════════════════════
+   PORTEFEUILLE — bien par bien, en cartes
+   Fusion de « Vue d'ensemble » et de « Mes biens », qui portaient les quatre
+   mêmes indicateurs. Cartes et non table : c'est l'arbitrage de Thomas, et les
+   cartes portent chacune leur propre lecture mensuelle.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// Le mini-graphique mensuel d'un bien. Barres partant de ZÉRO — une sparkline
+// mise à l'échelle sur sa série faisait lire une variation de 830 € comme un
+// effondrement alors que toute la série était dans le rouge. Problème
+// d'honnêteté, pas de lisibilité.
+function mfMiniGraphique(bien, annee) {
+  const serie = mfCashflowMensuelExercice(bien, annee).filter(m => m.cashflow !== null);
+  if (!serie.length) return '';
+  const nb = serie.length;
+  const ampli = Math.max(1, ...serie.map(m => Math.abs(m.cashflow)));
+  const dernier = serie[nb - 1];
+  const aDesManques = serie.some(m => m.manque);
+  const cols = `grid-template-columns:repeat(${nb},1fr)`;
+  return `
+    <div class="mfx-card__spark">
+      <div class="mfx-spark__h">
+        <span>Cashflow mois par mois</span>
+        <span class="mfx-spark__d">${MF_MOIS_LONGS[dernier.mois - 1].toLowerCase()} <b>${sfEur(dernier.cashflow)}</b></span>
+      </div>
+      <div class="mfx-mini" style="${cols}" role="img"
+           aria-label="Cashflow mensuel de janvier à ${MF_MOIS_LONGS[dernier.mois - 1].toLowerCase()}">
+        ${serie.map(m => {
+          // L'ambre signale un loyer DÛ resté impayé. Un bien vacant n'a rien à
+          // encaisser : il ne doit donc jamais porter de barre ambre.
+          const cls = m.manque ? ' mfx-mini__b--ko' : (m.cashflow >= 0 ? ' mfx-mini__b--gain' : '');
+          return `<span class="mfx-mini__b${cls}" style="height:${Math.max(2, (Math.abs(m.cashflow) / ampli) * 100).toFixed(1)}%" title="${MF_MOIS_LONGS[m.mois - 1]} : ${sfEur(m.cashflow)}${m.manque ? ' · loyer non encaissé' : ''}"></span>`;
+        }).join('')}
+      </div>
+      <div class="mfx-mini__x" style="${cols}">
+        ${serie.map(m => `<span class="${m.manque ? 'ko' : ''}">${MF_MOIS_COURTS[m.mois - 1]}</span>`).join('')}
+      </div>
+      ${aDesManques ? `<p class="mfx-mini__lg"><i></i>Mois dont le loyer n'a pas été encaissé</p>` : ''}
+    </div>`;
+}
+
+function renderMfPortefeuille(c) {
+  const annee = mfExercice;
+  const tous  = mfBiensExercice(annee);
+
+  if (!tous.length) {
+    c.innerHTML = `
+      <div class="sff-block"><div class="sff-block__b">
+        <div class="sff-empty">
+          <div class="sff-empty__ic">${sfAccIcon('mallette', 34)}</div>
+          <div class="sff-empty__t">Aucun bien dans votre portefeuille</div>
+          <div class="sff-empty__x">Le portefeuille rassemble vos biens passés au statut
+            « Acheté », avec ce que chacun a rapporté et coûté sur l'exercice.</div>
+          <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="navigate('biens')">Aller à Mes biens</button>
+        </div>
+      </div></div>`;
+    return;
+  }
+
+  // ── Filtres : le compteur de chacun vient du même calcul que le filtrage,
+  //    jamais d'un comptage réécrit à côté. ──
+  const etat = b => mfStatutOccupation(b.id).type;   // 'vacant' | 'occup' | 'impaye'
+  const jeux = {
+    all:      tous,
+    occupied: tous.filter(b => etat(b) !== 'vacant'),
+    vacant:   tous.filter(b => etat(b) === 'vacant'),
+    unpaid:   tous.filter(b => etat(b) === 'impaye'),
+  };
+  if (!jeux[mfBiensFilter]) mfBiensFilter = 'all';
+  let liste = [...jeux[mfBiensFilter]];
+
+  // ── Tri ──
+  const cf = b => mfReelExercice(b, annee).cashflow;
+  const tri = {
+    'cf-desc':        (a, b) => cf(b) - cf(a),
+    'cf-asc':         (a, b) => cf(a) - cf(b),
+    'rendement-desc': (a, b) => (mfRendementNet(b, annee) ?? -Infinity) - (mfRendementNet(a, annee) ?? -Infinity),
+    'cout-desc':      (a, b) => mfMontantAcquisition(b) - mfMontantAcquisition(a),
+    'titre':          (a, b) => (a.titre || '').localeCompare(b.titre || '', 'fr'),
+  };
+  if (!tri[mfBiensSort]) mfBiensSort = 'cf-desc';
+  liste.sort(tri[mfBiensSort]);
+
+  const pastilles = [
+    ['all',      'Tous',          jeux.all.length],
+    ['occupied', 'Loués',         jeux.occupied.length],
+    ['vacant',   'Vacants',       jeux.vacant.length],
+    ['unpaid',   'Avec impayés',  jeux.unpaid.length],
+  ];
+  const tris = [
+    ['cf-desc',        'Cashflow décroissant'],
+    ['cf-asc',         'Cashflow croissant'],
+    ['rendement-desc', 'Rendement décroissant'],
+    ['cout-desc',      'Capital engagé'],
+    ['titre',          'Nom du bien'],
+  ];
+
+  c.innerHTML = `
+    <div class="mfx-tools">
+      <div class="mfx-pills">
+        ${pastilles.map(([k, lab, n]) => `
+          <button class="mfx-pill" aria-pressed="${mfBiensFilter === k}" onclick="setMfBiensFilter('${k}')">
+            ${lab} <span class="mfx-pill__n">${n}</span>
+          </button>`).join('')}
+      </div>
+      <div class="mfx-tools__fin">
+        <div>
+          <span class="mfx-champ-lab">Trier par</span>
+          <select aria-label="Trier les biens" onchange="setMfBiensSort(this.value)">
+            ${tris.map(([k, lab]) => `<option value="${k}" ${mfBiensSort === k ? 'selected' : ''}>${lab}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    ${liste.length ? `<div class="mfx-cards">${liste.map(b => mfCarteBien(b, annee)).join('')}</div>`
+    : `<div class="sff-block"><div class="sff-block__b"><div class="sff-empty">
+         <div class="sff-empty__ic">${sfAccIcon('loupe', 34)}</div>
+         <div class="sff-empty__t">Aucun bien avec ce filtre</div>
+         <div class="sff-empty__x">Aucun de vos ${tous.length} biens ne correspond à « ${pastilles.find(p => p[0] === mfBiensFilter)[1]} ».</div>
+         <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="setMfBiensFilter('all')">Voir tous les biens</button>
+       </div></div></div>`}`;
+}
+
+function mfCarteBien(b, annee) {
+  const r    = mfReelExercice(b, annee);
+  const occ  = mfStatutOccupation(b.id);
+  const loc  = occ.locataire;
+  const rn   = mfRendementNet(b, annee);
+  const seuil = parseFloat(userPrefs?.seuil_rentabilite) || 5;
+  const prev = computeCF(b) * r.mois;
+  const nbCharges = allCharges.filter(x => x.bien_id === b.id
+    && new Date(x.date_charge).getFullYear() === annee
+    && (new Date(x.date_charge).getMonth() + 1) <= r.mois).length;
+
+  const pastille = occ.type === 'vacant'
+    ? `<span class="sf-pill sf-pill--alert"><span class="sf-dot"></span>Vacant</span>`
+    : occ.type === 'impaye'
+      ? `<span class="sf-pill sf-pill--loss"><span class="sf-dot"></span>Impayés</span>`
+      : `<span class="sf-pill sf-pill--gain"><span class="sf-dot"></span>Loué</span>`;
+
+  const entree = loc?.date_entree
+    ? new Date(loc.date_entree).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+    : null;
+
+  return `
+  <article class="mfx-card" onclick="mfGoToSuiviMois('${b.id}')">
+    <div class="mfx-card__h">
+      <div class="mfx-card__ph">${sfAccIcon('image', 22)}</div>
+      <div class="mfx-card__id">
+        <div class="mfx-card__t" title="${esc(b.titre || 'Bien')}">${esc(b.titre || 'Bien')}</div>
+        <div class="mfx-card__v">${[esc(b.ville || ''), esc(b.code_postal || ''), sfEur(mfMontantAcquisition(b)) + ' engagés'].filter(Boolean).join(' · ')}</div>
+      </div>
+      ${pastille}
+    </div>
+
+    <div class="mfx-card__loc" onclick="event.stopPropagation()">
+      ${sfAccIcon('user', 15)}
+      ${loc ? `${esc([loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Locataire')}${entree ? ` <em>· depuis ${entree}</em>` : ''}
+               <button class="mfx-card__lien" onclick="openDetail('${b.id}')">Voir la fiche</button>`
+            : `<em>Aucun bail en cours</em>
+               <button class="mfx-card__lien" onclick="bdOpenMiseEnGestion('${b.id}')">Rattacher un locataire</button>`}
+    </div>
+
+    <p class="mfx-card__per">Depuis janvier ${annee}</p>
+    <div class="mfx-card__stats">
+      <div class="mfx-stat">
+        <div class="mfx-stat__l">Loyers encaissés</div>
+        <div class="mfx-stat__v ${r.loyer_encaisse > 0 ? 'sf-gain' : ''}">${sfEur(r.loyer_encaisse)}</div>
+        <div class="mfx-stat__s">${r.loyer_du > 0 ? `sur ${sfEur(r.loyer_du)} dus` : "aucun bail sur l'exercice"}</div>
+      </div>
+      <div class="mfx-stat">
+        <div class="mfx-stat__l">Charges payées</div>
+        <div class="mfx-stat__v">${sfEur(r.charges_payees)}</div>
+        <div class="mfx-stat__s">${nbCharges ? `${nbCharges} charge${nbCharges > 1 ? 's' : ''} enregistrée${nbCharges > 1 ? 's' : ''}` : 'aucune charge enregistrée'}</div>
+      </div>
+      <div class="mfx-stat">
+        <div class="mfx-stat__l">Cashflow constaté</div>
+        <div class="mfx-stat__v ${r.cashflow >= 0 ? 'sf-gain' : 'sf-loss'}">${sfEur(r.cashflow)}</div>
+        <div class="mfx-stat__s">prévu ${prev >= 0 ? '+' : ''}${sfEur(prev)}</div>
+      </div>
+      <div class="mfx-stat">
+        <div class="mfx-stat__l">Rendement net</div>
+        <div class="mfx-stat__v">${sfPctNum(rn)}</div>
+        <div class="mfx-stat__s">${rn === null ? "coût d'acquisition non renseigné"
+          : (r.loyer_du === 0 ? 'le bien ne produit rien' : `seuil ${sfPctNum(seuil, 0)}`)}</div>
+      </div>
+    </div>
+
+    ${mfMiniGraphique(b, annee)}
+
+    <div class="mfx-card__cta">
+      <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="event.stopPropagation();mfGoToSuiviMois('${b.id}')">Voir le suivi mensuel</button>
+    </div>
+  </article>`;
+}
 
 // L'écart réel/prévisionnel doit s'afficher en EUROS. Le pourcentage n'a de sens
 // que si la base ne frôle pas zéro : constaté le 01/08/2026 en prod, un
@@ -6603,14 +6804,14 @@ function setMfBiensFilter(f) {
   Object.values(mfbCharts).forEach(ch => { try{ ch.destroy(); }catch(e){} });
   mfbCharts = {};
   const c = document.getElementById('mf-content');
-  if(c) renderMfBiens(c);
+  if(c) renderMfPortefeuille(c);
 }
 function setMfBiensSort(s) {
   mfBiensSort = s;
   Object.values(mfbCharts).forEach(ch => { try{ ch.destroy(); }catch(e){} });
   mfbCharts = {};
   const c = document.getElementById('mf-content');
-  if(c) renderMfBiens(c);
+  if(c) renderMfPortefeuille(c);
 }
 
 // ── Naviguer vers l'onglet "Suivi mensuel" pré-sélectionné sur un bien ──

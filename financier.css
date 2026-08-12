@@ -184,13 +184,15 @@
    3. sur un bien vacant, une ligne plate indiscernable d'un bug.
    L'échelle reste propre à chaque carte : c'est la valeur du dernier mois, en
    tête, qui donne l'ordre de grandeur. */
-.mfx-mini{ display:grid; grid-template-columns:repeat(8,1fr); gap:3px;
-  align-items:end; height:44px; }
+/* ⚠️ Le nombre de colonnes est POSÉ EN LIGNE par le rendu, pas figé ici : il
+   vaut le nombre de mois ÉCOULÉS de l'exercice. Figé à 8, le graphique aurait
+   été juste en août et faux tous les autres mois de l'année. */
+.mfx-mini, .mfx-mini__x{ display:grid; grid-template-columns:repeat(12,1fr); gap:3px; }
+.mfx-mini{ align-items:end; height:44px; }
 .mfx-mini__b{ border-radius:2px 2px 0 0; min-height:2px; background:var(--sf-loss); }
 .mfx-mini__b--ko{ background:var(--sf-alert); }
 .mfx-mini__b--gain{ background:var(--sf-gain); }
-.mfx-mini__x{ display:grid; grid-template-columns:repeat(8,1fr); gap:3px;
-  margin-top:var(--sf-space-3); }
+.mfx-mini__x{ margin-top:var(--sf-space-3); }
 .mfx-mini__x span{ font-family:var(--sf-font-num); font-size:10px;
   color:var(--sf-text-3); text-align:center; }
 /* « La couleur ne porte jamais seule » : le mois non encaissé est aussi en gras. */
