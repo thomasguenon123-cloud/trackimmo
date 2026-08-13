@@ -5913,9 +5913,9 @@ function switchMfTab(tab) {
    n'a pas vu, et rouvrirait la question du cycle de vie des instances.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const MF_MOIS_COURTS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
-const MF_MOIS_LONGS  = ['Janvier','Février','Mars','Avril','Mai','Juin',
-                        'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+// ⚠️ `MOIS_LABELS` et `MOIS_LONGS` existent déjà (app.js:5695) : j'en avais
+// écrit une seconde copie ici, ce qui est exactement le défaut que ce projet a
+// déjà payé — une liste écrite deux fois finit par diverger. Supprimée.
 
 // Trace une polyligne SVG à partir d'une série. `min`/`max` communs pour que
 // deux courbes superposées partagent la même échelle — sans quoi elles se
@@ -6008,8 +6008,8 @@ function renderMfPerformance(c) {
         <div class="sff-block__b">
           <div class="mfx-chart">
             ${solde.map((v, i) => v === null
-              ? `<div class="mfx-col"><span class="mfx-col__b mfx-col__b--vide" style="height:6%"></span><span class="mfx-col__l">${MF_MOIS_COURTS[i]}</span></div>`
-              : `<div class="mfx-col"><span class="mfx-col__b ${v >= 0 ? 'mfx-col__b--gain' : 'mfx-col__b--loss'}" style="height:${Math.max(2, (Math.abs(v) / ampli) * 100)}%" title="${MF_MOIS_LONGS[i]} : ${sfEur(v)}"></span><span class="mfx-col__l">${MF_MOIS_COURTS[i]}</span></div>`).join('')}
+              ? `<div class="mfx-col"><span class="mfx-col__b mfx-col__b--vide" style="height:6%"></span><span class="mfx-col__l">${MOIS_LABELS[i]}</span></div>`
+              : `<div class="mfx-col"><span class="mfx-col__b ${v >= 0 ? 'mfx-col__b--gain' : 'mfx-col__b--loss'}" style="height:${Math.max(2, (Math.abs(v) / ampli) * 100)}%" title="${MOIS_LONGS[i]} : ${sfEur(v)}"></span><span class="mfx-col__l">${MOIS_LABELS[i]}</span></div>`).join('')}
           </div>
           <div class="mfx-legend">
             <span><i class="gain"></i>Mois positif</span>
@@ -6036,7 +6036,7 @@ function renderMfPerformance(c) {
               <polyline fill="none" stroke="var(--sf-loss)" stroke-width="2" points="${ps}"/>
               <polyline fill="none" stroke="var(--sf-gain)" stroke-width="2" points="${pe}"/>
             </svg>
-            <div class="mfx-mois">${MF_MOIS_COURTS.map((m, i) => `<span>${i < nb ? m : ''}</span>`).join('')}</div>
+            <div class="mfx-mois">${MOIS_LABELS.map((m, i) => `<span>${i < nb ? m : ''}</span>`).join('')}</div>
             <div class="mfx-legend">
               <span><i class="gain"></i>Loyers encaissés</span>
               <span><i class="loss"></i>Charges et mensualités</span>
@@ -6061,7 +6061,7 @@ function renderMfPerformance(c) {
               <polyline fill="none" stroke="var(--sf-loss)" stroke-width="2.5" stroke-linejoin="round" points="${mfPolyline(cumReel, cMin, cMax)}"/>
             </svg>
           </div>
-          <div class="mfx-mois">${MF_MOIS_COURTS.map((m, i) => `<span>${i < nb ? m : ''}</span>`).join('')}</div>
+          <div class="mfx-mois">${MOIS_LABELS.map((m, i) => `<span>${i < nb ? m : ''}</span>`).join('')}</div>
           <div class="mfx-legend">
             <span><i class="loss"></i>Trajectoire réelle · ${sfEur(cashflow)}</span>
             <span><i class="trait"></i>Trajectoire prévue · ${previsionnel >= 0 ? '+' : ''}${sfEur(previsionnel)}</span>
@@ -6085,7 +6085,7 @@ function renderMfPerformance(c) {
         <div class="sff-block__b">
           ${nonSoldes.length ? nonSoldes.map(x => `
             <button class="mfx-imp" onclick="mfGoToSuiviMois('${x.bien.id}')" title="Ouvrir le suivi mensuel sur ce bien">
-              <span class="mfx-imp__m">${MF_MOIS_LONGS[x.mois - 1]} ${annee}</span>
+              <span class="mfx-imp__m">${MOIS_LONGS[x.mois - 1]} ${annee}</span>
               <span><span class="mfx-imp__l">${x.locataire ? esc([x.locataire.prenom, x.locataire.nom].filter(Boolean).join(' ')) + ' · ' : ''}${esc(x.bien.titre || 'Bien')}</span></span>
               <span class="sf-pill sf-pill--loss">${x.etat === 'part' ? 'Partiel' : 'Non soldé'}</span>
               <span class="mfx-imp__v sf-loss">${sfEur(-x.reste)}</span>
@@ -6143,19 +6143,19 @@ function mfMiniGraphique(bien, annee) {
     <div class="mfx-card__spark">
       <div class="mfx-spark__h">
         <span>Cashflow mois par mois</span>
-        <span class="mfx-spark__d">${MF_MOIS_LONGS[dernier.mois - 1].toLowerCase()} <b>${sfEur(dernier.cashflow)}</b></span>
+        <span class="mfx-spark__d">${MOIS_LONGS[dernier.mois - 1].toLowerCase()} <b>${sfEur(dernier.cashflow)}</b></span>
       </div>
       <div class="mfx-mini" style="${cols}" role="img"
-           aria-label="Cashflow mensuel de janvier à ${MF_MOIS_LONGS[dernier.mois - 1].toLowerCase()}">
+           aria-label="Cashflow mensuel de janvier à ${MOIS_LONGS[dernier.mois - 1].toLowerCase()}">
         ${serie.map(m => {
           // L'ambre signale un loyer DÛ resté impayé. Un bien vacant n'a rien à
           // encaisser : il ne doit donc jamais porter de barre ambre.
           const cls = m.manque ? ' mfx-mini__b--ko' : (m.cashflow >= 0 ? ' mfx-mini__b--gain' : '');
-          return `<span class="mfx-mini__b${cls}" style="height:${Math.max(2, (Math.abs(m.cashflow) / ampli) * 100).toFixed(1)}%" title="${MF_MOIS_LONGS[m.mois - 1]} : ${sfEur(m.cashflow)}${m.manque ? ' · loyer non encaissé' : ''}"></span>`;
+          return `<span class="mfx-mini__b${cls}" style="height:${Math.max(2, (Math.abs(m.cashflow) / ampli) * 100).toFixed(1)}%" title="${MOIS_LONGS[m.mois - 1]} : ${sfEur(m.cashflow)}${m.manque ? ' · loyer non encaissé' : ''}"></span>`;
         }).join('')}
       </div>
       <div class="mfx-mini__x" style="${cols}">
-        ${serie.map(m => `<span class="${m.manque ? 'ko' : ''}">${MF_MOIS_COURTS[m.mois - 1]}</span>`).join('')}
+        ${serie.map(m => `<span class="${m.manque ? 'ko' : ''}">${MOIS_LABELS[m.mois - 1]}</span>`).join('')}
       </div>
       ${aDesManques ? `<p class="mfx-mini__lg"><i></i>Mois dont le loyer n'a pas été encaissé</p>` : ''}
     </div>`;
@@ -6855,328 +6855,321 @@ function mfLocataireForBienMonth(bienId, mois, annee) {
   });
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SUIVI MENSUEL — la saisie
+   C'est un POSTE DE TRAVAIL, pas un écran de lecture : sa densité est sa
+   fonction. L'itération 1 de la maquette l'avait remplacé par une liste, et
+   l'on ne pouvait plus enregistrer une charge sur le mois où elle est tombée.
+
+   ⚠️ LE PÉRIMÈTRE DE CET ONGLET N'EST PAS CELUI DU BANDEAU, et c'est voulu.
+   La grille montre TOUS les biens « Acheté », y compris un bien loué dont les
+   loyers ne sont pas encore saisis — que `mfDansLePerimetre` écarte des
+   consolidés. C'est ici qu'on les saisit : l'écarter de la grille rendrait la
+   correction impossible. La règle de périmètre gouverne les CHIFFRES
+   CONSOLIDÉS, pas la SURFACE DE SAISIE.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 function renderMfSuivi(c) {
-  // Biens achetés (le suivi est limité aux biens acquis)
-  let biensAchetes = allBiens.filter(b => b.statut === 'Acheté');
+  const annee = mfExercice;
+  mfSuiviYear = annee;
+  const acquis = allBiens.filter(b => b.statut === 'Acheté');
 
-  // Filtre éventuel sur un bien spécifique (depuis "Voir suivi" sur fiche bien)
-  if(mfSuiviBienFilter) {
-    biensAchetes = biensAchetes.filter(b => b.id === mfSuiviBienFilter);
-  }
-
-  // État vide global (aucun bien acheté du tout)
-  if(allBiens.filter(b => b.statut === 'Acheté').length === 0) {
+  if (!acquis.length) {
     c.innerHTML = `
-      <div class="mfb-empty">
-        <div class="mfb-empty-icon">${sfAccIcon('agenda', 26)}</div>
-        <div class="mfb-empty-title">Aucun suivi mensuel disponible</div>
-        <div class="mfb-empty-desc">
-          Le suivi mensuel apparaîtra dès qu'un bien aura le statut <strong>« Acheté »</strong>.
-          Vous pourrez alors saisir les loyers encaissés et les charges réelles mois par mois.
+      <div class="sff-block"><div class="sff-block__b">
+        <div class="sff-empty">
+          <div class="sff-empty__ic">${sfAccIcon('agenda', 34)}</div>
+          <div class="sff-empty__t">Aucun suivi mensuel disponible</div>
+          <div class="sff-empty__x">Le suivi apparaîtra dès qu'un bien aura le statut
+            « Acheté ». Vous pourrez alors pointer ses loyers et enregistrer ses charges,
+            mois par mois.</div>
+          <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="navigate('biens')">Aller à Mes biens</button>
         </div>
-        <button class="mfb-empty-cta" onclick="navigate('biens')">🏘️ Aller à Mes biens →</button>
-      </div>`;
+      </div></div>`;
     return;
   }
 
-  // ── Calcul des KPIs annuels ──
-  let totalLoyers = 0, totalCharges = 0, impayes = 0;
-  for(const b of biensAchetes) {
-    for(let m = 1; m <= 12; m++) {
-      const l = mfFindLoyer(b.id, m, mfSuiviYear);
-      if(l && (l.statut === 'Payé' || l.statut === 'Partiel')) {
-        totalLoyers += parseFloat(l.montant_encaisse) || 0;
-      }
-      // FND-006, même cause que FND-002 : le compteur cherchait des libellés
-      // que l'application n'écrit jamais, il restait donc à zéro. Il compte
-      // désormais les échéances ÉCHUES et non soldées, quel que soit leur
-      // libellé — et n'inclut pas les mois à venir.
-      const loc = mfLocataireForBienMonth(b.id, m, mfSuiviYear);
-      if(sfLoyerEtat(l, m, mfSuiviYear, loc) === 'ko') impayes++;
-      totalCharges += mfSumChargesMonth(b.id, m, mfSuiviYear);
+  // Le filtre vient de la fiche bien (« Voir le suivi mensuel ») ou d'un loyer
+  // non soldé cliqué dans Performance.
+  const bienFiltre = mfSuiviBienFilter ? acquis.find(b => b.id === mfSuiviBienFilter) : null;
+  if (mfSuiviBienFilter && !bienFiltre) mfSuiviBienFilter = null;
+  const liste = bienFiltre ? [bienFiltre] : acquis;
+
+  // ── Charges de l'exercice, dans le périmètre affiché ──
+  const chargesAn = allCharges.filter(x => {
+    if (bienFiltre && x.bien_id !== bienFiltre.id) return false;
+    return new Date(x.date_charge).getFullYear() === annee;
+  });
+  const categories = [...new Set(chargesAn.map(x => x.categorie))].sort();
+  if (mfChargesFilter !== 'all' && !categories.includes(mfChargesFilter)) mfChargesFilter = 'all';
+  const chargesVues = mfChargesFilter === 'all'
+    ? chargesAn : chargesAn.filter(x => x.categorie === mfChargesFilter);
+
+  // ── Totaux : ils couvrent EXACTEMENT ce que la grille montre ──
+  // ⚠️ Ils affichaient le portefeuille entier sur un écran filtré sur un bien :
+  // « 3 biens × 8 mois · 58 000 € » et un cashflow de −54 735 € alors que la
+  // carte du même bien dans Portefeuille annonçait −19 135 €. Les deux
+  // premières lignes coïncidaient, ce qui rendait la bascule de périmètre
+  // invisible. L'en-tête nomme désormais le périmètre.
+  const nb = mfMoisEcoules(annee);
+  let encaisse = 0, chargesPayees = 0, mensualites = 0;
+  for (const b of liste) {
+    const r = mfReelExercice(b, annee);
+    encaisse += r.loyer_encaisse; chargesPayees += r.charges_payees;
+    mensualites += r.mensualites_credit;
+  }
+  const cashflow = encaisse - chargesPayees - mensualites;
+
+  let echusReste = 0, echusNb = 0, avenirDu = 0, avenirNb = 0;
+  for (const b of liste) {
+    for (let m = 1; m <= 12; m++) {
+      const l = mfFindLoyer(b.id, m, annee);
+      const loc = mfLocataireForBienMonth(b.id, m, annee);
+      const etat = sfLoyerEtat(l, m, annee, loc);
+      const du = l ? (parseFloat(l.loyer_du) || 0) : 0;
+      const enc = l ? (parseFloat(l.montant_encaisse) || 0) : 0;
+      if (etat === 'ko' || etat === 'part') { echusReste += du - enc; echusNb++; }
+      else if (etat === 'avenir' && du > 0)  { avenirDu += du; avenirNb++; }
     }
   }
-  // Mensualités crédit cumulées
-  let totalMensualites = 0;
-  for(const b of biensAchetes) {
-    totalMensualites += (parseFloat(b.mensualite_credit) || 0) * 12;
-  }
-  const cashflowNet = totalLoyers - totalCharges - totalMensualites;
-
-  // Filtre banner (si filtre actif)
-  const banner = mfSuiviBienFilter ? (() => {
-    const b = biensAchetes[0];
-    return `
-      <div class="mfs-filter-banner">
-        <span>🔎 Suivi filtré sur <strong>${(b?.titre||'').replace(/</g,'&lt;')}</strong> (${b?.ville||''})</span>
-        <div class="actions">
-          <button onclick="mfSuiviClearFilter()">Voir tous les biens</button>
-          <button onclick="mfSuiviReturnToBiens()">← Retour à Mes biens</button>
-        </div>
-      </div>`;
-  })() : '';
-
-  // Charges filtrées
-  const chargesYear = allCharges.filter(c => {
-    if(mfSuiviBienFilter && c.bien_id !== mfSuiviBienFilter) return false;
-    const d = new Date(c.date_charge);
-    return d.getFullYear() === mfSuiviYear;
-  });
-  const chargesFiltered = mfChargesFilter === 'all'
-    ? chargesYear
-    : chargesYear.filter(c => c.categorie === mfChargesFilter);
-
-  // Récupérer toutes les catégories présentes
-  const categoriesPresent = [...new Set(chargesYear.map(c => c.categorie))].sort();
 
   c.innerHTML = `
-    ${banner}
+    ${bienFiltre ? `
+    <div class="mfx-filtre">
+      ${sfAccIcon('loupe', 16)}
+      <span>Suivi filtré sur <b>${esc(bienFiltre.titre || 'Bien')}</b></span>
+      <div class="actions">
+        <button class="sf-btn sf-btn--ghost sf-btn--sm" onclick="mfSuiviClearFilter()">Voir tous les biens</button>
+        <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="mfSuiviReturnToBiens()">Retour au portefeuille</button>
+      </div>
+    </div>` : ''}
 
-    <!-- Toolbar : année + actions -->
-    <div class="mfs-toolbar">
-      <div class="mfs-year-nav">
-        <button class="mfs-year-btn" onclick="mfSuiviChangeYear(-1)" aria-label="Année précédente">◀</button>
-        <div class="mfs-year-current">${mfSuiviYear}</div>
-        <button class="mfs-year-btn" onclick="mfSuiviChangeYear(1)" aria-label="Année suivante">▶</button>
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Loyers et charges, mois par mois</p>
+        <div class="sff-block__a">
+          <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="mfGenerateMissingLoyers(${annee})"
+            title="Crée les lignes de loyer manquantes pour ${annee}, prorata loi 1989 compris">Générer les loyers ${annee}</button>
+          <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="exportLoyersCSV(${annee})"
+            title="Exporte les lignes de loyer ${annee} au format CSV">${sfAccIcon('doc', 15)} Loyers</button>
+          <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="exportChargesCSV(${annee})"
+            title="Exporte les charges réelles ${annee} au format CSV">${sfAccIcon('doc', 15)} Charges</button>
+          <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="mfOpenChargeModal(null)">${sfAccIcon('plus', 15)} Ajouter une charge</button>
+        </div>
       </div>
-      <div class="mfs-actions">
-        <button class="mfs-act-btn" onclick="mfGenerateMissingLoyers(${mfSuiviYear})" title="Crée les lignes loyers manquantes pour ${mfSuiviYear} en respectant le prorata loi 1989">
-          🔄 Générer loyers ${mfSuiviYear}
-        </button>
-        <button class="mfs-act-btn" onclick="exportLoyersCSV(${mfSuiviYear})" title="Exporte les lignes de loyer ${mfSuiviYear} au format CSV">
-          ⬇ Loyers ${mfSuiviYear}
-        </button>
-        <button class="mfs-act-btn" onclick="exportChargesCSV(${mfSuiviYear})" title="Exporte les charges réelles ${mfSuiviYear} au format CSV">
-          ⬇ Charges ${mfSuiviYear}
-        </button>
-        <button class="mfs-act-btn primary" onclick="mfOpenChargeModal(null)">
-          ＋ Ajouter une charge
-        </button>
-      </div>
-    </div>
-
-    <!-- KPIs annuels -->
-    <div class="mfs-kpi-strip">
-      <div class="mfs-kpi">
-        <div class="mfs-kpi-lbl">💰 Loyers encaissés ${mfSuiviYear}</div>
-        <div class="mfs-kpi-val pos">${fmt(totalLoyers)} €</div>
-      </div>
-      <div class="mfs-kpi">
-        <div class="mfs-kpi-lbl">💸 Charges réelles ${mfSuiviYear}</div>
-        <div class="mfs-kpi-val">${fmt(totalCharges)} €</div>
-      </div>
-      <div class="mfs-kpi">
-        <div class="mfs-kpi-lbl">🏦 Mensualités crédit</div>
-        <div class="mfs-kpi-val">${fmt(totalMensualites)} €</div>
-      </div>
-      <div class="mfs-kpi">
-        <div class="mfs-kpi-lbl">💼 Cashflow net ${mfSuiviYear}</div>
-        <div class="mfs-kpi-val ${cashflowNet >= 0 ? 'pos' : 'neg'}">${cashflowNet >= 0 ? '+' : ''}${fmt(cashflowNet)} €</div>
-      </div>
-      <div class="mfs-kpi">
-        <div class="mfs-kpi-lbl">⚠️ Impayés / En retard</div>
-        <div class="mfs-kpi-val ${impayes > 0 ? 'neg' : ''}">${impayes}</div>
-      </div>
-    </div>
-
-    <!-- Tableau matriciel biens × mois -->
-    <div class="mfs-table-wrap">
-      <div class="mfs-table-scroll">
-        <table class="mfs-table" role="table">
-          <thead>
-            <tr>
+      <div class="sff-block__b sff-block__b--flush">
+        <div class="mfx-tw">
+          <table class="mfx-grille">
+            <thead><tr>
               <th>Bien</th>
-              ${MOIS_LABELS.map((m, i) => `<th title="${MOIS_LONGS[i]} ${mfSuiviYear}">${m}</th>`).join('')}
-              <th class="col-total">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${biensAchetes.map(b => renderMfSuiviBienRows(b)).join('')}
-          </tbody>
-        </table>
+              ${MOIS_LABELS.map((m, i) => `<th class="${(annee === new Date().getFullYear() && i + 1 === nb) ? 'encours' : ''}" title="${MOIS_LONGS[i]} ${annee}">${m}</th>`).join('')}
+              <th class="tot">Total</th>
+            </tr></thead>
+            <tbody>${liste.map(b => mfSuiviLignesBien(b, annee)).join('')}</tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <!-- Section charges détaillées -->
-    <div class="mfs-charges-section">
-      <div class="mfs-charges-head">
-        <div class="mfs-charges-title">
-          💸 Charges détaillées ${mfSuiviYear}
-          <span class="badge-count">${chargesFiltered.length}</span>
-        </div>
-        <button class="mfs-act-btn primary" onclick="mfOpenChargeModal(null)">＋ Ajouter une charge</button>
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Charges détaillées</p>
+        <span class="sff-block__n">${chargesAn.length ? `${chargesAn.length} charge${chargesAn.length > 1 ? 's' : ''} · ${sfEur(chargesAn.reduce((s, x) => s + (parseFloat(x.montant) || 0), 0))}` : 'aucune charge'}</span>
       </div>
-
-      ${categoriesPresent.length ? `
-      <div class="mfs-charges-filter">
-        <button class="${mfChargesFilter==='all'?'active':''}" onclick="mfSetChargesFilter('all')">Toutes (${chargesYear.length})</button>
-        ${categoriesPresent.map(cat => {
-          const n = chargesYear.filter(c => c.categorie === cat).length;
-          return `<button class="${mfChargesFilter===cat?'active':''}" onclick="mfSetChargesFilter('${cat.replace(/'/g,'&#39;')}')">${cat} (${n})</button>`;
-        }).join('')}
-      </div>` : ''}
-
-      ${chargesFiltered.length === 0 ? `
-        <div class="mfs-empty-charges">
-          <div class="ico">📋</div>
-          <div>Aucune charge enregistrée pour ${mfSuiviYear}${mfChargesFilter !== 'all' ? ' (catégorie "' + mfChargesFilter + '")' : ''}.</div>
-          <div style="margin-top:6px;font-size:11px">Cliquez sur <strong>＋ Ajouter une charge</strong> pour saisir une dépense réelle.</div>
-        </div>
-      ` : `
-        <div class="mfs-charges-list">
-          ${chargesFiltered
-            .slice()
-            .sort((a, b) => new Date(b.date_charge) - new Date(a.date_charge))
-            .map(c => renderMfChargeItem(c)).join('')}
-        </div>
-      `}
+      <div class="sff-block__b">
+        ${categories.length ? `
+        <div class="mfx-pills" style="margin-bottom:var(--sf-space-6)">
+          <button class="mfx-pill" aria-pressed="${mfChargesFilter === 'all'}" onclick="mfSetChargesFilter('all')">Toutes <span class="mfx-pill__n">${chargesAn.length}</span></button>
+          ${categories.map(cat => `<button class="mfx-pill" aria-pressed="${mfChargesFilter === cat}" onclick="mfSetChargesFilter(${JSON.stringify(cat).replace(/"/g, '&quot;')})">${esc(cat)} <span class="mfx-pill__n">${chargesAn.filter(x => x.categorie === cat).length}</span></button>`).join('')}
+        </div>` : ''}
+        ${chargesVues.length
+          ? chargesVues.slice().sort((a, b) => new Date(b.date_charge) - new Date(a.date_charge)).map(mfSuiviCharge).join('')
+          : `<div class="sff-empty">
+               <div class="sff-empty__ic">${sfAccIcon('doc', 30)}</div>
+               <div class="sff-empty__t">Aucune charge enregistrée</div>
+               <div class="sff-empty__x">Rien n'est saisi pour ${annee}${mfChargesFilter !== 'all' ? ` dans la catégorie « ${esc(mfChargesFilter)} »` : ''}. Un « + » dans la grille enregistre une charge sur le mois où elle est tombée.</div>
+               <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="mfOpenChargeModal(null)">Ajouter une charge</button>
+             </div>`}
+      </div>
     </div>
-  `;
 
-  // Scroll vers le bien highlighted si demandé (vient de "Voir suivi" depuis Mes biens)
-  if(mfSuiviBienHighlight) {
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Totaux de l'exercice</p>
+        <span class="sff-block__n">${bienFiltre ? esc(bienFiltre.titre || 'Bien') : `${liste.length} bien${liste.length > 1 ? 's' : ''}`}</span>
+      </div>
+      <div class="sff-block__b">
+        <div class="sff-lines">
+          <div class="sff-line"><span class="sff-line__l">Loyers encaissés</span><span class="sff-line__v sf-gain">${sfEur(encaisse)}</span></div>
+          <div class="sff-line"><span class="sff-line__l">Charges payées</span><span class="sff-line__v">${sfEur(chargesPayees)}</span></div>
+          <div class="sff-line"><span class="sff-line__l">Mensualités de crédit <small>· ${nb} mois écoulé${nb > 1 ? 's' : ''}</small></span><span class="sff-line__v">${sfEur(mensualites)}</span></div>
+          <div class="sff-line sff-line--tot"><span class="sff-line__l">Cashflow constaté</span><span class="sff-line__v ${cashflow >= 0 ? 'sf-gain' : 'sf-loss'}">${sfEur(cashflow)}</span></div>
+        </div>
+        ${(echusNb || avenirNb) ? `
+        <p class="sff-sep">Reste à encaisser</p>
+        <div class="sff-lines">
+          ${echusNb ? `<div class="sff-line"><span class="sff-line__l">Loyers échus non soldés <small>· ${echusNb} mois</small></span><span class="sff-line__v sf-loss">${sfEur(echusReste)}</span></div>` : ''}
+          ${avenirNb ? `<div class="sff-line"><span class="sff-line__l">Loyers à venir <small>· ${avenirNb} mois</small></span><span class="sff-line__v">${sfEur(avenirDu)}</span></div>` : ''}
+        </div>` : ''}
+        <div class="mfx-legend">
+          <span><i class="gain"></i>Encaissé</span>
+          <span><i class="alerte"></i>Partiel</span>
+          <span><i class="loss"></i>Échu, non soldé</span>
+          <span><i class="vide"></i>À venir</span>
+        </div>
+      </div>
+    </div>`;
+
+  // Mise en évidence du bien d'où l'on vient (« Voir le suivi mensuel »).
+  if (mfSuiviBienHighlight) {
+    const id = mfSuiviBienHighlight;
+    mfSuiviBienHighlight = null;
     setTimeout(() => {
-      const row = document.querySelector(`.bien-row[data-bien-id="${mfSuiviBienHighlight}"]`);
-      if(row) {
-        row.scrollIntoView({behavior:'smooth', block:'center'});
-        row.classList.add('highlight');
-        const allRows = document.querySelectorAll(`.bien-row[data-bien-id="${mfSuiviBienHighlight}"]`);
-        allRows.forEach(r => r.classList.add('highlight'));
-      }
-      mfSuiviBienHighlight = null;
+      const row = c.querySelector(`tr[data-bien-id="${id}"]`);
+      if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 80);
   }
 }
 
-// ── Lignes du tableau pour un bien (loyer + charges) ──
-function renderMfSuiviBienRows(b) {
-  const totalLoyer = (function() {
-    let s = 0;
-    for(let m = 1; m <= 12; m++) {
-      const l = mfFindLoyer(b.id, m, mfSuiviYear);
-      if(l && (l.statut === 'Payé' || l.statut === 'Partiel')) s += parseFloat(l.montant_encaisse) || 0;
-    }
-    return s;
-  })();
-  let totalCharges = 0;
-  for(let m = 1; m <= 12; m++) totalCharges += mfSumChargesMonth(b.id, m, mfSuiviYear);
-
-  // Statut occupation : locataire au moins une fois dans l'année
-  const hasLoc = allLocataires.some(l => l.bien_id === b.id);
-  const locPill = hasLoc
-    ? `<span class="loc-pill">👤 Avec locataire</span>`
-    : `<span class="loc-pill vac-pill">🏷️ Vacant</span>`;
+// Les deux lignes d'un bien : les loyers, puis les charges.
+function mfSuiviLignesBien(b, annee) {
+  let totalLoyer = 0, totalCharges = 0;
+  for (let m = 1; m <= 12; m++) {
+    totalLoyer   += mfLoyerEncaisseMois(b.id, m, annee);
+    totalCharges += mfSumChargesMonth(b.id, m, annee);
+  }
+  const occ = mfStatutOccupation(b.id);
+  const pastille = occ.type === 'vacant'
+    ? `<span class="sf-pill sf-pill--alert"><span class="sf-dot"></span>Vacant</span>`
+    : occ.type === 'impaye'
+      ? `<span class="sf-pill sf-pill--loss"><span class="sf-dot"></span>Impayés</span>`
+      : `<span class="sf-pill sf-pill--gain"><span class="sf-dot"></span>Loué</span>`;
 
   return `
-    <tr class="bien-row first-of-bien" data-bien-id="${b.id}">
-      <td class="bien-name" rowspan="2">
-        <div>${(b.titre||'Sans titre').replace(/</g,'&lt;')}</div>
-        <div class="sub">${(b.ville||'')}${b.code_postal?' · '+b.code_postal:''}</div>
-        <div class="sub" style="margin-top:5px">${locPill}</div>
+    <tr data-bien-id="${b.id}">
+      <td class="mfx-bien-cell" rowspan="2">
+        <div class="mfx-bien-cell__n">${esc(b.titre || 'Bien')}</div>
+        <div class="mfx-bien-cell__s">${[esc(b.ville || ''), esc(b.code_postal || '')].filter(Boolean).join(' · ')}</div>
+        <div style="margin-top:6px">${pastille}</div>
       </td>
-      ${MOIS_LABELS.map((_, i) => renderMfLoyerCell(b, i + 1)).join('')}
-      <td class="col-total">${fmt(totalLoyer)} €</td>
+      ${MOIS_LABELS.map((_, i) => mfSuiviCelluleLoyer(b, i + 1, annee)).join('')}
+      <td class="mfx-tot ${totalLoyer > 0 ? 'sf-gain' : ''}">${sfEur(totalLoyer)}</td>
     </tr>
-    <tr class="bien-row" data-bien-id="${b.id}">
-      ${MOIS_LABELS.map((_, i) => renderMfChargesCell(b, i + 1)).join('')}
-      <td class="col-total">${fmt(totalCharges)} €</td>
-    </tr>
-  `;
+    <tr data-bien-id="${b.id}">
+      ${MOIS_LABELS.map((_, i) => mfSuiviCelluleCharge(b, i + 1, annee)).join('')}
+      <td class="mfx-tot">${sfEur(totalCharges)}</td>
+    </tr>`;
 }
 
-// ── Cellule loyer ──
-function renderMfLoyerCell(b, mois) {
-  const annee = mfSuiviYear;
-  const l = mfFindLoyer(b.id, mois, annee);
+/* Une cellule de loyer. ⚠️ L'état vient de `sfLoyerEtat()`, SOURCE UNIQUE :
+   un impayé se déduit de l'ÉCHÉANCE, jamais du libellé du statut — en base,
+   la saisie courante n'écrit que « Payé » et « En attente ». L'ancien rendu
+   lisait le libellé et affichait « Occupé » alors que la matrice, juste à
+   côté, montrait un mois échu en rouge. */
+function mfSuiviCelluleLoyer(b, mois, annee) {
+  const l   = mfFindLoyer(b.id, mois, annee);
   const loc = mfLocataireForBienMonth(b.id, mois, annee);
+  const titreMois = `${MOIS_LONGS[mois - 1]} ${annee}`;
 
-  // Cas : pas de locataire ce mois → cellule vide cliquable pour info
-  if(!l && !loc) {
-    return `<td><div class="mfs-cell empty" title="Pas de locataire en ${MOIS_LONGS[mois-1]} ${annee}">—</div></td>`;
+  // Ni ligne ni locataire : rien n'était dû ce mois-là. Ce n'est pas un trou de
+  // saisie, c'est une absence de bail — on ne propose donc aucune action.
+  if (!l && !loc) {
+    return `<td class="mfx-cell mfx-cell--none" title="Aucun bail en ${titreMois}">—</td>`;
   }
 
-  // Cas : locataire mais pas de ligne loyer générée → cellule "À générer"
-  if(!l && loc) {
-    const prorata = mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, mois, annee, loc.date_entree, loc.date_sortie);
-    return `
-      <td><div class="mfs-cell s-attente" onclick="mfCreateLoyerLine('${b.id}','${loc.id}',${mois},${annee})" title="Cliquer pour générer la ligne loyer">
-        <span class="icon">○</span>
-        <span class="montant">${fmt(prorata.montant)} €</span>
-        <span class="more" onclick="event.stopPropagation();mfOpenEncaissementPopup(event,'${b.id}',${mois},${annee})">•••</span>
-      </div></td>
-    `;
+  // Locataire sans ligne : la ligne reste à générer, au prorata loi 1989.
+  if (!l && loc) {
+    const p = mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, mois, annee, loc.date_entree, loc.date_sortie);
+    const etat = sfLoyerEtat(null, mois, annee, loc);
+    return `<td class="mfx-cell ${etat === 'avenir' ? 'mfx-cell--avenir' : 'mfx-cell--ko'}"
+      onclick="mfCreateLoyerLine('${b.id}','${loc.id}',${mois},${annee})"
+      title="${titreMois} : ligne à générer${p.prorata ? ` · prorata ${p.jours}/${p.joursMois} jours` : ''}">${fmt(p.montant)}<span class="mfx-cell__more" onclick="event.stopPropagation();mfOpenEncaissementPopup(event,'${b.id}',${mois},${annee})" title="Encaissement détaillé">•••</span></td>`;
   }
 
-  // Cas : ligne loyer existe
-  const statutToCls = {
-    'En attente': 's-attente',
-    'Payé': 's-paye',
-    'Partiel': 's-partiel',
-    'Impayé': 's-impaye',
-    'En retard': 's-retard',
-  };
-  const cls = statutToCls[l.statut] || 's-attente';
-  const icon = {
-    'En attente':'○','Payé':'✓','Partiel':'½','Impayé':'✗','En retard':'⏰'
-  }[l.statut] || '○';
-  const montantAffiche = l.statut === 'Payé' || l.statut === 'Partiel'
-    ? parseFloat(l.montant_encaisse) || 0
-    : parseFloat(l.loyer_du) || 0;
+  const etat = sfLoyerEtat(l, mois, annee, loc);
+  const cls = { ok: 'mfx-cell--ok', part: 'mfx-cell--part', ko: 'mfx-cell--ko',
+                avenir: 'mfx-cell--avenir', none: 'mfx-cell--none' }[etat] || 'mfx-cell--avenir';
+  const montant = (etat === 'ok' || etat === 'part')
+    ? (parseFloat(l.montant_encaisse) || 0) : (parseFloat(l.loyer_du) || 0);
+  const libelle = { ok: 'encaissé', part: 'partiellement encaissé', ko: 'échu, non soldé',
+                    avenir: 'à venir', none: 'sans échéance' }[etat] || '';
 
-  return `
-    <td><div class="mfs-cell ${cls}" 
-      data-loyer-id="${l.id}"
-      onclick="mfQuickToggleLoyer(this,'${l.id}')"
-      oncontextmenu="event.preventDefault();mfOpenEncaissementPopup(event,'${b.id}',${mois},${annee});"
-      title="${esc(l.statut)} — ${MOIS_LONGS[mois-1]} ${annee} — Clic = ${l.statut === 'Payé' ? 'Annuler' : 'Marquer payé'}">
-      <span class="icon">${icon}</span>
-      <span class="montant">${fmt(montantAffiche)} €</span>
-      <span class="more" onclick="event.stopPropagation();mfOpenEncaissementPopup(event,'${b.id}',${mois},${annee})">•••</span>
-    </div></td>
-  `;
+  return `<td class="mfx-cell ${cls}" data-loyer-id="${l.id}"
+    onclick="mfQuickToggleLoyer(this,'${l.id}')"
+    oncontextmenu="event.preventDefault();mfOpenEncaissementPopup(event,'${b.id}',${mois},${annee});"
+    title="${titreMois} : ${libelle} — clic pour ${etat === 'ok' ? 'annuler le pointage' : 'marquer payé'}">${etat === 'ok' ? `<span class="mfx-cell__ic">${sfAccIcon('check', 11)}</span>` : ''}${fmt(montant)}<span class="mfx-cell__more" onclick="event.stopPropagation();mfOpenEncaissementPopup(event,'${b.id}',${mois},${annee})" title="Encaissement détaillé">•••</span></td>`;
 }
 
-// ── Cellule charges (somme du mois pour ce bien) ──
-function renderMfChargesCell(b, mois) {
-  const total = mfSumChargesMonth(b.id, mois, mfSuiviYear);
-  const cnt = mfChargesForBienMonth(b.id, mois, mfSuiviYear).length;
-  if(total === 0) {
-    return `<td><div class="mfs-cell-charges" onclick="mfOpenChargeModal({bien_id:'${b.id}', mois:${mois}, annee:${mfSuiviYear}})" title="Ajouter une charge ${MOIS_LONGS[mois-1]} ${mfSuiviYear}"><span class="empty-dot">+</span></div></td>`;
+/* Une cellule de charge. ⚠️ Le « + » est un VRAI BOUTON, visible au repos.
+   Il était à `opacity:0` et ne se révélait qu'au survol de la ligne, alors que
+   c'est l'action principale de l'onglet — et un `<td>` nu n'est atteignable ni
+   au clavier ni au doigt. */
+function mfSuiviCelluleCharge(b, mois, annee) {
+  const total = mfSumChargesMonth(b.id, mois, annee);
+  const n = mfChargesForBienMonth(b.id, mois, annee).length;
+  const titreMois = `${MOIS_LONGS[mois - 1]} ${annee}`;
+  if (!n) {
+    return `<td class="mfx-cell mfx-cell--charge"><button class="plus"
+      onclick="mfOpenChargeModal({bien_id:'${b.id}', mois:${mois}, annee:${annee}})"
+      title="Enregistrer une charge en ${titreMois}">+</button></td>`;
   }
-  return `<td><div class="mfs-cell-charges has-charges" onclick="mfOpenChargesDetail('${b.id}',${mois},${mfSuiviYear})" title="${cnt} charge${cnt>1?'s':''} ce mois — cliquer pour voir le détail">${fmt(total)} €</div></td>`;
+  return `<td class="mfx-cell mfx-cell--charge pleine"
+    onclick="mfOpenChargesDetail('${b.id}',${mois},${annee})"
+    title="${titreMois} : ${n} charge${n > 1 ? 's' : ''} — cliquer pour le détail">${fmt(total)}</td>`;
 }
 
-// ── Item de charge dans la liste ──
-function renderMfChargeItem(c) {
-  const bien = allBiens.find(b => b.id === c.bien_id);
-  const bienName = bien ? (bien.titre || 'Bien').replace(/</g,'&lt;') : 'Bien supprimé';
-  const cerfa = CERFA_MAPPING[c.categorie] || { ligne: '—', label: 'Non classé' };
-  const dateStr = c.date_charge ? new Date(c.date_charge + 'T12:00:00').toLocaleDateString('fr-FR') : '—';
-  const docIcon = (c.document && (c.document.data || c.document.storage_path)) ? '<span title="Document joint">📎</span>' : '';
+/* Une charge dans la liste détaillée.
+   ⚠️ La ligne Cerfa 2044 est le FIL entre cet écran de saisie et la
+   « Déclaration fiscale », qui est bâtie sur ces numéros. La maquette l'avait
+   perdue ; l'écran en ligne la portait. */
+function mfSuiviCharge(ch) {
+  const bien  = allBiens.find(b => b.id === ch.bien_id);
+  const cerfa = CERFA_MAPPING[ch.categorie] || CERFA_MAPPING['Autre'];
+  const date  = ch.date_charge
+    ? new Date(ch.date_charge + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+    : '—';
+  const marques = [
+    ch.lissable ? 'lissée sur 12 mois' : '',
+    ch.recuperable_locataire ? 'récupérable' : '',
+    (ch.document && (ch.document.data || ch.document.storage_path)) ? 'justificatif joint' : '',
+  ].filter(Boolean);
+
   return `
-    <div class="mfs-charge-item">
-      <div>
-        <div class="mfs-charge-cat">${esc(c.categorie)}</div>
-        <div class="mfs-charge-cerfa" title="${cerfa.label}">📋 ${cerfa.ligne}</div>
-      </div>
-      <div class="mfs-charge-info">
-        <div class="mfs-charge-libelle">${(c.libelle||c.categorie).replace(/</g,'&lt;')} ${docIcon}</div>
-        <div class="mfs-charge-meta">
-          <span class="mfs-charge-bien-name">${bienName}</span>
-          <span>•</span>
-          <span>${dateStr}</span>
-          ${c.frequence !== 'Ponctuelle' ? `<span>•</span><span>🔁 ${c.frequence}</span>` : ''}
-          ${c.lissable ? `<span>•</span><span>📊 Lissée 12 mois</span>` : ''}
-          ${c.recuperable_locataire ? `<span>•</span><span>↪️ Récupérable</span>` : ''}
-        </div>
-      </div>
-      <div class="mfs-charge-montant">${fmt(c.montant)} €</div>
-      <div class="mfs-charge-actions">
-        <button onclick="mfOpenChargeModal(allCharges.find(x=>x.id==='${c.id}'))" title="Modifier" aria-label="Modifier">✏️</button>
-        <button class="is-delete" onclick="mfDeleteCharge('${c.id}')" title="Supprimer" aria-label="Supprimer">🗑️</button>
-      </div>
-    </div>
-  `;
+    <div class="mfx-charge">
+      <span class="mfx-charge__d">${date}</span>
+      <span class="mfx-charge__x">
+        <span class="mfx-charge__c">${esc(ch.categorie)}</span><span class="mfx-charge__cerfa" title="${esc(cerfa.label)}">L.${cerfa.ligne}</span>
+        <span class="mfx-charge__l">${esc(ch.libelle || ch.categorie)}${bien ? ' · ' + esc(bien.titre || 'Bien') : ''}${marques.length ? ' · ' + marques.join(' · ') : ''}</span>
+      </span>
+      <span class="mfx-charge__tag">${esc(ch.frequence || 'Ponctuelle')}</span>
+      <span class="mfx-charge__v">${sfEur(ch.montant)}</span>
+      <span class="mfx-charge__a">
+        <button class="mfx-ic-btn" title="Modifier cette charge" aria-label="Modifier"
+          onclick="mfOpenChargeModal(allCharges.find(x=>x.id==='${ch.id}'))">${sfAccIcon('crayon', 13)}</button>
+        <button class="mfx-ic-btn mfx-ic-btn--danger" title="Supprimer cette charge" aria-label="Supprimer"
+          onclick="mfDeleteCharge('${ch.id}')">${sfAccIcon('poubelle', 13)}</button>
+      </span>
+    </div>`;
+}
+
+/* Rafraîchit les compteurs d'onglet SANS redessiner la page.
+   Pointer un loyer change le nombre de loyers non soldés, donc le badge ambre
+   de « Suivi mensuel ». Redessiner tout le bandeau le mettrait à jour mais
+   ferait perdre le défilement — sur un écran de saisie où l'on pointe douze
+   mois à la suite, c'est inutilisable. */
+function mfMajBadges() {
+  const n = mfLoyersNonSoldes(mfExercice).length;
+  const tab = [...document.querySelectorAll('.mfx-tab')]
+    .find(b => (b.getAttribute('onclick') || '').includes("'suivi'"));
+  if (!tab) return;
+  let badge = tab.querySelector('.mfx-tab__n');
+  if (!n) { badge?.remove(); return; }
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'mfx-tab__n mfx-tab__n--alerte';
+    tab.appendChild(badge);
+  }
+  badge.textContent = n;
 }
 
 // ── Actions navigation année / filtre charges ──
@@ -7184,12 +7177,14 @@ function mfSuiviChangeYear(delta) {
   mfSuiviYear += delta;
   const c = document.getElementById('mf-content');
   if(c) renderMfSuivi(c);
+    mfMajBadges();
 }
 function mfSuiviClearFilter() {
   mfSuiviBienFilter = null;
   mfSuiviBienHighlight = null;
   const c = document.getElementById('mf-content');
   if(c) renderMfSuivi(c);
+    mfMajBadges();
 }
 function mfSuiviReturnToBiens() {
   const bienId = mfSuiviPreviousBienId;
@@ -7215,6 +7210,7 @@ function mfSetChargesFilter(f) {
   mfChargesFilter = f;
   const c = document.getElementById('mf-content');
   if(c) renderMfSuivi(c);
+    mfMajBadges();
 }
 
 // ── Clic simple sur cellule loyer : toggle rapide Payé/En attente ──
@@ -7247,6 +7243,7 @@ async function mfQuickToggleLoyer(cellEl, loyerId) {
     }
     const c = document.getElementById('mf-content');
     if(c) renderMfSuivi(c);
+    mfMajBadges();
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
   }
@@ -7281,6 +7278,7 @@ async function mfCreateLoyerLine(bienId, locataireId, mois, annee) {
     showNotif('Ligne loyer générée');
     const c = document.getElementById('mf-content');
     if(c) renderMfSuivi(c);
+    mfMajBadges();
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
   }
@@ -7324,6 +7322,7 @@ async function mfGenerateMissingLoyers(annee) {
   showNotif(`${created} ligne(s) créée(s), ${skipped} déjà présente(s) ou sans locataire`);
   const c = document.getElementById('mf-content');
   if(c) renderMfSuivi(c);
+    mfMajBadges();
 }
 
 // ── Popup encaissement (clic sur ••• d'une cellule loyer) ──
@@ -7506,6 +7505,7 @@ async function mfPopupConfirm() {
     mfCloseEncaissementPopup();
     const c = document.getElementById('mf-content');
     if(c) renderMfSuivi(c);
+    mfMajBadges();
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
   }
@@ -7524,8 +7524,8 @@ function mfOpenChargesDetail(bienId, mois, annee) {
       <div style="font-size:13px;color:var(--c-dim);margin-bottom:14px">
         ${bienName} · ${charges.length} charge${charges.length>1?'s':''} en ${titreMois}
       </div>
-      <div class="mfs-charges-list">
-        ${charges.map(c => renderMfChargeItem(c)).join('')}
+      <div>
+        ${charges.map(mfSuiviCharge).join('')}
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--c-border)">
         <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Fermer</button>
@@ -7702,6 +7702,7 @@ async function mfSaveCharge(chargeId) {
     closeModal('modal-detail');
     const c = document.getElementById('mf-content');
     if(c) renderMfSuivi(c);
+    mfMajBadges();
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
   }
@@ -7716,6 +7717,7 @@ async function mfDeleteCharge(chargeId) {
     showNotif('Charge supprimée');
     const c = document.getElementById('mf-content');
     if(c) renderMfSuivi(c);
+    mfMajBadges();
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
   }
