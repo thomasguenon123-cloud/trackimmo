@@ -7360,62 +7360,68 @@ function mfOpenEncaissementPopup(event, bienId, mois, annee) {
   popup.dataset.annee = annee;
   popup.dataset.loyerId = l?.id || '';
 
+  // ⚠️ Les identifiants (`enc-montant`, `enc-date`, `enc-notes`,
+  // `enc-montant-row`, `enc-date-row`), le nom de groupe `enc-statut` et la
+  // classe `.opt` sont le CONTRAT de `mfPopupStatutChange` et de
+  // `mfPopupConfirm`. Le style change, le contrat ne bouge pas.
+  const opts = [
+    ['Payé',      `Payé intégralement — ${sfEur(montantDu)}`],
+    ['Partiel',   'Partiel — saisir le montant'],
+    ['En retard', 'En retard — toujours dû'],
+    ['Impayé',    'Impayé définitif'],
+  ];
+  popup.classList.add('mfx-popup');
   popup.innerHTML = `
-    <div class="header">
-      <div class="title">Encaissement ${MOIS_LONGS[mois-1]} ${annee}</div>
-      <button class="close" onclick="mfCloseEncaissementPopup()" aria-label="Fermer">✕</button>
+    <div class="mfx-popup__h">
+      <span class="mfx-popup__t">Encaissement · ${MOIS_LONGS[mois-1].toLowerCase()} ${annee}</span>
+      <button class="mfx-popup__x" onclick="mfCloseEncaissementPopup()" aria-label="Fermer">${sfAccIcon('croix', 15)}</button>
     </div>
-    <div style="font-size:11.5px;color:var(--c-dim);margin-bottom:10px">
-      ${(bien?.titre||'').replace(/</g,'&lt;')} · Loyer dû : <strong>${fmt(montantDu)} €</strong>
-      ${prorata?.prorata ? `<br>⚖️ Prorata loi 1989 : ${prorata.jours}/${prorata.joursMois} jours` : ''}
-    </div>
-    <div class="options">
-      <label class="opt ${statutActuel==='Payé'?'selected':''}">
-        <input type="radio" name="enc-statut" value="Payé" ${statutActuel==='Payé'?'checked':''} onchange="mfPopupStatutChange(this)"/>
-        <span class="ico">✓</span> Payé intégralement (${fmt(montantDu)} €)
-      </label>
-      <label class="opt ${statutActuel==='Partiel'?'selected':''}">
-        <input type="radio" name="enc-statut" value="Partiel" ${statutActuel==='Partiel'?'checked':''} onchange="mfPopupStatutChange(this)"/>
-        <span class="ico">½</span> Partiel (saisir montant)
-      </label>
-      <label class="opt ${statutActuel==='En retard'?'selected':''}">
-        <input type="radio" name="enc-statut" value="En retard" ${statutActuel==='En retard'?'checked':''} onchange="mfPopupStatutChange(this)"/>
-        <span class="ico">⏰</span> En retard (toujours dû)
-      </label>
-      <label class="opt ${statutActuel==='Impayé'?'selected':''}">
-        <input type="radio" name="enc-statut" value="Impayé" ${statutActuel==='Impayé'?'checked':''} onchange="mfPopupStatutChange(this)"/>
-        <span class="ico">✗</span> Impayé définitif
-      </label>
-    </div>
-    <div class="fields">
-      <div class="field-row" id="enc-montant-row" style="${statutActuel==='Partiel'?'':'display:none'}">
-        <label>Montant encaissé (€)</label>
-        <input type="number" id="enc-montant" value="${montantEnc}" min="0" max="${montantDu}" step="1">
+    <div class="mfx-popup__b">
+      <p class="mfx-prorata">
+        ${sfAccIcon('balance', 15)}
+        <span>${esc(bien?.titre || 'Bien')} · loyer dû <b>${sfEur(montantDu)}</b>${
+          prorata?.prorata ? `. Prorata loi 1989 : ${prorata.jours} jours sur ${prorata.joursMois}.` : '.'}</span>
+      </p>
+      ${opts.map(([v, lab]) => `
+        <label class="mfx-opt opt${statutActuel === v ? ' selected' : ''}">
+          <input type="radio" name="enc-statut" value="${v}" ${statutActuel === v ? 'checked' : ''} onchange="mfPopupStatutChange(this)">
+          <span class="mfx-opt__r"></span>${lab}
+        </label>`).join('')}
+      <div class="mfx-champ" id="enc-montant-row" style="${statutActuel === 'Partiel' ? '' : 'display:none'}">
+        <label for="enc-montant">Montant encaissé</label>
+        <input type="number" id="enc-montant" value="${esc(montantEnc)}" min="0" max="${esc(montantDu)}" step="1" inputmode="numeric">
       </div>
-      <div class="field-row" id="enc-date-row" style="${(statutActuel==='Payé'||statutActuel==='Partiel')?'':'display:none'}">
-        <label>Date d'encaissement</label>
-        <input type="date" id="enc-date" value="${dateEnc}">
+      <div class="mfx-champ" id="enc-date-row" style="${(statutActuel === 'Payé' || statutActuel === 'Partiel') ? '' : 'display:none'}">
+        <label for="enc-date">Date d'encaissement</label>
+        <input type="date" id="enc-date" value="${esc(dateEnc)}">
       </div>
-      <div class="field-row">
-        <label>Notes (optionnel)</label>
-        <textarea id="enc-notes" rows="2">${(notesActuel||'').replace(/</g,'&lt;')}</textarea>
+      <div class="mfx-champ">
+        <label for="enc-notes">Notes</label>
+        <textarea id="enc-notes" rows="2">${esc(notesActuel || '')}</textarea>
       </div>
-    </div>
-    <div class="actions">
-      <button class="btn-cancel" onclick="mfCloseEncaissementPopup()">Annuler</button>
-      <button class="btn-confirm" onclick="mfPopupConfirm()">Confirmer</button>
-    </div>
-  `;
+      <div class="mfx-popup__a">
+        <button class="sf-btn sf-btn--ghost sf-btn--sm" onclick="mfCloseEncaissementPopup()">Annuler</button>
+        <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="mfPopupConfirm()">Confirmer</button>
+      </div>
+    </div>`;
   document.body.appendChild(popup);
 
-  // Positionnement intelligent
-  const x = event?.clientX || window.innerWidth/2;
-  const y = event?.clientY || window.innerHeight/2;
-  const pw = 380, ph = 380;
-  const leftPos  = Math.min(Math.max(x - pw/2, 10), window.innerWidth - pw - 10);
-  const topPos   = Math.min(Math.max(y + 10, 10), window.innerHeight - ph - 10);
-  popup.style.left = leftPos + 'px';
-  popup.style.top  = topPos  + 'px';
+  // Positionnement près du clic, borné à la fenêtre.
+  // ⚠️ Les dimensions étaient FIGÉES à 380 × 380. Une fenêtre plus large ou plus
+  // haute que cette supposition débordait le bas de l'écran sans que personne
+  // ne s'en aperçoive — et la mienne fait 420 de large. On MESURE, la mesure ne
+  // peut pas se désynchroniser du style.
+  const x = event?.clientX || window.innerWidth / 2;
+  const y = event?.clientY || window.innerHeight / 2;
+  const r = popup.getBoundingClientRect();
+  const marge = 10;
+  const pw = r.width  || 420;
+  const ph = r.height || 380;
+  popup.style.left = Math.max(marge, Math.min(x - pw / 2, window.innerWidth  - pw - marge)) + 'px';
+  // Sous le clic si la place existe, au-dessus sinon — comme le panneau de
+  // `.sf-pick`, qui résout déjà le même problème.
+  const dessous = window.innerHeight - y - marge;
+  popup.style.top = (dessous < ph && y - ph - marge > 0 ? y - ph - marge : Math.max(marge, Math.min(y + marge, window.innerHeight - ph - marge))) + 'px';
 
   requestAnimationFrame(() => {
     backdrop.classList.add('open');

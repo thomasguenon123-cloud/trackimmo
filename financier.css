@@ -377,6 +377,39 @@
 .mfx-prorata{ display:flex; gap:var(--sf-space-4); align-items:flex-start;
   font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-bottom:var(--sf-space-5);
   line-height:var(--sf-lh-normal); }
+.mfx-prorata b{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
+.mfx-popup__x{ margin-left:auto; width:26px; height:26px; display:inline-flex;
+  align-items:center; justify-content:center; background:transparent; border:0;
+  border-radius:var(--sf-radius-sm); color:var(--sf-text-3); cursor:pointer; }
+.mfx-popup__x:hover{ background:var(--sf-surface-3); color:var(--sf-text); }
+.mfx-popup__a{ display:flex; justify-content:flex-end; gap:var(--sf-space-4);
+  margin-top:var(--sf-space-6); }
+/* ⚠️ `mfPopupStatutChange` bascule la classe `.selected`, pas `aria-checked` :
+   les deux doivent donc peindre pareil. La maquette n'employait que l'attribut
+   parce qu'elle n'avait pas de gestionnaire — reprendre son CSS seul aurait
+   donne une fenetre ou l'option choisie ne se voit pas. */
+.mfx-opt.selected{ border-color:var(--sf-brand-vivid);
+  background:var(--sf-brand-wash); color:var(--sf-text); }
+.mfx-opt.selected .mfx-opt__r{ border-color:var(--sf-brand-vivid);
+  background:radial-gradient(var(--sf-brand-vivid) 0 4px, transparent 4px); }
+/* Le radio natif porte la valeur — il reste dans le DOM, hors du regard. */
+.mfx-opt input[type="radio"]{ position:absolute; opacity:0; pointer-events:none;
+  width:0; height:0; }
+.mfx-opt:focus-within{ outline:var(--sf-focus-width) solid var(--sf-focus);
+  outline-offset:2px; }
+.mfx-champ textarea{ width:100%; padding:var(--sf-space-4) var(--sf-space-5);
+  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); color:var(--sf-text);
+  font-family:var(--sf-font-ui); font-size:var(--sf-font-body-sm); resize:vertical; }
+/* La fenetre est POSEE EN LIGNE pres du clic par le gestionnaire : le style ne
+   fait que la sortir du flux et la placer au-dessus du reste. */
+#mfs-popup.mfx-popup{ position:fixed; z-index:calc(var(--sf-z-modal) + 10);
+  width:min(420px, calc(100vw - 20px)); opacity:0; transform:translateY(-6px);
+  transition:opacity var(--sf-dur) var(--sf-ease), transform var(--sf-dur) var(--sf-ease); }
+#mfs-popup.mfx-popup.open{ opacity:1; transform:none; }
+#mfs-popup-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.45);
+  z-index:var(--sf-z-modal); opacity:0; transition:opacity var(--sf-dur) var(--sf-ease); }
+#mfs-popup-backdrop.open{ opacity:1; }
 
 /* ═══ LOCATAIRES ═════════════════════════════════════════════════════════════ */
 .mfx-loccards{ display:grid; grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));
