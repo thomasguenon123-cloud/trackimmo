@@ -41,6 +41,23 @@
    fait, d'où la correction. Scopée pour ne rien déplacer ailleurs. */
 .mf-page .sff-block__h .sff-block__n + .sff-block__a{ margin-left:var(--sf-space-5); }
 
+/* ⚠️ SOUS 720 px, L'EN-TÊTE DOIT SE REPLIER. `.sff-block__h` est en `flex` sans
+   `wrap` et `.sff-block` en `overflow:hidden` : les quatre boutons du Suivi
+   mensuel (Générer les loyers · Loyers · Charges · Ajouter une charge)
+   débordaient la carte et étaient ROGNÉS, donc inatteignables — 9 éléments
+   mesurés hors cadre à 375 px. Ce sont les actions principales de l'écran de
+   saisie ; même famille que le défaut déjà corrigé sur `.mfx-charge__a`. */
+/* ⚠️ `.sff-block__a` de styles.css n'a PAS de `flex-wrap` — la maquette
+   l'avait, et je ne l'avais pas reporté en écartant les doublons `.sff-*`.
+   Quatre boutons sur une seule ligne inextensible : d'où le débordement. */
+.mf-page .sff-block__a{ flex-wrap:wrap; }
+@media (max-width:720px){
+  .mf-page .sff-block__h{ flex-wrap:wrap; padding-top:var(--sf-space-5);
+    padding-bottom:var(--sf-space-5); }
+  .mf-page .sff-block__h .sff-block__n{ margin-left:0; }
+  .mf-page .sff-block__h .sff-block__a{ margin-left:0; width:100%; }
+}
+
 /* `.sf-pick` est en `width:100%` par défaut (components.css:814) avec une liste
    d'exceptions. Les conteneurs de ce module s'y ajoutent. */
 .mfx-top .sf-pick, .mfx-tools .sf-pick, .mf-page .sff-block__a .sf-pick{ width:auto; }
