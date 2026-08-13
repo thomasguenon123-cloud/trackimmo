@@ -12,9 +12,13 @@
 <!-- Socle de jetons Stonefolio (phase 2). Ne declare que des variables : aucun
      effet visuel tant qu'aucun composant ne les consomme. Charge AVANT
      styles.css pour que la migration puisse s'appuyer dessus. -->
-<link rel="stylesheet" href="tokens.css?v=59">
-<link rel="stylesheet" href="components.css?v=59">
-<link rel="stylesheet" href="styles.css?v=59">
+<link rel="stylesheet" href="tokens.css?v=60">
+<link rel="stylesheet" href="components.css?v=60">
+<link rel="stylesheet" href="styles.css?v=60">
+<!-- Suivi financier : chargé APRÈS styles.css, c'est ce qui permet aux deux
+     surcharges de géométrie (`.sff-line` à 2 colonnes au lieu de 5) de gagner
+     dans le seul périmètre `.mf-page`, sans toucher à la fiche bien. -->
+<link rel="stylesheet" href="financier.css?v=60">
 </head>
 <body>
 
@@ -88,7 +92,7 @@
         <div class="sf-menu__panel" id="panel-gestion" role="menu" aria-labelledby="menubtn-gestion">
           <a class="sf-menu__link" id="nav-module-financier" role="menuitem" href="#" onclick="navigate('module-financier');sfCloseMenus();return false;">
             <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></span>
-            <span><span class="sf-menu__t">Module financier</span><span class="sf-menu__d">Vue d'ensemble, suivi mensuel, rentabilité</span></span>
+            <span><span class="sf-menu__t">Suivi financier</span><span class="sf-menu__d">Performance, portefeuille, suivi mensuel, locataires</span></span>
           </a>
           <a class="sf-menu__link" id="nav-administration" role="menuitem" href="#" onclick="navigate('administration');sfCloseMenus();return false;">
             <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V9l7-5 7 5v12"/><path d="M9 21v-7h6v7"/></svg></span>
@@ -187,7 +191,7 @@
 
 <div class="notif" id="notif"></div>
 
-<script src="app.js?v=59"></script>
+<script src="app.js?v=60"></script>
 
 <!-- LIGHTBOX -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">

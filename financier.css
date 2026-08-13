@@ -1,0 +1,522 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SUIVI FINANCIER — feuille de style du module
+   Portée depuis la maquette `financier.html` (itérations 4 à 9), vérifiée
+   à l'écran avant migration.
+
+   Chargée APRÈS `styles.css` : c'est ce qui permet aux deux surcharges de
+   géométrie ci-dessous de gagner sans toucher à la fiche bien.
+
+   ⚠️ CE QUI N'EST PAS ICI, ET POURQUOI. La maquette redéfinissait tout le
+   gabarit `.sff-*` parce qu'elle ne charge pas `styles.css`. Ces règles y sont
+   déjà et sont IDENTIQUES — vérifié règle à règle. Les recopier créerait deux
+   sources pour un même composant, exactement ce que le projet a déjà payé.
+   Seules DEUX diffèrent, et elles sont surchargées ci-dessous.
+
+   STRUCTURE : Performance (consolidé) · Portefeuille (bien par bien) ·
+   Suivi mensuel (saisie) · Locataires.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.mfx-wrap{ padding:clamp(16px, 1.6vw, 34px) 0; }
+
+/* ═══ SURCHARGES DE GABARIT, scopées au module ═══════════════════════════════
+   ⚠️ PIÈGE ÉVITÉ DE JUSTESSE, et déjà payé une fois sur la fiche bien.
+   `.sff-line` de styles.css fait CINQ colonnes :
+       11px (pastille) · minmax(0,1fr) · auto · 16px · 42px (pourcentage)
+   C'est la géométrie de la FICHE BIEN. Les lignes du module n'ont que deux
+   enfants (libellé, valeur) : réutilisée telle quelle, le libellé tomberait
+   dans la colonne de 11 px de la pastille — le défaut exact documenté après
+   l'implémentation de la fiche bien.
+   `.sff-lines--plain` ne convient pas non plus : il en laisse TROIS, dont une
+   de 16 px en fin de ligne qui décalerait tous les montants du bord.
+   On surcharge donc dans le périmètre `.mf-page`, sans rien changer ailleurs. */
+.mf-page .sff-line{ grid-template-columns:minmax(0,1fr) auto; gap:var(--sf-space-5); }
+.mf-page .sff-line__v{ display:block; text-align:right; }
+
+/* ⚠️ DÉFAUT LATENT DE styles.css:2169-2171, révélé par ce module.
+   `.sff-block__n` et `.sff-block__a` sont TOUS DEUX en `margin-left:auto` :
+   côte à côte ils se PARTAGENT l'espace libre, et la méta (« exercice 2026 »)
+   flottait au milieu de l'en-tête, sans rattachement visuel. Seul le premier
+   doit prendre la marge automatique.
+   Aucun en-tête de l'application ne les combinait jusqu'ici — ce module le
+   fait, d'où la correction. Scopée pour ne rien déplacer ailleurs. */
+.mf-page .sff-block__h .sff-block__n + .sff-block__a{ margin-left:var(--sf-space-5); }
+
+/* ⚠️ SOUS 720 px, L'EN-TÊTE DOIT SE REPLIER. `.sff-block__h` est en `flex` sans
+   `wrap` et `.sff-block` en `overflow:hidden` : les quatre boutons du Suivi
+   mensuel (Générer les loyers · Loyers · Charges · Ajouter une charge)
+   débordaient la carte et étaient ROGNÉS, donc inatteignables — 9 éléments
+   mesurés hors cadre à 375 px. Ce sont les actions principales de l'écran de
+   saisie ; même famille que le défaut déjà corrigé sur `.mfx-charge__a`. */
+/* ⚠️ `.sff-block__a` de styles.css n'a PAS de `flex-wrap` — la maquette
+   l'avait, et je ne l'avais pas reporté en écartant les doublons `.sff-*`.
+   Quatre boutons sur une seule ligne inextensible : d'où le débordement. */
+.mf-page .sff-block__a{ flex-wrap:wrap; }
+@media (max-width:720px){
+  .mf-page .sff-block__h{ flex-wrap:wrap; padding-top:var(--sf-space-5);
+    padding-bottom:var(--sf-space-5); }
+  .mf-page .sff-block__h .sff-block__n{ margin-left:0; }
+  .mf-page .sff-block__h .sff-block__a{ margin-left:0; width:100%; }
+}
+
+/* `.sf-pick` est en `width:100%` par défaut (components.css:814) avec une liste
+   d'exceptions. Les conteneurs de ce module s'y ajoutent. */
+.mfx-top .sf-pick, .mfx-tools .sf-pick, .mf-page .sff-block__a .sf-pick{ width:auto; }
+.mfx-pick-lg .sf-pick__btn{ min-width:280px; }
+
+/* ═══ BANDEAU ════════════════════════════════════════════════════════════════ */
+.mfx-top{ display:flex; align-items:flex-end; justify-content:space-between;
+  gap:var(--sf-space-6); flex-wrap:wrap; margin-bottom:var(--sf-space-7); }
+.mfx-h1{ font-family:var(--sf-font-display); font-size:clamp(26px, 2.3vw, 42px);
+  font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight);
+  line-height:var(--sf-lh-tight); margin:0; }
+.mfx-sub{ font-size:var(--sf-font-body); color:var(--sf-text-3); margin:var(--sf-space-3) 0 0; }
+.mfx-champ-lab{ font-size:var(--sf-font-label); font-weight:var(--sf-weight-semibold);
+  letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-3);
+  display:block; margin-bottom:var(--sf-space-3); }
+
+/* ═══ INDICATEURS ════════════════════════════════════════════════════════════ */
+.mfx-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+  gap:1px; background:var(--sf-border); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-md); overflow:hidden; }
+.mfx-kpi{ background:var(--sf-surface); padding:clamp(14px,1.2vw,22px);
+  display:flex; flex-direction:column; gap:var(--sf-space-2); min-width:0; position:relative; }
+.mfx-kpi--hi{ background:var(--sf-brand-wash); }
+.mfx-kpi--hi::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+  background:var(--sf-brand-vivid); }
+.mfx-kpi--hi .mfx-kpi__l, .mfx-kpi--hi .mfx-kpi__s{ color:var(--sf-text-2); }
+.mfx-kpi__l{ font-size:var(--sf-font-label); font-weight:var(--sf-weight-semibold);
+  letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-3); }
+.mfx-kpi__v{ font-family:var(--sf-font-display); font-size:clamp(24px,1.9vw,34px);
+  font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight);
+  line-height:var(--sf-lh-tight); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.mfx-kpi__v--gain{ color:var(--sf-gain); }
+.mfx-kpi__v--loss{ color:var(--sf-loss); }
+.mfx-kpi__v--none{ color:var(--sf-text-3); }
+.mfx-kpi__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); }
+.mfx-fait{ display:flex; align-items:flex-start; gap:var(--sf-space-4);
+  margin:var(--sf-space-5) 0 var(--sf-space-7); font-size:var(--sf-font-body-sm);
+  color:var(--sf-text-3); line-height:var(--sf-lh-normal); }
+.mfx-fait svg{ flex-shrink:0; margin-top:1px; }
+/* `--sf-text` et non `--sf-alert` : c'est un fait, pas une alarme permanente. */
+.mfx-fait b{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
+
+/* ═══ ONGLETS ════════════════════════════════════════════════════════════════ */
+.mfx-tabs{ display:flex; gap:var(--sf-space-2); overflow-x:auto;
+  border-bottom:var(--sf-border-width) solid var(--sf-border); margin-bottom:var(--sf-space-6); }
+.mfx-tabs::-webkit-scrollbar{ display:none; }
+.mfx-tab{ position:relative; display:inline-flex; align-items:center; gap:var(--sf-space-3);
+  padding:var(--sf-space-5) var(--sf-space-5); border:0; background:transparent; cursor:pointer;
+  font-family:var(--sf-font-display); font-size:var(--sf-font-lead);
+  font-weight:var(--sf-weight-semibold); color:var(--sf-text-3);
+  letter-spacing:var(--sf-track-snug); white-space:nowrap; }
+.mfx-tab:hover{ color:var(--sf-text-2); }
+.mfx-tab[aria-selected="true"]{ color:var(--sf-text); }
+.mfx-tab[aria-selected="true"]::after{ content:''; position:absolute; left:var(--sf-space-5);
+  right:var(--sf-space-5); bottom:-1px; height:2px; background:var(--sf-brand-vivid); border-radius:1px; }
+.mfx-tab__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
+  font-weight:var(--sf-weight-semibold); color:var(--sf-text-3);
+  background:var(--sf-surface-2); border-radius:var(--sf-radius-full); padding:1px 7px; }
+/* ⚠️ `--sf-brand-vivid` sur `--sf-brand-wash-2` ne tient que 4,16:1. Le fond
+   teinté suffit à signaler l'état, le texte prend `--sf-text`. */
+.mfx-tab[aria-selected="true"] .mfx-tab__n{ background:var(--sf-brand-wash-2); color:var(--sf-text); }
+.mfx-tab__n--alerte{ background:var(--sf-alert-wash); color:var(--sf-alert); }
+.mfx-pane[hidden]{ display:none; }
+
+/* ═══ BARRE D'OUTILS ═════════════════════════════════════════════════════════ */
+.mfx-tools{ display:flex; gap:var(--sf-space-5); align-items:flex-end; flex-wrap:wrap;
+  margin-bottom:var(--sf-space-6); }
+.mfx-pills{ display:flex; gap:var(--sf-space-3); flex-wrap:wrap; }
+.mfx-pill{ display:inline-flex; align-items:center; gap:var(--sf-space-3);
+  height:var(--sf-control-h-sm); padding:0 var(--sf-space-5);
+  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-full); color:var(--sf-text-2);
+  font-family:inherit; font-size:var(--sf-font-caption);
+  font-weight:var(--sf-weight-semibold); cursor:pointer; white-space:nowrap;
+  transition:background var(--sf-dur) var(--sf-ease), color var(--sf-dur) var(--sf-ease); }
+.mfx-pill:hover{ background:var(--sf-surface-2); color:var(--sf-text); }
+.mfx-pill[aria-pressed="true"]{ background:var(--sf-brand-wash-2); border-color:transparent;
+  color:var(--sf-text); }
+.mfx-pill__n{ font-family:var(--sf-font-num); font-size:11px; color:var(--sf-text-3); }
+.mfx-pill[aria-pressed="true"] .mfx-pill__n{ color:var(--sf-text-2); }
+.mfx-tools__fin{ margin-left:auto; display:flex; align-items:flex-end; gap:var(--sf-space-5); }
+
+/* ═══ CARTES DE BIEN (Portefeuille) ══════════════════════════════════════════ */
+.mfx-cards{ display:grid; grid-template-columns:repeat(auto-fill,minmax(min(370px,100%),1fr));
+  gap:var(--sf-space-5); }
+.mfx-card{ background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-md); overflow:hidden; display:flex; flex-direction:column;
+  cursor:pointer; transition:border-color var(--sf-dur) var(--sf-ease); }
+.mfx-card:hover{ border-color:var(--sf-border-strong); }
+.mfx-card__h{ display:flex; align-items:center; gap:var(--sf-space-5);
+  padding:var(--sf-space-6); border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.mfx-card__ph{ width:52px; height:52px; border-radius:var(--sf-radius-sm); flex-shrink:0;
+  background:var(--sf-surface-2); background-size:cover; background-position:center;
+  display:flex; align-items:center; justify-content:center; color:var(--sf-text-3); }
+.mfx-card__t{ font-size:var(--sf-font-lead); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mfx-card__v{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
+.mfx-card__id{ min-width:0; flex:1; }
+.mfx-card__loc{ display:flex; align-items:center; gap:var(--sf-space-4);
+  padding:var(--sf-space-5) var(--sf-space-6); font-size:var(--sf-font-body-sm);
+  color:var(--sf-text-2); border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.mfx-card__loc svg{ flex-shrink:0; color:var(--sf-text-3); }
+.mfx-card__loc em{ font-style:normal; color:var(--sf-text-3); }
+.mfx-card__lien{ margin-left:auto; color:var(--sf-brand-vivid); text-decoration:none;
+  font-size:var(--sf-font-caption); font-weight:var(--sf-weight-semibold); white-space:nowrap;
+  background:none; border:0; cursor:pointer; font-family:inherit; padding:0; }
+.mfx-card__lien:hover{ text-decoration:underline; }
+.mfx-card__stats{ display:grid; grid-template-columns:1fr 1fr; gap:1px;
+  background:var(--sf-border); border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.mfx-stat{ background:var(--sf-surface); padding:var(--sf-space-5) var(--sf-space-6); }
+.mfx-stat__l{ font-size:var(--sf-font-label); text-transform:uppercase;
+  letter-spacing:var(--sf-track-caps); color:var(--sf-text-3);
+  font-weight:var(--sf-weight-semibold); }
+.mfx-stat__v{ font-family:var(--sf-font-num); font-size:var(--sf-font-lead);
+  font-variant-numeric:tabular-nums; color:var(--sf-text); margin-top:var(--sf-space-2); }
+.mfx-stat__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
+/* Une SEULE mention de période pour les quatre statistiques, plutôt que répétée
+   dans quatre sous-titres. Elle lève l'ambiguïté relevée par Thomas : la carte
+   mêlait un CUMUL et un MENSUEL sans dire lequel était lequel.
+   ⚠️ En bas de casse et en graisse normale, VOLONTAIREMENT : en capitales
+   semi-grasses elle avait exactement le style calculé de `.mfx-stat__l` et se
+   lisait comme un cinquième libellé de statistique. */
+.mfx-card__per{ margin:0; padding:var(--sf-space-5) var(--sf-space-6) 0;
+  font-size:var(--sf-font-caption); color:var(--sf-text-3); }
+.mfx-card__spark{ padding:var(--sf-space-5) var(--sf-space-6); }
+.mfx-spark__h{ display:flex; align-items:baseline; gap:var(--sf-space-4);
+  font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-bottom:var(--sf-space-4); }
+/* La chasse fixe est réservée aux CHIFFRES — c'est sa raison d'être, aligner
+   des colonnes. Seul le montant la garde ; le mois reste en police d'interface. */
+.mfx-spark__d{ margin-left:auto; color:var(--sf-text-2); }
+.mfx-spark__d b{ font-family:var(--sf-font-num); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text); }
+
+/* ═══ MINI-GRAPHIQUE MENSUEL DES CARTES ══════════════════════════════════════
+   Remplace la sparkline, qui cumulait trois défauts :
+   1. aucun mois en abscisse — or les creux SONT les mois impayés ;
+   2. ⚠️ mise à l'échelle SUR LA SÉRIE et non sur zéro : le haut du graphique
+      valait −1 970 € et non 0 €, si bien qu'une variation de 830 € occupait
+      toute la hauteur. Problème d'HONNÊTETÉ, pas de lisibilité. Des barres
+      partent de zéro par construction ;
+   3. sur un bien vacant, une ligne plate indiscernable d'un bug.
+   L'échelle reste propre à chaque carte : c'est la valeur du dernier mois, en
+   tête, qui donne l'ordre de grandeur. */
+/* ⚠️ Le nombre de colonnes est POSÉ EN LIGNE par le rendu, pas figé ici : il
+   vaut le nombre de mois ÉCOULÉS de l'exercice. Figé à 8, le graphique aurait
+   été juste en août et faux tous les autres mois de l'année. */
+.mfx-mini, .mfx-mini__x{ display:grid; grid-template-columns:repeat(12,1fr); gap:3px; }
+.mfx-mini{ align-items:end; height:44px; }
+.mfx-mini__b{ border-radius:2px 2px 0 0; min-height:2px; background:var(--sf-loss); }
+.mfx-mini__b--ko{ background:var(--sf-alert); }
+.mfx-mini__b--gain{ background:var(--sf-gain); }
+.mfx-mini__x{ margin-top:var(--sf-space-3); }
+.mfx-mini__x span{ font-family:var(--sf-font-num); font-size:10px;
+  color:var(--sf-text-3); text-align:center; }
+/* « La couleur ne porte jamais seule » : le mois non encaissé est aussi en gras. */
+.mfx-mini__x .ko{ color:var(--sf-alert); font-weight:var(--sf-weight-semibold); }
+.mfx-mini__lg{ display:flex; align-items:center; gap:var(--sf-space-3);
+  margin-top:var(--sf-space-4); font-size:var(--sf-font-caption); color:var(--sf-text-3); }
+.mfx-mini__lg i{ width:9px; height:9px; border-radius:2px;
+  background:var(--sf-alert); display:inline-block; flex-shrink:0; }
+/* `margin-top:auto` : les cartes ont la même hauteur mais pas le même contenu —
+   seule celle qui a des impayés porte la légende. Sans cela son bouton
+   descendait de 35 px et les trois actions ne s'alignaient plus. */
+.mfx-card__cta{ padding:0 var(--sf-space-6) var(--sf-space-6); margin-top:auto; }
+.mfx-card__cta .sf-btn{ width:100%; }
+
+/* ═══ GRAPHIQUES (Performance) ═══════════════════════════════════════════════ */
+.mfx-chart{ display:grid; grid-template-columns:repeat(12,1fr); gap:var(--sf-space-3);
+  align-items:end; height:180px; }
+.mfx-col{ display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+  height:100%; gap:var(--sf-space-3); }
+.mfx-col__b{ width:100%; max-width:42px; border-radius:3px 3px 0 0; min-height:2px; }
+.mfx-col__b--gain{ background:var(--sf-gain); }
+.mfx-col__b--loss{ background:var(--sf-loss); }
+.mfx-col__b--vide{ background:transparent; border:1px dashed var(--sf-border-strong); }
+.mfx-col__l{ font-size:10px; color:var(--sf-text-3); font-family:var(--sf-font-num); }
+.mfx-legend{ display:flex; gap:var(--sf-space-7); flex-wrap:wrap; margin-top:var(--sf-space-6);
+  font-size:var(--sf-font-caption); color:var(--sf-text-3); }
+.mfx-legend span{ display:inline-flex; align-items:center; gap:var(--sf-space-3); }
+.mfx-legend i{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+.mfx-legend i.gain{ background:var(--sf-gain); }
+.mfx-legend i.loss{ background:var(--sf-loss); }
+.mfx-legend i.alerte{ background:var(--sf-alert); }
+.mfx-legend i.vide{ background:transparent; border:1px dashed var(--sf-border-strong); }
+.mfx-legend i.trait{ height:0; border-top:2px dashed var(--sf-text-3); border-radius:0; width:16px; }
+.mfx-svg{ display:block; width:100%; }
+.mfx-mois{ display:grid; grid-template-columns:repeat(12,1fr); margin-top:var(--sf-space-4);
+  font-size:10px; color:var(--sf-text-3); font-family:var(--sf-font-num); text-align:center; }
+/* Le cumul est en demi-largeur à côté d'une carte nettement plus haute : le
+   graphique grandit pour remplir, sinon la carte voisine imposerait sa hauteur
+   et celle-ci finirait en blanc. */
+.mfx-fill{ flex:1; display:flex; min-height:190px; }
+.mfx-fill .mfx-svg{ height:100%; }
+
+/* ═══ GRILLE DE SAISIE (Suivi mensuel) ═══════════════════════════════════════ */
+.mfx-tw{ overflow-x:auto; }
+.mfx-grille{ width:100%; border-collapse:separate; border-spacing:2px;
+  font-size:var(--sf-font-caption); }
+.mfx-grille th{ font-size:10px; text-transform:uppercase; letter-spacing:var(--sf-track-caps);
+  color:var(--sf-text-3); font-weight:var(--sf-weight-semibold); padding:var(--sf-space-3);
+  text-align:center; white-space:nowrap; }
+.mfx-grille th:first-child{ text-align:left; min-width:190px; padding-left:var(--sf-space-6); }
+.mfx-grille th.tot{ text-align:right; padding-right:var(--sf-space-6); }
+.mfx-grille th.encours{ color:var(--sf-text); }
+.mfx-grille th.encours::after{ content:''; display:block; height:2px; margin-top:3px;
+  background:var(--sf-brand-vivid); border-radius:1px; }
+.mfx-bien-cell{ padding:var(--sf-space-4) var(--sf-space-6); vertical-align:middle; }
+.mfx-bien-cell__n{ font-size:var(--sf-font-body-sm); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text); }
+.mfx-bien-cell__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
+.mfx-tot{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
+  text-align:right; padding:var(--sf-space-4) var(--sf-space-6); white-space:nowrap;
+  font-weight:var(--sf-weight-semibold); color:var(--sf-text);
+  border-left:2px solid var(--sf-border); }
+.mfx-cell{ border-radius:var(--sf-radius-xs); padding:var(--sf-space-4) var(--sf-space-3);
+  text-align:center; font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
+  cursor:pointer; min-width:56px; line-height:1.35; position:relative;
+  transition:filter var(--sf-dur) var(--sf-ease), background var(--sf-dur) var(--sf-ease); }
+.mfx-cell:hover{ filter:brightness(1.3); }
+.mfx-cell__ic{ display:block; line-height:0; margin-bottom:2px; }
+.mfx-cell--ok{ background:var(--sf-gain-wash); color:var(--sf-gain); }
+.mfx-cell--part{ background:var(--sf-alert-wash); color:var(--sf-alert); }
+.mfx-cell--ko{ background:var(--sf-loss-wash); color:var(--sf-loss); }
+.mfx-cell--avenir{ background:transparent; border:1px dashed var(--sf-border-strong);
+  color:var(--sf-text-3); }
+.mfx-cell--none{ background:var(--sf-surface-2); color:var(--sf-text-3); cursor:default; }
+.mfx-cell--charge{ background:var(--sf-surface-2); color:var(--sf-text-3); padding:0; }
+.mfx-cell--charge.pleine{ background:var(--sf-alert-wash); color:var(--sf-alert);
+  padding:var(--sf-space-4) var(--sf-space-3); }
+.mfx-cell--charge:hover{ background:var(--sf-surface-3); }
+/* ⚠️ LE « + » ÉTAIT À `opacity:0`, révélé au seul survol de la ligne. C'est
+   L'ACTION PRINCIPALE de l'onglet : c'est par là qu'on enregistre une charge
+   sur le mois où elle est tombée. La cacher refaisait en miniature l'erreur de
+   l'itération 1 — un poste de travail devenu écran de lecture.
+   Il est un vrai <button> : le <td> nu n'était atteignable ni au clavier ni au
+   doigt (0 élément focusable, mesuré). */
+.mfx-cell--charge .plus{ display:block; width:100%; border:0; background:transparent;
+  color:var(--sf-text-3); font-family:inherit; font-size:var(--sf-font-caption);
+  line-height:1; padding:var(--sf-space-4) var(--sf-space-3); cursor:pointer;
+  border-radius:var(--sf-radius-xs); transition:color var(--sf-dur) var(--sf-ease); }
+.mfx-cell--charge:hover .plus{ color:var(--sf-text); }
+.mfx-cell--charge .plus:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus);
+  outline-offset:-2px; color:var(--sf-text); }
+.mfx-cell__more{ position:absolute; top:1px; right:3px; font-size:10px; line-height:1;
+  color:currentColor; opacity:0; transition:opacity var(--sf-dur) var(--sf-ease); }
+.mfx-cell:hover .mfx-cell__more{ opacity:1; }
+
+/* ═══ BANDEAU DE FILTRE PAR BIEN ═════════════════════════════════════════════ */
+.mfx-filtre{ display:flex; align-items:center; gap:var(--sf-space-5); flex-wrap:wrap;
+  background:var(--sf-brand-wash); border-left:3px solid var(--sf-brand-vivid);
+  border-radius:var(--sf-radius-sm); padding:var(--sf-space-5) var(--sf-space-6);
+  margin-bottom:var(--sf-space-5); font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
+.mfx-filtre b{ color:var(--sf-text); }
+.mfx-filtre .actions{ margin-left:auto; display:flex; gap:var(--sf-space-4); }
+
+/* ═══ CHARGES DÉTAILLÉES ═════════════════════════════════════════════════════ */
+.mfx-charge{ display:grid; grid-template-columns:96px minmax(0,1fr) auto auto auto;
+  gap:var(--sf-space-5); align-items:center; padding:var(--sf-space-5) 0;
+  border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.mfx-charge:last-child{ border-bottom:0; }
+.mfx-charge__d{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
+  color:var(--sf-text-3); }
+.mfx-charge__c{ font-size:var(--sf-font-body-sm); color:var(--sf-text); }
+.mfx-charge__l{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
+/* Le numéro de ligne Cerfa 2044 — c'est le fil entre cet écran de saisie et la
+   « Déclaration fiscale », qui est bâtie sur ces numéros. */
+.mfx-charge__cerfa{ font-family:var(--sf-font-num); font-size:10px;
+  color:var(--sf-text-2); background:var(--sf-surface-2);
+  padding:1px 6px; border-radius:var(--sf-radius-full); margin-left:var(--sf-space-3);
+  white-space:nowrap; }
+.mfx-charge__tag{ font-size:10px; font-weight:var(--sf-weight-semibold);
+  text-transform:uppercase; letter-spacing:var(--sf-track-caps);
+  padding:2px var(--sf-space-4); border-radius:var(--sf-radius-full);
+  background:var(--sf-surface-3); color:var(--sf-text-2); white-space:nowrap; }
+.mfx-charge__v{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
+  text-align:right; min-width:88px; white-space:nowrap; }
+.mfx-charge__a{ display:flex; gap:var(--sf-space-3); opacity:0;
+  transition:opacity var(--sf-dur) var(--sf-ease); }
+.mfx-charge:hover .mfx-charge__a{ opacity:1; }
+.mfx-charge:focus-within .mfx-charge__a{ opacity:1; }
+/* ⚠️ À 375 px, cinq colonnes dont une figée à 96 px et une à 88 px de minimum
+   débordaient la carte de 64 px — et `.sff-block` est en `overflow:hidden`, donc
+   Modifier et Supprimer étaient ROGNÉS ET INATTEIGNABLES. Second défaut sur le
+   même élément : ils ne se révélaient qu'au `:hover`, qui n'existe pas au doigt. */
+@media (max-width:720px){
+  .mfx-charge{ grid-template-columns:minmax(0,1fr) auto; row-gap:var(--sf-space-4);
+    align-items:center; }
+  .mfx-charge__d{ grid-column:1; grid-row:1; }
+  .mfx-charge__tag{ grid-column:2; grid-row:1; justify-self:end; }
+  /* ⚠️ Ce sélecteur visait `> div` alors que le conteneur est un <span> : il ne
+     ciblait RIEN et la mise en page ne tenait que par le placement automatique
+     de la grille. Elle marchait par accident, pas par règle. */
+  .mfx-charge__x{ grid-column:1; grid-row:2; }
+  .mfx-charge__v{ grid-column:2; grid-row:2; text-align:right; }
+  .mfx-charge__a{ grid-column:1 / -1; grid-row:3; opacity:1; }
+}
+.mfx-ic-btn{ width:28px; height:28px; display:inline-flex; align-items:center;
+  justify-content:center; background:transparent;
+  border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); color:var(--sf-text-3); cursor:pointer;
+  transition:background var(--sf-dur) var(--sf-ease), color var(--sf-dur) var(--sf-ease); }
+.mfx-ic-btn:hover{ background:var(--sf-surface-3); color:var(--sf-text); }
+.mfx-ic-btn--danger:hover{ background:var(--sf-loss-wash); color:var(--sf-loss); }
+
+/* ═══ FENÊTRE D'ENCAISSEMENT ═════════════════════════════════════════════════ */
+.mfx-popup{ max-width:420px; border:var(--sf-border-width) solid var(--sf-border-strong);
+  border-radius:var(--sf-radius-lg); background:var(--sf-surface-2); overflow:hidden;
+  box-shadow:var(--sf-elev-3); }
+.mfx-popup__h{ display:flex; align-items:center; padding:var(--sf-space-5) var(--sf-space-6);
+  border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.mfx-popup__t{ font-family:var(--sf-font-display); font-size:var(--sf-font-lead);
+  font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
+.mfx-popup__b{ padding:var(--sf-space-6); }
+.mfx-opt{ display:flex; align-items:center; gap:var(--sf-space-5);
+  padding:var(--sf-space-5); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); margin-bottom:var(--sf-space-3); cursor:pointer;
+  font-size:var(--sf-font-body-sm); color:var(--sf-text-2);
+  width:100%; text-align:left; background:transparent; font-family:inherit; }
+.mfx-opt:hover{ background:var(--sf-surface-3); }
+.mfx-opt[aria-checked="true"]{ border-color:var(--sf-brand-vivid);
+  background:var(--sf-brand-wash); color:var(--sf-text); }
+.mfx-opt__r{ width:15px; height:15px; border-radius:50%; flex-shrink:0;
+  border:2px solid var(--sf-border-strong); }
+.mfx-opt[aria-checked="true"] .mfx-opt__r{ border-color:var(--sf-brand-vivid);
+  background:radial-gradient(var(--sf-brand-vivid) 0 4px, transparent 4px); }
+.mfx-champ{ margin-top:var(--sf-space-5); }
+.mfx-champ label{ display:block; font-size:var(--sf-font-label); text-transform:uppercase;
+  letter-spacing:var(--sf-track-caps); color:var(--sf-text-3);
+  font-weight:var(--sf-weight-semibold); margin-bottom:var(--sf-space-3); }
+.mfx-champ input{ width:100%; height:var(--sf-control-h); padding:0 var(--sf-space-5);
+  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); color:var(--sf-text); font-family:var(--sf-font-num);
+  font-size:var(--sf-font-body); }
+.mfx-prorata{ display:flex; gap:var(--sf-space-4); align-items:flex-start;
+  font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-bottom:var(--sf-space-5);
+  line-height:var(--sf-lh-normal); }
+.mfx-prorata b{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
+.mfx-popup__x{ margin-left:auto; width:26px; height:26px; display:inline-flex;
+  align-items:center; justify-content:center; background:transparent; border:0;
+  border-radius:var(--sf-radius-sm); color:var(--sf-text-3); cursor:pointer; }
+.mfx-popup__x:hover{ background:var(--sf-surface-3); color:var(--sf-text); }
+.mfx-popup__a{ display:flex; justify-content:flex-end; gap:var(--sf-space-4);
+  margin-top:var(--sf-space-6); }
+/* ⚠️ `mfPopupStatutChange` bascule la classe `.selected`, pas `aria-checked` :
+   les deux doivent donc peindre pareil. La maquette n'employait que l'attribut
+   parce qu'elle n'avait pas de gestionnaire — reprendre son CSS seul aurait
+   donne une fenetre ou l'option choisie ne se voit pas. */
+.mfx-opt.selected{ border-color:var(--sf-brand-vivid);
+  background:var(--sf-brand-wash); color:var(--sf-text); }
+.mfx-opt.selected .mfx-opt__r{ border-color:var(--sf-brand-vivid);
+  background:radial-gradient(var(--sf-brand-vivid) 0 4px, transparent 4px); }
+/* Le radio natif porte la valeur — il reste dans le DOM, hors du regard. */
+.mfx-opt input[type="radio"]{ position:absolute; opacity:0; pointer-events:none;
+  width:0; height:0; }
+.mfx-opt:focus-within{ outline:var(--sf-focus-width) solid var(--sf-focus);
+  outline-offset:2px; }
+.mfx-champ textarea{ width:100%; padding:var(--sf-space-4) var(--sf-space-5);
+  background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); color:var(--sf-text);
+  font-family:var(--sf-font-ui); font-size:var(--sf-font-body-sm); resize:vertical; }
+/* La fenetre est POSEE EN LIGNE pres du clic par le gestionnaire : le style ne
+   fait que la sortir du flux et la placer au-dessus du reste. */
+#mfs-popup.mfx-popup{ position:fixed; z-index:calc(var(--sf-z-modal) + 10);
+  width:min(420px, calc(100vw - 20px)); opacity:0; transform:translateY(-6px);
+  transition:opacity var(--sf-dur) var(--sf-ease), transform var(--sf-dur) var(--sf-ease); }
+#mfs-popup.mfx-popup.open{ opacity:1; transform:none; }
+#mfs-popup-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.45);
+  z-index:var(--sf-z-modal); opacity:0; transition:opacity var(--sf-dur) var(--sf-ease); }
+#mfs-popup-backdrop.open{ opacity:1; }
+
+/* ═══ LOCATAIRES ═════════════════════════════════════════════════════════════ */
+.mfx-loccards{ display:grid; grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));
+  gap:var(--sf-space-5); }
+.mfx-loccard{ background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-md); padding:var(--sf-space-6); cursor:pointer;
+  position:relative; transition:border-color var(--sf-dur) var(--sf-ease); }
+.mfx-loccard:hover{ border-color:var(--sf-border-strong); }
+.mfx-loccard__st{ position:absolute; top:var(--sf-space-5); right:var(--sf-space-5); }
+.mfx-loccard__h{ display:flex; align-items:center; gap:var(--sf-space-5);
+  margin-bottom:var(--sf-space-6); }
+.mfx-loccard__av{ width:42px; height:42px; border-radius:50%; background:var(--sf-brand-2);
+  color:var(--sf-text); display:flex; align-items:center; justify-content:center;
+  font-size:14px; font-weight:var(--sf-weight-bold); flex-shrink:0; }
+.mfx-loccard__n{ font-size:var(--sf-font-lead); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text); }
+.mfx-loccard__c{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
+.mfx-li{ display:flex; align-items:center; gap:var(--sf-space-4);
+  font-size:var(--sf-font-body-sm); color:var(--sf-text-2); padding:var(--sf-space-3) 0; }
+.mfx-li svg{ flex-shrink:0; color:var(--sf-text-3); }
+.mfx-li em{ font-style:normal; color:var(--sf-text-3); }
+.mfx-ech{ display:grid; grid-template-columns:auto minmax(0,1fr) auto;
+  gap:var(--sf-space-5); align-items:center; padding:var(--sf-space-5) 0;
+  border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.mfx-ech:last-child{ border-bottom:0; }
+.mfx-ech__d{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
+  color:var(--sf-text-3); min-width:96px; white-space:nowrap; }
+.mfx-ech__l{ font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
+.mfx-ech__v{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
+  text-align:right; white-space:nowrap; }
+.mfx-relance{ display:flex; align-items:center; gap:var(--sf-space-5); flex-wrap:wrap;
+  background:var(--sf-loss-wash); border-left:3px solid var(--sf-loss);
+  border-radius:var(--sf-radius-sm); padding:var(--sf-space-5) var(--sf-space-6);
+  margin-bottom:var(--sf-space-6); }
+.mfx-relance__t{ font-size:var(--sf-font-body-sm); color:var(--sf-text); }
+.mfx-relance__s{ font-size:var(--sf-font-caption); color:var(--sf-text-2); margin-top:2px; }
+
+/* ═══ PERFORMANCE — verdict et loyers non soldés ═════════════════════════════ */
+.mfx-verdict{ display:flex; gap:var(--sf-space-5); align-items:flex-start;
+  background:var(--sf-surface-2); border-left:3px solid var(--sf-loss);
+  border-radius:var(--sf-radius-sm); padding:var(--sf-space-6);
+  font-size:var(--sf-font-body-sm); color:var(--sf-text-2); line-height:var(--sf-lh-normal);
+  margin-top:var(--sf-space-6); }
+.mfx-verdict svg{ flex-shrink:0; margin-top:1px; color:var(--sf-loss); }
+.mfx-verdict b{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
+/* Un bilan périmé n'est pas une perte, c'est une chose à faire. */
+.mfx-verdict--alerte{ border-left-color:var(--sf-alert); }
+.mfx-verdict--alerte svg{ color:var(--sf-alert); }
+.mfx-imp{ display:grid; grid-template-columns:104px minmax(0,1fr) auto auto;
+  gap:var(--sf-space-5); align-items:center; padding:var(--sf-space-5) var(--sf-space-4);
+  margin:0 calc(-1 * var(--sf-space-4)); border-radius:var(--sf-radius-sm);
+  border-bottom:var(--sf-border-width) solid var(--sf-border); cursor:pointer;
+  transition:background var(--sf-dur) var(--sf-ease); text-align:left;
+  width:calc(100% + 2 * var(--sf-space-4)); background:transparent; border-left:0;
+  border-right:0; border-top:0; font-family:inherit; }
+.mfx-imp:last-of-type{ border-bottom:0; }
+.mfx-imp:hover{ background:var(--sf-surface-2); }
+.mfx-imp__m{ font-size:var(--sf-font-body-sm); color:var(--sf-text); }
+.mfx-imp__l{ font-size:var(--sf-font-caption); color:var(--sf-text-3); }
+.mfx-imp__v{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
+  text-align:right; white-space:nowrap; }
+@media (max-width:720px){
+  .mfx-imp{ grid-template-columns:minmax(0,1fr) auto; row-gap:var(--sf-space-3); }
+  .mfx-imp__m{ grid-column:1; grid-row:1; }
+  .mfx-imp__v{ grid-column:2; grid-row:1; }
+}
+
+/* ═══ DÉCLARATION FISCALE ════════════════════════════════════════════════════
+   ⚠️ SON PÉRIMÈTRE N'EST PAS CELUI DU MODULE, et il ne le sera jamais : une
+   déclaration porte sur un DÉCLARANT (une SCI, ou la personne physique), le
+   module sur le portefeuille entier. Deux périmètres sur le même écran ne se
+   distinguent que si l'un des deux le DIT — sans quoi on reproduit le défaut
+   « computeCF vs cfDisplayData ». Il est nommé POSITIVEMENT, par la liste
+   « Biens déclarés ». `.mfx-scope` ne sert qu'à la reprise de l'existant : un
+   bien acquis avant la règle de détention, dont le mode reste à renseigner. */
+.mfx-bilan__meta{ display:flex; align-items:center; gap:var(--sf-space-4);
+  flex-wrap:wrap; margin-bottom:var(--sf-space-6); }
+.mfx-badge{ display:inline-flex; align-items:center; height:21px; padding:0 8px;
+  border-radius:var(--sf-radius-full); background:var(--sf-surface-2);
+  color:var(--sf-text-2); font-size:var(--sf-font-caption);
+  font-weight:var(--sf-weight-semibold); white-space:nowrap; }
+.mfx-scope{ display:flex; align-items:center; gap:var(--sf-space-5); flex-wrap:wrap;
+  background:var(--sf-surface-2); border-radius:var(--sf-radius-sm);
+  padding:var(--sf-space-5) var(--sf-space-6); margin-bottom:var(--sf-space-6);
+  font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
+.mfx-scope svg{ flex-shrink:0; color:var(--sf-text-3); }
+.mfx-scope b{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
+.mfx-scope__a{ margin-left:auto; }
+.mfx-bilan{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:var(--sf-space-7) var(--sf-space-8); align-items:start; }
+@media (max-width:900px){ .mfx-bilan{ grid-template-columns:minmax(0,1fr); } }
+.mfx-acts{ display:flex; gap:var(--sf-space-4); flex-wrap:wrap;
+  margin-top:var(--sf-space-7); }
