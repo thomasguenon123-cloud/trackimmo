@@ -5715,8 +5715,19 @@ function mfDaysOccupiedInMonth(mois, annee, dateEntree, dateSortie) {
   const effectiveStart = entry && entry > firstDay ? entry : firstDay;
   const effectiveEnd   = exit && exit < lastDay ? exit : lastDay;
 
-  const diffMs = effectiveEnd - effectiveStart;
-  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+  /* ⚠️ BUG DE PRODUCTION, trouvé en revue le 13/08/2026 — antérieur au Suivi
+     financier, il touchait tous les utilisateurs, tous les ans.
+     Le calcul se faisait en MILLISECONDES : `Math.floor(diff / 86400000)`.
+     Or le dernier dimanche de mars ne dure que 23 heures (passage à l'heure
+     d'été). Du 1er au 31 mars il y a donc 30 jours MOINS UNE HEURE ; le
+     plancher rendait 29, soit 30 jours au lieu de 31.
+     Conséquence mesurée : un loyer de 830 € était généré à **803 €** chaque
+     mois de mars — un prorata appliqué à un mois entier — et cette valeur
+     partait EN BASE via `mfCreateLoyerLine` et `mfGenerateMissingLoyers`.
+     On compare désormais des dates CALENDAIRES via `Date.UTC`, qui ignore les
+     décalages horaires par construction. */
+  const jourCalendaire = d => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  const days = Math.round((jourCalendaire(effectiveEnd) - jourCalendaire(effectiveStart)) / 86400000) + 1;
   return Math.max(0, Math.min(days, daysInMonth));
 }
 
@@ -5807,7 +5818,7 @@ function mfConsolide(annee) {
     encaisse += r.loyer_encaisse; du += r.loyer_du;
     charges += r.charges_payees; mensualites += r.mensualites_credit;
     prev += computeCF(b) * nb;
-    if (allLocataires.some(l => l.bien_id === b.id && l.statut === 'Actif')) loues++;
+    if (mfLoueSurExercice(b, annee)) loues++;
     else { vacants++; mensuVacants += r.mensualites_credit; }
   }
   const cashflow = encaisse - charges - mensualites;
@@ -5823,22 +5834,53 @@ function mfConsolide(annee) {
 // Loyers échus et non soldés. ⚠️ L'état vient de `sfLoyerEtat()`, source unique :
 // un impayé se déduit de l'ÉCHÉANCE, jamais du libellé du statut — en base, seuls
 // « Payé » et « En attente » sont écrits par la saisie courante.
+/* ⚠️ ON PART DES ÉCHÉANCES DUES, PAS DES LIGNES EXISTANTES.
+   Défaut trouvé en revue : la version précédente itérait `allLoyers`. Un loyer
+   DÛ dont la ligne n'a jamais été générée n'existe alors nulle part — et il
+   était pourtant peint EN ROUGE dans la grille, qui, elle, part du bail.
+   Reproduit : en supprimant la ligne de mars, la grille affichait cinq mois
+   échus et les compteurs en annonçaient quatre. Deux endroits du même écran
+   qui ne disaient pas la même chose.
+   On énumère donc les mois depuis le BAIL, comme la grille. `sfLoyerEtat` rend
+   'none' quand la ligne manque et que l'échéance est passée : avec un locataire
+   en face, c'est un impayé, pas une absence. */
 function mfLoyersNonSoldes(annee, bienId) {
   const out = [];
-  for (const l of allLoyers) {
-    if (l.annee !== annee) continue;
-    if (bienId && l.bien_id !== bienId) continue;
-    const bien = allBiens.find(b => b.id === l.bien_id);
-    if (!bien || !mfDansLePerimetre(bien, annee)) continue;
-    const loc = allLocataires.find(x => x.id === l.locataire_id)
-             || allLocataires.find(x => x.bien_id === l.bien_id && x.statut === 'Actif');
-    const etat = sfLoyerEtat(l, l.mois, annee, loc);
-    if (etat !== 'ko' && etat !== 'part') continue;
-    const du = parseFloat(l.loyer_du) || 0;
-    const enc = parseFloat(l.montant_encaisse) || 0;
-    out.push({ ligne: l, bien, locataire: loc, mois: l.mois, reste: du - enc, etat });
+  for (const bien of allBiens) {
+    if (bien.statut !== 'Acheté') continue;
+    if (bienId && bien.id !== bienId) continue;
+    if (!mfDansLePerimetre(bien, annee)) continue;
+    for (let m = 1; m <= 12; m++) {
+      const l   = mfFindLoyer(bien.id, m, annee);
+      const loc = mfLocataireForBienMonth(bien.id, m, annee)
+               || (l ? allLocataires.find(x => x.id === l.locataire_id) : null);
+      if (!l && !loc) continue;                       // rien n'était dû ce mois-là
+      const etat = sfLoyerEtat(l, m, annee, loc);
+      const manquante = etat === 'none' && !!loc;     // échéance due, ligne jamais créée
+      if (etat !== 'ko' && etat !== 'part' && !manquante) continue;
+      const du = l ? (parseFloat(l.loyer_du) || 0)
+                   : mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, m, annee,
+                                    loc.date_entree, loc.date_sortie).montant;
+      const enc = l ? (parseFloat(l.montant_encaisse) || 0) : 0;
+      if (du <= enc) continue;
+      out.push({ ligne: l || null, bien, locataire: loc, mois: m,
+                 reste: du - enc, etat: manquante ? 'ko' : etat, sansLigne: !l });
+    }
   }
-  return out.sort((a, b) => a.mois - b.mois);
+  return out.sort((a, b) => (a.mois - b.mois) || String(a.bien.id).localeCompare(String(b.bien.id)));
+}
+
+/* Un bien est-il LOUÉ SUR CET EXERCICE ? ⚠️ Défaut trouvé en revue : l'ancien
+   calcul lisait `statut === 'Actif'`, c'est-à-dire l'état ACTUEL du locataire.
+   Sur un exercice passé dont le locataire est depuis parti, un bien loué toute
+   l'année comptait donc comme vacant — occupation 0 %, et le bandeau annonçait
+   « trois de vos trois biens sont vacants » pour une année où deux étaient
+   loués. `mfLocataireForBienMonth` fait déjà le bon calcul, par chevauchement
+   des dates de bail. */
+function mfLoueSurExercice(bien, annee) {
+  const nb = mfMoisEcoules(annee) || 12;
+  for (let m = 1; m <= nb; m++) if (mfLocataireForBienMonth(bien.id, m, annee)) return true;
+  return false;
 }
 
 async function renderModuleFinancier(el) {
@@ -6041,7 +6083,7 @@ function renderMfPerformance(c) {
   const nonSoldes = mfLoyersNonSoldes(annee, mfPerfBienId);
   const resteDu = nonSoldes.reduce((s, x) => s + x.reste, 0);
   const totalDu = perim.reduce((s, b) => s + mfReelExercice(b, annee).loyer_du, 0);
-  const vacants = perim.filter(b => !allLocataires.some(l => l.bien_id === b.id && l.statut === 'Actif'));
+  const vacants = perim.filter(b => !mfLoueSurExercice(b, annee));
   const mensuVacants = vacants.reduce((s, b) => s + (parseFloat(b.mensualite_credit) || 0) * nb, 0);
 
   c.innerHTML = `
@@ -6217,10 +6259,15 @@ function mfSetDeclarant(v) {
 function mfSectionDeclaration(annee) {
   const decls = mfDeclarants();
   const acquis = allBiens.filter(b => b.statut === 'Acheté');
-  // Reprise de l'existant : un bien acquis avant la règle de détention, dont le
-  // mode reste à renseigner. La règle rend le cas impossible pour tout nouveau
-  // bien ; cette ligne ne concerne donc que l'ancien.
-  const sansMode = acquis.filter(b => !b.mode_detention);
+  /* ⚠️ ON LISTE LES BIENS SANS DÉCLARANT, PAS SEULEMENT CEUX SANS MODE.
+     Défaut trouvé en revue : un bien marqué `mode_detention = 'sci'` dont la
+     SCI a disparu — supprimée, ou simplement pas chargée — n'appartenait à
+     AUCUN déclarant et n'était pas non plus signalé, puisqu'il avait un mode.
+     Reproduit : avec `allSCI` vide, deux biens acquis devenaient totalement
+     invisibles de la déclaration, loyers et charges compris, sans un mot.
+     C'est le « périmètre silencieux » que toute cette section combat. */
+  const declares = new Set(decls.flatMap(d => d.biens.map(b => b.id)));
+  const sansMode = acquis.filter(b => !declares.has(b.id));
 
   if (!decls.length) {
     return `
@@ -6280,8 +6327,13 @@ function mfSectionDeclaration(annee) {
         ${sansMode.length ? `
         <div class="mfx-scope">
           ${sfAccIcon('info', 16)}
-          <span><b>${esc(sansMode[0].titre || 'Un bien')}${sansMode.length > 1 ? ` et ${sfNombreEnLettres(sansMode.length - 1)} autre${sansMode.length > 2 ? 's' : ''}` : ''} n'${sansMode.length > 1 ? 'ont' : 'a'} pas encore de mode de détention.</b>
-          Ni les loyers ni les charges n'entrent dans une déclaration tant qu'il n'est pas renseigné.</span>
+          ${/* Le motif diffère : sans mode renseigné, ou rattaché à une SCI
+                introuvable. Nommer le bon, sinon l'action proposée ne
+                correspond pas à ce qu'on lit. */''}
+          <span><b>${esc(sansMode[0].titre || 'Un bien')}${sansMode.length > 1 ? ` et ${sfNombreEnLettres(sansMode.length - 1)} autre${sansMode.length > 2 ? 's' : ''}` : ''} ${sansMode.length > 1 ? 'ne sont rattachés' : "n'est rattaché"} à aucun déclarant.</b>
+          ${sansMode.every(b => !b.mode_detention)
+            ? `Le mode de détention ${sansMode.length > 1 ? 'reste' : 'reste'} à renseigner : ni les loyers ni les charges n'entrent dans une déclaration sans lui.`
+            : `Leur SCI est introuvable — supprimée, ou pas encore chargée. Ni les loyers ni les charges n'entrent dans une déclaration en l'état.`}</span>
           <span class="mfx-scope__a">
             <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdOpenMiseEnGestion('${sansMode[0].id}')">Renseigner</button>
           </span>
@@ -6317,7 +6369,7 @@ function mfSectionDeclaration(annee) {
             <div class="sff-lines">
               ${d.biens.map(b => {
                 const r = mfReelExercice(b, annee);
-                const loue = allLocataires.some(l => l.bien_id === b.id && l.statut === 'Actif');
+                const loue = mfLoueSurExercice(b, annee);
                 return `<div class="sff-line">
                   <span class="sff-line__l">${esc(b.titre || 'Bien')}${loue ? '' : ' <small>· aucun bail en cours</small>'}</span>
                   <span class="sff-line__v">${sfEur(r.loyer_encaisse)}</span>
@@ -6733,16 +6785,26 @@ function renderMfSuivi(c) {
   }
   const cashflow = encaisse - chargesPayees - mensualites;
 
-  let echusReste = 0, echusNb = 0, avenirDu = 0, avenirNb = 0;
+  /* ⚠️ « Reste à encaisser » passe par `mfLoyersNonSoldes()`, la MÊME source
+     que le badge de l'onglet et que « Loyers non soldés » dans Performance.
+     Ce bloc refaisait le calcul à côté et n'y comptait que les lignes
+     EXISTANTES : un loyer dû sans ligne générée apparaissait en rouge dans la
+     grille au-dessus sans être compté juste en dessous. Une règle écrite deux
+     fois finit par diverger — ici elle avait déjà divergé. */
+  const nonSoldes = mfLoyersNonSoldes(annee, bienFiltre ? bienFiltre.id : null);
+  const echusReste = nonSoldes.reduce((s, x) => s + x.reste, 0);
+  const echusNb = nonSoldes.length;
+  let avenirDu = 0, avenirNb = 0;
   for (const b of liste) {
     for (let m = 1; m <= 12; m++) {
       const l = mfFindLoyer(b.id, m, annee);
       const loc = mfLocataireForBienMonth(b.id, m, annee);
-      const etat = sfLoyerEtat(l, m, annee, loc);
-      const du = l ? (parseFloat(l.loyer_du) || 0) : 0;
-      const enc = l ? (parseFloat(l.montant_encaisse) || 0) : 0;
-      if (etat === 'ko' || etat === 'part') { echusReste += du - enc; echusNb++; }
-      else if (etat === 'avenir' && du > 0)  { avenirDu += du; avenirNb++; }
+      if (!l && !loc) continue;
+      if (sfLoyerEtat(l, m, annee, loc) !== 'avenir') continue;
+      const du = l ? (parseFloat(l.loyer_du) || 0)
+                   : mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, m, annee,
+                                    loc.date_entree, loc.date_sortie).montant;
+      if (du > 0) { avenirDu += du; avenirNb++; }
     }
   }
 
@@ -8284,8 +8346,10 @@ function mfRendementNet(biens, annee) {
    35 600 € de crédit sur les biens vides. La vacance cesse d'être invisible. */
 function mfDansLePerimetre(bien, annee) {
   if (bien.statut !== 'Acheté') return false;
-  const loue = allLocataires.some(l => l.bien_id === bien.id && l.statut === 'Actif');
-  if (!loue) return true;
+  // ⚠️ « Loué » s'entend SUR L'EXERCICE, pas aujourd'hui : sur une année passée
+  // dont le locataire est depuis parti, lire son statut actuel faisait passer
+  // le bien pour vacant.
+  if (!mfLoueSurExercice(bien, annee)) return true;
   return allLoyers.some(l => l.bien_id === bien.id && l.annee === annee);
 }
 
@@ -8717,17 +8781,34 @@ async function autoGenerateLoyers(loc) {
   else if(dEntree.getFullYear() < annee) moisDebut = 1;
   else return 0; // entrée future année prochaine, on ne génère pas encore
 
+  /* ⚠️ DIVERGENCE TROUVÉE EN REVUE — deux générateurs, deux règles.
+     Ce chemin écrivait `loyer_du = loc.loyer_bail_hc` SANS PRORATA, alors que
+     `mfGenerateMissingLoyers` et `mfCreateLoyerLine` appliquent le prorata de
+     la loi 1989. Même libellé de bouton (« Générer les loyers »), deux
+     résultats différents selon l'écran d'où l'on clique : le mois d'entrée
+     était facturé plein depuis la fiche bien, au prorata depuis le suivi
+     mensuel.
+     Visible dans les données de Thomas : juin 2025 y vaut 553 € (prorata de
+     20 jours sur 30) et non 830 € — les deux chemins ont donc bien été
+     utilisés, et ils ne s'accordaient pas.
+     → `mfLoyerProrata` devient la source unique. Un mois complet retourne le
+     loyer plein, la fonction ne change donc rien hors mois d'entrée et de
+     sortie. */
   const rows = [];
   for(let m = moisDebut; m <= 12; m++) {
+    const p = mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, m, annee,
+                             loc.date_entree, loc.date_sortie);
+    if(p.montant === 0) continue;   // mois hors période d'occupation
     rows.push({
       user_id:       currentUser.id,
       bien_id:       loc.bien_id,
       locataire_id:  loc.id,
       mois:          m,
       annee:         annee,
-      loyer_du:      loc.loyer_bail_hc || 0,
+      loyer_du:      p.montant,
       charges_dues:  loc.charges_bail || 0,
       statut:        'En attente',
+      notes:         p.prorata ? `Prorata loi 1989 : ${p.jours}/${p.joursMois} jours` : null,
     });
   }
   if(!rows.length) return 0;
