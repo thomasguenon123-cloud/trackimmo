@@ -5628,6 +5628,9 @@ let mfExercice = new Date().getFullYear();
 // Périmètre de l'onglet Performance : null = tous les biens, sinon un bien_id.
 // C'est lui qui préserve l'analyse par bien après la fusion des onglets.
 let mfPerfBienId = null;
+// Déclarant retenu dans la « Déclaration fiscale » : un `sci.id`, ou 'propre'.
+// null = le premier de la liste.
+let mfDeclarantId = null;
 
 // ─── Suivi mensuel (étape 4) ───
 let mfSuiviYear = new Date().getFullYear();
@@ -5740,6 +5743,19 @@ function mfExercicesDisponibles() {
   return [...s].sort((a, b) => b - a);
 }
 
+// Les bilans servent la « Déclaration fiscale ». `loadAdminData()` les charge
+// déjà, mais il est réservé aux administrateurs : le module a besoin des siens.
+// Non bloquant — une déclaration se calcule à la lecture, le bilan enregistré
+// ne sert qu'à savoir si l'exercice est figé.
+async function mfLoadBilans() {
+  if (!currentUser || allBilans.length) return;
+  try {
+    const { data, error } = await db.from('bilans_comptables')
+      .select('*,sci(nom_sci)').eq('user_id', currentUser.id);
+    if (!error) allBilans = data || [];
+  } catch (e) { /* la déclaration reste calculable sans */ }
+}
+
 // Le consolidé du bandeau. Passe par mfReelExercice pour chaque bien du
 // périmètre — jamais par une somme réécrite ailleurs.
 function mfConsolide(annee) {
@@ -5793,7 +5809,8 @@ async function renderModuleFinancier(el) {
 
   if(!allBiens.length && currentUser) await loadBiens();
   // allSCI alimente la « Déclaration fiscale » de l'onglet Performance
-  await Promise.all([loadLocataires(), loadMfFinancialData(), allSCI.length ? null : loadSCIList()]);
+  await Promise.all([loadLocataires(), loadMfFinancialData(),
+                     allSCI.length ? null : loadSCIList(), mfLoadBilans()]);
 
   mfRenderShell();
 }
@@ -6099,7 +6116,9 @@ function renderMfPerformance(c) {
           </div>
         </div>
       </div>
-    </div>`;
+    </div>
+
+    ${mfSectionDeclaration(annee)}`;
 }
 
 // Le périmètre redessine l'onglet seul : le bandeau reste consolidé, c'est son
@@ -6109,6 +6128,240 @@ function mfSetPerfBien(v) {
   mfPerfBienId = v || null;
   const c = document.getElementById('mf-content');
   if (c) renderMfPerformance(c);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DÉCLARATION FISCALE
+   « Bilan comptable » devient « Déclaration fiscale » : une personne physique
+   n'a pas de bilan, elle a une déclaration de revenus fonciers ; un vrai bilan
+   n'existe que pour une SCI à l'IS. Le titre couvre les deux déclarants.
+
+   ⚠️ SON PÉRIMÈTRE N'EST PAS CELUI DU MODULE, et il ne le sera jamais : une
+   déclaration porte sur un DÉCLARANT, le module sur le portefeuille entier.
+   Deux périmètres sur le même écran ne se distinguent que si l'un des deux le
+   DIT — d'où le sélecteur de déclarant et la liste « Biens déclarés », qui le
+   nomme POSITIVEMENT.
+
+   ⚠️ CALCULÉ À LA LECTURE. Le bilan stocké n'est que le cache d'une addition
+   sur des données déjà en mémoire : 19 loyers et 1 charge mesurés en base.
+   C'est le cache qui périmait, pas la donnée — un exercice en Brouillon est
+   donc recalculé à chaque affichage, et l'écriture ne subsiste qu'à la
+   VALIDATION, où figer a un sens légal : une déclaration déposée ne doit pas
+   bouger si l'on corrige un loyer ensuite.
+   ⚠️ En régime IS les dotations aux amortissements sont SAISIES, pas
+   dérivables : le calcul en direct couvre les produits et les charges, pas elles.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// Un déclarant par SCI qui porte au moins un bien, plus « en propre » si au
+// moins un bien y est détenu. Jamais une entrée vide : un déclarant sans bien
+// n'a rien à déclarer.
+function mfDeclarants() {
+  const acquis = allBiens.filter(b => b.statut === 'Acheté');
+  const out = allSCI
+    .map(s => ({ cle: s.id, nom: s.nom_sci, type: 'sci', sci: s,
+                 biens: acquis.filter(b => b.sci_id === s.id) }))
+    .filter(d => d.biens.length);
+  const propre = acquis.filter(b => b.mode_detention === 'propre');
+  if (propre.length) {
+    out.push({ cle: 'propre', nom: 'En propre — personne physique',
+               type: 'propre', sci: null, biens: propre });
+  }
+  return out;
+}
+
+function mfSetDeclarant(v) {
+  mfDeclarantId = v || null;
+  const c = document.getElementById('mf-content');
+  if (c) renderMfPerformance(c);
+}
+
+function mfSectionDeclaration(annee) {
+  const decls = mfDeclarants();
+  const acquis = allBiens.filter(b => b.statut === 'Acheté');
+  // Reprise de l'existant : un bien acquis avant la règle de détention, dont le
+  // mode reste à renseigner. La règle rend le cas impossible pour tout nouveau
+  // bien ; cette ligne ne concerne donc que l'ancien.
+  const sansMode = acquis.filter(b => !b.mode_detention);
+
+  if (!decls.length) {
+    return `
+    <div class="sff-block">
+      <div class="sff-block__h"><p class="sff-block__t">Déclaration fiscale</p></div>
+      <div class="sff-block__b"><div class="sff-empty">
+        <div class="sff-empty__ic">${sfAccIcon('balance', 34)}</div>
+        <div class="sff-empty__t">Aucun déclarant</div>
+        <div class="sff-empty__x">Chaque bien acquis se déclare — en votre nom propre ou
+          via une SCI. ${sansMode.length
+            ? `${sfNombreEnLettres(sansMode.length, true)} bien${sansMode.length > 1 ? 's' : ''} ${sansMode.length > 1 ? 'attendent' : 'attend'} encore ce choix.`
+            : 'Créez une SCI ou renseignez le mode de détention de vos biens.'}</div>
+        ${sansMode.length ? `<button class="sf-btn sf-btn--primary sf-btn--sm" onclick="bdOpenMiseEnGestion('${sansMode[0].id}')">Renseigner ${esc(sansMode[0].titre || 'ce bien')}</button>` : ''}
+      </div></div>
+    </div>`;
+  }
+
+  if (mfDeclarantId && !decls.some(d => d.cle === mfDeclarantId)) mfDeclarantId = null;
+  const d = decls.find(x => x.cle === mfDeclarantId) || decls[0];
+
+  // Le bilan enregistré n'existe que pour une SCI : `bilans_comptables.sci_id`
+  // est obligatoire. Une déclaration en propre est donc toujours calculée.
+  const bilan  = d.type === 'sci'
+    ? allBilans.find(b => b.sci_id === d.cle && b.exercice === annee) : null;
+  const regime = bilan?.regime || 'IR';
+  const statut = bilan?.statut || 'Brouillon';
+  const fige   = statut === 'Validé' || statut === 'Déposé';
+
+  const calc = mfBilanFeedCompute(d.biens, annee);
+  const resultatCalcule = calc.loyers - calc.chargesTotal;
+  const resultatFige    = bilan ? bilanResultatNet(bilan) : null;
+  const resultat = fige ? resultatFige : resultatCalcule;
+  const ecartFige = fige && Number.isFinite(resultatFige)
+    ? Math.round(resultatCalcule - resultatFige) : 0;
+
+  const lignes = Object.keys(calc.parLigne).sort();
+
+  return `
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Déclaration fiscale</p>
+        <span class="sff-block__n">exercice ${annee}</span>
+        ${decls.length > 1 ? `<span class="sff-block__a">
+          <select aria-label="Déclarant" onchange="mfSetDeclarant(this.value)">
+            ${decls.map(x => `<option value="${x.cle}" ${x.cle === d.cle ? 'selected' : ''}>${esc(x.nom)}</option>`).join('')}
+          </select>
+        </span>` : ''}
+      </div>
+      <div class="sff-block__b">
+        <div class="mfx-bilan__meta">
+          ${decls.length > 1 ? '' : `<span class="mfx-badge">${esc(d.nom)}</span>`}
+          <span class="mfx-badge">${d.type === 'propre' ? 'Revenus fonciers · déclaration 2044'
+            : `Régime ${esc(regime)} · ${regime === 'IR' ? 'déclaration 2044' : 'compte de résultat PCG'}`}</span>
+          <span class="mfx-badge">${esc(statut)}</span>
+        </div>
+
+        ${sansMode.length ? `
+        <div class="mfx-scope">
+          ${sfAccIcon('info', 16)}
+          <span><b>${esc(sansMode[0].titre || 'Un bien')}${sansMode.length > 1 ? ` et ${sfNombreEnLettres(sansMode.length - 1)} autre${sansMode.length > 2 ? 's' : ''}` : ''} n'${sansMode.length > 1 ? 'ont' : 'a'} pas encore de mode de détention.</b>
+          Ni les loyers ni les charges n'entrent dans une déclaration tant qu'il n'est pas renseigné.</span>
+          <span class="mfx-scope__a">
+            <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdOpenMiseEnGestion('${sansMode[0].id}')">Renseigner</button>
+          </span>
+        </div>` : ''}
+
+        <div class="mfx-bilan">
+          <div>
+            <p class="sff-sep">${regime === 'IR' || d.type === 'propre' ? 'Déclaration 2044' : 'Compte de résultat'}</p>
+            <div class="sff-lines">
+              <div class="sff-line">
+                <span class="sff-line__l">Loyers perçus</span>
+                <span class="sff-line__v">${sfEur(calc.loyers)}</span>
+              </div>
+              ${lignes.length ? lignes.map(l => `
+              <div class="sff-line">
+                <span class="sff-line__l">L.${l} — ${esc(CERFA_LIGNE_LABELS[l] || 'Autres charges')}</span>
+                <span class="sff-line__v">${sfEur(-calc.parLigne[l])}</span>
+              </div>`).join('') : `
+              <div class="sff-line">
+                <span class="sff-line__l">Charges déductibles</span>
+                <span class="sff-line__v">${sfEur(0)}</span>
+              </div>`}
+              <div class="sff-line sff-line--tot">
+                <span class="sff-line__l">Résultat foncier</span>
+                <span class="sff-line__v ${resultat >= 0 ? 'sf-gain' : 'sf-loss'}">${resultat >= 0 ? '+' : ''}${sfEur(resultat)}</span>
+              </div>
+            </div>
+            ${calc.recuperablesExclues > 0 ? `<p class="mfx-mini__lg" style="margin-top:var(--sf-space-5)"><i style="background:var(--sf-text-3)"></i>${sfEur(calc.recuperablesExclues)} de charges récupérables sur le locataire, exclues</p>` : ''}
+          </div>
+
+          <div>
+            <p class="sff-sep">Biens déclarés</p>
+            <div class="sff-lines">
+              ${d.biens.map(b => {
+                const r = mfReelExercice(b, annee);
+                const loue = allLocataires.some(l => l.bien_id === b.id && l.statut === 'Actif');
+                return `<div class="sff-line">
+                  <span class="sff-line__l">${esc(b.titre || 'Bien')}${loue ? '' : ' <small>· aucun bail en cours</small>'}</span>
+                  <span class="sff-line__v">${sfEur(r.loyer_encaisse)}</span>
+                </div>`;
+              }).join('')}
+            </div>
+            ${ecartFige ? `
+            <p class="mfx-verdict mfx-verdict--alerte">
+              ${sfAccIcon('alerte', 17)}
+              <span>L'exercice est <b>${esc(statut.toLowerCase())}</b> : les chiffres ci-dessus sont ceux déposés.
+              Les données actuelles donneraient <b>${ecartFige >= 0 ? '+' : ''}${sfEur(ecartFige)}</b> d'écart.</span>
+            </p>` : ''}
+            <div class="mfx-acts">
+              ${d.type === 'sci'
+                ? `<button class="sf-btn sf-btn--primary sf-btn--sm" onclick="mfOpenBilanFeedModal()">${fige ? "Rouvrir l'exercice" : "Valider l'exercice"}</button>`
+                : ''}
+              <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="mfExportDeclaration('${d.cle}',${annee},'detail')">Exporter le détail</button>
+              <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="mfExportDeclaration('${d.cle}',${annee},'synthese')">Exporter la synthèse</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* Export de la déclaration — CSV, via la chaîne déjà en place (`tiCsv`,
+   RFC 4180, séparateur `;`, BOM UTF-8) qu'Excel FR ouvre en reconnaissant les
+   nombres. ⚠️ Ne jamais passer par `fmt()` ici : son séparateur de milliers
+   U+202F empêche Excel de lire un nombre.
+   Le DÉTAIL donne une ligne par loyer encaissé et par charge, avec sa ligne
+   Cerfa — c'est le justificatif qu'un comptable demande. La SYNTHÈSE donne les
+   totaux par ligne. */
+function mfExportDeclaration(cle, annee, mode) {
+  const d = mfDeclarants().find(x => x.cle === cle);
+  if (!d) { showNotif('Déclarant introuvable', true); return; }
+  const ids = new Set(d.biens.map(b => b.id));
+  const nomBien = id => allBiens.find(b => b.id === id)?.titre || '';
+  // ⚠️ Décomposer les accents AVANT de filtrer : sans cela « Guénon » devenait
+  // « gu-non », le « é » étant simplement supprimé comme un caractère interdit.
+  const base = `declaration-${annee}-${d.type === 'propre' ? 'en-propre' : (d.nom || 'sci')}`
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  if (mode === 'detail') {
+    const entetes = ['Nature', 'Bien', 'Date', 'Mois', 'Catégorie', 'Ligne Cerfa',
+                     'Libellé Cerfa', 'Libellé', 'Montant (€)'];
+    const lignes = [];
+    for (const l of allLoyers) {
+      if (l.annee !== annee || !ids.has(l.bien_id)) continue;
+      if (l.statut !== 'Payé' && l.statut !== 'Partiel') continue;
+      lignes.push(['Loyer encaissé', nomBien(l.bien_id), tiDateFr(l.date_encaissement),
+        MOIS_LONGS[l.mois - 1] || l.mois, '', '', '', '',
+        parseFloat(l.montant_encaisse) || 0]);
+    }
+    for (const ch of allCharges) {
+      if (!ids.has(ch.bien_id)) continue;
+      if (new Date(ch.date_charge).getFullYear() !== annee) continue;
+      const cerfa = CERFA_MAPPING[ch.categorie] || CERFA_MAPPING['Autre'];
+      lignes.push([
+        ch.recuperable_locataire ? 'Charge récupérable (non déductible)' : 'Charge déductible',
+        nomBien(ch.bien_id), tiDateFr(ch.date_charge),
+        MOIS_LONGS[new Date(ch.date_charge).getMonth()] || '',
+        ch.categorie || '', 'L.' + cerfa.ligne, CERFA_LIGNE_LABELS[cerfa.ligne] || '',
+        ch.libelle || '', -(parseFloat(ch.montant) || 0)]);
+    }
+    if (!lignes.length) { showNotif(`Rien à exporter pour ${annee}`, true); return; }
+    const nom = tiTelechargerCsv(base + '-detail', tiCsv(entetes, lignes));
+    showNotif(`${lignes.length} ligne${lignes.length > 1 ? 's' : ''} exportée${lignes.length > 1 ? 's' : ''} · ${nom}`);
+    return;
+  }
+
+  const calc = mfBilanFeedCompute(d.biens, annee);
+  const entetes = ['Poste', 'Ligne Cerfa', 'Libellé Cerfa', 'Montant (€)'];
+  const lignes = [['Loyers perçus', '', '', calc.loyers]];
+  Object.keys(calc.parLigne).sort().forEach(l =>
+    lignes.push(['Charges déductibles', 'L.' + l, CERFA_LIGNE_LABELS[l] || 'Autres charges',
+      -(calc.parLigne[l])]));
+  if (calc.recuperablesExclues > 0) {
+    lignes.push(['Charges récupérables (exclues)', '', '', -(calc.recuperablesExclues)]);
+  }
+  lignes.push(['Résultat foncier', '', '', calc.loyers - calc.chargesTotal]);
+  const nom = tiTelechargerCsv(base + '-synthese', tiCsv(entetes, lignes));
+  showNotif(`Synthèse ${annee} exportée · ${nom}`);
 }
 
 // Ouvre le suivi mensuel sur un bien depuis un loyer non soldé — le pont R-19
