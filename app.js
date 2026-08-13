@@ -7981,94 +7981,143 @@ async function mfDeleteCharge(chargeId) {
     showNotif('Erreur : ' + e.message, true);
   }
 }
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOCATAIRES — annuaire, à réclamer, prochaines échéances
+   ⚠️ Les QUATRE indicateurs (Locataires · Actifs · Candidats · Loyer mensuel
+   actif) et les FILTRES PAR STATUT AVEC LEUR COMPTEUR sont des régressions
+   relevées au comparatif (R-16 et R-08) : ils sont préservés. Les indicateurs
+   ne reprennent pas la forme du bandeau — quatre grandes cartes de plus sous
+   quatre grandes cartes seraient illisibles ; ils tiennent dans l'en-tête de
+   l'annuaire, là où ils qualifient ce qu'on regarde.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 function renderMfLocataires(c) {
-  // Filtre par statut
-  const filtered = mfLocataireFilter === 'all'
-    ? allLocataires
-    : allLocataires.filter(l => l.statut === mfLocataireFilter);
-
-  // Compteurs par statut
-  const cnt = {all: allLocataires.length};
+  const annee = mfExercice;
+  const cnt = { all: allLocataires.length };
   LOC_STATUTS.forEach(s => cnt[s] = allLocataires.filter(l => l.statut === s).length);
+  if (mfLocataireFilter !== 'all' && !LOC_STATUTS.includes(mfLocataireFilter)) mfLocataireFilter = 'all';
+  const liste = mfLocataireFilter === 'all'
+    ? allLocataires : allLocataires.filter(l => l.statut === mfLocataireFilter);
 
-  // Loyer total mensuel des locataires actifs
-  const loyerActifTotal = allLocataires
-    .filter(l => l.statut === 'Actif')
-    .reduce((sum,l) => sum + (parseFloat(l.loyer_bail_hc)||0) + (parseFloat(l.charges_bail)||0), 0);
+  const loyerActif = allLocataires.filter(l => l.statut === 'Actif')
+    .reduce((s, l) => s + (parseFloat(l.loyer_bail_hc) || 0) + (parseFloat(l.charges_bail) || 0), 0);
+
+  // ── À réclamer : les loyers échus non soldés, regroupés par locataire ──
+  const impayes = mfLoyersNonSoldes(annee);
+  const parLoc = new Map();
+  for (const x of impayes) {
+    const cle = x.locataire?.id || 'sans';
+    const e = parLoc.get(cle) || { loc: x.locataire, bien: x.bien, mois: [], total: 0 };
+    e.mois.push(x.mois); e.total += x.reste;
+    parLoc.set(cle, e);
+  }
+  const aReclamer = [...parLoc.values()].sort((a, b) => b.total - a.total);
+
+  // ── Prochaines échéances : les loyers à venir des trois prochains mois ──
+  const auj = new Date(); auj.setHours(0, 0, 0, 0);
+  const horizon = new Date(auj.getFullYear(), auj.getMonth() + 3, auj.getDate());
+  const echeances = [];
+  for (const l of allLoyers) {
+    if (l.annee !== annee) continue;
+    const loc = allLocataires.find(x => x.id === l.locataire_id);
+    if (sfLoyerEtat(l, l.mois, annee, loc) !== 'avenir') continue;
+    const jour = Math.min(Math.max(parseInt(loc?.jour_paiement, 10) || 5, 1), 28);
+    const d = new Date(annee, l.mois - 1, jour);
+    if (d < auj || d > horizon) continue;
+    echeances.push({ d, loc, bien: allBiens.find(b => b.id === l.bien_id),
+                     montant: (parseFloat(l.loyer_du) || 0) + (parseFloat(l.charges_dues) || 0) });
+  }
+  echeances.sort((a, b) => a.d - b.d);
 
   c.innerHTML = `
-    <!-- KPIs récapitulatifs -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:18px;">
-      <div class="kpi-card" style="padding:14px"><div style="font-size:11px;color:var(--c-muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase">Locataires</div>
-        <div style="font-size:24px;font-weight:800;margin-top:4px">${cnt.all}</div></div>
-      <div class="kpi-card" style="padding:14px"><div style="font-size:11px;color:var(--c-muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase">Actifs</div>
-        <div style="font-size:24px;font-weight:800;margin-top:4px;color:var(--positive)">${cnt['Actif']}</div></div>
-      <div class="kpi-card" style="padding:14px"><div style="font-size:11px;color:var(--c-muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase">Candidats</div>
-        <div style="font-size:24px;font-weight:800;margin-top:4px;color:var(--sf-alert)">${cnt['Candidat']}</div></div>
-      <div class="kpi-card" style="padding:14px"><div style="font-size:11px;color:var(--c-muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase">Loyer mensuel actif</div>
-        <div style="font-size:24px;font-weight:800;margin-top:4px">${fmt(loyerActifTotal)} €</div></div>
-    </div>
-
-    <!-- Toolbar : filtres + bouton ajouter -->
-    <div class="mf-toolbar">
-      <div class="mf-filter-pills">
-        <button class="mf-filter-pill ${mfLocataireFilter==='all'?'active':''}" onclick="setMfLocFilter('all')">
-          Tous <span class="count">${cnt.all}</span>
-        </button>
-        ${LOC_STATUTS.map(s => `
-          <button class="mf-filter-pill ${mfLocataireFilter===s?'active':''}" onclick="setMfLocFilter('${s}')">
-            ${LOC_STATUT_ICONS[s]} ${s}s <span class="count">${cnt[s]||0}</span>
-          </button>`).join('')}
+    ${aReclamer.length ? `
+    <div class="mfx-relance">
+      ${sfAccIcon('alerte', 18)}
+      <div>
+        <div class="mfx-relance__t"><b>${sfNombreEnLettres(impayes.length, true)} loyer${impayes.length > 1 ? 's' : ''} échu${impayes.length > 1 ? 's' : ''} ${impayes.length > 1 ? 'restent' : 'reste'} à encaisser</b> — ${sfEur(aReclamer.reduce((s, x) => s + x.total, 0))}</div>
+        <div class="mfx-relance__s">${aReclamer.map(x => `${esc([x.loc?.prenom, x.loc?.nom].filter(Boolean).join(' ') || 'Locataire inconnu')} · ${x.mois.map(m => MOIS_LONGS[m - 1].toLowerCase()).join(', ')}`).join(' — ')}</div>
       </div>
-      <button class="mf-add-btn" onclick="openLocataireModal(null)">＋ Nouveau locataire</button>
+      <span style="margin-left:auto">
+        <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="switchMfTab('suivi')">Ouvrir le suivi mensuel</button>
+      </span>
+    </div>` : ''}
+
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Annuaire</p>
+        <span class="sff-block__n">${cnt.all} locataire${cnt.all > 1 ? 's' : ''} · ${cnt['Actif']} actif${cnt['Actif'] > 1 ? 's' : ''} · ${cnt['Candidat']} candidat${cnt['Candidat'] > 1 ? 's' : ''} · ${sfEur(loyerActif)} de loyer mensuel actif</span>
+        <span class="sff-block__a">
+          <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="openLocataireModal(null)">${sfAccIcon('plus', 15)} Nouveau locataire</button>
+        </span>
+      </div>
+      <div class="sff-block__b">
+        <div class="mfx-pills" style="margin-bottom:var(--sf-space-6)">
+          <button class="mfx-pill" aria-pressed="${mfLocataireFilter === 'all'}" onclick="setMfLocFilter('all')">Tous <span class="mfx-pill__n">${cnt.all}</span></button>
+          ${/* ⚠️ « Préavis » finit déjà par un s : un pluriel aveugle écrivait
+                « Préaviss ». Le libellé vient de LOC_STATUTS, jamais réécrit. */''}
+          ${LOC_STATUTS.map(s => `<button class="mfx-pill" aria-pressed="${mfLocataireFilter === s}" onclick="setMfLocFilter('${s}')">${esc(s)}${s.endsWith('s') ? '' : 's'} <span class="mfx-pill__n">${cnt[s] || 0}</span></button>`).join('')}
+        </div>
+        ${liste.length ? `<div class="mfx-loccards">${liste.map(mfCarteLocataire).join('')}</div>` : `
+        <div class="sff-empty">
+          <div class="sff-empty__ic">${sfAccIcon('gens', 34)}</div>
+          <div class="sff-empty__t">${allLocataires.length ? 'Aucun locataire avec ce filtre' : 'Aucun locataire'}</div>
+          <div class="sff-empty__x">${allLocataires.length
+            ? `Aucun de vos ${allLocataires.length} locataires n'est au statut « ${esc(mfLocataireFilter)} ».`
+            : "Un locataire porte le bail : loyer hors charges, date d'entrée et jour de paiement. C'est de lui que découlent les loyers du suivi mensuel."}</div>
+          <button class="sf-btn sf-btn--${allLocataires.length ? 'secondary' : 'primary'} sf-btn--sm" onclick="${allLocataires.length ? "setMfLocFilter('all')" : 'openLocataireModal(null)'}">${allLocataires.length ? 'Voir tous les locataires' : 'Créer un locataire'}</button>
+        </div>`}
+      </div>
     </div>
 
-    <!-- Liste -->
-    ${filtered.length === 0 ? `
-      <div class="mf-loc-empty">
-        <div class="mf-loc-empty-icon">${sfAccIcon('gens', 26)}</div>
-        <div style="font-size:16px;font-weight:700;color:var(--c-text);margin-bottom:6px">${
-          allLocataires.length === 0 ? 'Aucun locataire' : 'Aucun résultat pour ce filtre'}</div>
-        <div style="font-size:13px;color:var(--c-muted);margin-bottom:14px">${
-          allLocataires.length === 0
-            ? 'Créez votre premier locataire (candidat ou actif) pour commencer le suivi.'
-            : 'Modifiez le filtre ou créez un nouveau locataire.'}</div>
-        ${allLocataires.length === 0 ? '<button class="mf-add-btn" onclick="openLocataireModal(null)">＋ Créer un locataire</button>' : ''}
-      </div>` : `
-      <div class="mf-loc-grid">
-        ${filtered.map(l => renderLocataireCard(l)).join('')}
-      </div>`}`;
+    ${echeances.length ? `
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Prochaines échéances</p>
+        <span class="sff-block__n">trois mois à venir</span>
+      </div>
+      <div class="sff-block__b">
+        ${echeances.map(e => `
+          <div class="mfx-ech">
+            <span class="mfx-ech__d">${e.d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
+            <span class="mfx-ech__l">${esc([e.loc?.prenom, e.loc?.nom].filter(Boolean).join(' ') || 'Locataire')}${e.bien ? ` <em>· ${esc(e.bien.titre || 'Bien')}</em>` : ''}</span>
+            <span class="mfx-ech__v">${sfEur(e.montant)}</span>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}`;
 }
 
-function renderLocataireCard(l) {
-  const initials = ((l.prenom?.[0]||'') + (l.nom?.[0]||'') || l.nom?.substring(0,2) || '??').toUpperCase();
-  const fullName = [l.prenom, l.nom].filter(Boolean).join(' ');
+function mfCarteLocataire(l) {
+  const initiales = ((l.prenom?.[0] || '') + (l.nom?.[0] || '') || (l.nom || '??').substring(0, 2)).toUpperCase();
+  const nom  = [l.prenom, l.nom].filter(Boolean).join(' ') || 'Sans nom';
   const bien = l.bien_id ? allBiens.find(b => b.id === l.bien_id) : null;
-  const statutCls = (l.statut||'Candidat').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  const dateEntreeStr = l.date_entree ? new Date(l.date_entree).toLocaleDateString('fr-FR') : '—';
-  const dateSortieStr = l.date_sortie ? new Date(l.date_sortie).toLocaleDateString('fr-FR') : null;
-  const docsCount = (l.documents||[]).length;
+  const entree = l.date_entree ? new Date(l.date_entree).toLocaleDateString('fr-FR') : null;
+  const sortie = l.date_sortie ? new Date(l.date_sortie).toLocaleDateString('fr-FR') : null;
+  const docs = (l.documents || []).length;
+  // ⚠️ `.sf-pill` nu = la variante neutre. Les seules déclarées dans
+  // components.css sont --alert, --brand, --gain, --info et --loss : inventer
+  // un `--muted` aurait donné une pastille sans style, donc invisible.
+  const pill = { 'Actif': 'sf-pill--gain', 'Candidat': 'sf-pill--brand',
+                 'Préavis': 'sf-pill--alert', 'Sorti': '' }[l.statut] ?? '';
 
   return `
-    <div class="mf-loc-card" onclick="openLocataireModal('${l.id}')">
-      <div class="mf-loc-statut ${statutCls}">${l.statut||'Candidat'}</div>
-      <div class="mf-loc-head">
-        <div class="mf-loc-avatar">${initials}</div>
+    <article class="mfx-loccard" onclick="openLocataireModal('${l.id}')">
+      <span class="mfx-loccard__st"><span class="sf-pill ${pill}">${esc(l.statut || 'Candidat')}</span></span>
+      <div class="mfx-loccard__h">
+        <div class="mfx-loccard__av">${esc(initiales)}</div>
         <div style="min-width:0">
-          <div class="mf-loc-name">${fullName || '—'}</div>
-          <div class="mf-loc-sub">${l.email || l.telephone || ''}</div>
+          <div class="mfx-loccard__n">${esc(nom)}</div>
+          <div class="mfx-loccard__c">${esc(l.email || l.telephone || 'Aucun contact')}</div>
         </div>
       </div>
-      <div class="mf-loc-info">
-        ${bien ? `<div class="mf-loc-info-row"><span class="ic">${sfAccIcon('maison',14)}</span> <span class="v">${esc(bien.titre)}</span> <span style="color:var(--c-muted)">— ${esc(bien.ville||'')}</span></div>` :
-                 `<div class="mf-loc-info-row"><span class="ic">${sfAccIcon('maison',14)}</span> <span style="color:var(--c-muted)">Aucun bien rattaché</span></div>`}
-        ${l.loyer_bail_hc > 0 ? `<div class="mf-loc-info-row"><span class="ic">${sfAccIcon('euro',14)}</span> <span class="v">${fmt(l.loyer_bail_hc)} €</span><span style="color:var(--c-muted)">/mois HC${l.depot_garantie>0?` · Dépôt ${fmt(l.depot_garantie)} €`:''}</span></div>` : ''}
-        <div class="mf-loc-info-row"><span class="ic">${sfAccIcon('agenda',14)}</span> <span class="v">${dateEntreeStr}</span>${dateSortieStr ? ` <span style="color:var(--c-muted)">→ ${dateSortieStr}</span>` : (l.statut==='Actif'?' <span style="color:var(--c-muted)">en cours</span>':'')}</div>
-        ${docsCount > 0 ? `<div class="mf-loc-info-row"><span class="ic">${sfAccIcon('trombone',14)}</span> <span class="v">${docsCount}</span> <span style="color:var(--c-muted)">document${docsCount>1?'s':''}</span></div>` : ''}
-      </div>
-    </div>`;
+      <div class="mfx-li">${sfAccIcon('maison', 15)}${bien
+        ? `${esc(bien.titre || 'Bien')}${bien.ville ? ` <em>· ${esc(bien.ville)}</em>` : ''}`
+        : '<em>Aucun bien rattaché</em>'}</div>
+      ${(parseFloat(l.loyer_bail_hc) || 0) > 0 ? `
+      <div class="mfx-li">${sfAccIcon('euro', 15)}${sfEur(l.loyer_bail_hc)} <em>par mois hors charges${(parseFloat(l.depot_garantie) || 0) > 0 ? ` · dépôt ${sfEur(l.depot_garantie)}` : ''}</em></div>` : ''}
+      <div class="mfx-li">${sfAccIcon('agenda', 15)}${entree || '—'}${sortie ? ` <em>→ ${sortie}</em>` : (l.statut === 'Actif' ? ' <em>· en cours</em>' : '')}</div>
+      ${docs ? `<div class="mfx-li">${sfAccIcon('trombone', 15)}${docs} <em>document${docs > 1 ? 's' : ''}</em></div>` : ''}
+    </article>`;
 }
-
 function setMfLocFilter(f) {
   mfLocataireFilter = f;
   const c = document.getElementById('mf-content');
