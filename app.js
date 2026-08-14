@@ -2147,6 +2147,14 @@ function renderBiensTableau(l) {
       <th class="sf-num">Charges</th>${th('rend','Rendement',true)}${th('cf','Cashflow / mois',true)}<th>Statut</th>
     </tr></thead>
     <tbody>${l.map(b => {
+      /* ⚠️ Commentaires en JS, JAMAIS en HTML dans ce gabarit : un commentaire
+         place dans le litteral serait recopie sur CHAQUE ligne du tableau, et
+         un accent grave y refermerait le litteral (defaut commis le 14/08). */
+      // Le statut s'edite directement ici. `stopPropagation` sur la cellule :
+      // la LIGNE porte `openDetail`, si bien qu'un clic sur le statut emmenait
+      // sur la fiche au lieu d'ouvrir la liste. Le badge annoncait pourtant une
+      // interaction — `cursor:pointer`, herite de la ligne — qu'aucun
+      // gestionnaire ne tenait : il n'etait tout simplement pas cliquable.
       const d = cfDisplayData(b), r = sfRendement(b), ch = sfCharges(b);
       const srcCls = d.mode==='reel' ? 'reel' : d.mode==='incomplet' ? 'manque'
                    : d.attenteReel ? 'attente' : 'estime';
@@ -2175,7 +2183,10 @@ function renderBiensTableau(l) {
             ? '<span class="sfb-vide-val">—</span>'
             : `<span class="${d.value>0?'sf-gain':d.value<0?'sf-loss':''}">${(d.value>=0?'+':'−')+sfEur(Math.abs(d.value))}</span>
                <span class="sfb-src sfb-src--${srcCls}">${srcLbl}</span>`}</td>
-        <td><span class="statut-pill phase-${(PHASE_MAP[b.statut]||'generic')}">${esc(b.statut || '—')}</span></td>
+        <td onclick="event.stopPropagation()"><span class="inline-edit"
+              data-id="${b.id}" data-field="statut" data-type="select-statut"
+              data-value="${(b.statut||'').replace(/"/g,'&quot;')}"
+              onclick="inlineEditField(this)"><span class="statut-pill phase-${(PHASE_MAP[b.statut]||'generic')}">${esc(b.statut || '—')}</span></span></td>
       </tr>`;
     }).join('')}</tbody></table></div>`;
 }
@@ -3347,6 +3358,12 @@ async function inlineSaveBienField(span, newValue) {
     if(['prix_affiche','frais_notaire','travaux','frais_agence','creation_sci','mensualite_credit','loyer_en_etat','charges_locataire_etat','charge_copro','assurance_logement','taxe_fonciere'].includes(field)) {
       inlineRefreshHero(id);
     }
+    /* Le statut s'edite desormais aussi depuis la vue Tableau. Or la liste, ses
+       onglets et ses indicateurs se calculent TOUS sur le statut : les laisser
+       en place ferait diverger l'affichage de la donnee — c'est precisement ce
+       que `applyFilters()` existe pour empecher (voir son en-tete). On repasse
+       donc par ce point d'entree unique, et par lui seul. */
+    if(field === 'statut' && currentPage === 'biens') applyFilters();
     // P4 : le bien vient de basculer en gestion → proposer les gestes qui suivent
     if(field === 'statut' && newValue === 'Acheté') bdCheckMiseEnGestion(id);
     return true;
@@ -3417,8 +3434,6 @@ function inlineEditField(span) {
 
   span.innerHTML = '';
   span.appendChild(inputEl);
-  inputEl.focus();
-  if(inputEl.select) inputEl.select();
 
   let closing = false;
   const close = async (commit) => {
@@ -3470,6 +3485,36 @@ function inlineEditField(span) {
       span.innerHTML = originalHtml;
     }
   };
+
+  /* ── LES LISTES DÉROULANTES PASSENT PAR LE COMPOSANT DE LA PLATEFORME ─────
+     ⚠️ DÉFAUT CORRIGÉ LE 14/08/2026 — la picklist « Statut » ne s'ouvrait pas.
+     Deux mécanismes se disputaient le même `<select>` :
+       · ici, on le créait et on lui donnait le focus ;
+       · 30 ms plus tard, l'observateur de `.sf-pick` le DÉPLAÇAIT dans une
+         enveloppe, le passait en `opacity:0; pointer-events:none` et posait un
+         bouton à sa place.
+     Le premier clic ne pouvait donc rien ouvrir : la cible changeait de forme
+     et de nature sous le curseur, et le focus partait sans un événement (voir
+     la mise en garde dans `sfSelectInit`). Il fallait un second clic, sur un
+     bouton apparu entre-temps — d'où l'impression de « cliquer dans le vide ».
+
+     Désormais on habille NOUS-MÊMES, du même geste, et on ouvre la liste dans
+     la foulée : UN clic, la liste. Plus de course, et plus de double clic. */
+  if (inputEl.tagName === 'SELECT' && sfSelectHabillerMaintenant(inputEl)) {
+    const bouton = inputEl.closest('.sf-pick').querySelector('.sf-pick__btn');
+    inputEl.addEventListener('change', () => close(true));
+    /* Fermeture sans choix (Échap, clic dehors) → on rend son apparence de
+       lecture au champ. Après un choix, `sfSelectChoisir` émet `change` AVANT
+       de fermer : `close(true)` a déjà posé son drapeau, ce `close(false)` est
+       donc sans effet — il n'écrase pas la valeur qu'on vient d'enregistrer. */
+    sfSelectOuvrir(inputEl, bouton, () => close(false));
+    return;
+  }
+
+  // Sans habillage — mobile, où le sélecteur natif fait mieux. On garde le
+  // comportement d'origine : focus, puis fermeture à la perte de focus.
+  inputEl.focus();
+  if(inputEl.select) inputEl.select();
 
   // Ferme à la perte de focus, valide à Entrée, annule à Échap
   inputEl.addEventListener('blur', () => close(true));
@@ -12063,6 +12108,8 @@ function sfSelectInit(natif) {
   if (natif.dataset.sfHabille || natif.multiple || natif.size > 1) return;
   natif.dataset.sfHabille = '1';
 
+  const avaitLeFocus = document.activeElement === natif;
+
   const enveloppe = document.createElement('div');
   enveloppe.className = 'sf-pick';
   natif.parentNode.insertBefore(enveloppe, natif);
@@ -12090,6 +12137,16 @@ function sfSelectInit(natif) {
   // Une valeur changee par le code (et non par l'utilisateur) doit se voir.
   natif.addEventListener('change', sync);
 
+  /* ⚠️ `enveloppe.appendChild(natif)` ci-dessus DEPLACE le select dans le DOM.
+     Un element deplace PERD LE FOCUS, et Chrome ne dispatche pas `blur` dans
+     ce cas : la perte est SILENCIEUSE. Un code qui venait de creer un select
+     et de le focaliser se retrouvait donc, 30 ms plus tard, avec un champ
+     invisible (`.sf-pick__natif` est en `opacity:0; pointer-events:none`) et
+     sans focus, sans qu'aucun evenement ne l'en avertisse.
+     C'est ce qui cassait la picklist « Statut » de la fiche bien. On rend le
+     focus a l'element qui le porte desormais : le bouton. */
+  if (avaitLeFocus) bouton.focus();
+
   bouton.addEventListener('click', e => {
     e.preventDefault(); e.stopPropagation();
     sfSelectOuvert && sfSelectOuvert.natif === natif ? sfSelectFermer() : sfSelectOuvrir(natif, bouton);
@@ -12101,7 +12158,11 @@ function sfSelectInit(natif) {
   });
 }
 
-function sfSelectOuvrir(natif, bouton) {
+/* `auFermer` — rappel optionnel, joue A LA FERMETURE du panneau, quelle qu'en
+   soit la cause (choix, Echap, clic dehors, defilement). L'edition en ligne
+   s'en sert pour rendre au champ son apparence de lecture : sans lui, un
+   panneau referme sans choix laisserait le badge remplace par un bouton. */
+function sfSelectOuvrir(natif, bouton, auFermer) {
   sfSelectFermer();
   if (natif.disabled || !natif.options.length) return;
 
@@ -12127,7 +12188,7 @@ function sfSelectOuvrir(natif, bouton) {
   panneau.style.top = (dessous < h + 12 && r.top > h + 12 ? r.top - h - 6 : r.bottom + 6) + 'px';
 
   bouton.setAttribute('aria-expanded', 'true');
-  sfSelectOuvert = { natif, bouton, panneau, index: natif.selectedIndex };
+  sfSelectOuvert = { natif, bouton, panneau, index: natif.selectedIndex, auFermer };
 
   panneau.addEventListener('mousedown', e => {
     const opt = e.target.closest('.sf-pick__opt');
@@ -12164,9 +12225,13 @@ function sfSelectChoisir(i) {
 
 function sfSelectFermer() {
   if (!sfSelectOuvert) return;
-  sfSelectOuvert.panneau.remove();
-  sfSelectOuvert.bouton.setAttribute('aria-expanded', 'false');
+  const { panneau, bouton, auFermer } = sfSelectOuvert;
+  panneau.remove();
+  bouton.setAttribute('aria-expanded', 'false');
+  // Remis a null AVANT le rappel : celui-ci peut vouloir rouvrir un panneau,
+  // ou detruire le bouton — il doit trouver un etat propre.
   sfSelectOuvert = null;
+  if (auFermer) auFermer();
 }
 
 // Clavier au niveau du document : le panneau n'a pas le focus (il est dans
@@ -12208,6 +12273,22 @@ function sfAmeliorerSelects() {
   sfSelectEnCours = true;
   try { document.querySelectorAll('select:not([data-sf-habille])').forEach(sfSelectInit); }
   finally { sfSelectEnCours = false; }
+}
+
+/* Habille UN select immediatement, sans attendre l'observateur.
+   ⚠️ Raison d'etre : l'observateur passe 30 ms apres l'insertion. Pour un
+   select cree en reaction a un clic, ces 30 ms sont visibles — le champ change
+   de forme, de taille et de nature SOUS LE CURSEUR, et le premier clic tombe
+   sur une cible qui n'existe deja plus. Un appelant qui sait qu'il vient de
+   creer un select l'habille donc lui-meme, du meme geste.
+   Rend `true` si le select est desormais habille (faux en mobile, ou le
+   selecteur natif est meilleur et reste seul en piste). */
+function sfSelectHabillerMaintenant(natif) {
+  if (sfSelectMobile()) return false;
+  sfSelectEnCours = true;
+  try { sfSelectInit(natif); }
+  finally { sfSelectEnCours = false; }
+  return !!natif.closest('.sf-pick');
 }
 
 // Les ecrans se redessinent par innerHTML un peu partout : plutot que d'aller
