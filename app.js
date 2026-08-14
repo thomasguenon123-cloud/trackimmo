@@ -4243,16 +4243,19 @@ function bdEtapesGestion(b) {
        opposées, « détenu en nom propre » et « on ne sait pas encore ». C'est
        cette confusion qui produisait des phrases orphelines dans la déclaration
        fiscale. Elle passe donc PREMIÈRE et devient obligatoire. */
-    { k:'detention', ic:'🏛️', lab:'Mode de détention',
+    /* `ic` = une CLE de SF_ACC_ICONS, jamais un emoji : jeu unique, viewBox 24,
+       `currentColor` — l'icone suit la couleur du texte, ce qu'un emoji ne fait
+       jamais. Trois emojis subsistaient ici (14/08/2026). */
+    { k:'detention', ic:'banque', lab:'Mode de détention',
       sub:"En votre nom propre, ou via une SCI. C'est ce choix qui détermine où ce bien se déclare.",
       fait: !!b.mode_detention,
       valeur: b.mode_detention === 'propre' ? 'En nom propre'
             : (allSCI.find(s => s.id === b.sci_id)?.nom_sci || null) },
-    { k:'loc', ic:'👤', lab:'Enregistrer le locataire',
+    { k:'loc', ic:'user', lab:'Enregistrer le locataire',
       sub:"Bail, loyer hors charges et date d'entrée : la base de tout le suivi locatif.",
       fait: !!locActif,
       valeur: locActif ? ([locActif.prenom, locActif.nom].filter(Boolean).join(' ') || 'Locataire actif') : null },
-    { k:'loyers', ic:'📅', lab:`Générer les loyers ${annee}`,
+    { k:'loyers', ic:'agenda', lab:`Générer les loyers ${annee}`,
       sub:"Une ligne par mois, à pointer au fil des encaissements.",
       fait: loyersAn.length > 0,
       valeur: loyersAn.length ? `${loyersAn.length} mois créés` : null,
@@ -4276,10 +4279,11 @@ function bdRenderMiseEnGestion(bienId) {
   // Locataires réutilisables : tous sauf ceux déjà sur ce bien et les sortis.
   // Ceux rattachés ailleurs restent proposés, simplement signalés.
   const locDispos = allLocataires.filter(l => l.bien_id !== b.id && l.statut !== 'Sorti');
-  document.getElementById('detail-titre').textContent = `🔑 Mise en gestion — ${b.titre || 'Bien'}`;
+  // Pas d'emoji dans les titres de fenetre : les ecrans migres n'en portent pas.
+  document.getElementById('detail-titre').textContent = `Mise en gestion — ${b.titre || 'Bien'}`;
   document.getElementById('detail-content').innerHTML = `
     <div style="padding:14px 18px 18px">
-      <div class="bd-note" style="margin-bottom:16px">
+      <div class="bd-note">
         Ce bien est passé en <strong>« Acheté »</strong> : il alimente désormais le Suivi financier.
         ${restants === 0
           ? 'Tout est en place, vous pouvez suivre ses loyers dès maintenant.'
@@ -4289,25 +4293,25 @@ function bdRenderMiseEnGestion(bienId) {
       <div class="bd-steps">
         ${etapes.map(e => `
           <div class="bd-step ${e.fait ? 'done' : ''}">
-            <div class="bd-step-ic">${e.fait ? '✓' : e.ic}</div>
+            <div class="bd-step-ic">${e.fait ? sfAccIcon('check', 16) : sfAccIcon(e.ic, 16)}</div>
             <div class="bd-step-body">
               <div class="bd-step-lab">${e.lab}</div>
               <div class="bd-step-sub">${e.fait && e.valeur ? esc(e.valeur) : e.sub}</div>
               ${!e.fait && e.k === 'detention' ? `
-                <div class="bd-step-act" style="flex-wrap:wrap;gap:10px">
-                  <button class="bd-link" onclick="bdSaveDetention('${b.id}','propre')">En nom propre</button>
+                <div class="bd-step-act">
+                  <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdSaveDetention('${b.id}','propre')">En nom propre</button>
                   ${allSCI.length ? `
-                    <span style="font-size:12.5px;color:var(--c-dim)">ou via</span>
-                    <select class="ti-select" id="mg-sci" style="max-width:230px">
+                    <span class="bd-step-lien">ou via</span>
+                    <select class="sfb-sel" id="mg-sci" aria-label="SCI détentrice" style="max-width:230px">
                       ${allSCI.map(s => `<option value="${s.id}">${esc(s.nom_sci)}</option>`).join('')}
                     </select>
-                    <button class="bd-link" onclick="bdSaveDetention('${b.id}','sci')">Rattacher</button>`
-                  : `<button class="bd-link" onclick="closeModal('modal-detail');navigate('administration')">ou créer une SCI</button>`}
+                    <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdSaveDetention('${b.id}','sci')">Rattacher</button>`
+                  : `<button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="closeModal('modal-detail');navigate('administration')">Créer une SCI</button>`}
                 </div>` : ''}
               ${!e.fait && e.k === 'loc' ? `
                 ${locDispos.length ? `
                 <div class="bd-step-act">
-                  <select class="ti-select" id="mg-loc" style="max-width:270px">
+                  <select class="sfb-sel" id="mg-loc" aria-label="Locataire à rattacher" style="max-width:270px">
                     ${locDispos.map(l => {
                       const nom = [l.prenom, l.nom].filter(Boolean).join(' ') || 'Sans nom';
                       const autre = l.bien_id ? allBiens.find(x => x.id === l.bien_id) : null;
@@ -4317,24 +4321,24 @@ function bdRenderMiseEnGestion(bienId) {
                       return `<option value="${l.id}">${esc(nom)}${esc(suffixe)}</option>`;
                     }).join('')}
                   </select>
-                  <button class="bd-link" onclick="bdAttachLocataire('${b.id}')">👤 Rattacher</button>
+                  <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdAttachLocataire('${b.id}')">${sfAccIcon('user', 14)} Rattacher</button>
                 </div>
                 <div class="bd-step-or">ou</div>` : ''}
                 <div class="bd-step-act">
-                  <button class="bd-link" onclick="closeModal('modal-detail');openLocataireModal(null,'${b.id}')">＋ Créer un nouveau locataire</button>
+                  <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="closeModal('modal-detail');openLocataireModal(null,'${b.id}')">${sfAccIcon('plus', 14)} Créer un nouveau locataire</button>
                 </div>` : ''}
               ${!e.fait && e.k === 'loyers' ? (e.bloquePar ? `
-                <div class="bd-step-act"><span style="font-size:12.5px;color:var(--c-dim)">Disponible une fois ${e.bloquePar} enregistré.</span></div>` : `
+                <div class="bd-step-act"><span class="bd-step-lien">Disponible une fois ${e.bloquePar} enregistré.</span></div>` : `
                 <div class="bd-step-act">
-                  <button class="bd-link" onclick="bdGenererLoyers('${b.id}')">📅 Générer les loyers</button>
+                  <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdGenererLoyers('${b.id}')">${sfAccIcon('agenda', 14)} Générer les loyers</button>
                 </div>`) : ''}
             </div>
           </div>`).join('')}
       </div>
 
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:14px;border-top:1px solid var(--c-border)">
-        <button class="btn btn-secondary" onclick="closeModal('modal-detail')">${restants === 0 ? 'Fermer' : 'Plus tard'}</button>
-        <button class="btn btn-primary" onclick="closeModal('modal-detail');bdGoToSuivi('${b.id}')">📅 Ouvrir le suivi mensuel</button>
+      <div class="bd-step-pied">
+        <button class="sf-btn sf-btn--ghost" onclick="closeModal('modal-detail')">${restants === 0 ? 'Fermer' : 'Plus tard'}</button>
+        <button class="sf-btn sf-btn--primary" onclick="closeModal('modal-detail');bdGoToSuivi('${b.id}')">${sfAccIcon('agenda', 16)} Ouvrir le suivi mensuel</button>
       </div>
     </div>`;
 }
