@@ -12258,13 +12258,45 @@ document.addEventListener('keydown', e => {
       }
   }
 });
+/* Un clic HORS du composant referme la liste.
+   ⚠️ DÉFAUT CORRIGÉ LE 14/08/2026 — « je ne peux pas descendre jusqu'à Acheté ».
+   Ce test s'écrivait `!e.target.closest('.sf-pick')`. Or LE PANNEAU NE VIT PAS
+   DANS `.sf-pick` : il est posé dans <body> (en `fixed`, pour qu'aucun parent
+   en `overflow:hidden` ne le tronque) et porte `.sf-pick__panel`. Depuis lui,
+   `closest('.sf-pick')` rend donc NULL — et tout appui souris sur le panneau
+   AILLEURS QUE SUR UNE OPTION refermait la liste : la BARRE DE DÉFILEMENT, ses
+   flèches, la marge intérieure.
+   Une seule liste en souffrait, « Statut » : avec ses 19 entrées, c'est la
+   seule assez longue pour avoir un ascenseur. Descendre jusqu'à « Acheté »
+   demandait précisément de cliquer dessus.
+   Choisir une option, lui, ne marchait que PAR ACCIDENT : le gestionnaire du
+   panneau passe en premier et remet `sfSelectOuvert` à null, ce qui désamorçait
+   celui-ci. Une seule ligne de plus dans l'ordre des écouteurs et le composant
+   devenait inutilisable.
+   → Un composant dont une partie est TÉLÉPORTÉE dans <body> doit être reconnu
+     comme sien par tous les gardes globaux. On teste donc les DEUX morceaux. */
 document.addEventListener('mousedown', e => {
-  if (sfSelectOuvert && !e.target.closest('.sf-pick')) sfSelectFermer();
+  if (!sfSelectOuvert) return;
+  const cible = e.target;
+  if (cible instanceof Element && cible.closest('.sf-pick, .sf-pick__panel')) return;
+  sfSelectFermer();
 });
 window.addEventListener('resize', sfSelectFermer);
-// `true` : la phase de capture attrape aussi le defilement d'un conteneur
-// interne, qui ne remonte pas jusqu'a window.
-window.addEventListener('scroll', sfSelectFermer, true);
+
+/* La page qui defile sous un panneau `fixed` le laisserait flotter loin de son
+   bouton : on ferme. `true` — la phase de capture attrape aussi le defilement
+   d'un conteneur interne, qui ne remonte pas jusqu'a window.
+   ⚠️ MAIS LE PANNEAU LUI-MEME DEFILE (`max-height` + `overflow-y:auto`), et ce
+   defilement-la n'est pas la page qui bouge : c'est l'utilisateur qui PARCOURT
+   LA LISTE. Sans cette exception, descendre jusqu'a « Achete » refermait la
+   liste — meme cause de fond que le garde `mousedown` ci-dessus : le panneau
+   est teleporte dans <body>, les gardes globaux ne le reconnaissaient pas. */
+window.addEventListener('scroll', e => {
+  if (!sfSelectOuvert) return;
+  const cible = e.target;
+  if (cible instanceof Element && cible.closest('.sf-pick, .sf-pick__panel')) return;
+  sfSelectFermer();
+}, true);
 
 // Habille tous les selects presents. Idempotent : `data-sf-habille` empeche de
 // traiter deux fois le meme element.
