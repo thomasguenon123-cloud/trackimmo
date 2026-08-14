@@ -1,153 +1,186 @@
-# Reprise Stonefolio — brief de session
+# Brief de reprise — Stonefolio
 
-`Projet : C:\Users\thoma\Projets\trackimmo` · dépôt GitHub **`trackimmo`** (non renommé,
-volontairement : le renommer changerait l'URL Pages).
-`Prod : https://thomasguenon123-cloud.github.io/trackimmo/ — actuellement v=51`
-
-**Lis d'abord ta mémoire projet** (`MEMORY.md` + fiches liées) : elle est à jour et contient
-les pièges qui te feraient perdre le plus de temps.
+> À coller tel quel au début d'une nouvelle session Claude Code.
 
 ---
 
 ## Contexte
 
+`Projet : C:\Users\thoma\Projets\trackimmo` · dépôt GitHub **`trackimmo`** (non renommé
+volontairement : le renommer changerait l'URL Pages).
+`Prod : https://thomasguenon123-cloud.github.io/trackimmo/ — actuellement v=61`
+
+**Lis d'abord ta mémoire projet** (`MEMORY.md` + les fiches liées), puis ce fichier.
+
 TrackImmo a été renommé **Stonefolio**. Refonte visuelle en 6 phases, cible investisseurs
-24-30 ans, style épuré et professionnel. **Les phases 0 à 4 sont terminées.** La phase 5
-(migration écran par écran) est bien avancée.
+24-30 ans. **Phases 0 à 4 terminées.** Phase 5 (migration écran par écran) : accueil,
+« Mes biens », fiche bien et **Suivi financier** sont migrés.
 
 **Les 4 mots d'ordre, à citer tels quels** : la plateforme doit être **cohérente, uniforme,
 professionnelle et intuitive** pour l'utilisateur final.
 
 ---
 
-## Fait dans la session précédente (03/08/2026)
+## ⚠️ LA PREMIÈRE CHOSE À FAIRE — guide-moi pour la migration SQL
 
-### Socle
-- **Bascule complète en sombre.** Le `:root` hérité de `styles.css` est devenu un simple
-  **alias de `tokens.css`** : les ~1300 `var(--c-*)` suivent la charte sans réécriture.
-- **Plus aucune couleur en dur hors charte dans `app.js`.** Le nuancier `THEMES` (5 thèmes,
-  15 couleurs TrackImmo) était du **code mort** — supprimé avec `applyTheme()`.
-- ⚠️ **Cause racine du fond blanc, à retenir** : `applyAccentVars()` écrivait `--accent` en
-  **style en ligne sur `<html>`**, ce qui bat toute règle de feuille. Neutralisée.
+**Je ne suis pas à l'aise avec Supabase et je ne veux pas faire la manip seul.**
 
-### Écran « Mes biens » — refondu
-- **Vue Tableau par défaut**, deux onglets (**Ma prospection** d'abord, puis Mon patrimoine),
-  kanban retiré du patrimoine (une seule colonne « Acheté » = aucune information).
-- **Correction majeure** : la synthèse calculait en prévisionnel pur pendant que les cartes
-  affichaient le réel. « Meilleur cashflow +1 073 € » désignait un bien qui perd
-  **2 251 €/mois** au réel. Tout passe désormais par `cfDisplayData()`.
-- **`SF_ESSENTIELS`** (prix, loyer, statut, ville) fait autorité pour TOUTE la plateforme :
-  une fiche incomplète est écartée des indicateurs, affiche « À compléter » en nommant le
-  champ manquant, et remonte dans « À traiter » sur l'accueil.
-- Sélection multiple + actions groupées, densité Confort/Compact, recherche, colonne Charges.
+Il reste **la partie B** de `MIGRATION-MODE-DETENTION.sql` à exécuter. Elle est écrite,
+commentée et **actuellement en commentaire** dans le fichier — c'est volontaire, elle
+attendait que le code soit prêt. Il l'est.
 
-### Accueil
-- **Pointage d'un loyer depuis l'agenda** (case à cocher qui **crée** la ligne si besoin).
-- Un loyer non pointé au **lendemain de son échéance** passe « en retard » — seuil sur
-  `jour_paiement + 1`, pas figé au 6 du mois.
+**Ce que j'attends de toi, en premier :**
+1. Vérifie toi-même l'état de la base avant de me faire toucher quoi que ce soit.
+2. Donne-moi un **guide étape par étape**, en français simple, avec :
+   - où cliquer dans Supabase (URL directe de l'éditeur SQL) ;
+   - le bloc SQL exact à coller, **prêt à copier**, une étape à la fois ;
+   - **ce que je dois voir** après chaque étape pour savoir que ça a marché ;
+   - quoi faire si un message d'erreur apparaît ;
+   - comment revenir en arrière.
+3. Attends que je te confirme chaque étape avant de passer à la suivante.
+4. **Vérifie le résultat toi-même en lecture** quand j'ai fini — ne me crois pas sur parole.
 
-### Audit complet (rapport versionné : `AUDIT-2026-08-03.md`)
-- 12 findings, 0 critique, **2 hauts corrigés**.
-- Le plus grave n'était pas de la sécurité mais **une perte de données** : 70 champs de
-  formulaire n'échappaient pas leur valeur ; un titre contenant `"` était tronqué à la
-  réouverture et perdu à l'enregistrement.
-- **Socle Supabase validé sain** : RLS sur les 17 tables, 68 policies toutes scopées.
-- **FND-005 et FND-006 clos.** FND-004 abandonné (abonnement Supabase requis).
+**Contexte technique dont tu auras besoin :**
+- La **partie A est déjà posée** (colonne `biens.mode_detention` + contrainte
+  `biens_mode_detention_valide`). Vérifié : elle existe bien.
+- La partie B ajoute l'**invariant** `biens_mode_detention_coherent`, qui interdit au mode
+  et au rattachement SCI de se contredire.
+- **Le verrou qui la bloquait est levé, et c'est prouvé** : exactement 3 chemins écrivent
+  `biens.sci_id` (`saveBien`, `bdSaveDetention`, `mfBilanFeedSaveBiens`) et **tous les trois
+  écrivent aussi `mode_detention` dans le même `update`**. Côté base : 0 fonction, 0
+  déclencheur ne touche ces colonnes. Aucune ligne actuelle ne violerait l'invariant.
+- État en base au 13/08/2026 : 2 biens `'sci'`, 0 `'propre'`, 5 à renseigner (dont aucun
+  bien acquis — voir le cas de test ci-dessous).
 
-### Iconographie et listes déroulantes
-- **Un seul jeu d'icônes** (`SF_ACC_ICONS`), lu par `sfAccIcon()` et `sfIcon()`. Il y en
-  avait trois.
-- **Composant de liste déroulante maison** (`.sf-pick`) : le `<select>` natif reste dans le
-  DOM comme source de vérité, une couche est dessinée par-dessus. **Natif conservé sous
-  720 px.** Un `MutationObserver` habille tout select qui apparaît.
-- Emojis migrés : états vides, titres de sections, boutons, onglets de la fiche bien,
-  Paramètres, section Marché, écran Utilisateurs, Paramètres → Données.
+**MCP Supabase : lecture seule.** Toute écriture DDL passe par moi, dans l'interface.
 
 ---
 
-## Ce qu'il reste à faire
+## Ce qui a été fait dans la session précédente (13/08/2026)
 
-### Phase 5 — écrans
-1. **Fiche bien (7 onglets)** — chantier DA à part entière. Seuls ses **onglets** sont faits.
-2. **Module financier (5 onglets)**.
-3. Écrans secondaires : Simulateur, Comptes rendus, Administration, écran de connexion.
+### 1. Migration du Suivi financier (v=60, merge `72468c4`)
 
-### Dette mesurée au 03/08/2026
-| | |
+Le « Module financier » est devenu **« Suivi financier »** et passe de cinq onglets à
+**quatre** : **Performance · Portefeuille · Suivi mensuel · Locataires**.
+Neuf commits séquencés, chacun vérifié sur données réelles avant le suivant, le module
+restant fonctionnel à chaque étape.
+
+- **Nouveau fichier `financier.css`**, chargé **après** `styles.css`.
+- **653 lignes de code mort supprimées** (`renderMfOverview`, `renderMfBiens`,
+  `renderMfRenta` et leurs satellites).
+- Nouvelle section **« Déclaration fiscale »** (ex-« Bilan comptable ») : calculée à la
+  lecture pour un brouillon, figée à la validation, avec deux exports CSV.
+- **Règle de détention** câblée dans `bdEtapesGestion` : tout bien passé en « Acheté »
+  déclare s'il est détenu **en propre** ou **via une SCI**.
+
+### 2. Revue de code — 5 défauts corrigés (v=61, rapport `REVUE-2026-08-13.md`)
+
+**Deux étaient antérieurs à la migration et touchaient tous les utilisateurs :**
+
+| # | Défaut | Effet |
+|---|---|---|
+| 1 | **Prorata de mars faussé par l'heure d'été** | 830 € générés à **803 €**, **écrits en base**, tous les ans |
+| 2 | **Deux générateurs de loyers, deux règles** | Même bouton, résultat différent selon l'écran |
+| 3 | Loyer dû **sans ligne générée** invisible des compteurs | Grille : 5 mois échus ; compteurs : 4 |
+| 4 | Occupation d'un exercice passé lue sur le **statut actuel** du locataire | Occupation 0 % sur une année pourtant louée |
+| 5 | Biens **disparaissant de la déclaration** sans un mot | SCI supprimée → 2 biens invisibles |
+
+Vérifié **sans défaut** : 0 interpolation d'un champ libre sans `esc()` sur tout `app.js`.
+Retiré au passage : le chargement de **Google Fonts**, inutilisé (les 3 polices sont
+auto-hébergées) et qui transmettait l'IP de chaque visiteur à un tiers.
+
+### 3. Socle de tests (commit `6aaca6e`)
+
+```bash
+npm test
+```
+
+**32 cas, 32 passent. Aucune dépendance, aucune étape de build** — `node --test` suffit,
+le dépôt reste déployable tel quel sur Pages.
+
+| Fichier | Couvre |
 |---|---|
-| Emojis rendus restants | **303** (hints, messages d'auth, matrice de suivi) |
-| Flèches Unicode `→` | **50** — tombent en police système, à passer en SVG |
-| Styles en ligne | **476** |
-| Tailles de police en dur | **212** |
-| `app.js` | 11 421 lignes |
+| `test/prorata.test.js` | `mfLoyerProrata`, `mfDaysOccupiedInMonth`, `mfDaysInMonth` |
+| `test/exercice.test.js` | `mfMoisEcoules`, `mfReelExercice`, `mfRendementNet`, `mfDansLePerimetre`, `mfLoueSurExercice`, `mfConsolide` |
+| `test/loyers.test.js` | `sfLoyerEtat`, `mfLoyersNonSoldes` |
 
-### Backlog hors refonte
-- Valider l'écriture du **bilan SCI** (jamais testée en conditions réelles).
-- **Lot Marché** : carte de France + ouvrir le filtre NewsAPI.
-- Tuto de première connexion · sections Paramètres « Bientôt ».
-- Agent WhatsApp (dépend de l'écran Intégrations).
-- Retouche mineure : l'icône de « Envoyer l'invitation » est une flèche montante
-  (téléversement) ; une enveloppe conviendrait mieux.
+⚠️ **Les trois gardes de régression sont validées PAR MUTATION** : on réintroduit l'ancien
+code et on vérifie que le test **tombe**. Un test qui ne tombe pas sur son bug ne vaut rien
+— et l'un des miens ne tombait pas au premier essai (piège CRLF : la mutation ne s'était
+pas appliquée). **Refaire cette validation pour toute nouvelle garde.**
 
-### À la charge de Thomas (hors code)
-- Gabarits d'e-mails Supabase (disent encore TrackImmo).
-- User-Agent `TrackImmo/1.0` de l'Edge Function `news-proxy`.
-- Achat du domaine **stonefolio.fr** (vérifié libre : AFNIC + INPI, 0 résultat).
+Pièges du chargeur `node:vm`, tous documentés dans `test/LISEZMOI.md` : le temps doit être
+injectable · les `let` d'`app.js` ne sont **pas** des propriétés du contexte · comparer un
+tableau venu du contexte échoue en `deepStrictEqual`.
 
 ---
 
-## Règles de travail
+## Ce qu'il reste à faire, par ordre d'utilité
+
+1. **La partie B de la migration** — voir en haut, c'est la priorité et j'ai besoin d'être guidé.
+2. **Mon cas de test de la règle de détention.** J'ai volontairement sorti **T4+ Paris 16e**
+   du statut « Acheté » (il est en « Vendeur contacté (3ème) ») pour pouvoir **repasser ce
+   bien en « Acheté »** et déclencher le nouveau workflow. Ma réponse sera **« en propre »**.
+   ⚠️ **Ne pas remplir `mode_detention` à ma place sur ce bien** : cela neutraliserait le test.
+3. **Itérer sur l'onglet Locataires** en direct sur la plateforme — c'était convenu, il est
+   fonctionnel mais je n'ai pas encore donné mes retours dessus.
+4. **Les règles métier dupliquées** (dette n°2 du rapport, score 28) : `statut === 'Acheté'`
+   s'écrit **13 fois**, `'Payé' || 'Partiel'` **5 fois**. C'est exactement le motif qui a
+   produit les deux générateurs divergents. Deux helpers suppriment la classe de risque.
+5. **Épingler `supabase-js@2`** sur une version exacte (score 25) : le CDN prend
+   silencieusement toute mise à jour mineure.
+6. **Le CSS mort** : 105 classes `.mf*` sur 122 ne sont plus générées. Vérifiées **inertes**
+   (aucune ne peut atteindre le nouveau balisage). Hygiène, sans urgence.
+
+### Question d'architecture, non tranchée — à me poser
+
+`app.js` fait **12 225 lignes et 375 fonctions**. C'est la racine de la moitié de la dette.
+Le découper suppose de décider si **j'accepte une étape de build**. Aujourd'hui le dépôt se
+déploie tel quel sur Pages, sans outillage, et c'est une vraie qualité pour un développeur
+solo. Trois options sont posées dans `REVUE-2026-08-13.md`. **La note d'architecture n'a
+volontairement pas été écrite** tant que je n'ai pas tranché.
+
+---
+
+## Méthode de travail (à respecter)
 
 - **Incrémenter `?v=N` dans `index.html` AVANT de tester** — sinon le navigateur sert
-  l'ancien asset avec le nouveau HTML.
+  l'ancien asset avec le nouveau HTML. Piège rencontré plusieurs fois.
 - Branche dédiée → commit détaillé → merge main → push → **attendre le déploiement Pages
   avant d'annoncer que c'est en ligne**.
-- MCP Supabase **en lecture seule** : toute migration DDL revient à Thomas.
+- **`npm test` avant tout commit** touchant le socle de calcul.
 - **Jamais de chiffre inventé** : « non disponible » si la donnée manque.
 - Ne jamais recopier une énumération en dur (registre `TI_BIENS`).
-- **Sens de lecture gauche → droite** : valeurs de tableau alignées à gauche, en-têtes
-  comprises. `tabular-nums` conservé.
-- **Un indicateur dit CE QU'IL EST, jamais comment il est calculé.** Pas de glose de méthode
-  en sous-titre. Pas d'alerte permanente anxiogène.
-
----
-
-## Pièges qui coûtent du temps — à lire avant de coder
-
-1. **Chercher les noms fragmentés par du balisage.** Un `grep` sur « TrackImmo » avait
-   manqué l'écran de connexion et la page 404 : le nom y était coupé (`Track<em>Immo</em>`).
-2. **Une couleur qui « ne prend pas » vient souvent d'un style écrit en ligne par JS** — il
-   bat toute règle de feuille.
-3. **Chercher le code mort avant de conclure qu'une couleur est utilisée** (cf. `THEMES`).
-4. **`textContent` ne rend pas le SVG**, il l'affiche en toutes lettres. Vérifier avant de
-   migrer un libellé de bouton.
-5. **Tout n'est pas un gabarit.** Les boutons de la table admin et les lignes
-   `btn.innerHTML = '…'` sont des **chaînes simples** : `${…}` y est du texte littéral et
-   les quotes imbriquées cassent la chaîne. *Ce piège s'est présenté trois fois.*
-6. **Une `<option>` n'accepte que du texte** — aucun SVG possible.
-7. **Les noms de phase viennent de `PHASE_MAP`**, jamais d'une liste réécrite à la main.
-   Le CSS en décrivait six alors que le code en produit cinq → pastille illisible.
-8. **Vérifier les doublons de sélecteur** avant de déboguer une couleur (`.statut-pill`
-   était défini deux fois).
-9. **Espace fine insécable `U+202F` devant `€` et `%`**, sinon le symbole passe seul à la
-   ligne.
-10. **Fichiers en CRLF** : une recherche multi-ligne écrite avec `\n` échoue silencieusement.
-
----
+- **Un indicateur dit CE QU'IL EST, jamais comment il est calculé.**
+- **Montants alignés à DROITE**, en-têtes comprises. Espace fine insécable **U+202F** devant
+  `€` et `%` (`sfEur()` / `sfPctNum()`). Virgule décimale.
+- **Ne pas utiliser perl/sed pour un remplacement contenant `${...}`** — perl l'interprète
+  comme du code et meurt en cours d'écriture. Passer par l'outil d'édition.
+- ⚠️ **Fichiers en CRLF** : une recherche multi-ligne écrite avec `\n` échoue silencieusement.
 
 ## Comment vérifier sans pouvoir se connecter
 
 L'authentification demande des identifiants que l'assistant ne saisit pas. **Tout se vérifie
-au niveau du code, du DOM et des styles calculés — jamais au-dessus des vraies données.**
-C'est Thomas qui juge le rendu final, et il faut le lui demander après chaque déploiement.
+au niveau du code, du DOM et des styles calculés.** C'est moi qui juge le rendu final.
 
-Deux outils qui ont bien marché et qu'il faut réutiliser :
-- **Auditeur de contraste** : rendre chaque règle CSS sur un élément témoin, lire les
-  couleurs *réellement calculées* (`var()` résolues), appliquer la formule WCAG. Il a trouvé
-  ce que la relecture avait manqué.
-  ⚠️ Deux pièges : `CSSRuleList` n'est **pas itérable** en `for...of`, et en Chrome moderne
-  **tout `CSSStyleRule` a un `cssRules` vide mais truthy** — une garde `if (r.cssRules)`
-  fait donc récurser sur toutes les règles et n'en collecte aucune.
-- **Rendu avec données injectées** : stubber `allBiens`, `allLoyers`, `userPrefs`, masquer
-  `.auth-overlay`, puis appeler les fonctions de rendu et lire le DOM. Pour les fonctions
-  qui interrogent Supabase, simuler `db.from`.
+- **Banc d'essai** (hors dépôt, dans `.gitignore`) : `_banc-essai.html` + `_serveur.js` +
+  `.claude/launch.json`. Il stubbe Supabase **avant** `app.js` — `createClient` est appelé
+  dès la ligne 4 et ferait tomber tout le fichier — puis injecte des données réelles.
+  ⚠️ Le volet d'aperçu convertit un `file://` en `data:` : il **faut** le serveur local.
+  ⚠️ Il refuse de descendre sous 980 px : pour tester le 375 px, charger la page dans un
+  **`iframe` de 375 px** (`_banc-mobile.html`), qui a son propre viewport.
+- **Auditeur de contraste** : lire les couleurs réellement calculées, formule WCAG.
+  ⚠️ Partir de **l'élément lui-même**, pas de son parent. ⚠️ Les jetons `--sf-*-wash` sont
+  en `rgba()` : il faut **compositer** la pile de fonds, sinon un texte est comparé à
+  lui-même et sort à 1,00:1.
+- **Sondes DOM de capacité** : une fonction booléenne par fonctionnalité attendue.
+- **Recalcul SQL puis comparaison au DOM**, en normalisant les espaces (U+202F vs U+00A0).
+
+## Ce qui reste à ma charge, hors code
+
+Renommer `TRACKIMMO_SSO_RESTREINT` côté Supabase · vérifier le bucket public `bank-assets` ·
+gabarits d'e-mails Supabase · User-Agent `TrackImmo/1.0` de l'Edge Function `news-proxy` ·
+achat de `stonefolio.fr`.
+
+**Rapports versionnés** : `REVUE-2026-08-13.md`, `AUDIT-2026-08-05.md`, `AUDIT-2026-08-03.md`,
+`COMPARATIF-MODULE-FINANCIER.md`, `MIGRATION-MODE-DETENTION.sql`.
