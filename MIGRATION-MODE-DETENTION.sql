@@ -5,11 +5,17 @@
 -- À EXÉCUTER PAR THOMAS dans l'éditeur SQL Supabase.
 -- Mon accès MCP est en lecture seule : toute migration DDL lui revient.
 --
--- ⚠️ LA MIGRATION EST EN DEUX PARTIES, ET L'ORDRE COMPTE.
---    · PARTIE A — à exécuter MAINTENANT. Sans risque.
---    · PARTIE B — à exécuter SEULEMENT le jour où app.js est mis à jour.
---      L'exécuter maintenant CASSERAIT l'enregistrement d'une fiche bien.
---      La raison est expliquée en tête de la partie B. Ne pas l'anticiper.
+-- ✅ MIGRATION TERMINÉE. Les deux parties sont appliquées.
+--    · PARTIE A — appliquée par Thomas le 12/08/2026.
+--    · PARTIE B — appliquée par Thomas le 14/08/2026, une fois les TROIS
+--      chemins d'app.js écrivant `mode_detention` dans le même `update` que
+--      `sci_id`. Vérifiée en lecture le jour même : contrainte présente,
+--      `convalidated = true` (les 7 lignes existantes ont été contrôlées par
+--      Postgres, pas seulement les futures), RLS intacte (4 + 4 policies).
+--
+-- ⚠️ IL RESTE UN QUATRIÈME CHEMIN D'ÉCRITURE DE `sci_id`, ET IL EST EN BASE :
+--    la clé étrangère `biens_sci_id_fkey` est en ON DELETE SET NULL. Voir la
+--    note en fin de partie B. Ce fichier ne le corrige pas — c'est du code.
 --
 -- ── POURQUOI CETTE MIGRATION ───────────────────────────────────────────────
 -- Aujourd'hui la seule information de détention est `biens.sci_id`, nullable.
@@ -95,43 +101,76 @@ select coalesce(mode_detention, '(à renseigner)')  as mode,
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PARTIE B — NE PAS EXÉCUTER MAINTENANT
+-- PARTIE B — ✅ APPLIQUÉE LE 14/08/2026
 --
--- ⚠️ POURQUOI ELLE ATTEND. Cette contrainte interdit au mode et au
--- rattachement de se contredire. Or DEUX chemins d'app.js écrivent AUJOURD'HUI
--- `sci_id` tout seul, sans toucher au mode :
+-- L'invariant : le mode et le rattachement ne peuvent plus se contredire.
+-- Le cas NULL reste permis — c'est lui qui laisse vivre les biens en
+-- prospection, qui n'ont pas encore de détention à déclarer.
 --
---   1. `saveBien()` (app.js:3093) — le formulaire de fiche bien contient
---      « SCI associée » avec une option « — Aucune SCI — ». Choisir cette
---      option sur un bien marqué 'sci' écrit `sci_id = null` et violerait la
---      contrainte : L'ENREGISTREMENT ENTIER ÉCHOUERAIT, faisant perdre toutes
---      les autres modifications de la fiche.
---   2. `mfBilanFeedSaveBiens()` (app.js:7676) — décocher un bien dans la
---      fenêtre « Alimenter le bilan SCI » écrit aussi `sci_id = null` seul.
+-- ── POURQUOI ELLE A ATTENDU DEUX JOURS ─────────────────────────────────────
+-- Au 12/08, DEUX chemins d'app.js écrivaient `sci_id` tout seul :
+--   1. `saveBien()` — le formulaire porte « SCI associée » avec une option
+--      « — Aucune SCI — ». La choisir sur un bien marqué 'sci' écrivait
+--      `sci_id = null` en laissant le mode : L'ENREGISTREMENT ENTIER AURAIT
+--      ÉCHOUÉ, faisant perdre toutes les autres modifications de la fiche.
+--   2. `mfBilanFeedSaveBiens()` — décocher un bien dans « Alimenter le bilan
+--      SCI » écrivait aussi `sci_id = null` seul.
+-- Arbitrage retenu : mieux vaut une donnée temporairement incohérente qu'une
+-- écriture qui échoue sur une plateforme en service.
 --
--- Tant que `mode_detention` n'est lu par personne, une incohérence passagère
--- est sans conséquence et se corrige en relançant A.3. Un enregistrement qui
--- échoue, lui, est une régression visible sur une plateforme en service.
---
--- → À exécuter le jour où ces deux chemins écrivent les DEUX champs dans le
---   MÊME `update`. C'est à ce moment-là que l'invariant devient tenable.
+-- Au 14/08, les TROIS chemins écrivent les deux champs dans le même `update` —
+-- `saveBien()`, `bdSaveDetention()`, `mfBilanFeedSaveBiens()` — vérifié en
+-- relisant chaque appel. L'invariant est devenu tenable.
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- alter table public.biens
---   drop constraint if exists biens_mode_detention_coherent;
--- alter table public.biens
---   add constraint biens_mode_detention_coherent
---   check (
---     mode_detention is null
---     or (mode_detention = 'sci'    and sci_id is not null)
---     or (mode_detention = 'propre' and sci_id is null)
---   );
+alter table public.biens
+  drop constraint if exists biens_mode_detention_coherent;
+alter table public.biens
+  add constraint biens_mode_detention_coherent
+  check (
+    mode_detention is null
+    or (mode_detention = 'sci'    and sci_id is not null)
+    or (mode_detention = 'propre' and sci_id is null)
+  );
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- RETOUR EN ARRIÈRE (si besoin, annule la partie A sans perte)
--- La colonne n'est lue par rien : la supprimer est sans effet sur l'app.
+-- ⚠️ CE QUE LA PARTIE B N'A PAS RÉGLÉ — UN QUATRIÈME CHEMIN, EN BASE
+--
+-- `biens_sci_id_fkey` est déclarée ON DELETE SET NULL. Supprimer une SCI fait
+-- donc écrire `biens.sci_id = null` PAR LA BASE, sans toucher au mode. Sur un
+-- bien marqué 'sci', cela produit (mode='sci', sci_id=null) : l'invariant est
+-- violé et LA SUPPRESSION DE LA SCI ÉCHOUE, avec un message Postgres brut.
+--
+-- Trois chemins d'app.js suppriment une SCI, aucun n'a de garde-fou :
+--   · `deleteSCI()`          — bouton « Supprimer » de la fiche SCI
+--   · `purgeAdminTestData()` — supprime les SCI dont le nom contient « TEST »
+--   · `purgeAllAdminData()`  — purge totale de l'administration
+--
+-- Ce n'est PAS une régression introduite ici : avant la partie B, la même
+-- suppression réussissait en silence et rendait les biens invisibles de la
+-- déclaration (défaut n°5 de REVUE-2026-08-13.md). On remplace une corruption
+-- silencieuse par un échec bruyant — c'est mieux, ce n'est pas l'arrivée.
+--
+-- → Correction attendue CÔTÉ CODE, pas ici : la suppression d'une SCI doit
+--   décider explicitement du sort de ses biens avant de partir.
 -- ═══════════════════════════════════════════════════════════════════════════
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- RETOUR EN ARRIÈRE
+--
+-- Annuler la PARTIE B seule : sans aucune perte, instantané. Une contrainte
+-- CHECK ne stocke rien, elle vérifie. À utiliser si l'invariant bloque une
+-- écriture légitime qu'on n'avait pas anticipée.
+-- ═══════════════════════════════════════════════════════════════════════════
+-- alter table public.biens drop constraint if exists biens_mode_detention_coherent;
+
+-- ⚠️ Annuler la PARTIE A n'est PLUS anodin depuis le 13/08/2026 (v=60) :
+-- `mode_detention` est désormais LUE ET ÉCRITE par app.js. Supprimer la
+-- colonne casserait `bdEtapesGestion`, `bdSaveDetention`, `getFormData` et la
+-- section Déclaration fiscale, et PERDRAIT la donnée saisie. Ne le faire que
+-- pour un retour en arrière complet, code compris.
 -- alter table public.biens drop constraint if exists biens_mode_detention_valide;
 -- alter table public.biens drop column if exists mode_detention;
 
