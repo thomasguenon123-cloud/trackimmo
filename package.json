@@ -1,0 +1,8 @@
+{
+  "name": "stonefolio",
+  "private": true,
+  "description": "Tests du socle de calcul. Le dépôt reste déployable tel quel sur GitHub Pages : aucune dépendance, aucune étape de build — ce fichier ne sert qu'à nommer la commande de test.",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  }
+}
