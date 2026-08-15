@@ -2410,6 +2410,152 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
   border-top:var(--sf-border-width) solid var(--sf-border);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   WORKFLOW D'ACQUISITION — confirmation → mise en gestion → félicitations
+   ═══════════════════════════════════════════════════════════════════════════
+   ⚠️ LA FENÊTRE NE DOIT JAMAIS DÉPASSER L'ÉCRAN. `.modal` n'avait aucun
+   plafond : c'est `.modal-overlay` qui défilait, et sur un portable ou à 125 %
+   de zoom il fallait faire défiler la PAGE pour atteindre les champs et les
+   boutons. Ici la fenêtre plafonne, son CORPS défile, et le pied reste sous
+   les yeux — sans lui, on ne sait plus comment sortir.
+   Classe posée seulement pendant le workflow : les autres fenêtres qui
+   partagent `#detail-content` gardent leur comportement.                    */
+.modal-overlay--acq .modal{
+  max-height:calc(100dvh - 72px); display:flex; flex-direction:column;
+}
+.modal-overlay--acq .modal-header{ flex-shrink:0; }
+.modal-overlay--acq #detail-content{ min-height:0; display:flex; flex-direction:column; }
+
+.bd-acq{ display:flex; flex-direction:column; min-height:0; padding:2px 2px 4px; }
+.bd-acq__corps{ min-height:0; overflow-y:auto; padding-right:var(--sf-space-3); }
+.bd-acq .bd-step-pied{ flex-shrink:0; }
+
+/* ── Vue 1 : la question ─────────────────────────────────────────────────── */
+.bd-acq__q{ display:flex; gap:var(--sf-space-6); align-items:flex-start;
+  padding:var(--sf-space-5) 0 var(--sf-space-7); }
+.bd-acq__qic{
+  width:42px; height:42px; flex-shrink:0; border-radius:var(--sf-radius-full);
+  display:flex; align-items:center; justify-content:center;
+  background:var(--accent-wash); border:1px solid var(--accent-border);
+  color:var(--sf-brand-vivid);
+}
+.bd-acq__qt{ font-size:var(--sf-font-lead); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text); margin:0 0 var(--sf-space-4); line-height:1.4; }
+.bd-acq__qx{ font-size:var(--sf-font-body-sm); color:var(--sf-text-2);
+  line-height:1.6; margin:0; }
+
+/* ── Vue 2 : les deux déclarations ───────────────────────────────────────── */
+.bd-acq__intro{ font-size:var(--sf-font-body-sm); color:var(--sf-text-2);
+  line-height:1.6; margin:0 0 var(--sf-space-6); }
+.bd-acq__s{ padding:var(--sf-space-6) 0; border-top:1px solid var(--sf-border); }
+.bd-acq__s:first-of-type{ border-top:0; padding-top:0; }
+.bd-acq__st{ display:flex; align-items:center; gap:var(--sf-space-4);
+  font-size:var(--sf-font-body); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text); margin:0 0 var(--sf-space-3); }
+.bd-acq__st svg{ color:var(--sf-text-3); flex-shrink:0; }
+.bd-acq__sx{ font-size:var(--sf-font-body-sm); color:var(--sf-text-3);
+  line-height:1.55; margin:0 0 var(--sf-space-5); }
+.bd-acq__sous{ margin-top:var(--sf-space-5); }
+.bd-acq__note{ font-size:var(--sf-font-body-sm); color:var(--sf-text-2);
+  margin:var(--sf-space-5) 0 0; line-height:1.55; }
+.bd-acq__lien{ background:none; border:0; padding:0; font:inherit;
+  color:var(--sf-brand-vivid); cursor:pointer; text-decoration:underline; }
+
+/* Un choix se lit comme un choix : deux ou trois cartes de même poids, et
+   celle qui est retenue le montre — bordure, fond, et non la seule couleur. */
+.bd-acq__choix{ display:grid; grid-template-columns:repeat(2,1fr); gap:var(--sf-space-4); }
+.bd-acq__choix--3{ grid-template-columns:repeat(3,1fr); }
+.bd-choix{
+  display:flex; flex-direction:column; gap:3px; text-align:left;
+  padding:var(--sf-space-5); border-radius:var(--sf-radius-sm);
+  background:var(--sf-surface-2); border:1.5px solid var(--sf-border);
+  font-family:inherit; cursor:pointer;
+  transition:border-color var(--sf-dur) var(--sf-ease),
+             background-color var(--sf-dur) var(--sf-ease);
+}
+.bd-choix:hover:not(:disabled){ border-color:var(--sf-border-strong); background:var(--sf-surface-3); }
+.bd-choix:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus);
+  outline-offset:var(--sf-focus-offset); }
+.bd-choix:disabled{ opacity:.45; cursor:not-allowed; }
+.bd-choix.est-choisi{ border-color:var(--sf-brand-vivid); background:var(--accent-wash); }
+.bd-choix__t{ font-size:var(--sf-font-body-sm); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text); }
+.bd-choix.est-choisi .bd-choix__t{ color:var(--sf-brand-vivid); }
+.bd-choix__x{ font-size:var(--sf-font-label); color:var(--sf-text-3); line-height:1.45; }
+
+/* ── Vue 3 : félicitations ───────────────────────────────────────────────── */
+.bd-acq--succes{ text-align:center; align-items:center; }
+.bd-succes__coche{ color:var(--sf-gain); margin:var(--sf-space-7) 0 var(--sf-space-5); }
+.bd-succes__c{ stroke-dasharray:145; stroke-dashoffset:145;
+  animation:bdTrace .45s var(--sf-ease) forwards; }
+.bd-succes__v{ stroke-dasharray:36; stroke-dashoffset:36;
+  animation:bdTrace .3s var(--sf-ease) .4s forwards; }
+@keyframes bdTrace{ to{ stroke-dashoffset:0; } }
+.bd-succes__t{ font-size:var(--sf-font-lead); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text); margin:0 0 var(--sf-space-4); }
+.bd-succes__x{ font-size:var(--sf-font-body-sm); color:var(--sf-text-2);
+  line-height:1.6; margin:0 0 var(--sf-space-7); max-width:46ch; }
+.bd-succes__kpis{ display:flex; gap:var(--sf-space-4); margin:0 0 var(--sf-space-6);
+  width:100%; }
+.bd-succes__kpis > div{ flex:1; background:var(--sf-surface-2);
+  border:1px solid var(--sf-border); border-radius:var(--sf-radius-sm);
+  padding:var(--sf-space-5); text-align:left; min-width:0; }
+.bd-succes__kpis dt{ font-size:var(--sf-font-label); text-transform:uppercase;
+  letter-spacing:var(--sf-track-caps); color:var(--sf-text-3);
+  font-weight:var(--sf-weight-semibold); margin-bottom:3px; }
+.bd-succes__kpis dd{ font-size:var(--sf-font-body); color:var(--sf-text);
+  margin:0; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.bd-acq--succes .bd-step-pied{ width:100%; }
+
+/* L'éclat : douze traits brefs qui s'écartent du centre, aux teintes de la
+   charte. Une seconde, une seule fois — on souligne le moment, on ne fait pas
+   la fête à la place de l'utilisateur. */
+.bd-succes__eclat{ position:relative; height:0; width:100%; pointer-events:none; }
+.bd-succes__eclat i{
+  position:absolute; left:50%; top:34px; width:3px; height:11px; border-radius:2px;
+  background:var(--sf-brand-vivid); opacity:0;
+  transform:rotate(calc(var(--i) * 30deg)) translateY(0);
+  animation:bdEclat .85s var(--sf-ease) .25s forwards;
+}
+.bd-succes__eclat i:nth-child(3n){ background:var(--sf-gain); }
+.bd-succes__eclat i:nth-child(3n+1){ background:var(--accent-border); }
+@keyframes bdEclat{
+  0%{ opacity:0; transform:rotate(calc(var(--i) * 30deg)) translateY(0) scaleY(.4); }
+  35%{ opacity:.9; }
+  100%{ opacity:0; transform:rotate(calc(var(--i) * 30deg)) translateY(-58px) scaleY(1); }
+}
+
+/* Une animation ne doit jamais s'imposer : qui a demandé moins de mouvement
+   voit l'état final, tout de suite. */
+@media (prefers-reduced-motion: reduce){
+  .bd-succes__c, .bd-succes__v{ animation:none; stroke-dashoffset:0; }
+  .bd-succes__eclat{ display:none; }
+}
+
+@media (max-width: 720px){
+  .bd-acq__choix, .bd-acq__choix--3{ grid-template-columns:1fr; }
+  .bd-succes__kpis{ flex-direction:column; }
+  .bd-acq .bd-step-pied{ flex-direction:column-reverse; align-items:stretch; }
+  .bd-acq .bd-step-pied .sf-btn{ width:100%; }
+}
+
+/* Sous 420 px, la feuille impose deja `height:100vh !important` a `.modal` —
+   plein ecran, et c'est bien. Mais `.modal-overlay` garde 8 px de marge : la
+   fenetre depassait donc de 8 px par le bas. On annule la marge pour ce seul
+   workflow, et on passe en `dvh` — sur mobile, `vh` ignore la barre d'adresse
+   et fait sortir le pied de l'ecran, precisement ce qu'on cherche a eviter. */
+@media (max-width: 420px){
+  .modal-overlay--acq{ padding:0 !important; }
+  .modal-overlay--acq .modal{ height:100dvh; max-height:100dvh !important; }
+}
+
+/* Mention d'aide sous un champ de formulaire. */
+.form-aide{ font-size:var(--sf-font-body-sm); color:var(--sf-text-3);
+  line-height:1.5; margin:var(--sf-space-3) 0 0; }
+
+/* Action portée par le rail de la fiche bien, sous le statut. */
+.sff-rail__act{ margin-top:var(--sf-space-4); }
+
 /* Locataire — onglet Locatif */
 .bd-loc{display:flex;align-items:center;gap:11px;cursor:pointer;padding:4px;border-radius:9px;transition:background .15s;}
 .bd-loc:hover{background:var(--sf-surface-2);}

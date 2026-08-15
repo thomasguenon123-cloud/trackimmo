@@ -548,6 +548,25 @@ const TI_BIENS = {
   // plus. Les deux listes ne peuvent donc plus diverger par construction.
   get STATUTS() { return Object.keys(PHASE_MAP); },
 
+  /* Les statuts que l'utilisateur peut CHOISIR dans une liste deroulante.
+     ⚠️ « Acheté » n'en fait pas partie, et c'est voulu (15/08/2026).
+     Les dix-huit autres statuts decrivent l'avancement d'une negociation :
+     reversibles, de meme nature, on passe de l'un a l'autre. « Acheté » n'est
+     pas une etape de plus, c'est LA SORTIE DU PIPELINE — le bien quitte
+     « Ma prospection » pour « Mon patrimoine », alimente le Suivi financier et
+     devient un actif a declarer. Le proposer au milieu d'une liste de dix-neuf
+     entrees rangeait la signature chez le notaire au meme niveau qu'un appel
+     telephonique, et laissait le changement de statut EN MASSE contourner la
+     mise en gestion.
+     Il s'atteint desormais par deux gestes volontaires, et deux seulement :
+     le bouton « Confirmer l'acquisition » de la fiche, et le depot dans la
+     colonne « Finalise » du kanban. Les deux passent par
+     `bdDemarrerAcquisition()`.
+     ⚠️ La valeur reste evidemment dans STATUTS : c'est elle qui est stockee en
+     base, contrainte par `biens_statut_check`, et affichee partout ailleurs —
+     badges, filtres, kanban, exports. On ne retire QUE la saisie. */
+  get STATUTS_SAISISSABLES() { return this.STATUTS.filter(v => v !== 'Acheté'); },
+
   TYPES: ['Studio','T1','T2','T3','T4+','Immeuble','Parking','Autre'],
 
   SOURCES: ['SeLoger','LeBonCoin','PAP','Logic-Immo','Bien\'ici','Jinka','Réseau agence','Particulier','Autre'],
@@ -2039,7 +2058,7 @@ function renderBiens(el) {
     <div class="sfb-bulk" id="sfb-bulk" data-on="0" role="region" aria-label="Actions groupées">
       <span class="sfb-bulk__n" id="sfb-bulk-n"></span>
       <select class="sfb-sel" id="sfb-bulk-statut" aria-label="Nouveau statut">
-        ${TI_BIENS.options('STATUTS', null, 'Changer le statut…')}
+        ${TI_BIENS.options('STATUTS_SAISISSABLES', null, 'Changer le statut…')}
       </select>
       <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="sfBulkStatut()">Appliquer</button>
       <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="sfBulkExport()">Exporter la sélection</button>
@@ -2183,10 +2202,12 @@ function renderBiensTableau(l) {
             ? '<span class="sfb-vide-val">—</span>'
             : `<span class="${d.value>0?'sf-gain':d.value<0?'sf-loss':''}">${(d.value>=0?'+':'−')+sfEur(Math.abs(d.value))}</span>
                <span class="sfb-src sfb-src--${srcCls}">${srcLbl}</span>`}</td>
-        <td onclick="event.stopPropagation()"><span class="inline-edit"
+        <td onclick="event.stopPropagation()">${sfDetenu(b)
+          ? `<span class="statut-pill phase-${(PHASE_MAP[b.statut]||'generic')}">${esc(b.statut || '—')}</span>`
+          : `<span class="inline-edit"
               data-id="${b.id}" data-field="statut" data-type="select-statut"
               data-value="${(b.statut||'').replace(/"/g,'&quot;')}"
-              onclick="inlineEditField(this)"><span class="statut-pill phase-${(PHASE_MAP[b.statut]||'generic')}">${esc(b.statut || '—')}</span></span></td>
+              onclick="inlineEditField(this)"><span class="statut-pill phase-${(PHASE_MAP[b.statut]||'generic')}">${esc(b.statut || '—')}</span></span>`}</td>
       </tr>`;
     }).join('')}</tbody></table></div>`;
 }
@@ -2386,15 +2407,32 @@ async function kanbanDrop(e, colEl) {
   if(currentPhase === colKey) { draggedBienId=null; return; }
 
   const newStatut = phase.defaultStatut;
+
+  /* ⚠️ « Acheté » ne s'écrit plus ici. Déposer dans « Finalisé » est un geste
+     volontaire, donc un point d'entrée légitime de l'acquisition — mais c'est
+     le WORKFLOW qui écrit, et seulement après confirmation. On rend donc la
+     carte à sa colonne et on ouvre la fenêtre : si l'utilisateur renonce, rien
+     n'aura bougé, ni à l'écran ni en base.
+     ⚠️ La colonne « Finalisé » accueille aussi « Abandonné » : un dépôt y est
+     donc ambigu. On l'interprète comme une acquisition, ce qu'il était déjà
+     (`defaultStatut`), et la fenêtre demande confirmation avant tout. */
+  if(newStatut === 'Acheté') {
+    const id = draggedBienId;
+    draggedBienId = null;
+    const content0 = document.getElementById('biens-content');
+    if(content0) content0.innerHTML = renderKanban(getFilteredBiens());
+    await bdDemarrerAcquisition(id);
+    if(bdAcq) bdAcq.origine = 'kanban';
+    return;
+  }
+
   bien.statut = newStatut;
   const content = document.getElementById('biens-content');
   if(content) content.innerHTML = renderKanban(getFilteredBiens());
 
-  const bienIdDeplace = draggedBienId;
   const {error} = await db.from('biens')
     .update({statut:newStatut, updated_at:new Date().toISOString()})
     .eq('id', draggedBienId);
-  if(!error && newStatut === 'Acheté') bdCheckMiseEnGestion(bienIdDeplace);   // P4
   if(error) {
     console.error('Erreur update kanban:', error);
     const {data} = await db.from('biens').select('*').order('created_at',{ascending:false});
@@ -2603,7 +2641,22 @@ async function renderNouveau(el, bien) {
             <div class="form-group"><label>Surface (m²)</label><input type="number" id="f-surface" value="${esc(bien?.surface_m2||'')}" placeholder="45"></div>
             <div class="form-group"><label>Prix affiché (€)</label><input type="number" id="f-prix" value="${esc(bien?.prix_affiche||'')}" oninput="updatePrev()" placeholder="300 000"></div>
             <div class="form-group"><label>Statut</label>
-              <select id="f-statut">${TI_BIENS.options('STATUTS', bien?.statut)}</select>
+              ${/* Bien acquis : le statut ne se change plus par une liste. Le
+                    select est desactive et porte la valeur reelle ; l'aller
+                    comme le retour passent par les actions dediees de la fiche.
+                    ⚠️ Un champ `disabled` n'est PAS soumis — d'ou le champ
+                    cache qui l'accompagne : sans lui `getFormData()` lirait une
+                    chaine vide et retrograderait le bien a « Renseignements
+                    Web » au premier enregistrement.
+                    ⚠️ Commentaire en JS et non en HTML : un accent grave dans
+                    un commentaire HTML REFERME le litteral (piege du 14/08). */''}
+              ${sfDetenu(bien || {}) ? `
+                <select id="f-statut-affiche" disabled aria-describedby="f-statut-aide">
+                  <option>${esc(bien.statut)}</option>
+                </select>
+                <input type="hidden" id="f-statut" value="${esc(bien.statut)}">
+                <p class="form-aide" id="f-statut-aide">Bien acquis. Pour le remettre en prospection, utilisez l'action prévue sur sa fiche.</p>`
+              : `<select id="f-statut">${TI_BIENS.options('STATUTS_SAISISSABLES', bien?.statut)}</select>`}
             </div>
             <div class="form-group form-full"><label>Lien de l'annonce</label><input type="url" id="f-lien" value="${esc(bien?.lien_annonce||'')}" placeholder="https://www.seloger.com/..."></div>
             <div class="form-group"><label>Source</label>
@@ -3365,7 +3418,10 @@ async function inlineSaveBienField(span, newValue) {
        donc par ce point d'entree unique, et par lui seul. */
     if(field === 'statut' && currentPage === 'biens') applyFilters();
     // P4 : le bien vient de basculer en gestion → proposer les gestes qui suivent
-    if(field === 'statut' && newValue === 'Acheté') bdCheckMiseEnGestion(id);
+    /* Plus de crochet « Acheté » ici : ce statut ne figure plus dans aucune
+       liste déroulante (voir `TI_BIENS.STATUTS_SAISISSABLES`), l'édition en
+       ligne ne peut donc plus le produire. L'acquisition passe par
+       `bdDemarrerAcquisition()`. */
     return true;
   } catch(e) {
     span.classList.remove('saving');
@@ -3414,7 +3470,7 @@ function inlineEditField(span) {
   } else if(type === 'select-statut') {
     inputEl = document.createElement('select');
     inputEl.className = 'inline-edit-input';
-    inputEl.innerHTML = TI_BIENS.options('STATUTS', currentValue);
+    inputEl.innerHTML = TI_BIENS.options('STATUTS_SAISISSABLES', currentValue);
   } else if(type === 'select-type') {
     inputEl = document.createElement('select');
     inputEl.className = 'inline-edit-input';
@@ -3785,7 +3841,15 @@ async function renderBienDetail(el) {
 
         <div class="sff-rail__b">
           <span class="sff-rail__l">Statut</span>
-          <span class="inline-edit" data-id="${b.id}" data-field="statut" data-type="select-statut" data-value="${(b.statut||'').replace(/"/g,'&quot;')}" onclick="inlineEditField(this)"><span class="statut-pill phase-${phase}">${esc(b.statut||'—')}</span></span>
+          ${sfDetenu(b)
+            ? `<span class="statut-pill phase-${phase}">${esc(b.statut||'—')}</span>`
+            : `<span class="inline-edit" data-id="${b.id}" data-field="statut" data-type="select-statut" data-value="${(b.statut||'').replace(/"/g,'&quot;')}" onclick="inlineEditField(this)"><span class="statut-pill phase-${phase}">${esc(b.statut||'—')}</span></span>`}
+
+          ${b.statut === 'Abandonné' ? '' : sfDetenu(b)
+            ? `<button class="sf-btn sf-btn--ghost sf-btn--sm sf-btn--block sff-rail__act"
+                       onclick="bdRemettreEnProspection('${b.id}')">Remettre en prospection</button>`
+            : `<button class="sf-btn sf-btn--primary sf-btn--sm sf-btn--block sff-rail__act"
+                       onclick="bdDemarrerAcquisition('${b.id}')">${sfAccIcon('check',14)} Confirmer l'acquisition</button>`}
         </div>
 
         <div class="sff-rail__b">
@@ -4231,10 +4295,14 @@ async function renderBienDetail(el) {
 // il apparaît alors dans quatre onglets du Module financier. Sans SCI, sans
 // locataire et sans loyers, il y reste vide. Ces trois gestes sont désormais
 // proposés au moment exact où ils deviennent nécessaires.
+/* DEUX étapes depuis le 15/08/2026, et non plus trois. « Générer les loyers »
+   était la troisième : elle demandait un clic pour un geste qui n'a jamais eu
+   d'alternative — dès qu'un locataire est rattaché avec sa date d'entrée et
+   son loyer, les douze lignes du calendrier en découlent. `autoGenerateLoyers`
+   les crée désormais seule, au rattachement comme à la création. Une étape de
+   moins à l'écran, et une fenêtre qui tient sans défilement. */
 function bdEtapesGestion(b) {
   const locActif = allLocataires.find(l => l.bien_id === b.id && l.statut === 'Actif') || null;
-  const annee = new Date().getFullYear();
-  const loyersAn = allLoyers.filter(l => l.bien_id === b.id && l.annee === annee);
   return [
     /* ⚠️ RÈGLE OBLIGATOIRE, arrêtée le 12/08/2026 : un bien passé en « Acheté »
        DÉCLARE COMMENT IL EST DÉTENU — en propre (personne physique) ou via une
@@ -4255,165 +4323,380 @@ function bdEtapesGestion(b) {
       sub:"Bail, loyer hors charges et date d'entrée : la base de tout le suivi locatif.",
       fait: !!locActif,
       valeur: locActif ? ([locActif.prenom, locActif.nom].filter(Boolean).join(' ') || 'Locataire actif') : null },
-    { k:'loyers', ic:'agenda', lab:`Générer les loyers ${annee}`,
-      sub:"Une ligne par mois, à pointer au fil des encaissements.",
-      fait: loyersAn.length > 0,
-      valeur: loyersAn.length ? `${loyersAn.length} mois créés` : null,
-      bloquePar: locActif ? null : 'le locataire' },
   ];
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   LE BROUILLON D'ACQUISITION — rien n'est écrit avant la confirmation.
+
+   ⚠️ C'est le choix de conception central de cette fenêtre (15/08/2026).
+   Auparavant chaque bouton écrivait aussitôt en base : « En nom propre »
+   enregistrait, « Rattacher » enregistrait. Un utilisateur qui se ravisait
+   laissait donc derrière lui un bien à moitié déclaré, et « Annuler » aurait
+   dû repasser derrière pour défaire — chaque défaire étant une occasion de
+   laisser une trace.
+   Désormais la fenêtre COLLECTE, et « Confirmer l'acquisition » écrit tout
+   d'un bloc. Le statut « Acheté » lui-même n'est écrit qu'à ce moment : tant
+   qu'on n'a pas confirmé, le bien n'a pas bougé, et « Annuler » n'a
+   strictement rien à défaire.
+
+   `vue`  : 'confirmation' → 'gestion' → 'succes'
+   `mode` : 'acquisition' (le bien bascule) | 'reprise' (bien déjà acquis dont
+            la mise en gestion est restée incomplète — points d'attention,
+            onglet Locatif, tableau de bord). En reprise, on entre directement
+            sur 'gestion' et le statut n'est pas touché.               */
+let bdAcq = null;
+
+/* Point d'entrée de l'ACQUISITION. Deux gestes volontaires y mènent, et deux
+   seulement : le bouton de la fiche et le dépôt dans la colonne « Finalisé »
+   du kanban. Voir `TI_BIENS.STATUTS_SAISISSABLES`. */
+async function bdDemarrerAcquisition(bienId) {
+  const b = allBiens.find(x => x.id === bienId);
+  if(!b) { showNotif('Bien introuvable', true); return; }
+  if(sfDetenu(b)) { showNotif('Ce bien fait déjà partie de votre patrimoine'); return; }
+  if(!allSCI.length && currentUser) await loadSCIList();
+  bdAcq = { bienId, mode:'acquisition', vue:'confirmation',
+            detention:null, sciId:null, locChoix:null, locId:null, enCours:false };
+  bdAcqRender();
+  openModal('modal-detail');
+}
+
+/* Point d'entrée de la REPRISE — un bien déjà acquis qu'il reste à déclarer.
+   Conservé tel quel : cinq appelants s'en servent (points d'attention, onglet
+   Locatif, tableau de bord, Suivi financier). */
 async function bdOpenMiseEnGestion(bienId) {
   const b = allBiens.find(x => x.id === bienId);
   if(!b) return;
   if(!allSCI.length && currentUser) await loadSCIList();
-  bdRenderMiseEnGestion(bienId);
+  const locActif = allLocataires.find(l => l.bien_id === b.id && l.statut === 'Actif') || null;
+  bdAcq = { bienId, mode:'reprise', vue:'gestion',
+            detention: b.mode_detention || null, sciId: b.sci_id || null,
+            locChoix: locActif ? 'existant' : null, locId: locActif?.id || null,
+            enCours:false };
+  bdAcqRender();
   openModal('modal-detail');
 }
 
-function bdRenderMiseEnGestion(bienId) {
-  const b = allBiens.find(x => x.id === bienId);
-  if(!b) return;
-  const etapes = bdEtapesGestion(b);
-  const restants = etapes.filter(e => !e.fait).length;
-  // Locataires réutilisables : tous sauf ceux déjà sur ce bien et les sortis.
-  // Ceux rattachés ailleurs restent proposés, simplement signalés.
-  const locDispos = allLocataires.filter(l => l.bien_id !== b.id && l.statut !== 'Sorti');
-  // Pas d'emoji dans les titres de fenetre : les ecrans migres n'en portent pas.
-  document.getElementById('detail-titre').textContent = `Mise en gestion — ${b.titre || 'Bien'}`;
-  document.getElementById('detail-content').innerHTML = `
-    <div style="padding:14px 18px 18px">
-      <div class="bd-note">
-        Ce bien est passé en <strong>« Acheté »</strong> : il alimente désormais le Suivi financier.
-        ${restants === 0
-          ? 'Tout est en place, vous pouvez suivre ses loyers dès maintenant.'
-          : `Il reste <strong>${restants} étape${restants>1?'s':''}</strong> pour que son suivi soit opérationnel.`}
-      </div>
+/* Trois vues successives dans LE MÊME cadre, plutôt qu'un empilement de
+   fenêtres : confirmation → mise en gestion → félicitations. */
+function bdAcqRender() {
+  if(!bdAcq) return;
+  const b = allBiens.find(x => x.id === bdAcq.bienId);
+  if(!b) { bdAcqFermer(); return; }
+  const vues = { confirmation: bdAcqVueConfirmation,
+                 gestion:      bdAcqVueGestion,
+                 succes:       bdAcqVueSucces };
+  const { titre, corps } = vues[bdAcq.vue](b);
+  document.getElementById('detail-titre').textContent = titre;
+  document.getElementById('detail-content').innerHTML = corps;
+  // Plafonne la hauteur de la fenêtre le temps du workflow, et pas au-delà :
+  // les autres écrans partagent `#detail-content`.
+  document.getElementById('modal-detail')?.classList.add('modal-overlay--acq');
+  // Sur l'écran de félicitations, l'acte est passé : on rend la sortie libre.
+  bdAcqVerrouiller(bdAcq.vue !== 'succes');
+}
 
-      <div class="bd-steps">
-        ${etapes.map(e => `
-          <div class="bd-step ${e.fait ? 'done' : ''}">
-            <div class="bd-step-ic">${e.fait ? sfAccIcon('check', 16) : sfAccIcon(e.ic, 16)}</div>
-            <div class="bd-step-body">
-              <div class="bd-step-lab">${e.lab}</div>
-              <div class="bd-step-sub">${e.fait && e.valeur ? esc(e.valeur) : e.sub}</div>
-              ${!e.fait && e.k === 'detention' ? `
-                <div class="bd-step-act">
-                  <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdSaveDetention('${b.id}','propre')">En nom propre</button>
-                  ${allSCI.length ? `
-                    <span class="bd-step-lien">ou via</span>
-                    <select class="sfb-sel" id="mg-sci" aria-label="SCI détentrice" style="max-width:230px">
-                      ${allSCI.map(s => `<option value="${s.id}">${esc(s.nom_sci)}</option>`).join('')}
-                    </select>
-                    <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdSaveDetention('${b.id}','sci')">Rattacher</button>`
-                  : `<button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="closeModal('modal-detail');navigate('administration')">Créer une SCI</button>`}
-                </div>` : ''}
-              ${!e.fait && e.k === 'loc' ? `
-                ${locDispos.length ? `
-                <div class="bd-step-act">
-                  <select class="sfb-sel" id="mg-loc" aria-label="Locataire à rattacher" style="max-width:270px">
-                    ${locDispos.map(l => {
-                      const nom = [l.prenom, l.nom].filter(Boolean).join(' ') || 'Sans nom';
-                      const autre = l.bien_id ? allBiens.find(x => x.id === l.bien_id) : null;
-                      const t = autre ? (autre.titre || 'un bien') : '';
-                      const suffixe = autre ? ` · déjà sur ${t.length > 24 ? t.slice(0,24)+'…' : t}`
-                                            : (l.statut && l.statut !== 'Actif' ? ` · ${esc(l.statut)}` : '');
-                      return `<option value="${l.id}">${esc(nom)}${esc(suffixe)}</option>`;
-                    }).join('')}
-                  </select>
-                  <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdAttachLocataire('${b.id}')">${sfAccIcon('user', 14)} Rattacher</button>
-                </div>
-                <div class="bd-step-or">ou</div>` : ''}
-                <div class="bd-step-act">
-                  <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="closeModal('modal-detail');openLocataireModal(null,'${b.id}')">${sfAccIcon('plus', 14)} Créer un nouveau locataire</button>
-                </div>` : ''}
-              ${!e.fait && e.k === 'loyers' ? (e.bloquePar ? `
-                <div class="bd-step-act"><span class="bd-step-lien">Disponible une fois ${e.bloquePar} enregistré.</span></div>` : `
-                <div class="bd-step-act">
-                  <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdGenererLoyers('${b.id}')">${sfAccIcon('agenda', 14)} Générer les loyers</button>
-                </div>`) : ''}
-            </div>
-          </div>`).join('')}
+/* Pendant le workflow, la fenêtre se ferme par « Annuler » ou « Confirmer », et
+   par rien d'autre — ni croix, ni clic sur le fond, ni Échap. C'est la lecture
+   littérale de « obligatoirement rempli » : les deux issues restent explicites,
+   donc rien n'est piégé. */
+function bdAcqVerrouiller(actif) {
+  const o = document.getElementById('modal-detail');
+  if(!o) return;
+  if(actif) o.dataset.verrou = '1'; else delete o.dataset.verrou;
+  const croix = o.querySelector('.btn-close');
+  if(croix) croix.hidden = !!actif;
+}
+
+// ── Vue 1 : la question ────────────────────────────────────────────────────
+function bdAcqVueConfirmation(b) {
+  return { titre: "Confirmer l'acquisition", corps: `
+    <div class="bd-acq">
+      <div class="bd-acq__q">
+        <div class="bd-acq__qic">${sfAccIcon('maison', 20)}</div>
+        <div>
+          <p class="bd-acq__qt">Confirmez-vous l'acquisition de « ${esc(b.titre || 'ce bien')} » ?</p>
+          <p class="bd-acq__qx">Ce bien quitte <strong>Ma prospection</strong> pour rejoindre
+            <strong>Mon patrimoine</strong>, et ses loyers et charges alimenteront le
+            <strong>Suivi financier</strong>. Vous allez ensuite déclarer son mode de détention
+            et son locataire.</p>
+        </div>
       </div>
+      <div class="bd-step-pied">
+        <button class="sf-btn sf-btn--ghost" onclick="bdAcqAnnuler()">Pas encore</button>
+        <button class="sf-btn sf-btn--primary" onclick="bdAcqVersGestion()">${sfAccIcon('check',16)} Oui, ce bien est acheté</button>
+      </div>
+    </div>` };
+}
+
+// ── Vue 2 : les deux déclarations ──────────────────────────────────────────
+function bdAcqVueGestion(b) {
+  const acquisition = bdAcq.mode === 'acquisition';
+  // Locataires réutilisables : tous sauf les sortis. Ceux rattachés ailleurs
+  // restent proposés, simplement signalés.
+  const locDispos = allLocataires.filter(l => l.statut !== 'Sorti');
+  const pret = !!bdAcq.detention && (bdAcq.detention !== 'sci' || !!bdAcq.sciId) && !!bdAcq.locChoix;
+  const sel = (a, b2) => a === b2 ? ' est-choisi' : '';
+
+  return { titre: acquisition ? "Confirmer l'acquisition" : `Mise en gestion — ${b.titre || 'Bien'}`, corps: `
+    <div class="bd-acq">
+     <div class="bd-acq__corps">
+      <p class="bd-acq__intro">${acquisition
+        ? `<strong>${esc(b.titre || 'Ce bien')}</strong> rejoint votre patrimoine. Deux déclarations, et son suivi est opérationnel.`
+        : `Il reste à déclarer ce bien pour que son suivi soit complet.`}</p>
+
+      <section class="bd-acq__s">
+        <h3 class="bd-acq__st">${sfAccIcon('banque',15)} Mode de détention</h3>
+        <p class="bd-acq__sx">En votre nom propre, ou via une SCI. C'est ce choix qui détermine où ce bien se déclare.</p>
+        <div class="bd-acq__choix">
+          <button type="button" class="bd-choix${sel(bdAcq.detention,'propre')}" onclick="bdAcqSetDetention('propre')">
+            <span class="bd-choix__t">En nom propre</span>
+            <span class="bd-choix__x">Vous le détenez en personne physique</span>
+          </button>
+          <button type="button" class="bd-choix${sel(bdAcq.detention,'sci')}" onclick="bdAcqSetDetention('sci')"
+                  ${allSCI.length ? '' : 'disabled'}>
+            <span class="bd-choix__t">Via une SCI</span>
+            <span class="bd-choix__x">${allSCI.length ? 'Une société que vous avez créée' : 'Aucune SCI enregistrée'}</span>
+          </button>
+        </div>
+        ${bdAcq.detention === 'sci' ? `
+          <div class="bd-acq__sous">
+            <select class="sfb-sel" id="mg-sci" aria-label="SCI détentrice" onchange="bdAcqSetSci(this.value)">
+              <option value="">Choisissez la SCI…</option>
+              ${allSCI.map(s => `<option value="${s.id}"${s.id===bdAcq.sciId?' selected':''}>${esc(s.nom_sci)}</option>`).join('')}
+            </select>
+          </div>` : ''}
+        ${!allSCI.length ? `
+          <p class="bd-acq__note">Aucune SCI enregistrée.
+            <button class="bd-acq__lien" onclick="bdAcqAnnuler();navigate('administration')">En créer une</button></p>` : ''}
+      </section>
+
+      <section class="bd-acq__s">
+        <h3 class="bd-acq__st">${sfAccIcon('user',15)} Locataire</h3>
+        <p class="bd-acq__sx">Les loyers se génèrent ensuite tout seuls, à partir du bail et de la date d'entrée.</p>
+        <div class="bd-acq__choix bd-acq__choix--3">
+          <button type="button" class="bd-choix${sel(bdAcq.locChoix,'existant')}" onclick="bdAcqSetLoc('existant')"
+                  ${locDispos.length ? '' : 'disabled'}>
+            <span class="bd-choix__t">Un locataire existant</span>
+            <span class="bd-choix__x">${locDispos.length ? 'Le rattacher à ce bien' : 'Aucun locataire enregistré'}</span>
+          </button>
+          <button type="button" class="bd-choix${sel(bdAcq.locChoix,'nouveau')}" onclick="bdAcqSetLoc('nouveau')">
+            <span class="bd-choix__t">Un nouveau locataire</span>
+            <span class="bd-choix__x">Sa fiche s'ouvrira juste après</span>
+          </button>
+          <button type="button" class="bd-choix${sel(bdAcq.locChoix,'aucun')}" onclick="bdAcqSetLoc('aucun')">
+            <span class="bd-choix__t">Pas de locataire</span>
+            <span class="bd-choix__x">Le bien est vacant pour l'instant</span>
+          </button>
+        </div>
+        ${bdAcq.locChoix === 'existant' && locDispos.length ? `
+          <div class="bd-acq__sous">
+            <select class="sfb-sel" id="mg-loc" aria-label="Locataire à rattacher" onchange="bdAcqSetLocId(this.value)">
+              <option value="">Choisissez le locataire…</option>
+              ${locDispos.map(l => {
+                const nom = [l.prenom, l.nom].filter(Boolean).join(' ') || 'Sans nom';
+                const autre = l.bien_id && l.bien_id !== b.id ? allBiens.find(x => x.id === l.bien_id) : null;
+                const t = autre ? (autre.titre || 'un bien') : '';
+                const suffixe = autre ? ` · déjà sur ${t.length > 24 ? t.slice(0,24)+'…' : t}` : '';
+                return `<option value="${l.id}"${l.id===bdAcq.locId?' selected':''}>${esc(nom)}${esc(suffixe)}</option>`;
+              }).join('')}
+            </select>
+          </div>` : ''}
+      </section>
+     </div>
 
       <div class="bd-step-pied">
-        <button class="sf-btn sf-btn--ghost" onclick="closeModal('modal-detail')">${restants === 0 ? 'Fermer' : 'Plus tard'}</button>
-        <button class="sf-btn sf-btn--primary" onclick="closeModal('modal-detail');bdGoToSuivi('${b.id}')">${sfAccIcon('agenda', 16)} Ouvrir le suivi mensuel</button>
+        <button class="sf-btn sf-btn--ghost" onclick="bdAcqAnnuler()">Annuler</button>
+        <button class="sf-btn sf-btn--primary" id="bd-acq-ok" ${pret ? '' : 'disabled'}
+                onclick="bdAcqConfirmer()">${sfAccIcon('check',16)} ${acquisition ? "Confirmer l'acquisition" : 'Enregistrer'}</button>
       </div>
-    </div>`;
+    </div>` };
 }
 
-/* Enregistre le MODE DE DÉTENTION d'un bien acquis. Règle obligatoire du
-   12/08/2026 : en propre, ou via une SCI — jamais rien.
-   ⚠️ LES DEUX CHAMPS PARTENT DANS LE MÊME `update`. C'est ce que l'invariant
-   `biens_mode_detention_coherent` exige, et c'est pour cela que la partie B de
-   MIGRATION-MODE-DETENTION.sql attendait ce commit. */
-async function bdSaveDetention(bienId, mode) {
-  const sciId = mode === 'sci' ? document.getElementById('mg-sci')?.value : null;
-  if (mode === 'sci' && !sciId) { showNotif('Choisissez une SCI', true); return; }
-  const patch = { mode_detention: mode, sci_id: mode === 'sci' ? sciId : null };
-  try {
-    const { error } = await db.from('biens').update(patch).eq('id', bienId);
-    if(error) throw error;
-    const b = allBiens.find(x => x.id === bienId);
-    if(b) Object.assign(b, patch);
-    showNotif(mode === 'propre' ? 'Bien détenu en nom propre' : 'Bien rattaché à la SCI');
-    bdRenderMiseEnGestion(bienId);
-    bdRefresh();
-  } catch(e) { showNotif('Erreur : ' + e.message, true); }
+// ── Vue 3 : l'acquisition est faite ────────────────────────────────────────
+/* ⚠️ Acheter un bien immobilier n'est pas un enregistrement de formulaire. On
+   marque le moment — sobrement : une coche qui se dessine, le nom du bien, les
+   trois chiffres qui comptent. L'animation festive dure moins d'une seconde et
+   respecte `prefers-reduced-motion`. */
+function bdAcqVueSucces(b) {
+  const r = bdAcq.resume || {};
+  const cout = (parseFloat(b.prix_affiche)||0) + (parseFloat(b.frais_notaire)||0)
+             + (parseFloat(b.travaux)||0) + (parseFloat(b.frais_agence)||0)
+             + (b.mode_detention === 'sci' ? (parseFloat(b.creation_sci)||0) : 0);
+  const chiffres = [
+    { l:"Coût d'acquisition", v: sfEur(cout) },
+    { l:'Mensualité de crédit', v: b.mensualite_credit ? sfEur(b.mensualite_credit) + '/mois' : '—' },
+    { l:'Détention', v: b.mode_detention === 'sci'
+        ? (allSCI.find(s => s.id === b.sci_id)?.nom_sci || 'Via une SCI') : 'En nom propre' },
+  ];
+  return { titre: 'Félicitations', corps: `
+    <div class="bd-acq bd-acq--succes">
+      <div class="bd-succes__eclat" aria-hidden="true">
+        ${Array.from({length:12}, (_,i) => `<i style="--i:${i}"></i>`).join('')}
+      </div>
+      <div class="bd-succes__coche" aria-hidden="true">
+        <svg viewBox="0 0 52 52" width="56" height="56" fill="none" stroke="currentColor"
+             stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle class="bd-succes__c" cx="26" cy="26" r="23"/>
+          <path class="bd-succes__v" d="M15 27l8 8 15-16"/>
+        </svg>
+      </div>
+      <p class="bd-succes__t">${esc(b.titre || 'Ce bien')} rejoint votre patrimoine</p>
+      <p class="bd-succes__x">Félicitations pour cette acquisition. Le bien alimente désormais
+        votre Suivi financier${r.loyers ? `, et ses ${r.loyers} échéances de loyer sont déjà au calendrier` : ''}.</p>
+
+      <dl class="bd-succes__kpis">
+        ${chiffres.map(c => `<div><dt>${c.l}</dt><dd>${c.v}</dd></div>`).join('')}
+      </dl>
+
+      ${r.locNouveau ? `
+        <p class="bd-acq__note">Il reste à créer la fiche du locataire : sa date d'entrée et son
+          loyer déclencheront la génération des échéances.</p>` : ''}
+      ${r.locSansDate ? `
+        <p class="bd-acq__note">Le locataire rattaché n'a pas de date d'entrée : renseignez-la pour
+          que ses loyers se génèrent.</p>` : ''}
+
+      <div class="bd-step-pied">
+        <button class="sf-btn sf-btn--ghost" onclick="bdAcqFermer()">Fermer</button>
+        ${r.locNouveau
+          ? `<button class="sf-btn sf-btn--primary" onclick="bdAcqFermer();openLocataireModal(null,'${b.id}')">${sfAccIcon('plus',16)} Créer le locataire</button>`
+          : `<button class="sf-btn sf-btn--primary" onclick="bdAcqFermer();bdGoToSuivi('${b.id}')">${sfAccIcon('agenda',16)} Ouvrir le suivi mensuel</button>`}
+      </div>
+    </div>` };
 }
 
-// Rattache un locataire existant au bien. Un locataire déjà pris ailleurs
-// n'est pas bloqué : on demande confirmation avant de le déplacer.
-async function bdAttachLocataire(bienId) {
-  const locId = document.getElementById('mg-loc')?.value;
-  const loc = allLocataires.find(l => l.id === locId);
-  if(!loc) { showNotif('Choisissez un locataire', true); return; }
-  const nom = [loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Ce locataire';
+// ── Le brouillon : ces fonctions n'écrivent RIEN, elles notent ─────────────
+function bdAcqVersGestion() { if(bdAcq) { bdAcq.vue = 'gestion'; bdAcqRender(); } }
+function bdAcqSetDetention(mode) {
+  if(!bdAcq) return;
+  bdAcq.detention = mode;
+  if(mode !== 'sci') bdAcq.sciId = null;
+  // Une seule SCI : la choisir d'office évite un clic qui n'a pas d'alternative.
+  else if(!bdAcq.sciId && allSCI.length === 1) bdAcq.sciId = allSCI[0].id;
+  bdAcqRender();
+}
+function bdAcqSetSci(id)   { if(bdAcq) { bdAcq.sciId = id || null; bdAcqRender(); } }
+function bdAcqSetLoc(choix){ if(bdAcq) { bdAcq.locChoix = choix;
+                                          if(choix !== 'existant') bdAcq.locId = null;
+                                          bdAcqRender(); } }
+function bdAcqSetLocId(id) { if(bdAcq) { bdAcq.locId = id || null; bdAcqRender(); } }
 
-  if(loc.bien_id && loc.bien_id !== bienId) {
+/* ═══════════════════════════════════════════════════════════════════════════
+   L'ÉCRITURE — le seul endroit du workflow qui touche la base.
+   ⚠️ `mode_detention` et `sci_id` partent dans le MÊME `update`, avec le
+   statut : c'est ce que l'invariant `biens_mode_detention_coherent` exige.  */
+async function bdAcqConfirmer() {
+  if(!bdAcq || bdAcq.enCours) return;
+  const b = allBiens.find(x => x.id === bdAcq.bienId);
+  if(!b) return;
+  if(!bdAcq.detention) { showNotif('Déclarez le mode de détention', true); return; }
+  if(bdAcq.detention === 'sci' && !bdAcq.sciId) { showNotif('Choisissez la SCI détentrice', true); return; }
+  if(!bdAcq.locChoix) { showNotif('Indiquez la situation locative', true); return; }
+  if(bdAcq.locChoix === 'existant' && !bdAcq.locId) { showNotif('Choisissez le locataire', true); return; }
+
+  const loc = bdAcq.locChoix === 'existant'
+    ? allLocataires.find(l => l.id === bdAcq.locId) : null;
+  // Un locataire déjà actif ailleurs n'est pas bloqué, mais on ne le déplace
+  // pas en douce.
+  if(loc && loc.bien_id && loc.bien_id !== b.id) {
     const autre = allBiens.find(x => x.id === loc.bien_id);
+    const nom = [loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Ce locataire';
     if(!confirm(`${nom} est actuellement rattaché à « ${autre?.titre || 'un autre bien'} ».\n\nLe déplacer vers ce bien ?`)) return;
   }
-  const patch = { bien_id: bienId };
-  const activation = loc.statut !== 'Actif';
-  if(activation) patch.statut = 'Actif';   // le suivi locatif s'appuie sur le locataire actif
+
+  bdAcq.enCours = true;
+  const bouton = document.getElementById('bd-acq-ok');
+  if(bouton) { bouton.disabled = true; bouton.textContent = 'Enregistrement…'; }
+
+  const patchBien = { mode_detention: bdAcq.detention,
+                      sci_id: bdAcq.detention === 'sci' ? bdAcq.sciId : null };
+  if(bdAcq.mode === 'acquisition') patchBien.statut = 'Acheté';
 
   try {
-    const { error } = await db.from('locataires').update(patch).eq('id', loc.id);
+    const { error } = await db.from('biens').update(patchBien).eq('id', b.id);
     if(error) throw error;
-    Object.assign(loc, patch);
-    // Sans date d'entree, l'etape 3 (generer les loyers) refusera de tourner.
-    // Autant le dire ici plutot que de laisser l'utilisateur buter dessus.
-    showNotif(`${nom} rattaché${activation ? ' et passé en Actif' : ''}`
-      + (loc.date_entree ? '' : " · date d'entrée à renseigner pour générer les loyers"));
-    bdRenderMiseEnGestion(bienId);
-    bdRefresh();
-  } catch(e) { showNotif('Erreur : ' + e.message, true); }
-}
+    Object.assign(b, patchBien);
 
-async function bdGenererLoyers(bienId) {
-  const loc = allLocataires.find(l => l.bien_id === bienId && l.statut === 'Actif');
-  if(!loc) { showNotif('Aucun locataire actif sur ce bien', true); return; }
-  if(!loc.date_entree) { showNotif("Renseignez la date d'entrée du locataire", true); return; }
-  const n = await autoGenerateLoyers(loc);
-  if(n > 0) {
-    await loadMfFinancialData();
-    showNotif(`${n} loyer${n>1?'s':''} généré${n>1?'s':''}`);
-    bdRenderMiseEnGestion(bienId);
+    const resume = { loyers: 0, locNouveau: bdAcq.locChoix === 'nouveau', locSansDate: false };
+
+    if(loc) {
+      const patchLoc = { bien_id: b.id };
+      if(loc.statut !== 'Actif') patchLoc.statut = 'Actif';
+      const { error: eLoc } = await db.from('locataires').update(patchLoc).eq('id', loc.id);
+      if(eLoc) throw eLoc;
+      Object.assign(loc, patchLoc);
+      /* Génération AUTOMATIQUE des loyers — c'était une étape à cliquer, elle
+         n'a jamais eu d'alternative. `autoGenerateLoyers` est la source unique
+         (prorata loi 1989 compris) ; ce chemin-ci ne l'appelait pas, alors que
+         `saveLocataire` le faisait déjà. Les deux s'alignent. */
+      if(loc.date_entree) {
+        resume.loyers = await autoGenerateLoyers(loc);
+        if(resume.loyers > 0 && typeof loadMfFinancialData === 'function') await loadMfFinancialData();
+      } else {
+        resume.locSansDate = true;
+      }
+    }
+
+    bdAcq.resume = resume;
+    bdAcq.vue = 'succes';
+    bdAcqRender();
+    await loadBiens?.();
     bdRefresh();
-  } else {
-    showNotif('Aucun loyer à générer pour cette période', true);
+  } catch(e) {
+    bdAcq.enCours = false;
+    showNotif('Erreur : ' + (e.message || 'enregistrement impossible'), true);
+    bdAcqRender();
   }
 }
 
-// Appelé après tout passage au statut « Acheté ». N'ouvre la fenêtre que si
-// la mise en gestion est réellement incomplète.
-function bdCheckMiseEnGestion(bienId) {
+/* « Annuler » n'a RIEN à défaire : tant qu'on n'a pas confirmé, le bien n'a pas
+   bougé. On se contente de redessiner — le kanban, notamment, a pu déplacer la
+   carte à l'écran alors que le statut n'a jamais changé en base. */
+function bdAcqAnnuler() {
+  const revenirAuKanban = bdAcq?.origine === 'kanban';
+  bdAcqFermer();
+  if(revenirAuKanban && typeof applyFilters === 'function') applyFilters();
+  else bdRefresh();
+}
+
+function bdAcqFermer() {
+  bdAcqVerrouiller(false);
+  document.getElementById('modal-detail')?.classList.remove('modal-overlay--acq');
+  closeModal('modal-detail');
+  bdAcq = null;
+}
+
+/* Le retour en arrière. Sans lui, un bien passé en « Acheté » y resterait
+   pour toujours : « Acheté » ne figure plus dans aucune liste déroulante, donc
+   la sortie ne peut plus venir de là non plus. */
+/* ⚠️ On repose le bien sur « Compromis signé » — la dernière étape avant
+   l'acquisition — et PAS sur un statut choisi dans une liste numérotée : le
+   bien redevient en prospection, donc sa picklist redevient éditable et
+   l'utilisateur l'ajuste d'un clic, avec le composant de la plateforme. Une
+   décision de moins à prendre dans une boîte de dialogue.
+   Le mode de détention est remis à NULL : un bien qui n'est plus acquis n'a
+   plus de déclarant, et l'invariant `biens_mode_detention_coherent` exige que
+   `sci_id` parte avec. Locataires, loyers et charges sont conservés. */
+const BD_STATUT_RETOUR = 'Compromis signé';
+
+async function bdRemettreEnProspection(bienId) {
   const b = allBiens.find(x => x.id === bienId);
-  if(!b || b.statut !== 'Acheté') return;
-  if(bdEtapesGestion(b).every(e => e.fait)) return;
-  setTimeout(() => bdOpenMiseEnGestion(bienId), 350);
+  if(!b || !sfDetenu(b)) return;
+  if(!confirm(
+      `Remettre « ${b.titre || 'ce bien'} » en prospection ?\n\n`
+    + `Il quittera Mon patrimoine et cessera d'alimenter le Suivi financier. `
+    + `Son mode de détention sera à redéclarer.\n\n`
+    + `Ses locataires, loyers et charges sont conservés. `
+    + `Le bien repassera au statut « ${BD_STATUT_RETOUR} », que vous pourrez ajuster ensuite.`)) return;
+  try {
+    const patch = { statut: BD_STATUT_RETOUR, mode_detention: null, sci_id: null };
+    const { error } = await db.from('biens').update(patch).eq('id', b.id).eq('user_id', currentUser.id);
+    if(error) throw error;
+    Object.assign(b, patch);
+    showNotif(`Bien remis en prospection · ${BD_STATUT_RETOUR}`);
+    bdRefresh();
+    if(currentPage === 'biens') applyFilters();
+  } catch(e) { showNotif('Erreur : ' + e.message, true); }
 }
 
 // Galerie photos du bien : ouverte depuis la vignette du rail
@@ -11659,7 +11942,13 @@ function showNotif(msg,isError=false){
   el.className='notif show'+(isError?' error':'');
   setTimeout(()=>el.classList.remove('show'),3000);
 }
-document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
+/* Un clic sur le fond referme la fenêtre — SAUF si elle est verrouillée.
+   Le workflow d'acquisition pose `data-verrou` : on n'en sort que par
+   « Annuler » ou « Confirmer », jamais par un clic à côté (voir
+   `bdAcqVerrouiller`). */
+document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{
+  if(e.target===o && !o.dataset.verrou) o.classList.remove('open');
+}));
 // FND-006 : purge de l'ancienne clé NewsAPI stockée en localStorage. La clé vit désormais
 // uniquement dans le secret Supabase NEWSAPI_KEY, lu par l'Edge Function news-proxy.
 localStorage.removeItem('sf_newsapi_key');
