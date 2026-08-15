@@ -4327,6 +4327,64 @@ function bdEtapesGestion(b) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   DEMANDER CONFIRMATION, À LA CHARTE — remplaçante de `confirm()`.
+
+   ⚠️ `confirm()` affiche une boîte du NAVIGATEUR : sa typographie, ses boutons,
+   ses libellés système, et une bannière « …github.io indique » en tête. Sur une
+   plateforme dont la cohérence visuelle est un mot d'ordre, c'est la seule
+   fenêtre qui trahit l'application. Signalé par Thomas le 15/08/2026.
+
+   Rend une promesse : `if (await sfConfirmer({ … })) { … }`.
+   Réutilise le cadre `modal-detail` — elle ne s'empile donc jamais avec le
+   workflow d'acquisition, les deux ne coexistent pas.
+
+   ⚠️ `question` est ÉCHAPPÉE (elle porte souvent un titre de bien saisi par
+   l'utilisateur). `detail` ne l'est PAS : elle accepte du balisage pour mettre
+   en avant un nom de section — à l'appelant d'échapper ce qu'il y interpole. */
+function sfConfirmer({ titre, question, detail, ok = 'Confirmer',
+                       annuler = 'Annuler', danger = false }) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('modal-detail');
+    document.getElementById('detail-titre').textContent = titre || 'Confirmation';
+    document.getElementById('detail-content').innerHTML = `
+      <div class="bd-acq">
+        <div class="bd-acq__q">
+          <div class="bd-acq__qic${danger ? ' bd-acq__qic--danger' : ''}">${sfAccIcon(danger ? 'alerte' : 'info', 20)}</div>
+          <div>
+            <p class="bd-acq__qt">${esc(question)}</p>
+            ${detail ? `<p class="bd-acq__qx">${detail}</p>` : ''}
+          </div>
+        </div>
+        <div class="bd-step-pied">
+          <button class="sf-btn sf-btn--ghost" id="sf-conf-non">${esc(annuler)}</button>
+          <button class="sf-btn ${danger ? 'sf-btn--danger' : 'sf-btn--primary'}" id="sf-conf-oui">${esc(ok)}</button>
+        </div>
+      </div>`;
+    overlay.classList.add('modal-overlay--acq');
+    overlay.dataset.verrou = '1';
+    const croix = overlay.querySelector('.btn-close');
+    if(croix) croix.hidden = true;
+    openModal('modal-detail');
+
+    const repondre = (v) => {
+      delete overlay.dataset.verrou;
+      if(croix) croix.hidden = false;
+      overlay.classList.remove('modal-overlay--acq');
+      closeModal('modal-detail');
+      document.removeEventListener('keydown', surTouche);
+      resolve(v);
+    };
+    // Ici Échap est légitime : une question fermée se refuse, contrairement au
+    // workflow d'acquisition qui exige une réponse explicite.
+    const surTouche = e => { if(e.key === 'Escape') { e.preventDefault(); repondre(false); } };
+    document.getElementById('sf-conf-oui').onclick = () => repondre(true);
+    document.getElementById('sf-conf-non').onclick = () => repondre(false);
+    document.addEventListener('keydown', surTouche);
+    document.getElementById('sf-conf-oui').focus();
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    LE BROUILLON D'ACQUISITION — rien n'est écrit avant la confirmation.
 
    ⚠️ C'est le choix de conception central de cette fenêtre (15/08/2026).
@@ -4682,12 +4740,15 @@ const BD_STATUT_RETOUR = 'Compromis signé';
 async function bdRemettreEnProspection(bienId) {
   const b = allBiens.find(x => x.id === bienId);
   if(!b || !sfDetenu(b)) return;
-  if(!confirm(
-      `Remettre « ${b.titre || 'ce bien'} » en prospection ?\n\n`
-    + `Il quittera Mon patrimoine et cessera d'alimenter le Suivi financier. `
-    + `Son mode de détention sera à redéclarer.\n\n`
-    + `Ses locataires, loyers et charges sont conservés. `
-    + `Le bien repassera au statut « ${BD_STATUT_RETOUR} », que vous pourrez ajuster ensuite.`)) return;
+  const ok = await sfConfirmer({
+    titre: 'Remettre en prospection',
+    question: `Remettre « ${b.titre || 'ce bien'} » en prospection ?`,
+    detail: `Il quittera <strong>Mon patrimoine</strong> et cessera d'alimenter le
+      <strong>Suivi financier</strong>. Son mode de détention sera à redéclarer.<br><br>
+      Ses locataires, loyers et charges sont conservés. Le bien repassera au statut
+      « ${esc(BD_STATUT_RETOUR)} », que vous pourrez ajuster ensuite.`,
+    ok: 'Remettre en prospection', annuler: 'Garder dans le patrimoine', danger: true });
+  if(!ok) return;
   try {
     const patch = { statut: BD_STATUT_RETOUR, mode_detention: null, sci_id: null };
     const { error } = await db.from('biens').update(patch).eq('id', b.id).eq('user_id', currentUser.id);
@@ -5944,34 +6005,6 @@ function navigate(page) {
 let mfTab = 'performance';
 
 // ─── STATUTS — Code couleur par phase ───────────────────────
-// Chaque statut bien est rattaché à une "phase" macro pour colorisation visuelle
-const STATUT_PHASES = {
-  // 🔵 Prospection
-  'Renseignements Web': 'prospection',
-  'Vendeur contacté (1ère)': 'prospection',
-  'Vendeur contacté (2ème)': 'prospection',
-  'Vendeur contacté (3ème)': 'prospection',
-  // 🟡 Négociation
-  '1ère offre - Envoyée': 'negociation',
-  '1ère offre - Acceptée': 'negociation',
-  '1ère offre - Refusée': 'negociation',
-  'Contre offre - Envoyée': 'negociation',
-  'Contre offre - Acceptée': 'negociation',
-  'Contre offre - Refusée': 'negociation',
-  // 🟢 Accord
-  'Accord trouvé !': 'accord',
-  // 🟠 Banque
-  'Rendez-vous banque': 'banque',
-  'Dossier déposé': 'banque',
-  'Obtention crédit': 'banque',
-  'Dossier non déposé': 'banque',
-  // 🟣 Closing
-  'Administratifs': 'closing',
-  'Compromis signé': 'closing',
-  'Acheté': 'closing',
-  // ⚫ Abandon
-  'Abandonné': 'abandon',
-};
 
 const STATUT_PHASE_LABELS = {
   prospection:  'Prospection',
@@ -5983,7 +6016,18 @@ const STATUT_PHASE_LABELS = {
 };
 
 function getStatutPhase(statut) {
-  return STATUT_PHASES[statut] || 'prospection';
+  /* ⚠️ SOURCE UNIQUE : `PHASE_MAP`. Il existait un SECOND mapping,
+     `STATUT_PHASES`, avec ses propres phases — `accord`, `closing`, `abandon` —
+     dont AUCUNE n'avait de classe CSS. Cinq statuts sur dix-neuf s'affichaient
+     donc SANS AUCUN STYLE dans la fiche bien (« Accord trouvé ! »,
+     « Administratifs », « Compromis signé », « Acheté », « Abandonné »), alors
+     que la vue Tableau, qui lit `PHASE_MAP`, les colorait correctement. Le même
+     statut n'avait pas la même tête selon l'écran. Signalé par Thomas le
+     15/08/2026 sur « Accord trouvé ! ».
+     C'est le motif connu de la maison : une règle écrite deux fois finit par
+     diverger. `TI_BIENS.STATUTS` dérivait déjà de `PHASE_MAP` ; la couleur
+     aussi, désormais. */
+  return PHASE_MAP[statut] || 'generic';
 }
 let allLoyers = [];          // toutes les lignes loyers_mensuels du user
 let allCharges = [];         // toutes les lignes charges_reelles du user
