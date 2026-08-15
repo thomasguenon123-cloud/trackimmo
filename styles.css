@@ -2439,6 +2439,11 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
   background:var(--accent-wash); border:1px solid var(--accent-border);
   color:var(--sf-brand-vivid);
 }
+/* Question qui engage un retour en arrière : l'icône passe en teinte d'alerte,
+   le bouton de confirmation aussi. On signale, on ne dramatise pas. */
+.bd-acq__qic--danger{
+  background:var(--sf-loss-wash); border-color:var(--sf-loss); color:var(--sf-loss);
+}
 .bd-acq__qt{ font-size:var(--sf-font-lead); font-weight:var(--sf-weight-semibold);
   color:var(--sf-text); margin:0 0 var(--sf-space-4); line-height:1.4; }
 .bd-acq__qx{ font-size:var(--sf-font-body-sm); color:var(--sf-text-2);
