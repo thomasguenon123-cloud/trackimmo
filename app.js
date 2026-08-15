@@ -3740,9 +3740,9 @@ async function renderBienDetail(el) {
           <p class="sff-sub">${[b.ville, b.code_postal, b.type_bien, b.surface_m2 ? b.surface_m2+' m²' : null].filter(Boolean).map(esc).join(' · ')}</p>
         </div>
         <div class="sff-acts">
-          ${b.ville ? `<button class="btn btn-secondary btn-sm" onclick="bdVoirMarche('${(b.ville||'').replace(/'/g,"\\'")}')">${sfAccIcon('pin',15)} Le marché à ${esc(b.ville)}</button>` : ''}
-          <button class="btn btn-secondary btn-sm" onclick="openDossierModal('${b.id}')">${sfAccIcon('doc',15)} Dossier banque</button>
-          <button class="btn btn-secondary btn-sm" onclick="editBien('${b.id}')">${sfAccIcon('crayon',15)} Modifier la fiche</button>
+          ${b.ville ? `<button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdVoirMarche('${(b.ville||'').replace(/'/g,"\\'")}')">${sfAccIcon('pin',15)} Le marché à ${esc(b.ville)}</button>` : ''}
+          <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="openDossierModal('${b.id}')">${sfAccIcon('doc',15)} Dossier banque</button>
+          <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="editBien('${b.id}')">${sfAccIcon('crayon',15)} Modifier la fiche</button>
         </div>
       </div>
     </div>
@@ -3860,7 +3860,7 @@ async function renderBienDetail(el) {
                      <div class="sff-empty__ic">${sfAccIcon('image',34)}</div>
                      <div class="sff-empty__t">Aucune photo</div>
                      <div class="sff-empty__x">Les visuels de l'annonce et les clichés pris en visite se rassemblent ici. Le premier sert de vignette dans la liste de vos biens.</div>
-                     <button class="btn btn-primary btn-sm" onclick="editBien('${b.id}')">Ajouter des photos</button>
+                     <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="editBien('${b.id}')">Ajouter des photos</button>
                    </div>`}
             </div>
           </div>
@@ -3877,7 +3877,7 @@ async function renderBienDetail(el) {
                      <div class="sff-empty__ic">${sfAccIcon('doc',34)}</div>
                      <div class="sff-empty__t">Aucun document</div>
                      <div class="sff-empty__x">Diagnostics, règlement de copropriété, procès-verbaux d'assemblée générale, compromis : les pièces que la banque et le notaire réclameront le moment venu.</div>
-                     <button class="btn btn-primary btn-sm" onclick="editBien('${b.id}')">Déposer un document</button>
+                     <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="editBien('${b.id}')">Déposer un document</button>
                    </div>`}
             </div>
           </div>
@@ -3992,14 +3992,14 @@ async function renderBienDetail(el) {
                       <div class="sff-row__a">${sfEur(s.mensualite_calculee||0)} /mois</div>
                     </div>`).join('')}</div>
                    <div class="sff-cta">
-                     <button class="btn btn-secondary btn-sm" onclick="openDossierModal('${b.id}')">${sfAccIcon('doc',15)} Générer le dossier banque</button>
-                     <button class="btn btn-secondary btn-sm" onclick="navigate('simulateur')">${sfAccIcon('banque',15)} Nouvelle simulation</button>
+                     <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="openDossierModal('${b.id}')">${sfAccIcon('doc',15)} Générer le dossier banque</button>
+                     <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="navigate('simulateur')">${sfAccIcon('banque',15)} Nouvelle simulation</button>
                    </div>`
                 : `<div class="sff-empty">
                      <div class="sff-empty__ic">${sfAccIcon('banque',34)}</div>
                      <div class="sff-empty__t">Aucune simulation de crédit</div>
                      <div class="sff-empty__x">${mensu ? `La mensualité de ${sfEur(mensu)} renseignée plus haut est une hypothèse. Une` : 'Une'} simulation établit la mensualité réelle à partir du taux, de la durée et de l'apport, puis alimente le dossier remis à la banque.</div>
-                     <button class="btn btn-primary btn-sm" onclick="navigate('simulateur')">Simuler ce crédit</button>
+                     <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="navigate('simulateur')">Simuler ce crédit</button>
                    </div>`}
             </div>
           </div>
@@ -4010,7 +4010,7 @@ async function renderBienDetail(el) {
           <div class="sff-block">
             <div class="sff-block__h">
               <p class="sff-block__t">Comptes rendus de visite</p>
-              ${visites.length ? `<div class="sff-block__a"><button class="btn btn-secondary btn-sm" onclick="openNouvelleVisite('${b.id}')">${sfAccIcon('plus',15)} Nouveau compte rendu</button></div>` : ''}
+              ${visites.length ? `<div class="sff-block__a"><button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="openNouvelleVisite('${b.id}')">${sfAccIcon('plus',15)} Nouveau compte rendu</button></div>` : ''}
             </div>
             <div class="sff-block__b${visites.length ? '' : ' sff-block__b--flush'}">
               ${visites.length
@@ -4026,7 +4026,7 @@ async function renderBienDetail(el) {
                      <div class="sff-empty__ic">${sfAccIcon('carnet',34)}</div>
                      <div class="sff-empty__t">Aucune visite enregistrée</div>
                      <div class="sff-empty__x">Consignez chaque visite : impression générale, points de vigilance, travaux à prévoir, photos. Les comptes rendus se retrouvent ici et dans la section Outils.</div>
-                     <button class="btn btn-primary btn-sm" onclick="openNouvelleVisite('${b.id}')">Rédiger le premier compte rendu</button>
+                     <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="openNouvelleVisite('${b.id}')">Rédiger le premier compte rendu</button>
                    </div>`}
             </div>
           </div>
@@ -4057,7 +4057,7 @@ async function renderBienDetail(el) {
           <div class="sff-block">
             <div class="sff-block__h">
               <p class="sff-block__t">Historique des échanges</p>
-              ${actions.length ? `<div class="sff-block__a"><button class="btn btn-secondary btn-sm" onclick="openActionModal('${b.id}')">${sfAccIcon('plus',15)} Ajouter un échange</button></div>` : ''}
+              ${actions.length ? `<div class="sff-block__a"><button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="openActionModal('${b.id}')">${sfAccIcon('plus',15)} Ajouter un échange</button></div>` : ''}
             </div>
             <div class="sff-block__b${actions.length ? '' : ' sff-block__b--flush'}">
               ${actions.length
@@ -4072,7 +4072,7 @@ async function renderBienDetail(el) {
                      <div class="sff-empty__ic">${sfAccIcon('agenda',34)}</div>
                      <div class="sff-empty__t">Aucun échange enregistré</div>
                      <div class="sff-empty__x">Appels, offres, relances et rendez-vous : cet historique vous rappellera où vous en êtes avec ce vendeur dans trois semaines.</div>
-                     <button class="btn btn-primary btn-sm" onclick="openActionModal('${b.id}')">Enregistrer le premier échange</button>
+                     <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="openActionModal('${b.id}')">Enregistrer le premier échange</button>
                    </div>`}
             </div>
           </div>
@@ -4089,7 +4089,7 @@ async function renderBienDetail(el) {
           <div class="sff-block">
             <div class="sff-block__h">
               <p class="sff-block__t">Mise en gestion</p>
-              <div class="sff-block__a"><button class="btn btn-secondary btn-sm" onclick="bdOpenMiseEnGestion('${b.id}')">Reprendre</button></div>
+              <div class="sff-block__a"><button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdOpenMiseEnGestion('${b.id}')">Reprendre</button></div>
             </div>
             <div class="sff-block__b">
               <p class="sff-inline">${etapesGestion.filter(e=>!e.fait).length} étape${etapesGestion.filter(e=>!e.fait).length>1?'s':''} avant que le suivi de ce bien soit opérationnel</p>
@@ -4141,7 +4141,7 @@ async function renderBienDetail(el) {
           <div class="sff-block">
             <div class="sff-block__h">
               <p class="sff-block__t">Loyers ${annee}</p>
-              ${loyersAnnee.length ? `<div class="sff-block__a"><button class="btn btn-secondary btn-sm" onclick="bdGoToSuivi('${b.id}')">Suivi mensuel</button></div>` : ''}
+              ${loyersAnnee.length ? `<div class="sff-block__a"><button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdGoToSuivi('${b.id}')">Suivi mensuel</button></div>` : ''}
             </div>
             <div class="sff-block__b">
               ${loyersAnnee.length === 0
@@ -4187,8 +4187,8 @@ async function renderBienDetail(el) {
           </div>
 
           <div class="sff-cta">
-            <button class="btn btn-secondary btn-sm" onclick="bdGoToSuivi('${b.id}')">${sfAccIcon('agenda',15)} Suivi mensuel</button>
-            <button class="btn btn-secondary btn-sm" onclick="bdGoToRenta('${b.id}')">${sfAccIcon('euro',15)} Rentabilité</button>
+            <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdGoToSuivi('${b.id}')">${sfAccIcon('agenda',15)} Suivi mensuel</button>
+            <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdGoToRenta('${b.id}')">${sfAccIcon('euro',15)} Rentabilité</button>
           </div>` : ''}
         </section>
 
@@ -4204,14 +4204,14 @@ async function renderBienDetail(el) {
                   <div class="sff-f"><div class="sff-f__l">Capital social</div><div class="sff-f__v">${sciBien.capital_social?sfEur(sciBien.capital_social):'<span class="sff-rail__none">Non renseigné</span>'}</div></div>
                 </div>
                 <div class="sff-cta">
-                  <button class="btn btn-secondary btn-sm" onclick="navigate('administration')">Administration</button>
-                  <button class="btn btn-secondary btn-sm" onclick="bdGoToRenta('${b.id}')">Alimenter le bilan</button>
+                  <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="navigate('administration')">Administration</button>
+                  <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdGoToRenta('${b.id}')">Alimenter le bilan</button>
                 </div>`
               : `<div class="sff-empty">
                    <div class="sff-empty__ic">${sfAccIcon('colonne',34)}</div>
                    <div class="sff-empty__t">Aucune société rattachée</div>
                    <div class="sff-empty__x">Le rattachement sert à une seule chose, mais elle compte : les loyers encaissés et les charges payées de ce bien alimentent alors le bilan comptable de la société.</div>
-                   <button class="btn btn-primary btn-sm" onclick="editBien('${b.id}')">Rattacher une SCI</button>
+                   <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="editBien('${b.id}')">Rattacher une SCI</button>
                  </div>`}
             </div>
           </div>
@@ -4428,7 +4428,7 @@ function bdOpenGallery() {
         ${bdPhotos.map(p => `<img src="${p}" onclick="openLightbox('${p}')" title="Cliquer pour agrandir">`).join('')}
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:16px">
-        <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Fermer</button>
+        <button class="sf-btn sf-btn--secondary" onclick="closeModal('modal-detail')">Fermer</button>
       </div>
     </div>`;
   openModal('modal-detail');
@@ -7458,12 +7458,13 @@ function mfOpenChargesDetail(bienId, mois, annee) {
         ${charges.map(mfSuiviCharge).join('')}
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--c-border)">
-        <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Fermer</button>
-        <button class="btn btn-primary" onclick="closeModal('modal-detail');mfOpenChargeModal({bien_id:'${bienId}', mois:${mois}, annee:${annee}})">＋ Ajouter une charge</button>
+        <button class="sf-btn sf-btn--secondary" onclick="closeModal('modal-detail')">Fermer</button>
+        <button class="sf-btn sf-btn--primary" onclick="closeModal('modal-detail');mfOpenChargeModal({bien_id:'${bienId}', mois:${mois}, annee:${annee}})">＋ Ajouter une charge</button>
       </div>
     </div>
   `;
-  document.getElementById('detail-titre').textContent = `💸 Charges – ${titreMois}`;
+  // Pas d'emoji dans les titres de fenetre — voir bdRenderMiseEnGestion.
+  document.getElementById('detail-titre').textContent = `Charges – ${titreMois}`;
   document.getElementById('detail-content').innerHTML = html;
   openModal('modal-detail');
 }
@@ -7560,13 +7561,13 @@ function mfOpenChargeModal(preset) {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:14px;border-top:1px solid var(--c-border);gap:10px;flex-wrap:wrap">
         <div style="font-size:11px;color:var(--c-muted);font-style:italic">💡 Les charges sont mappées automatiquement à la déclaration fiscale Cerfa 2044 (régime réel locations nues)</div>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Annuler</button>
-          <button class="btn btn-primary" onclick="mfSaveCharge('${isEdit ? initial.id : ''}')">${isEdit?sfAccIcon('check',14)+' Enregistrer':'＋ Ajouter la charge'}</button>
+          <button class="sf-btn sf-btn--secondary" onclick="closeModal('modal-detail')">Annuler</button>
+          <button class="sf-btn sf-btn--primary" onclick="mfSaveCharge('${isEdit ? initial.id : ''}')">${isEdit?sfAccIcon('check',14)+' Enregistrer':'＋ Ajouter la charge'}</button>
         </div>
       </div>
     </div>
   `;
-  document.getElementById('detail-titre').textContent = isEdit ? 'Modifier la charge' : '💸 Ajouter une charge réelle';
+  document.getElementById('detail-titre').textContent = isEdit ? 'Modifier la charge' : 'Ajouter une charge réelle';
   document.getElementById('detail-content').innerHTML = html;
   openModal('modal-detail');
   setTimeout(() => mfUpdateCerfaInfo(), 50);
@@ -7984,7 +7985,7 @@ function mfBilanFeedRender() {
                   ${autre ? `<span class="bf-bien-tag">rattaché à ${esc(autre.nom_sci)}</span>` : ''}
                 </label>`;
               }).join('')}
-          ${biensAcquis.length ? `<button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="mfBilanFeedSaveBiens()">💾 Enregistrer les rattachements</button>` : ''}
+          ${biensAcquis.length ? `<button class="sf-btn sf-btn--secondary sf-btn--sm" style="margin-top:10px" onclick="mfBilanFeedSaveBiens()">💾 Enregistrer les rattachements</button>` : ''}
         </div>` : ''}
     </div>`;
 
@@ -8044,8 +8045,8 @@ function mfBilanFeedRender() {
         Faites valider par un expert-comptable avant tout dépôt officiel.
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--c-border)">
-        <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Annuler</button>
-        <button class="btn btn-primary" id="bf-write" onclick="mfBilanFeedWrite()" ${!biensSci.length ? 'disabled' : ''}>✍️ Écrire dans le bilan ${annee}</button>
+        <button class="sf-btn sf-btn--secondary" onclick="closeModal('modal-detail')">Annuler</button>
+        <button class="sf-btn sf-btn--primary" id="bf-write" onclick="mfBilanFeedWrite()" ${!biensSci.length ? 'disabled' : ''}>✍️ Écrire dans le bilan ${annee}</button>
       </div>
     </div>`;
 
@@ -10613,6 +10614,14 @@ async function genAdminTestData() {
 async function purgeAdminTestData() {
   if (!currentUser || !confirm('Supprimer les données de test du module Administration ?')) return;
   try {
+    /* Les biens de ces SCI d'abord — voir `sciDetacherBiens`. On relit les SCI
+       visées avec EXACTEMENT la condition de la suppression, plutôt que de se
+       fier à `allSCI` : si la cache était en retard, on supprimerait une SCI
+       dont les biens n'auraient pas été détachés, et la base refuserait. */
+    const { data: sciTest, error: eLect } = await db.from('sci')
+      .select('id').eq('user_id', currentUser.id).ilike('nom_sci', '%TEST%');
+    if (eLect) throw eLect;
+    await sciDetacherBiens((sciTest || []).map(s => s.id));
     await db.from('sci').delete().eq('user_id', currentUser.id).ilike('nom_sci', '%TEST%');
     await db.from('contacts').delete().eq('user_id', currentUser.id).eq('notes', 'Contact test');
     await db.from('sci_echeances').delete().eq('user_id', currentUser.id).ilike('notes', '%test%');
@@ -10631,6 +10640,11 @@ async function purgeAllAdminData() {
       db.from('contacts').delete().eq('user_id', currentUser.id),
       db.from('sci_documents').delete().eq('user_id', currentUser.id),
     ]);
+    // Idem : aucun bien ne doit rester rattaché quand les SCI partent.
+    const { data: sciTout, error: eLect } = await db.from('sci')
+      .select('id').eq('user_id', currentUser.id);
+    if (eLect) throw eLect;
+    await sciDetacherBiens((sciTout || []).map(s => s.id));
     await db.from('sci').delete().eq('user_id', currentUser.id);
     showNotif('Toutes les données d\'administration supprimées');
     await loadAdminData(); switchAdminTab(adminTab);
@@ -12047,23 +12061,77 @@ async function saveSCI() {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   DÉTACHER LES BIENS D'UNE SCI — source unique, appelée par les TROIS chemins
+   qui suppriment une SCI (fiche SCI, purge des tests, purge totale).
+
+   ⚠️ POURQUOI ELLE EXISTE. `biens_sci_id_fkey` est en ON DELETE SET NULL : en
+   supprimant une SCI, LA BASE écrit elle-même `sci_id = null` sur ses biens,
+   sans toucher au mode. Sur un bien marqué 'sci', cela produit
+   (mode='sci', sci_id=null) — l'invariant `biens_mode_detention_coherent` est
+   violé et LA SUPPRESSION DE LA SCI ÉCHOUE, avec un message Postgres brut.
+   On prend donc les devants : les deux champs partent ensemble, avant.
+
+   ⚠️ ON REPASSE À NULL, PAS À 'propre'. La SCI disparaît, la question de la
+   détention se ROUVRE — elle ne se répond pas toute seule. Deviner « en
+   propre » écrirait une donnée à portée fiscale à la place de l'utilisateur ;
+   c'est précisément ce que la règle du 12/08/2026 interdit. L'écran redemande.
+
+   Rend le nombre de biens détachés. Lève si l'écriture échoue — l'appelant ne
+   doit surtout pas supprimer la SCI dans ce cas.                              */
+async function sciDetacherBiens(sciIds) {
+  const ids = (Array.isArray(sciIds) ? sciIds : [sciIds]).filter(Boolean);
+  if (!ids.length) return 0;
+  const vises = allBiens.filter(b => b.sci_id && ids.includes(b.sci_id));
+  if (!vises.length) return 0;
+  const { error } = await db.from('biens')
+    .update({ sci_id: null, mode_detention: null })
+    .in('sci_id', ids).eq('user_id', currentUser.id);
+  if (error) throw error;
+  vises.forEach(b => { b.sci_id = null; b.mode_detention = null; });
+  return vises.length;
+}
+
 // ── Suppression SCI ──
 async function deleteSCI() {
   if (!currentSCIId) return;
   const sci = allSCI.find(s => s.id === currentSCIId);
-  if (!confirm(`Supprimer la SCI "${sci?.nom_sci}" ? Cette action est irréversible.`)) return;
+  const nom = sci?.nom_sci || 'cette SCI';
+
+  /* Supprimer une SCI qui détient des biens n'est pas anodin : ces biens
+     perdent leur déclarant. On le dit AVANT, en les nommant — l'ancienne
+     version supprimait en silence et les biens disparaissaient de la
+     déclaration fiscale sans un mot (défaut n°5 de la revue du 13/08/2026). */
+  const detenus = allBiens.filter(b => b.sci_id === currentSCIId);
+  let question = `Supprimer la SCI « ${nom} » ? Cette action est irréversible.`;
+  if (detenus.length) {
+    const liste = detenus.slice(0, 5).map(b => '  · ' + (b.titre || 'Bien sans titre')).join('\n');
+    const reste = detenus.length > 5 ? `\n  · … et ${detenus.length - 5} autre(s)` : '';
+    question =
+      `La SCI « ${nom} » détient ${detenus.length} bien${detenus.length > 1 ? 's' : ''} :\n${liste}${reste}\n\n`
+      + `Les biens sont conservés, mais leur mode de détention redeviendra « à renseigner » : `
+      + `vous devrez déclarer pour chacun s'il est détenu en propre ou via une autre SCI.\n\n`
+      + `Supprimer quand même ?`;
+  }
+  if (!confirm(question)) return;
 
   const btn = document.getElementById('sci-btn-delete');
   btn.disabled = true;
   try {
+    // L'ordre compte : détacher D'ABORD, supprimer ensuite.
+    const detaches = await sciDetacherBiens(currentSCIId);
     const { error } = await db.from('sci').delete().eq('id', currentSCIId);
     if (error) throw error;
-    showNotif('SCI supprimée');
+    showNotif(detaches
+      ? `SCI supprimée · ${detaches} bien${detaches > 1 ? 's' : ''} à redéclarer`
+      : 'SCI supprimée');
     closeSCIModal();
     await loadAdminData();
     switchAdminTab('sci');
   } catch(e) {
-    showNotif('Erreur : ' + e.message, true);
+    // Sans transaction côté client, le détachement peut avoir abouti alors que
+    // la suppression échoue. On le dit plutôt que de laisser deviner.
+    showNotif('Erreur : ' + e.message + ' — la SCI est toujours là, vérifiez le rattachement de ses biens.', true);
   } finally {
     btn.disabled = false;
   }
