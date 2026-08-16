@@ -3346,7 +3346,16 @@ async function genTestData() {
   ];
   const inserts = [...positifs,...negatifs].map(v => {
     const ha = v.p; const notaire = Math.round(ha*notairePct());
-    const agence = Math.round(ha*0.05); const sci = 200;
+    /* ⚠️ C'EST D'ICI QUE VENAIENT LES 200 € — pas du formulaire, qui propose
+       bien « Non — 0 € » par défaut et n'écrit un montant que si on le saisit.
+       Ce générateur les posait EN DUR sur chacune de ses cinq fiches, toutes
+       créées en prospection : elles n'ont pas de mode de détention, donc pas
+       de SCI, donc aucun frais de constitution à porter. Vérifié en base le
+       15/08/2026 : les 5 biens à 200 € étaient exactement les 5 fiches de test,
+       les 2 fiches réelles étaient à 0.
+       Une fiche naît en prospection : ces frais s'écrivent à l'acquisition,
+       par `sfFraisCreationSci()`, et seulement pour le premier bien d'une SCI. */
+    const agence = Math.round(ha*0.05); const sci = 0;
     return {
       titre:`${v.t} ${v.v} — Test`,ville:v.v,code_postal:v.cp,type_bien:v.t,
       surface_m2:v.s,prix_affiche:v.p,statut:v.statut,notes:v.note,
