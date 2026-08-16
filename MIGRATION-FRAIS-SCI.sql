@@ -2,9 +2,19 @@
 -- MIGRATION — Frais de constitution d'une SCI
 -- Stonefolio · règle arrêtée par Thomas le 15/08/2026
 --
--- À EXÉCUTER PAR THOMAS dans l'éditeur SQL Supabase :
--- https://supabase.com/dashboard/project/dizkljqobgiywxsbsdkd/sql/new
--- Mon accès MCP est en lecture seule, toute écriture lui revient.
+-- ✅ APPLIQUÉE PAR THOMAS LE 15/08/2026, guidée étape par étape dans l'éditeur
+--    SQL Supabase. Vérifiée en lecture le jour même :
+--      · défaut de colonne : 200 → 0
+--      · reprise : 4 lignes corrigées sur 7, 0 écart restant
+--      · total en base : 1 000 € → 200 €, soit 800 € de frais fantômes retirés
+--      · invariant `biens_mode_detention_coherent` : 0 violation
+--    Effet mesuré sur les coûts d'acquisition :
+--      T4+ Paris 16e   952 200 € → 952 000 €  (détenu en propre)
+--      T2 Bordeaux     196 200 € → 196 000 €  (2ᵉ bien de la SCI)
+--      Immeuble P18e   728 200 € inchangé     (1ᵉʳ bien de la SCI, il les porte)
+--
+-- Conservée pour mémoire et pour la relance : tout y est idempotent.
+-- Mon accès MCP est en lecture seule, toute écriture revient à Thomas.
 --
 -- ── LA RÈGLE ───────────────────────────────────────────────────────────────
 -- Les frais de constitution s'imputent AU BIEN QUI A MOTIVÉ LA CRÉATION de la
