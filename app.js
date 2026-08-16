@@ -6186,7 +6186,6 @@ const MOIS_LONGS  = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet',
 let allLocataires = [];
 let editingLocataireId = null;
 let locataireDocsPending = []; // Pour le modal en cours d'édition
-let mfLocataireFilter = 'all'; // 'all' | 'Candidat' | 'Actif' | 'Préavis' | 'Sorti'
 
 // Types de documents locataire (forward-compat: ces clés sont stockées en DB)
 const LOC_DOC_TYPES = [
@@ -8136,9 +8135,9 @@ function renderMfLocataires(c) {
   const annee = mfExercice;
   const cnt = { all: allLocataires.length };
   LOC_STATUTS.forEach(s => cnt[s] = allLocataires.filter(l => l.statut === s).length);
-  if (mfLocataireFilter !== 'all' && !LOC_STATUTS.includes(mfLocataireFilter)) mfLocataireFilter = 'all';
-  const liste = mfLocataireFilter === 'all'
-    ? allLocataires : allLocataires.filter(l => l.statut === mfLocataireFilter);
+  /* Le filtre par statut est mort avec les pastilles : le kanban montre les
+     quatre colonnes en même temps. `mfLocataireFilter` et `setMfLocFilter`
+     sont supprimés — du code mort qui ressort à chaque recherche. */
 
   const loyerActif = allLocataires.filter(l => l.statut === 'Actif')
     .reduce((s, l) => s + (parseFloat(l.loyer_bail_hc) || 0) + (parseFloat(l.charges_bail) || 0), 0);
@@ -8235,20 +8234,42 @@ function renderMfLocataires(c) {
         </span>
       </div>
       <div class="sff-block__b">
-        <div class="mfx-pills" style="margin-bottom:var(--sf-space-6)">
-          <button class="mfx-pill" aria-pressed="${mfLocataireFilter === 'all'}" onclick="setMfLocFilter('all')">Tous <span class="mfx-pill__n">${cnt.all}</span></button>
-          ${/* ⚠️ « Préavis » finit déjà par un s : un pluriel aveugle écrivait
-                « Préaviss ». Le libellé vient de LOC_STATUTS, jamais réécrit. */''}
-          ${LOC_STATUTS.map(s => `<button class="mfx-pill" aria-pressed="${mfLocataireFilter === s}" onclick="setMfLocFilter('${s}')">${esc(s)}${s.endsWith('s') ? '' : 's'} <span class="mfx-pill__n">${cnt[s] || 0}</span></button>`).join('')}
-        </div>
-        ${liste.length ? `<div class="mfx-loccards">${liste.map(mfCarteLocataire).join('')}</div>` : `
+        ${/* ═══ KANBAN — vue UNIQUE de l'annuaire (arbitrage de Thomas, 16/08/2026)
+              Les filtres en pastilles disparaissent : le kanban montre les quatre
+              statuts EN MÊME TEMPS, là où un filtre n'en montrait qu'un et cachait
+              les autres. On voit d'un coup combien de candidats attendent pendant
+              qu'un préavis court.
+              L'ordre des colonnes suit LOC_STATUTS — Candidat · Actif · Préavis ·
+              Sorti — c'est le cycle de vie d'un locataire, de l'entrée à la sortie.
+              ⚠️ PAS DE GLISSER-DÉPOSER pour l'instant : déposer une carte dans
+              « Préavis » n'a de sens qu'avec le workflow de congé, qui reste à
+              cadrer. Sans lui, on créerait un locataire en préavis SANS date de
+              sortie — une donnée incomplète et silencieuse. */''}
+        ${allLocataires.length ? `
+          <div class="mfk-board">
+            ${LOC_STATUTS.map(st => {
+              const dedans = allLocataires.filter(l => l.statut === st);
+              return `
+              <section class="mfk-col mfk-col--${st === 'Actif' ? 'actif' : st === 'Préavis' ? 'preavis' : st === 'Sorti' ? 'sorti' : 'candidat'}">
+                <header class="mfk-col__h">
+                  ${/* ⚠️ « Préavis » finit déjà par un s : un pluriel aveugle
+                        écrivait « Préaviss ». Le libellé vient de LOC_STATUTS. */''}
+                  <span class="mfk-col__t">${esc(st)}${st.endsWith('s') ? '' : 's'}</span>
+                  <span class="mfk-col__n">${dedans.length}</span>
+                </header>
+                <div class="mfk-col__b">
+                  ${dedans.length
+                    ? dedans.map(mfCarteLocataire).join('')
+                    : `<p class="mfk-col__vide">Aucun</p>`}
+                </div>
+              </section>`;
+            }).join('')}
+          </div>` : `
         <div class="sff-empty">
           <div class="sff-empty__ic">${sfAccIcon('gens', 34)}</div>
-          <div class="sff-empty__t">${allLocataires.length ? 'Aucun locataire avec ce filtre' : 'Aucun locataire'}</div>
-          <div class="sff-empty__x">${allLocataires.length
-            ? `Aucun de vos ${allLocataires.length} locataires n'est au statut « ${esc(mfLocataireFilter)} ».`
-            : "Un locataire porte le bail : loyer hors charges, date d'entrée et jour de paiement. C'est de lui que découlent les loyers du suivi mensuel."}</div>
-          <button class="sf-btn sf-btn--${allLocataires.length ? 'secondary' : 'primary'} sf-btn--sm" onclick="${allLocataires.length ? "setMfLocFilter('all')" : 'openLocataireModal(null)'}">${allLocataires.length ? 'Voir tous les locataires' : 'Créer un locataire'}</button>
+          <div class="sff-empty__t">Aucun locataire</div>
+          <div class="sff-empty__x">Un locataire porte le bail : loyer hors charges, date d'entrée et jour de paiement. C'est de lui que découlent les loyers du suivi mensuel.</div>
+          <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="openLocataireModal(null)">Créer un locataire</button>
         </div>`}
       </div>
     </div>
@@ -8284,7 +8305,11 @@ function renderMfLocataires(c) {
                     </li>`).join('')}
                 </ul>
                 ${col.total ? `<p class="mfp-mois__f">${sfEur(col.total)} attendus</p>` : ''}`
-              : `<p class="mfp-mois__vide">Rien à préparer</p>`}
+              : `<div class="sff-empty sff-empty--compact">
+                   <div class="sff-empty__ic">${sfAccIcon('agenda', 26)}</div>
+                   <div class="sff-empty__t">Rien à préparer</div>
+                   <div class="sff-empty__x">Aucune échéance ce mois-ci.</div>
+                 </div>`}
             </section>`).join('')}
         </div>
         ${echeances.some(e => e.type !== 'loyer') ? `
@@ -8352,11 +8377,6 @@ function mfCarteLocataire(l) {
           ${sfAccIcon('check', 14)} À jour de ses loyers
         </p>`) : ''}
     </article>`;
-}
-function setMfLocFilter(f) {
-  mfLocataireFilter = f;
-  const c = document.getElementById('mf-content');
-  if(c) renderMfLocataires(c);
 }
 // ═════════════════════════════════════════════════════
 //  RENTABILITÉ — analyse par bien, année civile (Étape 6)

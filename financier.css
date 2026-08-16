@@ -119,8 +119,60 @@
   border-top:1px solid var(--sf-border); text-align:right;
   font-family:var(--sf-font-num); font-size:var(--sf-font-body-sm);
   color:var(--sf-text-2); font-variant-numeric:tabular-nums; }
-.mfp-mois__vide{ margin:var(--sf-space-5) 0; text-align:center;
-  font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
+/* ⚠️ Un mois vide emprunte le MÊME état vide que le reste de la plateforme —
+   icône, titre, explication — plutôt qu'une ligne de texte centrée. Demandé par
+   Thomas le 16/08/2026 : « il est important d'avoir un design commun sur ce
+   type de message ». La variante compacte n'existe que pour la hauteur : les
+   236 px de `.sff-empty` sont calibrés pour une carte pleine largeur, pas pour
+   une colonne de mois. */
+.sff-empty--compact{ min-height:120px; padding:var(--sf-space-6) var(--sf-space-5);
+  gap:var(--sf-space-3); }
+.sff-empty--compact .sff-empty__t{ font-size:var(--sf-font-body); }
+/* ⚠️ `--sf-text-2` : `.sff-empty` pose `--sf-text-3`, calibré pour le fond de
+   page. Dans une colonne de mois — surface plus claire — il retombe à 4,35:1,
+   sous le seuil AA. Cinquième fois que ce jeton se fait prendre au même piège
+   (03/08, 05/08, 10/08, 15/08) : il tient sur `--sf-bg`, pas sur une surface. */
+.sff-empty--compact .sff-empty__x{ font-size:var(--sf-font-label); max-width:28ch;
+  color:var(--sf-text-2); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANNUAIRE EN KANBAN — vue unique (16/08/2026)
+   ═══════════════════════════════════════════════════════════════════════════
+   Quatre colonnes dans l'ordre du cycle de vie : Candidats · Actifs · Préavis ·
+   Sortis. Elles remplacent les filtres en pastilles : un filtre montrait UN
+   statut et cachait les trois autres, le kanban les montre tous à la fois.
+   Colonnes de largeur égale et défilement horizontal en dessous : quatre
+   colonnes lisibles valent mieux que quatre colonnes tassées.               */
+.mfk-board{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr));
+  gap:var(--sf-space-5); align-items:start; }
+.mfk-col{ background:var(--sf-surface-2); border:1px solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); display:flex; flex-direction:column;
+  min-width:0; overflow:hidden; }
+.mfk-col__h{ display:flex; align-items:center; gap:var(--sf-space-4);
+  padding:var(--sf-space-5); border-bottom:1px solid var(--sf-border); }
+.mfk-col__t{ font-size:var(--sf-font-body-sm); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text); }
+.mfk-col__n{ margin-left:auto; font-family:var(--sf-font-num);
+  font-size:var(--sf-font-label); color:var(--sf-text-2);
+  background:var(--sf-surface); border:1px solid var(--sf-border);
+  border-radius:var(--sf-radius-full); padding:1px var(--sf-space-4);
+  font-variant-numeric:tabular-nums; }
+.mfk-col__b{ display:flex; flex-direction:column; gap:var(--sf-space-4);
+  padding:var(--sf-space-5); min-width:0; }
+.mfk-col__vide{ margin:var(--sf-space-4) 0; text-align:center;
+  font-size:var(--sf-font-label); color:var(--sf-text-2); }
+/* Un liseré de tête par colonne : le statut se lit avant même la lecture du
+   titre, et la couleur ne porte jamais seule — le libellé reste. */
+.mfk-col--candidat .mfk-col__h{ box-shadow:inset 0 2px 0 var(--sf-brand-vivid); }
+.mfk-col--actif    .mfk-col__h{ box-shadow:inset 0 2px 0 var(--sf-gain); }
+.mfk-col--preavis  .mfk-col__h{ box-shadow:inset 0 2px 0 var(--sf-alert); }
+.mfk-col--sorti    .mfk-col__h{ box-shadow:inset 0 2px 0 var(--sf-text-3); }
+/* Dans une colonne, la carte occupe toute la largeur : la grille de cartes
+   d'origine (`.mfx-loccards`) n'a plus lieu d'être ici. */
+.mfk-col__b .mfx-loccard{ width:100%; }
+
+@media (max-width: 1100px){ .mfk-board{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+@media (max-width: 640px){  .mfk-board{ grid-template-columns:1fr; } }
 
 .mfp-jour{ display:grid; grid-template-columns:auto minmax(0,1fr) auto;
   gap:var(--sf-space-4); align-items:baseline; }
