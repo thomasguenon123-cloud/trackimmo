@@ -2776,7 +2776,7 @@ async function renderNouveau(el, bien) {
         <!-- Notes -->
         <div class="form-card">
           <div class="form-card-title">${sfAccIcon('crayon',16)} Notes & commentaires</div>
-          <div class="form-group"><textarea id="f-notes" placeholder="Points d'attention, observations, négociation prévue...">${bien?.notes||''}</textarea></div>
+          <div class="form-group"><textarea id="f-notes" placeholder="Points d'attention, observations, négociation prévue...">${esc(bien?.notes||'')}</textarea></div>
         </div>
 
         <div class="form-actions">
@@ -7879,7 +7879,7 @@ function mfOpenChargeModal(preset) {
 
         <div class="form-group" style="grid-column:1/-1">
           <label class="form-label">Notes (optionnel)</label>
-          <textarea class="form-input" id="charge-notes" rows="2" style="resize:vertical;font-family:inherit">${(initial.notes||'').replace(/</g,'&lt;')}</textarea>
+          <textarea class="form-input" id="charge-notes" rows="2" style="resize:vertical;font-family:inherit">${esc(initial.notes||'')}</textarea>
         </div>
 
         <div id="charge-cerfa-info" style="grid-column:1/-1"></div>
@@ -8931,7 +8931,7 @@ function openLocataireModal(id, presetBienId) {
     <!-- Notes -->
     <div class="mf-section-title">📝 Notes</div>
     <div class="sci-form-group">
-      <textarea class="sci-form-input" id="loc-notes" rows="3" style="resize:vertical" placeholder="Observations, points d'attention…">${l?.notes||''}</textarea>
+      <textarea class="sci-form-input" id="loc-notes" rows="3" style="resize:vertical" placeholder="Observations, points d'attention…">${esc(l?.notes||'')}</textarea>
     </div>`;
 
   refreshLocDocsView();
@@ -9662,7 +9662,7 @@ async function openContactModal(id) {
         : '<span class="sci-form-hint">Aucune SCI enregistrée pour l\'instant.</span>'}
       </div></div>
     <div class="sci-form-group"><label class="sci-form-label">Notes</label>
-      <textarea class="sci-form-input" id="ct-notes" rows="2" style="resize:vertical">${ct?.notes||''}</textarea></div>`;
+      <textarea class="sci-form-input" id="ct-notes" rows="2" style="resize:vertical">${esc(ct?.notes||'')}</textarea></div>`;
 
   m.classList.add('open');
 }
@@ -9762,7 +9762,7 @@ function openEcheanceModal(id) {
         ${recs.map(r=>`<option value="${r}" ${e?.recurrence===r?'selected':''}>${r}</option>`).join('')}
       </select></div>
     <div class="sci-form-group"><label class="sci-form-label">Notes</label>
-      <textarea class="sci-form-input" id="ech-notes" rows="2" style="resize:vertical">${e?.notes||''}</textarea></div>`;
+      <textarea class="sci-form-input" id="ech-notes" rows="2" style="resize:vertical">${esc(e?.notes||'')}</textarea></div>`;
 
   document.getElementById('adm-modal-overlay').classList.add('open');
 }
@@ -9877,7 +9877,7 @@ function openBilanModal(id) {
         ${['Brouillon','Validé','Déposé'].map(s=>`<option ${b?.statut===s?'selected':''}>${s}</option>`).join('')}
       </select></div>
     <div class="sci-form-group"><label class="sci-form-label">Notes</label>
-      <textarea class="sci-form-input" id="bil-notes" rows="2" style="resize:vertical">${b?.notes||''}</textarea></div>
+      <textarea class="sci-form-input" id="bil-notes" rows="2" style="resize:vertical">${esc(b?.notes||'')}</textarea></div>
     <div style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:12px;font-size:12px;color:var(--c-muted)">
       ⚖️ <em>Il est recommandé de faire valider ce bilan par un expert-comptable avant tout dépôt officiel.</em>
     </div>`;
@@ -11259,7 +11259,7 @@ function visiteForm(v) {
     </div>
     <div class="form-group" style="margin-bottom:14px">
       <label>Notes & observations</label>
-      <textarea id="v-notes" style="min-height:140px" placeholder="Points positifs, négatifs, travaux à prévoir, impression générale...">${v?.notes||''}</textarea>
+      <textarea id="v-notes" style="min-height:140px" placeholder="Points positifs, négatifs, travaux à prévoir, impression générale...">${esc(v?.notes||'')}</textarea>
     </div>
     <div class="form-group" style="margin-bottom:14px">
       <label>Photos</label>
@@ -11681,7 +11681,7 @@ function showSimModal(s) {
 
     <div style="clear:both;margin-top:16px" class="form-group">
       <label>Notes</label>
-      <textarea id="s-notes" placeholder="Conditions de l'offre, points à négocier...">${s?.notes||''}</textarea>
+      <textarea id="s-notes" placeholder="Conditions de l'offre, points à négocier...">${esc(s?.notes||'')}</textarea>
     </div>
     <div class="modal-actions">
       ${s?`<button class="btn btn-danger" onclick="deleteSim('${s.id}')">${sfAccIcon('poubelle',14)} Supprimer</button>`:''}
