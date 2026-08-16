@@ -5059,7 +5059,7 @@ async function openDossierModal(bienId){
   document.getElementById('adm-modal-title').textContent = '📄 Dossier banque — ' + (b.titre || 'Bien');
   document.getElementById('adm-modal-del').style.display = 'none';
   const saveBtn = document.getElementById('adm-modal-save');
-  saveBtn.innerHTML = '🧾 Générer le dossier';
+  saveBtn.innerHTML = sfAccIcon('doc',14) + ' Générer le dossier';
   saveBtn.disabled = true; // activé quand les données sont chargées
   saveBtn.onclick = bkdocGenerate;
   document.getElementById('adm-modal-body').innerHTML = '<div style="padding:18px 4px;font-size:13px;color:var(--c-dim)"><span class="sci-spinner"></span>Chargement des options…</div>';
@@ -6190,18 +6190,18 @@ let mfLocataireFilter = 'all'; // 'all' | 'Candidat' | 'Actif' | 'Préavis' | 'S
 
 // Types de documents locataire (forward-compat: ces clés sont stockées en DB)
 const LOC_DOC_TYPES = [
-  {key:'dossier_candidature', label:'Dossier candidature', icon:'📋'},
-  {key:'bail',                label:'Bail / Contrat',      icon:'✍️'},
-  {key:'edl_entree',          label:'État des lieux entrée', icon:'🏠'},
-  {key:'edl_sortie',          label:'État des lieux sortie', icon:'🔑'},
-  {key:'garant',              label:'Garant / Caution',    icon:'🛡️'},
-  {key:'justificatif',        label:'Justificatif',        icon:'💼'},
-  {key:'quittance',           label:'Quittance loyer',     icon:'📄'},
-  {key:'autre',               label:'Autre',               icon:'📁'},
+  {key:'dossier_candidature', label:'Dossier candidature',},
+  {key:'bail',                label:'Bail / Contrat',},
+  {key:'edl_entree',          label:'État des lieux entrée',},
+  {key:'edl_sortie',          label:'État des lieux sortie',},
+  {key:'garant',              label:'Garant / Caution',},
+  {key:'justificatif',        label:'Justificatif',},
+  {key:'quittance',           label:'Quittance loyer',},
+  {key:'autre',               label:'Autre',},
 ];
 
 const LOC_STATUTS = ['Candidat','Actif','Préavis','Sorti'];
-const LOC_STATUT_ICONS = {'Candidat':'👤','Actif':'✓','Préavis':'⚠','Sorti':'📁'};
+const LOC_STATUT_ICONS = {'Candidat':'user','Actif':'check','Préavis':'alerte','Sorti':'retour'};
 const TYPES_BAIL = ['Vide','Meublé','Saisonnier','Bail mobilité'];
 
 // Limite de taille fichier (50 MB pour Free plan Supabase Storage en V2)
@@ -8050,6 +8050,88 @@ async function mfDeleteCharge(chargeId) {
    l'annuaire, là où ils qualifient ce qu'on regarde.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   LES DATES QUI ENGAGENT — déduites, jamais saisies.
+
+   Un loyer mensuel ne s'oublie pas : il revient le 5 de chaque mois. Ce qui
+   s'oublie, ce sont les dates qui n'arrivent qu'une fois — la fin d'un bail, la
+   révision annuelle du loyer, la restitution d'un dépôt de garantie. Elles ne
+   sont stockées nulle part, et elles n'ont pas besoin de l'être : `date_entree`
+   et `type_bail` suffisent à les déduire. Aucune colonne nouvelle.
+
+   ⚠️ RÉSERVE ASSUMÉE, à lever avec un professionnel du droit. Les durées sont
+   celles de la loi du 6 juillet 1989 dans sa lecture courante :
+     · bail vide    → 3 ans, PORTÉ À 6 ANS quand le bailleur est une personne
+                      morale. C'est le cas d'un bien détenu via une SCI, d'où
+                      la lecture de `mode_detention` sur le bien — la règle de
+                      détention sert donc ici une seconde fois.
+     · bail meublé  → 1 an.
+     · bail mobilité et saisonnier → durée LIBRE et non reconductible : aucune
+       échéance n'en découle, on n'invente pas une date.
+   Ce sont des REPÈRES DE DATE, pas un conseil juridique, et l'écran le dit.
+
+   ⚠️ La restitution du dépôt se calcule à un mois après la sortie — le délai
+   légal est d'un mois si l'état des lieux est conforme, deux sinon. On retient
+   le plus court : un rappel qui arrive trop tôt est utile, l'inverse non.    */
+const MF_DUREES_BAIL = { 'Vide': 3, 'Meublé': 1 };   // en années
+
+function mfEcheancesBail(loc, bien) {
+  const out = [];
+  if(!loc || !loc.date_entree) return out;
+  const entree = new Date(loc.date_entree);
+  if(isNaN(entree)) return out;
+
+  const nomLoc = [loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Locataire';
+  const ajoute = (d, type, libelle, detail) => {
+    if(d && !isNaN(d)) out.push({ d, type, libelle, detail, loc, bien, montant: null });
+  };
+
+  // ── Fin du bail, et la reconduction qu'elle déclenche
+  let duree = MF_DUREES_BAIL[loc.type_bail];
+  if(loc.type_bail === 'Vide' && bien?.mode_detention === 'sci') duree = 6;
+  if(duree && loc.statut === 'Actif') {
+    // On projette les échéances successives : un bail reconduit repart pour la
+    // même durée, donc la prochaine date n'est pas toujours la première.
+    const fin = new Date(entree);
+    let garde = 0;
+    while(fin < new Date() && garde++ < 40) fin.setFullYear(fin.getFullYear() + duree);
+    ajoute(fin, 'bail', `Fin de bail — ${nomLoc}`,
+           `${loc.type_bail} · ${duree} an${duree > 1 ? 's' : ''}${duree === 6 ? ' (bailleur personne morale)' : ''}`);
+  }
+
+  /* ── Révision annuelle du loyer, à la date anniversaire ───────────────────
+     ⚠️ SEULEMENT sur les baux qui se révisent. Un bail mobilité dure de un à
+     dix mois, ne se reconduit pas et son loyer ne se révise pas ; un bail
+     saisonnier non plus. Sans type de bail renseigné, on ne sait pas — et on
+     n'affirme pas : mieux vaut aucun rappel qu'un rappel faux.
+     ⚠️ Et si la révision tombe LE MÊME JOUR que la fin de bail, on ne garde
+     que la fin : deux lignes à la même date pour le même locataire se lisent
+     comme un doublon, et c'est l'échéance de bail qui commande. */
+  if(loc.statut === 'Actif' && duree) {
+    const rev = new Date(entree);
+    let garde = 0;
+    while(rev < new Date() && garde++ < 60) rev.setFullYear(rev.getFullYear() + 1);
+    const memeJourQueFin = out.some(e => e.type === 'bail' && e.d.getTime() === rev.getTime());
+    if(!memeJourQueFin) ajoute(rev, 'revision', `Révision du loyer — ${nomLoc}`,
+                               'Date anniversaire du bail · indice IRL');
+  }
+
+  // ── Fin de préavis, puis restitution du dépôt
+  if(loc.date_sortie) {
+    const sortie = new Date(loc.date_sortie);
+    if(loc.statut === 'Préavis') ajoute(sortie, 'preavis', `Départ — ${nomLoc}`, 'Fin de préavis');
+    const depot = parseFloat(loc.depot_garantie) || 0;
+    if(depot > 0) {
+      const rest = new Date(sortie); rest.setMonth(rest.getMonth() + 1);
+      const e = { d: rest, type: 'depot', libelle: `Restituer le dépôt — ${nomLoc}`,
+                  detail: 'Un mois après la sortie, état des lieux conforme',
+                  loc, bien, montant: depot };
+      if(!isNaN(rest)) out.push(e);
+    }
+  }
+  return out;
+}
+
 function renderMfLocataires(c) {
   const annee = mfExercice;
   const cnt = { all: allLocataires.length };
@@ -8072,10 +8154,26 @@ function renderMfLocataires(c) {
   }
   const aReclamer = [...parLoc.values()].sort((a, b) => b.total - a.total);
 
-  // ── Prochaines échéances : les loyers à venir des trois prochains mois ──
+  /* ── Ce qui arrive : trois mois, deux natures d'échéance ──────────────────
+     Les LOYERS, qui reviennent chaque mois, et les DATES DE BAIL, qui
+     n'arrivent qu'une fois — ce sont ces dernières qu'on oublie. Les deux
+     partagent le même calendrier parce qu'elles se préparent ensemble : on ne
+     relance pas un locataire dont le bail se termine dans trois semaines de la
+     même façon qu'un autre. */
+  /* ⚠️ LES BORNES DE FIN VONT JUSQU'À 23:59:59, PAS JUSQU'À MINUIT.
+     `new Date(a, m, 0)` rend le dernier jour du mois À MINUIT. Une échéance
+     tombant CE jour-là — un préavis au 30 septembre, une fin de bail au 31 —
+     est alors strictement postérieure à sa propre borne et disparaît. Le défaut
+     est invisible onze jours sur douze : il ne se déclenche que le dernier jour
+     du mois, et les loyers tombent le 5.
+     Trouvé au banc le 16/08/2026 sur un préavis au 30/09 qui n'apparaissait
+     nulle part. Même famille que le prorata de mars faussé par l'heure d'été :
+     une date n'est pas un instant. */
+  const finDeJournee = d => { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; };
   const auj = new Date(); auj.setHours(0, 0, 0, 0);
-  const horizon = new Date(auj.getFullYear(), auj.getMonth() + 3, auj.getDate());
+  const horizon = finDeJournee(new Date(auj.getFullYear(), auj.getMonth() + 3, 0));
   const echeances = [];
+
   for (const l of allLoyers) {
     if (l.annee !== annee) continue;
     const loc = allLocataires.find(x => x.id === l.locataire_id);
@@ -8083,10 +8181,37 @@ function renderMfLocataires(c) {
     const jour = Math.min(Math.max(parseInt(loc?.jour_paiement, 10) || 5, 1), 28);
     const d = new Date(annee, l.mois - 1, jour);
     if (d < auj || d > horizon) continue;
-    echeances.push({ d, loc, bien: allBiens.find(b => b.id === l.bien_id),
+    echeances.push({ d, type: 'loyer', loc, bien: allBiens.find(b => b.id === l.bien_id),
+                     libelle: [loc?.prenom, loc?.nom].filter(Boolean).join(' ') || 'Locataire',
+                     detail: null,
                      montant: (parseFloat(l.loyer_du) || 0) + (parseFloat(l.charges_dues) || 0) });
   }
+
+  for (const loc of allLocataires) {
+    const bien = loc.bien_id ? allBiens.find(b => b.id === loc.bien_id) : null;
+    for (const e of mfEcheancesBail(loc, bien)) {
+      if (e.d >= auj && e.d <= horizon) echeances.push(e);
+    }
+  }
   echeances.sort((a, b) => a.d - b.d);
+
+  /* Trois colonnes, une par mois — y compris les mois SANS échéance : un mois
+     vide est une information (rien à préparer), et le retirer ferait glisser
+     les autres, si bien qu'on ne saurait plus lequel on regarde. */
+  const colonnes = [0, 1, 2].map(k => {
+    const debut = new Date(auj.getFullYear(), auj.getMonth() + k, 1);
+    const fin   = finDeJournee(new Date(auj.getFullYear(), auj.getMonth() + k + 1, 0));
+    const dedans = echeances.filter(e => e.d >= debut && e.d <= fin);
+    /* ⚠️ Le total ne somme QUE ce qui ENTRE. Un dépôt de garantie à restituer
+       porte un montant, mais c'est de l'argent qui SORT : l'additionner aux
+       loyers sous le libellé « attendus » annonçait 2 020 € là où il en entre
+       1 320. C'est la fusion de deux natures opposées sous un seul nombre —
+       le défaut que ce module combat depuis le premier jour. */
+    return { debut, dedans,
+             total: dedans.filter(e => e.type === 'loyer')
+                          .reduce((s, e) => s + (e.montant || 0), 0),
+             courant: k === 0 };
+  });
 
   c.innerHTML = `
     ${aReclamer.length ? `
@@ -8131,16 +8256,38 @@ function renderMfLocataires(c) {
     ${echeances.length ? `
     <div class="sff-block">
       <div class="sff-block__h">
-        <p class="sff-block__t">Prochaines échéances</p>
-        <span class="sff-block__n">trois mois à venir</span>
+        <p class="sff-block__t">Ce qui arrive</p>
+        <span class="sff-block__n">trois mois · loyers attendus et dates de bail</span>
       </div>
       <div class="sff-block__b">
-        ${echeances.map(e => `
-          <div class="mfx-ech">
-            <span class="mfx-ech__d">${e.d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
-            <span class="mfx-ech__l">${esc([e.loc?.prenom, e.loc?.nom].filter(Boolean).join(' ') || 'Locataire')}${e.bien ? ` <em>· ${esc(e.bien.titre || 'Bien')}</em>` : ''}</span>
-            <span class="mfx-ech__v">${sfEur(e.montant)}</span>
-          </div>`).join('')}
+        <div class="mfx-plan">
+          ${colonnes.map(col => `
+            <section class="mfx-mois${col.courant ? ' est-courant' : ''}">
+              <header class="mfx-mois__h">
+                <span class="mfx-mois__n">${esc(col.debut.toLocaleDateString('fr-FR', { month: 'long' }))}</span>
+                <span class="mfx-mois__a">${col.debut.getFullYear()}</span>
+              </header>
+              ${col.dedans.length ? `
+                <ul class="mfx-mois__l">
+                  ${col.dedans.map(e => `
+                    <li class="mfx-jour mfx-jour--${e.type}">
+                      <span class="mfx-jour__d"><b>${String(e.d.getDate()).padStart(2, '0')}</b></span>
+                      <span class="mfx-jour__c">
+                        <span class="mfx-jour__t">${esc(e.libelle)}</span>
+                        ${e.detail
+                          ? `<span class="mfx-jour__s">${esc(e.detail)}</span>`
+                          : (e.bien ? `<span class="mfx-jour__s">${esc(e.bien.titre || 'Bien')}</span>` : '')}
+                      </span>
+                      ${e.montant ? `<span class="mfx-jour__v">${sfEur(e.montant)}</span>` : ''}
+                    </li>`).join('')}
+                </ul>
+                ${col.total ? `<p class="mfx-mois__f">${sfEur(col.total)} attendus</p>` : ''}`
+              : `<p class="mfx-mois__vide">Rien à préparer</p>`}
+            </section>`).join('')}
+        </div>
+        ${echeances.some(e => e.type !== 'loyer') ? `
+          <p class="mfx-plan__note">Les dates de bail sont déduites de la date d'entrée et du type de
+            bail — ce sont des repères, pas un avis juridique.</p>` : ''}
       </div>
     </div>` : ''}`;
 }
@@ -8158,8 +8305,20 @@ function mfCarteLocataire(l) {
   const pill = { 'Actif': 'sf-pill--gain', 'Candidat': 'sf-pill--brand',
                  'Préavis': 'sf-pill--alert', 'Sorti': '' }[l.statut] ?? '';
 
+  /* ⚠️ OÙ EN EST-IL DE SES PAIEMENTS — la question qu'on se pose vraiment en
+     regardant une carte de locataire, et à laquelle elle ne répondait pas.
+     L'alerte du haut nommait bien les retardataires, mais leur carte restait
+     muette : deux locataires s'y ressemblaient trait pour trait alors que l'un
+     devait trois mois. Il fallait lire l'alerte, retenir les noms, puis les
+     retrouver dans l'annuaire. La carte se suffit désormais à elle-même.
+     Même source que l'alerte — `mfLoyersNonSoldes` — pour qu'un écart entre
+     les deux soit impossible. */
+  const impayes = l.statut === 'Actif'
+    ? mfLoyersNonSoldes(mfExercice).filter(x => x.locataire?.id === l.id) : [];
+  const dus = impayes.reduce((s, x) => s + (x.reste || 0), 0);
+
   return `
-    <article class="mfx-loccard" onclick="openLocataireModal('${l.id}')">
+    <article class="mfx-loccard${dus > 0 ? ' est-en-retard' : ''}" onclick="openLocataireModal('${l.id}')">
       <span class="mfx-loccard__st"><span class="sf-pill ${pill}">${esc(l.statut || 'Candidat')}</span></span>
       <div class="mfx-loccard__h">
         <div class="mfx-loccard__av">${esc(initiales)}</div>
@@ -8175,6 +8334,14 @@ function mfCarteLocataire(l) {
       <div class="mfx-li">${sfAccIcon('euro', 15)}${sfEur(l.loyer_bail_hc)} <em>par mois hors charges${(parseFloat(l.depot_garantie) || 0) > 0 ? ` · dépôt ${sfEur(l.depot_garantie)}` : ''}</em></div>` : ''}
       <div class="mfx-li">${sfAccIcon('agenda', 15)}${entree || '—'}${sortie ? ` <em>→ ${sortie}</em>` : (l.statut === 'Actif' ? ' <em>· en cours</em>' : '')}</div>
       ${docs ? `<div class="mfx-li">${sfAccIcon('trombone', 15)}${docs} <em>document${docs > 1 ? 's' : ''}</em></div>` : ''}
+      ${l.statut === 'Actif' ? (dus > 0 ? `
+        <p class="mfx-loccard__paie mfx-loccard__paie--du">
+          ${sfAccIcon('alerte', 14)}
+          <b>${sfEur(dus)}</b> dus <em>· ${impayes.length} mois échu${impayes.length > 1 ? 's' : ''}</em>
+        </p>` : `
+        <p class="mfx-loccard__paie mfx-loccard__paie--ok">
+          ${sfAccIcon('check', 14)} À jour de ses loyers
+        </p>`) : ''}
     </article>`;
 }
 function setMfLocFilter(f) {
@@ -8883,115 +9050,115 @@ function openLocataireModal(id, presetBienId) {
   // Biens "Acheté" uniquement (périmètre Module Financier)
   const biensAchetes = allBiens.filter(b => b.statut === 'Acheté');
 
-  document.getElementById('adm-modal-title').textContent = id ? 'Modifier le locataire' : '＋ Nouveau locataire';
+  document.getElementById('adm-modal-title').textContent = id ? 'Modifier le locataire' : 'Nouveau locataire';
   document.getElementById('adm-modal-del').style.display = id ? 'flex' : 'none';
   document.getElementById('adm-modal-save').onclick = saveLocataire;
   document.getElementById('adm-modal-del').onclick = deleteLocataire;
 
   document.getElementById('adm-modal-body').innerHTML = `
     <!-- Identité -->
-    <div class="mf-section-title">👤 Identité</div>
-    <div class="sci-form-row">
-      <div class="sci-form-group"><label class="sci-form-label">Prénom</label>
-        <input class="sci-form-input" id="loc-prenom" value="${esc(l?.prenom||'')}" placeholder="Jean"></div>
-      <div class="sci-form-group"><label class="sci-form-label">Nom <span style="color:var(--sf-loss)">*</span></label>
-        <input class="sci-form-input" id="loc-nom" value="${esc(l?.nom||'')}" placeholder="Dupont"></div>
+    <div class="locf-sect">${sfAccIcon('user',15)} Identité</div>
+    <div class="locf-grid">
+      <div class="sf-field"><label class="sf-label">Prénom</label>
+        <input class="sf-input" id="loc-prenom" value="${esc(l?.prenom||'')}" placeholder="Jean"></div>
+      <div class="sf-field"><label class="sf-label">Nom <span class="sf-label__req">*</span></label>
+        <input class="sf-input" id="loc-nom" value="${esc(l?.nom||'')}" placeholder="Dupont"></div>
     </div>
-    <div class="sci-form-row">
-      <div class="sci-form-group"><label class="sci-form-label">Email</label>
-        <input class="sci-form-input" id="loc-email" type="email" value="${esc(l?.email||'')}" placeholder="email@exemple.com"></div>
-      <div class="sci-form-group"><label class="sci-form-label">Téléphone</label>
-        <input class="sci-form-input" id="loc-tel" value="${esc(l?.telephone||'')}" placeholder="06 xx xx xx xx"></div>
+    <div class="locf-grid">
+      <div class="sf-field"><label class="sf-label">Email</label>
+        <input class="sf-input" id="loc-email" type="email" value="${esc(l?.email||'')}" placeholder="email@exemple.com"></div>
+      <div class="sf-field"><label class="sf-label">Téléphone</label>
+        <input class="sf-input" id="loc-tel" value="${esc(l?.telephone||'')}" placeholder="06 xx xx xx xx"></div>
     </div>
-    <div class="sci-form-group"><label class="sci-form-label">Date de naissance</label>
-      <input class="sci-form-input" id="loc-naissance" type="date" value="${esc(l?.date_naissance||'')}"></div>
+    <div class="sf-field"><label class="sf-label">Date de naissance</label>
+      <input class="sf-input" id="loc-naissance" type="date" value="${esc(l?.date_naissance||'')}"></div>
 
     <!-- Profession & revenus -->
-    <div class="mf-section-title">💼 Profession & revenus</div>
-    <div class="sci-form-row">
-      <div class="sci-form-group"><label class="sci-form-label">Profession</label>
-        <input class="sci-form-input" id="loc-profession" value="${esc(l?.profession||'')}" placeholder="Ingénieur"></div>
-      <div class="sci-form-group"><label class="sci-form-label">Employeur</label>
-        <input class="sci-form-input" id="loc-employeur" value="${esc(l?.employeur||'')}" placeholder="Entreprise XYZ"></div>
+    <div class="locf-sect">${sfAccIcon('mallette',15)} Profession & revenus</div>
+    <div class="locf-grid">
+      <div class="sf-field"><label class="sf-label">Profession</label>
+        <input class="sf-input" id="loc-profession" value="${esc(l?.profession||'')}" placeholder="Ingénieur"></div>
+      <div class="sf-field"><label class="sf-label">Employeur</label>
+        <input class="sf-input" id="loc-employeur" value="${esc(l?.employeur||'')}" placeholder="Entreprise XYZ"></div>
     </div>
-    <div class="sci-form-group"><label class="sci-form-label">Revenus nets mensuels (€)</label>
-      <input class="sci-form-input" id="loc-revenus" type="number" min="0" step="100" value="${esc(l?.revenus_mensuels||'')}" placeholder="2 500"></div>
+    <div class="sf-field"><label class="sf-label">Revenus nets mensuels (€)</label>
+      <input class="sf-input" id="loc-revenus" type="number" min="0" step="100" value="${esc(l?.revenus_mensuels||'')}" placeholder="2 500"></div>
 
     <!-- Garant -->
-    <div class="mf-section-title">🛡️ Garant / Caution</div>
-    <div class="sci-form-row">
-      <div class="sci-form-group"><label class="sci-form-label">Nom du garant</label>
-        <input class="sci-form-input" id="loc-garant-nom" value="${esc(l?.garant_nom||'')}" placeholder="Marie Dupont"></div>
-      <div class="sci-form-group"><label class="sci-form-label">Lien</label>
-        <select class="sci-form-input" id="loc-garant-lien">
+    <div class="locf-sect">${sfAccIcon('balance',15)} Garant / Caution</div>
+    <div class="locf-grid">
+      <div class="sf-field"><label class="sf-label">Nom du garant</label>
+        <input class="sf-input" id="loc-garant-nom" value="${esc(l?.garant_nom||'')}" placeholder="Marie Dupont"></div>
+      <div class="sf-field"><label class="sf-label">Lien</label>
+        <select class="sf-input" id="loc-garant-lien">
           <option value="">— Préciser —</option>
           ${['Parent','Conjoint','Employeur','Garantie Visale','Caution bancaire','Autre'].map(x=>`<option value="${x}" ${l?.garant_lien===x?'selected':''}>${x}</option>`).join('')}
         </select></div>
     </div>
-    <div class="sci-form-group"><label class="sci-form-label">Revenus du garant (€/mois)</label>
-      <input class="sci-form-input" id="loc-garant-revenus" type="number" min="0" step="100" value="${esc(l?.garant_revenus||'')}" placeholder="3 000"></div>
+    <div class="sf-field"><label class="sf-label">Revenus du garant (€/mois)</label>
+      <input class="sf-input" id="loc-garant-revenus" type="number" min="0" step="100" value="${esc(l?.garant_revenus||'')}" placeholder="3 000"></div>
 
     <!-- Bail -->
-    <div class="mf-section-title">🏠 Bail</div>
-    <div class="sci-form-group"><label class="sci-form-label">Bien rattaché ${biensAchetes.length===0?'<span style="font-size:11px;color:var(--c-muted)">(aucun bien acheté pour l\'instant)</span>':''}</label>
-      <select class="sci-form-input" id="loc-bien">
+    <div class="locf-sect">${sfAccIcon('maison',15)} Bail</div>
+    <div class="sf-field"><label class="sf-label">Bien rattaché ${biensAchetes.length===0?'<span style="font-size:11px;color:var(--c-muted)">(aucun bien acheté pour l\'instant)</span>':''}</label>
+      <select class="sf-input" id="loc-bien">
         <option value="">— Aucun bien rattaché —</option>
         ${biensAchetes.map(b => `<option value="${b.id}" ${(l?.bien_id||presetBienId)===b.id?'selected':''}>${esc(b.titre)} — ${esc(b.ville||'')}</option>`).join('')}
       </select></div>
-    <div class="sci-form-row">
-      <div class="sci-form-group"><label class="sci-form-label">Type de bail</label>
-        <select class="sci-form-input" id="loc-type-bail">
+    <div class="locf-grid">
+      <div class="sf-field"><label class="sf-label">Type de bail</label>
+        <select class="sf-input" id="loc-type-bail">
           <option value="">— Préciser —</option>
           ${TYPES_BAIL.map(t=>`<option value="${t}" ${l?.type_bail===t?'selected':''}>${t}</option>`).join('')}
         </select></div>
-      <div class="sci-form-group"><label class="sci-form-label">Jour de paiement (1-31)</label>
-        <input class="sci-form-input" id="loc-jour-paiement" type="number" min="1" max="31" value="${esc(l?.jour_paiement||5)}"></div>
+      <div class="sf-field"><label class="sf-label">Jour de paiement (1-31)</label>
+        <input class="sf-input" id="loc-jour-paiement" type="number" min="1" max="31" value="${esc(l?.jour_paiement||5)}"></div>
     </div>
-    <div class="sci-form-row">
-      <div class="sci-form-group"><label class="sci-form-label">Date d'entrée <span style="color:var(--sf-loss)">*</span></label>
-        <input class="sci-form-input" id="loc-date-entree" type="date" value="${esc(l?.date_entree||'')}">
-        <div class="sci-form-hint">Requise dès qu'un locataire actif est rattaché à un bien : c'est elle qui détermine les loyers générés.</div></div>
-      <div class="sci-form-group"><label class="sci-form-label">Date de sortie</label>
-        <input class="sci-form-input" id="loc-date-sortie" type="date" value="${esc(l?.date_sortie||'')}"></div>
+    <div class="locf-grid">
+      <div class="sf-field"><label class="sf-label">Date d'entrée <span class="sf-label__req">*</span></label>
+        <input class="sf-input" id="loc-date-entree" type="date" value="${esc(l?.date_entree||'')}">
+        <div class="sf-hint">Requise dès qu'un locataire actif est rattaché à un bien : c'est elle qui détermine les loyers générés.</div></div>
+      <div class="sf-field"><label class="sf-label">Date de sortie</label>
+        <input class="sf-input" id="loc-date-sortie" type="date" value="${esc(l?.date_sortie||'')}"></div>
     </div>
-    <div class="sci-form-row">
-      <div class="sci-form-group"><label class="sci-form-label">Loyer HC (€/mois)</label>
-        <input class="sci-form-input" id="loc-loyer" type="number" min="0" step="10" value="${esc(l?.loyer_bail_hc||'')}" placeholder="850"></div>
-      <div class="sci-form-group"><label class="sci-form-label">Charges (€/mois)</label>
-        <input class="sci-form-input" id="loc-charges" type="number" min="0" step="5" value="${esc(l?.charges_bail||'')}" placeholder="50"></div>
+    <div class="locf-grid">
+      <div class="sf-field"><label class="sf-label">Loyer HC (€/mois)</label>
+        <input class="sf-input" id="loc-loyer" type="number" min="0" step="10" value="${esc(l?.loyer_bail_hc||'')}" placeholder="850"></div>
+      <div class="sf-field"><label class="sf-label">Charges (€/mois)</label>
+        <input class="sf-input" id="loc-charges" type="number" min="0" step="5" value="${esc(l?.charges_bail||'')}" placeholder="50"></div>
     </div>
-    <div class="sci-form-group"><label class="sci-form-label">Dépôt de garantie (€)</label>
-      <input class="sci-form-input" id="loc-depot" type="number" min="0" step="50" value="${esc(l?.depot_garantie||'')}" placeholder="850"></div>
+    <div class="sf-field"><label class="sf-label">Dépôt de garantie (€)</label>
+      <input class="sf-input" id="loc-depot" type="number" min="0" step="50" value="${esc(l?.depot_garantie||'')}" placeholder="850"></div>
 
     <!-- Statut -->
-    <div class="mf-section-title">🏷️ Statut</div>
+    <div class="locf-sect">${sfAccIcon('horloge',15)} Statut</div>
     <div class="mf-statut-radio" id="loc-statut-radio">
       ${LOC_STATUTS.map(s => {
         const checked = (l?.statut || 'Candidat') === s;
         return `
           <label class="mf-statut-opt ${checked?'active':''}" onclick="document.querySelectorAll('#loc-statut-radio .mf-statut-opt').forEach(o=>o.classList.remove('active'));this.classList.add('active');">
             <input type="radio" name="loc-statut" value="${s}" ${checked?'checked':''}>
-            <span class="ic">${LOC_STATUT_ICONS[s]}</span>
+            <span class="ic">${sfAccIcon(LOC_STATUT_ICONS[s], 17)}</span>
             <span class="lbl">${s}</span>
           </label>`;
       }).join('')}
     </div>
 
     <!-- Documents -->
-    <div class="mf-section-title">📎 Documents</div>
+    <div class="locf-sect">${sfAccIcon('trombone',15)} Documents</div>
     <div class="mf-doc-upload">
-      <select id="loc-doc-type">
+      <select class="sf-input" id="loc-doc-type" aria-label="Type de document">
         ${LOC_DOC_TYPES.map(t => `<option value="${t.key}">${t.icon} ${t.label}</option>`).join('')}
       </select>
-      <button class="mf-doc-upload-btn" onclick="document.getElementById('loc-doc-input').click()">📎 Ajouter</button>
+      <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="document.getElementById('loc-doc-input').click()">${sfAccIcon('trombone',14)} Ajouter</button>
       <input type="file" id="loc-doc-input" accept="application/pdf,image/*" multiple style="display:none" onchange="handleLocDocUpload(event)">
     </div>
     <div class="mf-doc-list" id="loc-docs-list"></div>
 
     <!-- Notes -->
-    <div class="mf-section-title">📝 Notes</div>
-    <div class="sci-form-group">
-      <textarea class="sci-form-input" id="loc-notes" rows="3" style="resize:vertical" placeholder="Observations, points d'attention…">${esc(l?.notes||'')}</textarea>
+    <div class="locf-sect">${sfAccIcon('carnet',15)} Notes</div>
+    <div class="sf-field">
+      <textarea class="sf-input" id="loc-notes" rows="3" style="resize:vertical" placeholder="Observations, points d'attention…">${esc(l?.notes||'')}</textarea>
     </div>`;
 
   refreshLocDocsView();

@@ -18,13 +18,13 @@
 <!-- Socle de jetons Stonefolio (phase 2). Ne declare que des variables : aucun
      effet visuel tant qu'aucun composant ne les consomme. Charge AVANT
      styles.css pour que la migration puisse s'appuyer dessus. -->
-<link rel="stylesheet" href="tokens.css?v=70">
-<link rel="stylesheet" href="components.css?v=70">
-<link rel="stylesheet" href="styles.css?v=70">
+<link rel="stylesheet" href="tokens.css?v=71">
+<link rel="stylesheet" href="components.css?v=71">
+<link rel="stylesheet" href="styles.css?v=71">
 <!-- Suivi financier : chargé APRÈS styles.css, c'est ce qui permet aux deux
      surcharges de géométrie (`.sff-line` à 2 colonnes au lieu de 5) de gagner
      dans le seul périmètre `.mf-page`, sans toucher à la fiche bien. -->
-<link rel="stylesheet" href="financier.css?v=70">
+<link rel="stylesheet" href="financier.css?v=71">
 </head>
 <body>
 
@@ -197,7 +197,7 @@
 
 <div class="notif" id="notif"></div>
 
-<script src="app.js?v=70"></script>
+<script src="app.js?v=71"></script>
 
 <!-- LIGHTBOX -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
@@ -351,13 +351,29 @@
   <div class="adm-modal">
     <div class="adm-modal-header">
       <div class="adm-modal-title" id="adm-modal-title">—</div>
-      <button class="sci-modal-close" onclick="closeAdmModal()">✕</button>
+      <button class="sci-modal-close" onclick="closeAdmModal()" aria-label="Fermer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
     </div>
     <div class="adm-modal-body" id="adm-modal-body"></div>
+    <!-- Pied PARTAGÉ par les cinq fenêtres d'administration (locataire, SCI,
+         contact, échéance, bilan). Migré à la charte le 15/08/2026 : les emojis
+         partent, et le bouton d'enregistrement cesse d'être vert plein — ce que
+         components.css s'interdit, pour que le seul vert lumineux de l'écran
+         reste celui qui porte une valeur. -->
     <div class="adm-modal-footer">
-      <button class="sci-btn sci-btn-danger" id="adm-modal-del" style="display:none;margin-right:auto">🗑 Supprimer</button>
-      <button class="sci-btn sci-btn-cancel" onclick="closeAdmModal()">Annuler</button>
-      <button class="sci-btn sci-btn-primary" id="adm-modal-save">✓ Enregistrer</button>
+      <button class="sf-btn sf-btn--danger sf-btn--sm" id="adm-modal-del" style="display:none;margin-right:auto">Supprimer</button>
+      <button class="sf-btn sf-btn--ghost sf-btn--sm" onclick="closeAdmModal()">Annuler</button>
+      <!-- L'icône est écrite en SVG et non via sfAccIcon() : ce balisage est
+           statique. Elle doit correspondre à celle que le JS remet après un
+           enregistrement (`sfAccIcon('check',14)`), sinon le bouton change
+           d'aspect entre son état initial et son retour. -->
+      <button class="sf-btn sf-btn--primary sf-btn--sm" id="adm-modal-save">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+        Enregistrer
+      </button>
     </div>
   </div>
 </div>
