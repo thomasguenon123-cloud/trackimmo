@@ -1968,7 +1968,7 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 ═══════════════════════════════════════ */
 /* Largeur des pages : plein écran jusqu'à 1600px, centré au-delà (évite la
    bande blanche à droite du hero sur les écrans larges) */
-.admin-page{max-width:1600px;margin:0 auto;width:100%;}
+.admin-page{margin:0 auto;width:100%;}   /* même arbitrage que .mf-page */
 .adm-hero{background:var(--accent-g);border-radius:14px;padding:24px 28px;color:white;display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;gap:16px;flex-wrap:wrap;}
 .adm-hero-label{font-size:10px;letter-spacing:2px;text-transform:uppercase;opacity:.65;margin-bottom:4px;}
 .adm-hero-title{font-size:26px;font-weight:800;letter-spacing:-.5px;}
@@ -1984,7 +1984,16 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 .adm-tab-content{min-height:300px;}
 
 /* ═══ MODULE FINANCIER — squelette V1 ═══ */
-.mf-page{max-width:1600px;margin:0 auto;width:100%;}
+/* ⚠️ PLUS DE LARGEUR MAXIMALE — signalé par Thomas le 16/08/2026 : sur grand
+   écran, « Suivi financier » affichait des bandes noires latérales que « Mes
+   biens » n'a pas. La cause tenait à trois conteneurs qui se plafonnaient
+   (`.mf-page` et `.admin-page` à 1600 px, `.sff-page` à 1840 px) quand les
+   écrans migrés les plus récents rendent directement dans `.content`, en pleine
+   largeur avec ses 24 px de marge.
+   L'arbitrage était déjà rendu pour l'accueil le 01/08 — « un tableau de bord
+   n'est pas un article » — il s'applique ici aussi : ce sont des écrans qu'on
+   balaie, pas qu'on lit en colonne. La structure est désormais commune. */
+.mf-page{margin:0 auto;width:100%;}
 .mf-soon-card{background:var(--c-surface);border:1px dashed var(--c-border);border-radius:12px;padding:48px 28px;text-align:center;box-shadow:var(--c-shadow);}
 .mf-soon-icon{font-size:52px;margin-bottom:14px;opacity:.85;}
 .mf-soon-title{font-size:19px;font-weight:700;color:var(--c-text);margin-bottom:8px;letter-spacing:-.3px;}
@@ -2011,7 +2020,7 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 .bc-nav{cursor:pointer;transition:color .15s;}
 .bc-nav:hover{color:var(--accent);text-decoration:underline;}
 
-.sff-page{ max-width:1840px; margin:0 auto; width:100%; }
+.sff-page{ margin:0 auto; width:100%; }   /* même arbitrage que .mf-page */
 
 /* ── Bandeau de titre ─────────────────────────────────────────────────────── */
 .sff-top{ margin-bottom:var(--sf-space-7); }

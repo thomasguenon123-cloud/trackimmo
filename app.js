@@ -8256,37 +8256,39 @@ function renderMfLocataires(c) {
     ${echeances.length ? `
     <div class="sff-block">
       <div class="sff-block__h">
-        <p class="sff-block__t">Ce qui arrive</p>
+        ${/* « Échéancier » : le terme métier, celui d'un bailleur qui prépare
+              ses encaissements. « Ce qui arrive » sonnait comme une météo. */''}
+        <p class="sff-block__t">Échéancier</p>
         <span class="sff-block__n">trois mois · loyers attendus et dates de bail</span>
       </div>
       <div class="sff-block__b">
-        <div class="mfx-plan">
+        <div class="mfp-plan">
           ${colonnes.map(col => `
-            <section class="mfx-mois${col.courant ? ' est-courant' : ''}">
-              <header class="mfx-mois__h">
-                <span class="mfx-mois__n">${esc(col.debut.toLocaleDateString('fr-FR', { month: 'long' }))}</span>
-                <span class="mfx-mois__a">${col.debut.getFullYear()}</span>
+            <section class="mfp-mois${col.courant ? ' est-courant' : ''}">
+              <header class="mfp-mois__h">
+                <span class="mfp-mois__n">${esc(col.debut.toLocaleDateString('fr-FR', { month: 'long' }))}</span>
+                <span class="mfp-mois__a">${col.debut.getFullYear()}</span>
               </header>
               ${col.dedans.length ? `
-                <ul class="mfx-mois__l">
+                <ul class="mfp-mois__l">
                   ${col.dedans.map(e => `
-                    <li class="mfx-jour mfx-jour--${e.type}">
-                      <span class="mfx-jour__d"><b>${String(e.d.getDate()).padStart(2, '0')}</b></span>
-                      <span class="mfx-jour__c">
-                        <span class="mfx-jour__t">${esc(e.libelle)}</span>
+                    <li class="mfp-jour mfp-jour--${e.type}">
+                      <span class="mfp-jour__d"><b>${String(e.d.getDate()).padStart(2, '0')}</b></span>
+                      <span class="mfp-jour__c">
+                        <span class="mfp-jour__t">${esc(e.libelle)}</span>
                         ${e.detail
-                          ? `<span class="mfx-jour__s">${esc(e.detail)}</span>`
-                          : (e.bien ? `<span class="mfx-jour__s">${esc(e.bien.titre || 'Bien')}</span>` : '')}
+                          ? `<span class="mfp-jour__s">${esc(e.detail)}</span>`
+                          : (e.bien ? `<span class="mfp-jour__s">${esc(e.bien.titre || 'Bien')}</span>` : '')}
                       </span>
-                      ${e.montant ? `<span class="mfx-jour__v">${sfEur(e.montant)}</span>` : ''}
+                      ${e.montant ? `<span class="mfp-jour__v">${sfEur(e.montant)}</span>` : ''}
                     </li>`).join('')}
                 </ul>
-                ${col.total ? `<p class="mfx-mois__f">${sfEur(col.total)} attendus</p>` : ''}`
-              : `<p class="mfx-mois__vide">Rien à préparer</p>`}
+                ${col.total ? `<p class="mfp-mois__f">${sfEur(col.total)} attendus</p>` : ''}`
+              : `<p class="mfp-mois__vide">Rien à préparer</p>`}
             </section>`).join('')}
         </div>
         ${echeances.some(e => e.type !== 'loyer') ? `
-          <p class="mfx-plan__note">Les dates de bail sont déduites de la date d'entrée et du type de
+          <p class="mfp-plan__note">Les dates de bail sont déduites de la date d'entrée et du type de
             bail — ce sont des repères, pas un avis juridique.</p>` : ''}
       </div>
     </div>` : ''}`;
@@ -8330,8 +8332,15 @@ function mfCarteLocataire(l) {
       <div class="mfx-li">${sfAccIcon('maison', 15)}${bien
         ? `${esc(bien.titre || 'Bien')}${bien.ville ? ` <em>· ${esc(bien.ville)}</em>` : ''}`
         : '<em>Aucun bien rattaché</em>'}</div>
-      ${(parseFloat(l.loyer_bail_hc) || 0) > 0 ? `
-      <div class="mfx-li">${sfAccIcon('euro', 15)}${sfEur(l.loyer_bail_hc)} <em>par mois hors charges${(parseFloat(l.depot_garantie) || 0) > 0 ? ` · dépôt ${sfEur(l.depot_garantie)}` : ''}</em></div>` : ''}
+      ${/* ⚠️ CE QUE LE LOCATAIRE PAIE, charges comprises — arbitrage de Thomas
+            du 16/08/2026. La carte affichait le loyer HORS charges : c'est le
+            chiffre du bail, pas celui du virement qu'on attend chaque mois. Sur
+            une carte de locataire, la question est « combien me doit-il ? »,
+            et la réponse inclut les charges.
+            Le montant hors charges reste dans la fenêtre, où il se saisit — et
+            il continue d'alimenter les calculs, qui distinguent les deux. */''}
+      ${(parseFloat(l.loyer_bail_hc) || 0) + (parseFloat(l.charges_bail) || 0) > 0 ? `
+      <div class="mfx-li">${sfAccIcon('euro', 15)}${sfEur((parseFloat(l.loyer_bail_hc) || 0) + (parseFloat(l.charges_bail) || 0))} <em>par mois, charges comprises${(parseFloat(l.depot_garantie) || 0) > 0 ? ` · dépôt ${sfEur(l.depot_garantie)}` : ''}</em></div>` : ''}
       <div class="mfx-li">${sfAccIcon('agenda', 15)}${entree || '—'}${sortie ? ` <em>→ ${sortie}</em>` : (l.statut === 'Actif' ? ' <em>· en cours</em>' : '')}</div>
       ${docs ? `<div class="mfx-li">${sfAccIcon('trombone', 15)}${docs} <em>document${docs > 1 ? 's' : ''}</em></div>` : ''}
       ${l.statut === 'Actif' ? (dus > 0 ? `

@@ -95,61 +95,61 @@
    COMPARER les mois — ce qu'un calendrier page à page interdit.
    Un mois sans échéance garde sa colonne : son vide est une information, et le
    retirer ferait glisser les autres.                                          */
-.mfx-plan{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:var(--sf-space-5); }
-.mfx-mois{
+.mfp-plan{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:var(--sf-space-5); }
+.mfp-mois{
   background:var(--sf-surface-2); border:1px solid var(--sf-border);
   border-radius:var(--sf-radius-sm); padding:var(--sf-space-5);
   display:flex; flex-direction:column; gap:var(--sf-space-4); min-width:0;
 }
-.mfx-mois.est-courant{ border-color:var(--sf-border-strong); background:var(--sf-surface-3); }
-.mfx-mois__h{ display:flex; align-items:baseline; gap:var(--sf-space-3);
+.mfp-mois.est-courant{ border-color:var(--sf-border-strong); background:var(--sf-surface-3); }
+.mfp-mois__h{ display:flex; align-items:baseline; gap:var(--sf-space-3);
   padding-bottom:var(--sf-space-4); border-bottom:1px solid var(--sf-border); }
-.mfx-mois__n{ font-size:var(--sf-font-body); font-weight:var(--sf-weight-semibold);
+.mfp-mois__n{ font-size:var(--sf-font-body); font-weight:var(--sf-weight-semibold);
   color:var(--sf-text); text-transform:capitalize; }
 /* ⚠️ `--sf-text-2` et non `--sf-text-3` : la colonne pose son fond sur
    `--sf-surface-2`, et le jeton discret y retombe à 4,35:1 — sous le seuil AA.
    Même cause que la correction du jeton du 03/08 et que celle de la fiche bien
    du 05/08 : `--sf-text-3` tient sur le fond de page, pas sur une surface plus
    claire. On corrige localement, le jeton lui-même reste juste ailleurs. */
-.mfx-mois__a{ font-family:var(--sf-font-num); font-size:var(--sf-font-label);
+.mfp-mois__a{ font-family:var(--sf-font-num); font-size:var(--sf-font-label);
   color:var(--sf-text-2); }
-.mfx-mois__l{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column;
+.mfp-mois__l{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column;
   gap:var(--sf-space-4); }
-.mfx-mois__f{ margin:auto 0 0; padding-top:var(--sf-space-4);
+.mfp-mois__f{ margin:auto 0 0; padding-top:var(--sf-space-4);
   border-top:1px solid var(--sf-border); text-align:right;
   font-family:var(--sf-font-num); font-size:var(--sf-font-body-sm);
   color:var(--sf-text-2); font-variant-numeric:tabular-nums; }
-.mfx-mois__vide{ margin:var(--sf-space-5) 0; text-align:center;
+.mfp-mois__vide{ margin:var(--sf-space-5) 0; text-align:center;
   font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
 
-.mfx-jour{ display:grid; grid-template-columns:auto minmax(0,1fr) auto;
+.mfp-jour{ display:grid; grid-template-columns:auto minmax(0,1fr) auto;
   gap:var(--sf-space-4); align-items:baseline; }
 /* Le quantième dans une pastille : c'est le repère qu'on cherche en premier. */
-.mfx-jour__d{ display:flex; align-items:center; justify-content:center;
+.mfp-jour__d{ display:flex; align-items:center; justify-content:center;
   min-width:26px; padding:2px 0; border-radius:var(--sf-radius-xs);
   background:var(--sf-surface); border:1px solid var(--sf-border);
   font-family:var(--sf-font-num); font-size:var(--sf-font-label);
   color:var(--sf-text-2); font-variant-numeric:tabular-nums; }
-.mfx-jour__c{ display:flex; flex-direction:column; gap:1px; min-width:0; }
-.mfx-jour__t{ font-size:var(--sf-font-body-sm); color:var(--sf-text);
+.mfp-jour__c{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+.mfp-jour__t{ font-size:var(--sf-font-body-sm); color:var(--sf-text);
   overflow:hidden; text-overflow:ellipsis; }
-.mfx-jour__s{ font-size:var(--sf-font-label); color:var(--sf-text-3);
+.mfp-jour__s{ font-size:var(--sf-font-label); color:var(--sf-text-3);
   overflow:hidden; text-overflow:ellipsis; }
-.mfx-jour__v{ font-family:var(--sf-font-num); font-size:var(--sf-font-body-sm);
+.mfp-jour__v{ font-family:var(--sf-font-num); font-size:var(--sf-font-body-sm);
   color:var(--sf-text); font-variant-numeric:tabular-nums; white-space:nowrap; }
 
 /* Les dates de bail se distinguent des loyers par leur pastille : elles n'ont
    pas de montant, et ce ne sont pas les mêmes gestes qu'elles appellent. */
-.mfx-jour--bail .mfx-jour__d,
-.mfx-jour--revision .mfx-jour__d,
-.mfx-jour--preavis .mfx-jour__d,
-.mfx-jour--depot .mfx-jour__d{
+.mfp-jour--bail .mfp-jour__d,
+.mfp-jour--revision .mfp-jour__d,
+.mfp-jour--preavis .mfp-jour__d,
+.mfp-jour--depot .mfp-jour__d{
   background:var(--sf-alert-wash); border-color:var(--sf-alert); color:var(--sf-alert);
 }
-.mfx-plan__note{ margin:var(--sf-space-5) 0 0; font-size:var(--sf-font-label);
+.mfp-plan__note{ margin:var(--sf-space-5) 0 0; font-size:var(--sf-font-label);
   color:var(--sf-text-3); line-height:1.5; }
 
-@media (max-width: 900px){ .mfx-plan{ grid-template-columns:1fr; } }
+@media (max-width: 900px){ .mfp-plan{ grid-template-columns:1fr; } }
 
 /* ═══ FENÊTRE LOCATAIRE — sections et grille ═══════════════════════════════ */
 .locf-sect{
