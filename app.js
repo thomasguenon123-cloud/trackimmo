@@ -476,6 +476,17 @@ function checkRecoveryHash() {
           // Nettoyer le hash de l'URL
           history.replaceState(null, null, window.location.pathname);
         }
+      }).catch(e => {
+        /* ⚠️ Sans ce `catch`, un échec ici ne produisait RIEN : ni écran, ni
+           message. L'utilisateur qui suit un lien d'invitation ou de
+           réinitialisation restait devant une page inerte, sans savoir s'il
+           devait patienter, recliquer, ou redemander un lien. Le pire moment
+           pour un silence : c'est sa toute première visite.
+           Signalé par l'audit du 03/08/2026, corrigé le 15/08. */
+        console.error('[auth] session illisible au retour de lien :', e);
+        document.getElementById('auth-screen').style.display = 'flex';
+        showForm('login');
+        showNotif("Ce lien n'a pas pu être ouvert. Demandez-en un nouveau, ou connectez-vous si votre compte est déjà actif.", true);
       });
     }
   }
@@ -1985,6 +1996,36 @@ function renderAccueil(el) {
 // information.
 
 const sfDetenu = b => b.statut === 'Acheté';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FRAIS DE CONSTITUTION D'UNE SCI — règle arrêtée par Thomas le 15/08/2026.
+
+   Ils s'imputent AU BIEN QUI A MOTIVÉ LA CRÉATION de la société, et à lui seul :
+     · bien détenu en propre            → 0 €
+     · SCI qui détient déjà un bien     → 0 €  (« je ne refais pas une SCI à
+                                                 chaque achat »)
+     · premier bien d'une SCI           → SF_FRAIS_CREATION_SCI
+
+   ⚠️ CE QUE CETTE RÈGLE CORRIGE. La colonne `biens.creation_sci` a une VALEUR
+   PAR DÉFAUT DE 200 € en base, posée sur tout bien créé — y compris ceux
+   détenus en propre et ceux encore en prospection. Mesuré le 15/08/2026 :
+   4 biens sur 7 la portaient à tort, dont T4+ Paris 16e qui affichait donc
+   952 200 € de coût d'acquisition au lieu de 952 000 €. Le montant entre dans
+   `emprunt`, donc dans le rendement, le cashflow et tout ce qui en dérive.
+
+   ⚠️ Le montant reste MODIFIABLE à la main sur la fiche : c'est une valeur par
+   défaut juste, pas un calcul imposé — des frais de notaire réels varient.
+
+   ⚠️ `bienId` est exclu de la recherche : au moment où on l'appelle, le bien
+   n'est pas encore enregistré comme détenu, et se compterait lui-même.       */
+const SF_FRAIS_CREATION_SCI = 200;
+
+function sfFraisCreationSci(bienId, mode, sciId) {
+  if(mode !== 'sci' || !sciId) return 0;
+  const dejaDetenus = allBiens.filter(b =>
+    b.id !== bienId && b.sci_id === sciId && b.mode_detention === 'sci');
+  return dejaDetenus.length ? 0 : SF_FRAIS_CREATION_SCI;
+}
 const sfRendement = b => (b.prix_affiche && b.loyer_en_etat)
   ? (parseFloat(b.loyer_en_etat) * 12 / parseFloat(b.prix_affiche)) * 100 : null;
 // Charges mensuelles hors loyer — la colonne qui manquait pour comprendre d'où
@@ -4578,6 +4619,10 @@ function bdAcqVueGestion(b) {
    respecte `prefers-reduced-motion`. */
 function bdAcqVueSucces(b) {
   const r = bdAcq.resume || {};
+  /* Le champ fait foi depuis que `sfFraisCreationSci` l'écrit selon la règle.
+     La garde sur le mode reste néanmoins : tant que la reprise de l'existant
+     n'est pas passée en base, d'anciens biens portent encore les 200 € par
+     défaut alors qu'ils sont détenus en propre. Elle deviendra superflue. */
   const cout = (parseFloat(b.prix_affiche)||0) + (parseFloat(b.frais_notaire)||0)
              + (parseFloat(b.travaux)||0) + (parseFloat(b.frais_agence)||0)
              + (b.mode_detention === 'sci' ? (parseFloat(b.creation_sci)||0) : 0);
@@ -4667,7 +4712,11 @@ async function bdAcqConfirmer() {
   if(bouton) { bouton.disabled = true; bouton.textContent = 'Enregistrement…'; }
 
   const patchBien = { mode_detention: bdAcq.detention,
-                      sci_id: bdAcq.detention === 'sci' ? bdAcq.sciId : null };
+                      sci_id: bdAcq.detention === 'sci' ? bdAcq.sciId : null,
+                      // Voir `sfFraisCreationSci` : seul le premier bien d'une
+                      // SCI porte les frais de sa constitution.
+                      creation_sci: sfFraisCreationSci(b.id, bdAcq.detention,
+                                      bdAcq.detention === 'sci' ? bdAcq.sciId : null) };
   if(bdAcq.mode === 'acquisition') patchBien.statut = 'Acheté';
 
   try {
@@ -4750,7 +4799,9 @@ async function bdRemettreEnProspection(bienId) {
     ok: 'Remettre en prospection', annuler: 'Garder dans le patrimoine', danger: true });
   if(!ok) return;
   try {
-    const patch = { statut: BD_STATUT_RETOUR, mode_detention: null, sci_id: null };
+    // Les frais de constitution partent avec le rattachement : un bien qui
+    // n'est plus détenu par une SCI n'a pas participé à sa création.
+    const patch = { statut: BD_STATUT_RETOUR, mode_detention: null, sci_id: null, creation_sci: 0 };
     const { error } = await db.from('biens').update(patch).eq('id', b.id).eq('user_id', currentUser.id);
     if(error) throw error;
     Object.assign(b, patch);
