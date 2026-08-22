@@ -9,6 +9,20 @@
 
 ---
 
+## 0. Arbitrages rendus par Thomas — 22/08/2026
+
+| Décision | Réponse |
+|---|---|
+| **Architecture** | **A — on élargit `visites`.** Pendant que la table pèse deux lignes. |
+| **Renommage** | **Oui** — la table devient `comptes_rendus`, dans la même migration. Le nom que l'écran porte déjà. |
+| **État des lieux d'entrée** | **Dans le périmètre.** Sans lui, la sortie n'a rien à comparer. |
+| Questions 4 à 6 | Recommandations retenues par défaut, à confirmer au moment de les écrire. |
+
+**Conséquence de planning** : la migration des comptes rendus et celle du préavis
+(étape 2 du `PLAN-PREAVIS.md`) partent **ensemble, en une seule manipulation Supabase**.
+
+---
+
 ## 1. Ce qui existe déjà — la section n'est pas à construire, elle est à reprendre
 
 La fonctionnalité **existe et tourne**. Ce qui n'a pas été fait, c'est sa **migration à la
@@ -124,9 +138,9 @@ bail, et **propose d'ouvrir le compte rendu pré-rempli** (date = remise des cl�
 
 | # | Question | Ma recommandation |
 |---|---|---|
-| 1 | **A, B ou C ?** | **A**, tant que la table pèse deux lignes. |
-| 2 | **On renomme la table `visites` en `comptes_rendus` ?** | Oui si on le fait maintenant, dans la même migration ; sinon jamais. |
-| 3 | **L'état des lieux d'entrée est-il dans le périmètre ?** | Oui : sans lui, la sortie n'a rien à comparer — et c'est lui qui fonde le verdict. Il existe déjà comme *document* (`LOC_DOC_TYPES.edl_entree`), ce qui n'est pas la même chose qu'un constat daté. |
+| ~~1~~ | ~~A, B ou C ?~~ | ✅ **Tranché : A** (voir §0). |
+| ~~2~~ | ~~On renomme la table ?~~ | ✅ **Tranché : oui**, `comptes_rendus` (voir §0). |
+| ~~3~~ | ~~L'état des lieux d'entrée est-il dans le périmètre ?~~ | ✅ **Tranché : oui** (voir §0). Il existe déjà comme *document* (`LOC_DOC_TYPES.edl_entree`), ce qui n'est pas la même chose qu'un constat daté : le document est un fichier, le compte rendu est un fait daté qui fonde le verdict. |
 | 4 | **Un compte rendu doit-il pouvoir exister sans bien ?** | Aujourd'hui oui (« visites générales », `bien_id` nullable) — à conserver pour l'achat, à interdire pour un état des lieux. |
 | 5 | **Migre-t-on l'écran à la charte dans le même chantier ?** | Oui : le rouvrir pour y ajouter deux types sans le migrer, c'est le rouvrir deux fois. |
 | 6 | **Les retenues sur dépôt** (montant, motif) : sur le compte rendu ou sur le bail ? | Sur le **bail**, avec la restitution — c'est un mouvement d'argent, pas une observation. Et c'est l'étape 6 du préavis, pas celle-ci. |

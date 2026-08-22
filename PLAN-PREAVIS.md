@@ -105,6 +105,10 @@ la plateforme dans un état intermédiaire incohérent.
 
 ### Étape 2 — les colonnes (migration guidée, comme la partie B)
 Additive, aucune contrainte d'invariant, aucune valeur par défaut à rattraper.
+⚠️ **Elle embarque aussi les comptes rendus** — arbitrage du 22/08/2026 : la table
+`visites` devient `comptes_rendus`, `type_visite` passe à quatre valeurs et
+`locataire_id` sort de sa dormance. **Une seule manipulation Supabase au lieu de deux**
+(voir `NOTE-COMPTES-RENDUS.md`).
 
 | Colonne | Type | Rôle |
 |---|---|---|
