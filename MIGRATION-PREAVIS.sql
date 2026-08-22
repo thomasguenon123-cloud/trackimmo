@@ -6,6 +6,24 @@
 -- Mon accès MCP est en LECTURE SEULE : toute migration DDL lui revient.
 -- Je vérifie le résultat moi-même en lecture après chaque étape.
 --
+-- ✅ PARTIES A ET B APPLIQUÉES par Thomas le 22/08/2026, vérifiées en lecture
+--    le jour même — pas sur parole :
+--      · 5 colonnes de préavis, aux bons types (date · smallint · text ·
+--        date · boolean), toutes nullables, 0 ligne renseignée ;
+--      · colonne `conforme` présente, 0 ligne renseignée ;
+--      · 3 contraintes posées et `convalidated = true` — Postgres a
+--        réellement contrôlé les lignes existantes, pas seulement les futures ;
+--      · index partiel `idx_visites_locataire` créé ;
+--      · RLS INTACTE : 4 + 4 policies, comme avant ;
+--      · données inchangées : 2 locataires (1 en préavis), 2 comptes rendus
+--        de type « achat », 31 lignes de loyers.
+--
+-- ⏳ RESTE LES COMMENTAIRES DE COLONNES (bloc facultatif en fin de partie A) :
+--    ils n'étaient pas dans les blocs transmis le 22/08 — mon oubli. Ils ne
+--    changent aucun comportement, mais ils font apparaître dans l'éditeur
+--    Supabase QUELLE date est quoi, ce qui est exactement la confusion qui a
+--    motivé cette migration.
+--
 -- ── CE QU'ELLE FAIT ────────────────────────────────────────────────────────
 -- PARTIE A  cinq colonnes sur `locataires` : le congé, sa durée, son motif,
 --           la remise des clés et la conformité de l'état des lieux.
