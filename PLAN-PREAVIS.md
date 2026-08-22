@@ -113,11 +113,16 @@ la plateforme dans un état intermédiaire incohérent.
   d'occupation de l'agenda, il tombe aussi).
 
 ### Étape 2 — les colonnes (migration guidée, comme la partie B)
-Additive, aucune contrainte d'invariant, aucune valeur par défaut à rattraper.
-⚠️ **Elle embarque aussi les comptes rendus** — arbitrage du 22/08/2026 : la table
-`visites` devient `comptes_rendus`, `type_visite` passe à quatre valeurs et
-`locataire_id` sort de sa dormance. **Une seule manipulation Supabase au lieu de deux**
-(voir `NOTE-COMPTES-RENDUS.md`).
+📄 **Écrite : `MIGRATION-PREAVIS.sql`.** Additive, aucun invariant, aucune valeur par
+défaut à rattraper — les cinq colonnes naissent NULL et rien ne change à l'écran.
+⚠️ **Elle embarque aussi les comptes rendus** : `type_visite` passe à quatre valeurs
+(les deux états des lieux), une colonne `conforme` porte le verdict, et `locataire_id`
+sort de sa dormance. **Une seule manipulation Supabase au lieu de deux.**
+⚠️ **Le renommage de la table en `comptes_rendus` n'y est PAS** : c'est un changement
+cassant pour la plateforme déployée, et il n'apporte rien au préavis. Il part avec la
+migration de l'écran à la charte (voir `NOTE-COMPTES-RENDUS.md`).
+⚠️ Les **invariants croisés** sont écrits dans le fichier mais **en commentaire**, comme
+la partie B de MODE-DETENTION : ils s'appliqueront quand le workflow saura les respecter.
 
 | Colonne | Type | Rôle |
 |---|---|---|
@@ -130,7 +135,7 @@ Additive, aucune contrainte d'invariant, aucune valeur par défaut à rattraper.
 `date_sortie` **reste la fin de préavis** — elle est déjà branchée sur tous les calculs.
 Écrite par le workflow, modifiable à la main.
 
-### Étape 3 — le workflow du congé (l'acte)
+### Étape 3 — le workflow du congé (l'acte) ✅ **FAITE (22/08/2026, v=76)**
 Copie du patron `bdAcq` : la fenêtre **collecte**, « Enregistrer le congé » **écrit d'un bloc**,
 « Annuler » n'a rien à défaire.
 
@@ -143,10 +148,26 @@ Copie du patron `bdAcq` : la fenêtre **collecte**, « Enregistrer le congé » 
    encaissées. **Rien n'est écrit tant que cette vue n'est pas confirmée.**
 3. **Vue 3 — succès.** Ce qui a été écrit, compté, pas deviné.
 
-**Deux points d'entrée, et deux seulement** — comme l'acquisition : un bouton sur le locataire
-actif, et le **dépôt dans la colonne « Préavis » du kanban**, qui rend la carte à sa colonne et
-ouvre la fenêtre. C'est la levée de la réserve du 5ᵉ point du cadrage : le glisser-déposer
-devient légitime **parce que** le workflow existe.
+**Deux points d'entrée étaient prévus.** Un seul est livré : le **bouton sur la carte** du
+locataire actif (« Enregistrer un congé »), et son symétrique sur une carte en préavis
+(« Annuler le congé »).
+
+⚠️ **Le glisser-déposer est reporté à l'étape 4, et c'est un arbitrage assumé.** Un kanban
+dont une seule colonne accepte le dépôt se lit plus mal qu'un kanban qui n'en accepte aucun :
+« Sorti » n'aura son acte — remise des clés, état des lieux — qu'à l'étape suivante, et y
+déposer une carte d'ici là recréerait exactement la donnée incomplète que le cadrage refusait.
+Les deux actes arriveront donc ensemble, et le tableau deviendra cohérent d'un coup.
+
+**Trois choses de plus, imposées par le workflow** :
+- **« Préavis » quitte les boutons radio de la fiche locataire** — même arbitrage que « Acheté »,
+  retiré de la picklist des biens le jour où l'acquisition est devenue un acte. L'option reste
+  visible mais inerte, et cochée pour qui y est déjà.
+- **Revenir à « Actif » efface le congé** (réception, durée, motif) : un statut et les colonnes
+  qui le justifient ne peuvent pas se contredire. « Sorti » les conserve — c'est son histoire.
+- **`mfEcheancesBail` cesse de déborder** : la restitution du dépôt se calculait à
+  `setMonth(+1)`, qui rendait le 3 mars pour une sortie au 31 janvier. Elle passe par
+  `sfFinPreavis`, la même arithmétique clampée — une seule dans le fichier, pas une juste et
+  une fausse.
 
 **Retour en arrière** : « Annuler le congé » remet `'Actif'`, efface les cinq colonnes et
 `date_sortie`, et régénère les loyers effacés. Sans lui, une erreur de saisie est définitive.

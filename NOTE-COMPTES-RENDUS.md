@@ -14,12 +14,25 @@
 | Décision | Réponse |
 |---|---|
 | **Architecture** | **A — on élargit `visites`.** Pendant que la table pèse deux lignes. |
-| **Renommage** | **Oui** — la table devient `comptes_rendus`, dans la même migration. Le nom que l'écran porte déjà. |
+| **Renommage** | **Oui** — la table devient `comptes_rendus`. ⚠️ **Reporté à la migration de l'écran** (22/08, voir ci-dessous) : décidé, pas annulé. |
 | **État des lieux d'entrée** | **Dans le périmètre.** Sans lui, la sortie n'a rien à comparer. |
 | Questions 4 à 6 | Recommandations retenues par défaut, à confirmer au moment de les écrire. |
 
-**Conséquence de planning** : la migration des comptes rendus et celle du préavis
-(étape 2 du `PLAN-PREAVIS.md`) partent **ensemble, en une seule manipulation Supabase**.
+**Conséquence de planning** : la partie additive des comptes rendus et celle du préavis
+partent **ensemble, en une seule manipulation Supabase** (`MIGRATION-PREAVIS.sql`).
+
+⚠️ **Le renommage, lui, en est ressorti** — question de Thomas le 22/08 : faut-il migrer
+le design maintenant ? Non, et le renommage doit suivre le même sort. C'est un changement
+**cassant** : huit appels `db.from('visites')` vivent dans `app.js`, et la plateforme
+déployée cesserait de lire ses comptes rendus entre l'exécution du SQL et le déploiement
+du code. Il n'apporte par ailleurs **rien** au workflow de préavis — il est cosmétique.
+Il partira donc avec la migration de l'écran à la charte, qui réécrit ces appels de toute
+façon : **une seule ouverture au lieu de deux.**
+
+⚠️ Conséquence à ne pas oublier à l'étape 4 : quand le workflow créera un état des lieux,
+l'écran actuel l'affichera comme « Visite locataire » — son libellé n'a que deux branches
+(`type_visite === 'achat' ? 'Achat' : 'Locataire'`). Trois lignes à corriger à ce
+moment-là, pas une refonte.
 
 ---
 

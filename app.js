@@ -8272,7 +8272,12 @@ function mfEcheancesBail(loc, bien) {
     if(loc.statut === 'Préavis') ajoute(sortie, 'preavis', `Départ — ${nomLoc}`, 'Fin de préavis');
     const depot = parseFloat(loc.depot_garantie) || 0;
     if(depot > 0) {
-      const rest = new Date(sortie); rest.setMonth(rest.getMonth() + 1);
+      /* ⚠️ `setMonth(+1)` DÉBORDE, exactement comme il débordait sur le calcul
+         du préavis : une sortie au 31 janvier donnait « 31 février », reporté
+         au 3 mars. `sfFinPreavis` fait le même « + N mois » en ramenant au
+         dernier jour du mois cible — une seule arithmétique de date pour les
+         deux, plutôt qu'une juste et une fausse. */
+      const rest = new Date((sfFinPreavis(loc.date_sortie, 1) || '') + 'T00:00:00');
       const e = { d: rest, type: 'depot', libelle: `Restituer le dépôt — ${nomLoc}`,
                   detail: 'Un mois après la sortie, état des lieux conforme',
                   loc, bien, montant: depot };
@@ -8537,8 +8542,503 @@ function mfCarteLocataire(l) {
         <p class="mfx-loccard__paie mfx-loccard__paie--ok">
           ${sfAccIcon('check', 14)} À jour de ses loyers
         </p>`) : ''}
+      ${/* ⚠️ L'ACTE, sur la carte. Le congé était jusqu'ici une bascule de
+            statut dans un formulaire, qui posait une date sans dire laquelle.
+            `event.stopPropagation()` : la carte entière ouvre déjà la fiche. */''}
+      ${l.statut === 'Actif' ? `
+        <div class="mfx-loccard__pied">
+          <button class="sf-btn sf-btn--ghost sf-btn--sm" onclick="event.stopPropagation();sfCongeDemarrer('${l.id}')">
+            ${sfAccIcon('agenda', 14)} Enregistrer un congé
+          </button>
+        </div>` : ''}
+      ${l.statut === 'Préavis' ? `
+        <div class="mfx-loccard__pied">
+          <button class="sf-btn sf-btn--ghost sf-btn--sm" onclick="event.stopPropagation();sfCongeRevoquer('${l.id}')">
+            ${sfAccIcon('retour', 14)} Annuler le congé
+          </button>
+        </div>` : ''}
     </article>`;
 }
+/* ═══════════════════════════════════════════════════════════════════════════
+   LE CONGÉ DU LOCATAIRE — étape 3 du PLAN-PREAVIS.
+
+   ⚠️ Ce que ce workflow existe pour empêcher, et qui s'est produit le
+   22/08/2026 : basculer un locataire en « Préavis » à la main posait une date
+   de sortie SANS QU'ON SACHE LAQUELLE — réception du congé, ou fin du préavis ?
+   Les deux se défendent, une seule est juste, et tout le calcul en dépend.
+   La fenêtre demande donc la RÉCEPTION, la seule date qu'on ait sous les yeux
+   quand la lettre arrive, et calcule la fin.
+
+   ⚠️ RÉSERVE ASSUMÉE, la même qu'à `mfEcheancesBail` : les durées sont celles
+   de la loi du 6 juillet 1989 dans sa lecture courante. La plateforme
+   n'AFFIRME rien qu'elle n'ait demandé — elle ne devine ni la zone tendue
+   (fixée par décret, elle évolue) ni le droit à un préavis réduit. Elle
+   enregistre une décision, elle ne l'arbitre pas.
+
+   ⚠️ PÉRIMÈTRE : le congé du LOCATAIRE. Celui du bailleur exige un motif parmi
+   trois et une notice annexée — c'est un second workflow, pas une option.
+
+   Patron repris de `bdAcq`, à la lettre : la fenêtre COLLECTE, « Enregistrer
+   le congé » écrit d'un bloc, « Annuler » n'a rien à défaire. Ici l'enjeu est
+   plus lourd que pour l'acquisition : la confirmation SUPPRIME des lignes de
+   loyer. D'où deux garde-fous —
+     · les lignes sont relues EN BASE à l'ouverture, jamais prises en mémoire :
+       on ne supprime pas d'après une copie qui peut dater ;
+     · une ligne ENCAISSÉE n'est jamais touchée, ni supprimée ni recalculée.
+       Elle est signalée, et c'est tout. L'argent entré est entré.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Les huit cas de préavis réduit à un mois (loi de 1989, art. 15).
+   ⚠️ CETTE LISTE EST CELLE DE LA BASE : la contrainte
+   `locataires_preavis_motif_valide` porte exactement ces huit chaînes. Une
+   variante d'orthographe ici ferait échouer l'enregistrement au dernier
+   moment, après que l'utilisateur a tout saisi. */
+const SF_PREAVIS_MOTIFS = [
+  'Zone tendue', 'Logement social', 'RSA ou AAH', 'État de santé',
+  'Violences conjugales', 'Premier emploi', 'Mutation professionnelle',
+  'Perte d\'emploi',
+];
+
+/* La durée par défaut, déduite du seul type de bail.
+   ⚠️ Bail mobilité et saisonnier : AUCUN défaut. Leur préavis ne se déduit pas
+   du type — on ne propose donc pas de chiffre plutôt que d'en inventer un,
+   même règle qu'à `mfEcheancesBail` pour les échéances de bail. */
+function sfPreavisDureeDefaut(loc) {
+  if(loc?.type_bail === 'Meublé') return 1;
+  if(loc?.type_bail === 'Vide')   return 3;
+  return null;
+}
+
+/* RÉCEPTION + N MOIS — le calcul qui décide de tout le reste.
+
+   ⚠️ `setMonth(m + 3)` DÉBORDE : un congé reçu le 30 novembre donnerait
+   « 30 février », que JavaScript reporte au 2 mars. On ramène donc au dernier
+   jour du mois cible (28 ou 29 février). Troisième piège de date de ce dépôt,
+   après le prorata de mars faussé par l'heure d'été et la borne à minuit :
+   une date n'est pas un instant, et un mois n'a pas toujours 31 jours.
+   On travaille en NOMBRES, pas en objets Date : aucun fuseau ne s'invite. */
+function sfFinPreavis(dateISO, mois) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateISO || '');
+  if(!m || !mois) return null;
+  const an = +m[1], moisIdx = +m[2] - 1, jour = +m[3];
+  const cible   = moisIdx + mois;
+  const anCible = an + Math.floor(cible / 12);
+  const mCible  = ((cible % 12) + 12) % 12;
+  // Jour 0 du mois suivant = dernier jour du mois cible.
+  const dernier = new Date(Date.UTC(anCible, mCible + 1, 0)).getUTCDate();
+  const jCible  = Math.min(jour, dernier);
+  return `${anCible}-${String(mCible + 1).padStart(2, '0')}-${String(jCible).padStart(2, '0')}`;
+}
+
+/* CE QUE LE CONGÉ FAIT AUX LOYERS — fonction PURE, donc testable.
+
+   Trois sorts possibles pour une ligne, et un seul est destructeur :
+     · le MOIS DE SORTIE se recalcule au prorata (loi 1989) — le bail s'arrête
+       en cours de mois, le loyer aussi ;
+     · les mois POSTÉRIEURS se suppriment — `autoGenerateLoyers` les avait
+       créés jusqu'à décembre, ils promettent un loyer sur un logement vide ;
+     · une ligne ENCAISSÉE est INTOUCHABLE, où qu'elle soit. On la signale.
+
+   ⚠️ « Encaissée » ne se lit pas sur le seul libellé : un montant encaissé sans
+   statut « Payé » reste de l'argent reçu. Même prudence qu'à `sfLoyerEtat`. */
+function sfCongeReprise(lignes, dateSortie, loyerHc, dateEntree) {
+  const vide = { prorata: null, aSupprimer: [], encaissees: [] };
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateSortie || '');
+  if(!m || !Array.isArray(lignes)) return vide;
+  const anS = +m[1], moisS = +m[2];
+  const encaissee = l => l.statut === 'Payé' || l.statut === 'Partiel'
+                      || (parseFloat(l.montant_encaisse) || 0) > 0;
+  const out = { prorata: null, aSupprimer: [], encaissees: [] };
+
+  for (const l of lignes) {
+    const apres = l.annee > anS || (l.annee === anS && l.mois > moisS);
+    if (apres) {
+      if (encaissee(l)) out.encaissees.push(l); else out.aSupprimer.push(l);
+      continue;
+    }
+    if (l.annee === anS && l.mois === moisS && !encaissee(l)) {
+      /* ⚠️ La date d'ENTRÉE entre dans le calcul : un locataire entré ET
+         sorti dans le même mois n'a pas occupé depuis le 1er. Sans elle, un
+         bail du 5 au 22 août serait facturé 22 jours au lieu de 18. */
+      const p = mfLoyerProrata(parseFloat(loyerHc) || 0, moisS, anS, dateEntree || null, dateSortie);
+      const ancien = parseFloat(l.loyer_du) || 0;
+      if (p.prorata && Math.round(p.montant) !== Math.round(ancien)) {
+        out.prorata = { ligne: l, ancien, nouveau: p.montant, jours: p.jours, joursMois: p.joursMois };
+      }
+    }
+  }
+  return out;
+}
+
+/* Le brouillon. Rien n'est écrit tant que « Enregistrer le congé » n'est pas
+   cliqué — et « Annuler » n'a donc rien à défaire. */
+let sfConge = null;
+
+async function sfCongeDemarrer(locId) {
+  const loc = allLocataires.find(l => l.id === locId);
+  if(!loc) { showNotif('Locataire introuvable', true); return; }
+  if(!sfEstOccupant(loc)) { showNotif('Seul un locataire en place peut donner son congé', true); return; }
+  if(!loc.date_entree) {
+    showNotif("Renseignez d'abord la date d'entrée : le préavis et le prorata s'y appuient", true);
+    openLocataireModal(locId); return;
+  }
+  /* ⚠️ LES LIGNES SONT RELUES EN BASE, pas prises dans `allLoyers`. On
+     s'apprête à en supprimer : la mémoire du navigateur peut dater d'un autre
+     onglet, d'une saisie faite entre-temps, ou d'un chargement partiel. */
+  const { data, error } = await db.from('loyers_mensuels').select('*').eq('locataire_id', locId);
+  if(error) { showNotif('Erreur de lecture des loyers : ' + error.message, true); return; }
+
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const dateConge  = loc.date_conge_recu || aujourdhui;
+  const mois       = loc.preavis_mois || sfPreavisDureeDefaut(loc);
+  sfConge = { locId, vue: 'conge', dateConge, mois,
+              motif: loc.preavis_motif || null,
+              dateSortie: sfFinPreavis(dateConge, mois),
+              lignes: data || [], enCours: false, resume: null };
+  sfCongeRender();
+  openModal('modal-detail');
+}
+
+function sfCongeRender() {
+  if(!sfConge) return;
+  const loc = allLocataires.find(l => l.id === sfConge.locId);
+  if(!loc) { sfCongeFermer(); return; }
+  const { titre, corps } = sfConge.vue === 'succes'
+    ? sfCongeVueSucces(loc) : sfCongeVueConge(loc);
+  document.getElementById('detail-titre').textContent = titre;
+  document.getElementById('detail-content').innerHTML = corps;
+  document.getElementById('modal-detail')?.classList.add('modal-overlay--acq');
+  // Sur l'écran de succès, l'acte est passé : la sortie redevient libre.
+  bdAcqVerrouiller(sfConge.vue !== 'succes');
+}
+
+// ── Vue 1 : le congé, et ce qu'il change ──────────────────────────────────
+function sfCongeVueConge(loc) {
+  const nom  = [loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Ce locataire';
+  const bien = loc.bien_id ? allBiens.find(b => b.id === loc.bien_id) : null;
+  const meuble = loc.type_bail === 'Meublé';
+  const vide   = loc.type_bail === 'Vide';
+  const sel = (a, b) => a === b ? ' est-choisi' : '';
+
+  const rep = sfCongeReprise(sfConge.lignes, sfConge.dateSortie, loc.loyer_bail_hc, loc.date_entree);
+  const motifRequis = vide && sfConge.mois === 1;
+  /* ⚠️ Une sortie ANTÉRIEURE À L'ENTRÉE supprimerait des loyers encore dus et
+     laisserait le mois de sortie sans prorata : le bouton reste fermé. */
+  const avantEntree = !!loc.date_entree && !!sfConge.dateSortie && sfConge.dateSortie < loc.date_entree;
+  const pret = !!sfConge.dateConge && !!sfConge.mois && !!sfConge.dateSortie
+            && sfConge.dateSortie >= sfConge.dateConge && !avantEntree
+            && (!motifRequis || !!sfConge.motif);
+
+  const jours = sfConge.dateSortie
+    ? Math.round((Date.parse(sfConge.dateSortie + 'T00:00:00') - Date.parse(new Date().toISOString().slice(0,10) + 'T00:00:00')) / 86400000)
+    : null;
+
+  return { titre: `Congé — ${nom}`, corps: `
+    <div class="bd-acq">
+     <div class="bd-acq__corps">
+      <p class="bd-acq__intro"><strong>${esc(nom)}</strong> quitte
+        ${bien ? `<strong>${esc(bien.titre || 'le logement')}</strong>` : 'le logement'}.
+        Le préavis part de la <strong>réception du congé</strong>, pas de sa date d'envoi.</p>
+
+      <section class="bd-acq__s">
+        <h3 class="bd-acq__st">${sfAccIcon('agenda',15)} Réception du congé</h3>
+        <p class="bd-acq__sx">La date à laquelle vous avez reçu la lettre ou l'acte. C'est elle qui fait courir le délai.</p>
+        <div class="bd-acq__sous">
+          <input type="date" class="sf-input" id="cg-recu" value="${esc(sfConge.dateConge || '')}"
+                 onchange="sfCongeSetDate(this.value)" aria-label="Date de réception du congé">
+        </div>
+      </section>
+
+      <section class="bd-acq__s">
+        <h3 class="bd-acq__st">${sfAccIcon('horloge',15)} Durée du préavis</h3>
+        ${meuble ? `
+          <p class="bd-acq__sx">Bail meublé : <strong>un mois</strong>, sans condition ni justificatif.</p>`
+        : vide ? `
+          <p class="bd-acq__sx">Bail vide : trois mois, <strong>réduits à un mois</strong> dans huit cas prévus par la loi.</p>
+          <div class="bd-acq__choix">
+            <button type="button" class="bd-choix${sel(sfConge.mois,3)}" onclick="sfCongeSetMois(3)">
+              <span class="bd-choix__t">Trois mois</span>
+              <span class="bd-choix__x">Le préavis de droit commun</span>
+            </button>
+            <button type="button" class="bd-choix${sel(sfConge.mois,1)}" onclick="sfCongeSetMois(1)">
+              <span class="bd-choix__t">Un mois</span>
+              <span class="bd-choix__x">Préavis réduit, sur justificatif</span>
+            </button>
+          </div>`
+        : `
+          <p class="bd-acq__sx">Le type de bail n'est pas renseigné${loc.type_bail ? ` (« ${esc(loc.type_bail)} »)` : ''} :
+            aucune durée n'en découle, à vous de l'indiquer.</p>
+          <div class="bd-acq__choix">
+            <button type="button" class="bd-choix${sel(sfConge.mois,3)}" onclick="sfCongeSetMois(3)">
+              <span class="bd-choix__t">Trois mois</span></button>
+            <button type="button" class="bd-choix${sel(sfConge.mois,1)}" onclick="sfCongeSetMois(1)">
+              <span class="bd-choix__t">Un mois</span></button>
+          </div>`}
+
+        ${motifRequis ? `
+          <div class="bd-acq__sous">
+            <select class="sfb-sel" id="cg-motif" aria-label="Motif du préavis réduit"
+                    onchange="sfCongeSetMotif(this.value)">
+              <option value="">Choisissez le motif…</option>
+              ${SF_PREAVIS_MOTIFS.map(m => `<option value="${esc(m)}"${m===sfConge.motif?' selected':''}>${esc(m)}</option>`).join('')}
+            </select>
+            ${/* ⚠️ La zone tendue est fixée par DÉCRET et évolue. On la demande,
+                  on ne la déduit pas de la commune : la plateforme ne devine
+                  pas un droit. Arbitrage du cadrage du 16/08/2026. */''}
+            <p class="bd-acq__note">Le justificatif se joint à la fiche du locataire. Stonefolio
+              enregistre votre décision, il ne l'arbitre pas.</p>
+          </div>` : ''}
+      </section>
+
+      <section class="bd-acq__s">
+        <h3 class="bd-acq__st">${sfAccIcon('check',15)} Fin du préavis</h3>
+        <p class="bd-acq__sx">Calculée depuis la réception. Modifiable si votre accord dit autre chose.</p>
+        <div class="bd-acq__sous">
+          <input type="date" class="sf-input" id="cg-sortie" value="${esc(sfConge.dateSortie || '')}"
+                 onchange="sfCongeSetSortie(this.value)" aria-label="Date de fin du préavis">
+          ${sfConge.dateSortie && sfConge.dateSortie < sfConge.dateConge
+            ? `<p class="bd-acq__note sf-loss">La sortie ne peut pas précéder la réception du congé.</p>`
+            : avantEntree
+            ? `<p class="bd-acq__note sf-loss">La sortie ne peut pas précéder l'entrée dans les lieux
+                 (${esc(new Date(loc.date_entree + 'T00:00:00').toLocaleDateString('fr-FR'))}).</p>`
+            : (jours !== null ? `<p class="bd-acq__note">${jours > 0
+                ? `Dans ${sfNombreEnLettres(jours)} jour${jours > 1 ? 's' : ''}.`
+                : jours === 0 ? `C'est aujourd'hui.` : `Il y a ${sfNombreEnLettres(-jours)} jour${jours < -1 ? 's' : ''}.`}</p>` : '')}
+        </div>
+      </section>
+
+      <section class="bd-acq__s">
+        <h3 class="bd-acq__st">${sfAccIcon('euro',15)} Ce que ça change aux loyers</h3>
+        ${(rep.prorata || rep.aSupprimer.length || rep.encaissees.length) ? `
+          <ul class="bd-acq__liste">
+            ${rep.prorata ? `<li><strong>${MOIS_LONGS[rep.prorata.ligne.mois - 1]}</strong> passe de
+              ${sfEur(rep.prorata.ancien)} à <strong>${sfEur(rep.prorata.nouveau)}</strong>
+              <em>· prorata de ${rep.prorata.jours}/${rep.prorata.joursMois} jours</em></li>` : ''}
+            ${rep.aSupprimer.length ? `<li><strong>${sfNombreEnLettres(rep.aSupprimer.length, true)} échéance${rep.aSupprimer.length > 1 ? 's' : ''}</strong>
+              après la sortie ${rep.aSupprimer.length > 1 ? 'seront supprimées' : 'sera supprimée'}
+              <em>· ${rep.aSupprimer.map(l => MOIS_LONGS[l.mois - 1].toLowerCase()).join(', ')}</em></li>` : ''}
+            ${rep.encaissees.length ? `<li>${sfNombreEnLettres(rep.encaissees.length, true)} échéance${rep.encaissees.length > 1 ? 's' : ''}
+              après la sortie ${rep.encaissees.length > 1 ? 'sont encaissées' : 'est encaissée'} :
+              <strong>on n'y touche pas</strong> <em>· à vérifier de votre côté</em></li>` : ''}
+          </ul>`
+        : `<p class="bd-acq__sx">Aucune échéance à reprendre : rien n'est saisi au-delà de la sortie.</p>`}
+      </section>
+     </div>
+
+      <div class="bd-step-pied">
+        <button class="sf-btn sf-btn--ghost" onclick="sfCongeFermer()">Annuler</button>
+        <button class="sf-btn sf-btn--primary" id="cg-ok" ${pret ? '' : 'disabled'}
+                onclick="sfCongeConfirmer()">${sfAccIcon('check',16)} Enregistrer le congé</button>
+      </div>
+    </div>` };
+}
+
+// ── Vue 2 : c'est enregistré ───────────────────────────────────────────────
+function sfCongeVueSucces(loc) {
+  const r = sfConge.resume || {};
+  const nom = [loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Ce locataire';
+  const faits = [
+    { l: 'Congé reçu le',  v: r.dateConge ? new Date(r.dateConge + 'T00:00:00').toLocaleDateString('fr-FR') : '—' },
+    { l: 'Préavis',        v: `${r.mois} mois` },
+    { l: 'Sortie le',      v: r.dateSortie ? new Date(r.dateSortie + 'T00:00:00').toLocaleDateString('fr-FR') : '—' },
+  ];
+  return { titre: 'Congé enregistré', corps: `
+    <div class="bd-acq">
+      <p class="bd-succes__t">${esc(nom)} part le ${r.dateSortie ? new Date(r.dateSortie + 'T00:00:00').toLocaleDateString('fr-FR') : '—'}</p>
+      <p class="bd-succes__x">Ses loyers restent dus jusque-là${r.motif ? `, et le préavis a été réduit au titre de « ${esc(r.motif)} »` : ''}.
+        Le bien redeviendra vacant après cette date.</p>
+
+      <dl class="bd-succes__kpis">
+        ${faits.map(f => `<div><dt>${f.l}</dt><dd>${esc(f.v)}</dd></div>`).join('')}
+      </dl>
+
+      ${/* On COMPTE ce qui a été fait, on ne le promet pas. */''}
+      <ul class="bd-acq__liste">
+        <li>${r.prorata
+          ? `Le mois de sortie est repassé au prorata : <strong>${sfEur(r.prorata.nouveau)}</strong> au lieu de ${sfEur(r.prorata.ancien)}`
+          : `Aucun prorata à appliquer sur le mois de sortie`}</li>
+        <li>${r.supprimees
+          ? `<strong>${sfNombreEnLettres(r.supprimees, true)} échéance${r.supprimees > 1 ? 's' : ''}</strong> postérieure${r.supprimees > 1 ? 's' : ''} supprimée${r.supprimees > 1 ? 's' : ''}`
+          : `Aucune échéance postérieure à supprimer`}</li>
+        ${r.encaissees ? `<li class="sf-loss">${sfNombreEnLettres(r.encaissees, true)} échéance${r.encaissees > 1 ? 's' : ''} encaissée${r.encaissees > 1 ? 's' : ''} après la sortie ${r.encaissees > 1 ? 'ont été conservées' : 'a été conservée'} — à vérifier</li>` : ''}
+      </ul>
+
+      <p class="bd-acq__note">La restitution du dépôt de garantie se déclenchera à la
+        <strong>remise des clés</strong>, qui n'est pas encore enregistrée.</p>
+
+      <div class="bd-step-pied">
+        <button class="sf-btn sf-btn--primary" onclick="sfCongeFermer()">Fermer</button>
+      </div>
+    </div>` };
+}
+
+// ── Le brouillon : ces fonctions n'écrivent RIEN ──────────────────────────
+function sfCongeSetDate(v) {
+  if(!sfConge) return;
+  sfConge.dateConge = v || null;
+  sfConge.dateSortie = sfFinPreavis(sfConge.dateConge, sfConge.mois);
+  sfCongeRender();
+}
+function sfCongeSetMois(n) {
+  if(!sfConge) return;
+  sfConge.mois = n;
+  // Un motif ne se justifie que sur un préavis réduit : repasser à trois mois
+  // l'efface, sinon on enregistrerait une contradiction.
+  if(n !== 1) sfConge.motif = null;
+  sfConge.dateSortie = sfFinPreavis(sfConge.dateConge, n);
+  sfCongeRender();
+}
+function sfCongeSetMotif(v) { if(sfConge) { sfConge.motif = v || null; sfCongeRender(); } }
+function sfCongeSetSortie(v) { if(sfConge) { sfConge.dateSortie = v || null; sfCongeRender(); } }
+
+function sfCongeFermer() {
+  bdAcqVerrouiller(false);
+  document.getElementById('modal-detail')?.classList.remove('modal-overlay--acq');
+  closeModal('modal-detail');
+  sfConge = null;
+}
+
+/* L'ÉCRITURE — tout d'un bloc, et dans cet ordre : le bail d'abord, les loyers
+   ensuite. Si la mise à jour du bail échoue, aucune ligne n'a été touchée. */
+async function sfCongeConfirmer() {
+  if(!sfConge || sfConge.enCours) return;
+  const loc = allLocataires.find(l => l.id === sfConge.locId);
+  if(!loc) return;
+  if(!sfConge.dateConge)  { showNotif('Indiquez la date de réception du congé', true); return; }
+  if(!sfConge.mois)       { showNotif('Indiquez la durée du préavis', true); return; }
+  if(!sfConge.dateSortie) { showNotif('La date de sortie est nécessaire', true); return; }
+  if(sfConge.dateSortie < sfConge.dateConge) { showNotif('La sortie ne peut pas précéder le congé', true); return; }
+  if(loc.date_entree && sfConge.dateSortie < loc.date_entree) {
+    showNotif("La sortie ne peut pas précéder l'entrée dans les lieux", true); return;
+  }
+  if(loc.type_bail === 'Vide' && sfConge.mois === 1 && !sfConge.motif) {
+    showNotif('Un préavis réduit à un mois demande son motif', true); return;
+  }
+
+  sfConge.enCours = true;
+  const bouton = document.getElementById('cg-ok');
+  if(bouton) { bouton.disabled = true; bouton.textContent = 'Enregistrement…'; }
+
+  const rep = sfCongeReprise(sfConge.lignes, sfConge.dateSortie, loc.loyer_bail_hc, loc.date_entree);
+  const patch = { statut: 'Préavis', date_conge_recu: sfConge.dateConge,
+                  preavis_mois: sfConge.mois, preavis_motif: sfConge.motif,
+                  date_sortie: sfConge.dateSortie };
+  try {
+    const { error } = await db.from('locataires').update(patch).eq('id', loc.id);
+    if(error) throw error;
+    Object.assign(loc, patch);
+
+    // Le mois de sortie, au prorata de la loi de 1989.
+    if(rep.prorata) {
+      const { error: eP } = await db.from('loyers_mensuels')
+        .update({ loyer_du: rep.prorata.nouveau,
+                  notes: `Prorata loi 1989 : ${rep.prorata.jours}/${rep.prorata.joursMois} jours` })
+        .eq('id', rep.prorata.ligne.id);
+      if(eP) throw eP;
+    }
+    // Les mois d'après. ⚠️ Seule écriture destructrice du chantier : elle ne
+    // porte QUE sur des identifiants calculés par `sfCongeReprise`, jamais sur
+    // un filtre large — un `delete` par période aurait emporté les encaissées.
+    if(rep.aSupprimer.length) {
+      const { error: eD } = await db.from('loyers_mensuels')
+        .delete().in('id', rep.aSupprimer.map(l => l.id));
+      if(eD) throw eD;
+    }
+
+    sfConge.resume = { dateConge: sfConge.dateConge, mois: sfConge.mois, motif: sfConge.motif,
+                       dateSortie: sfConge.dateSortie, prorata: rep.prorata,
+                       supprimees: rep.aSupprimer.length, encaissees: rep.encaissees.length };
+    sfConge.vue = 'succes';
+    sfCongeRender();
+
+    if(typeof loadMfFinancialData === 'function') await loadMfFinancialData();
+    await loadLocataires();
+    const c = document.getElementById('mf-content');
+    if(c && mfTab === 'locataires') renderMfLocataires(c);
+    if(currentPage === 'bien-detail') bdRefresh();
+  } catch(e) {
+    /* ⚠️ L'ÉCRITURE N'EST PAS ATOMIQUE — Supabase n'expose pas de transaction
+       depuis le navigateur. L'ordre limite les dégâts : le bail d'abord, les
+       loyers ensuite. Si la reprise échoue, le congé EST enregistré et il
+       reste des lignes à reprendre — rouvrir la fenêtre les reproposera, elle
+       relit tout en base. Mais l'écran doit alors dire la vérité : on
+       recharge au lieu de laisser l'annuaire sur son ancienne idée. */
+    sfConge.enCours = false;
+    showNotif('Erreur : ' + (e.message || 'enregistrement impossible') + ' — rouvrez le congé pour terminer la reprise des loyers', true);
+    await loadLocataires();
+    if(typeof loadMfFinancialData === 'function') await loadMfFinancialData();
+    const c0 = document.getElementById('mf-content');
+    if(c0 && mfTab === 'locataires') renderMfLocataires(c0);
+    sfCongeFermer();
+  }
+}
+
+/* LE RETOUR EN ARRIÈRE — un locataire se rétracte, ça arrive.
+   Sans lui, une erreur de saisie sur la date de sortie serait définitive :
+   elle a effacé des loyers, et rien ne les remettrait. */
+async function sfCongeRevoquer(locId) {
+  const loc = allLocataires.find(l => l.id === locId);
+  if(!loc) return;
+  const nom = [loc.prenom, loc.nom].filter(Boolean).join(' ') || 'ce locataire';
+  const sortie = loc.date_sortie;                       // avant d'être effacée
+  const anneeEnCours = new Date().getFullYear();
+  // ⚠️ `autoGenerateLoyers` ne régénère QUE l'année en cours. Une échéance
+  // supprimée sur une année ultérieure ne revient donc pas toute seule : on
+  // le dit AVANT, au lieu de le laisser découvrir.
+  const auDela = !!sortie && parseInt(sortie.slice(0, 4), 10) > anneeEnCours;
+
+  const ok = await sfConfirmer({
+    titre: 'Annuler le congé',
+    question: `Annuler le congé de ${nom} ?`,
+    detail: `Le locataire redevient <strong>actif</strong>, sa date de sortie est effacée, le mois
+             de sortie repasse au <strong>loyer plein</strong> et les échéances de ${anneeEnCours}
+             sont régénérées. Les encaissements déjà pointés sont conservés.
+             ${auDela ? `<br><br>⚠️ Les échéances de <strong>${sortie.slice(0,4)}</strong> supprimées par
+             le congé ne sont pas restaurées ici : elles se regénèrent depuis le Suivi mensuel.` : ''}`,
+    ok: 'Annuler le congé', annuler: 'Ne rien changer' });
+  if(!ok) return;
+
+  const patch = { statut: 'Actif', date_conge_recu: null, preavis_mois: null,
+                  preavis_motif: null, date_sortie: null };
+  const { error } = await db.from('locataires').update(patch).eq('id', loc.id);
+  if(error) { showNotif('Erreur : ' + error.message, true); return; }
+  Object.assign(loc, patch);
+
+  /* ⚠️ LE MOIS DE SORTIE ÉTAIT AU PRORATA — il faut le rendre. `autoGenerateLoyers`
+     ne le fera pas : son upsert ignore les lignes existantes, et celle-ci
+     existe, à 2 129 € au lieu de 3 000 €. Le locataire resterait débiteur
+     d'un mois amputé sans que rien ne le signale.
+     Une ligne ENCAISSÉE n'est pas retouchée, ici non plus. */
+  let rendu = null;
+  const mS = /^(\d{4})-(\d{2})-/.exec(sortie || '');
+  if(mS) {
+    const an = +mS[1], mo = +mS[2];
+    const { data: ligne } = await db.from('loyers_mensuels').select('*')
+      .eq('locataire_id', loc.id).eq('annee', an).eq('mois', mo).maybeSingle();
+    const encaissee = ligne && (ligne.statut === 'Payé' || ligne.statut === 'Partiel'
+                             || (parseFloat(ligne.montant_encaisse) || 0) > 0);
+    if(ligne && !encaissee) {
+      const p = mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, mo, an, loc.date_entree, null);
+      if(Math.round(p.montant) !== Math.round(parseFloat(ligne.loyer_du) || 0)) {
+        const { error: eR } = await db.from('loyers_mensuels')
+          .update({ loyer_du: p.montant,
+                    notes: p.prorata ? `Prorata loi 1989 : ${p.jours}/${p.joursMois} jours` : null })
+          .eq('id', ligne.id);
+        if(!eR) rendu = { mois: mo, montant: p.montant };
+      }
+    }
+  }
+
+  const gen = await autoGenerateLoyers(loc);
+  showNotif(`Congé annulé${rendu ? ` · ${MOIS_LONGS[rendu.mois - 1].toLowerCase()} remis à ${sfEur(rendu.montant)}` : ''}`
+          + `${gen ? ` · ${gen} loyer${gen > 1 ? 's' : ''} régénéré${gen > 1 ? 's' : ''}` : ''}`);
+  if(typeof loadMfFinancialData === 'function') await loadMfFinancialData();
+  await loadLocataires();
+  const c = document.getElementById('mf-content');
+  if(c && mfTab === 'locataires') renderMfLocataires(c);
+  if(currentPage === 'bien-detail') bdRefresh();
+}
+
 // ═════════════════════════════════════════════════════
 //  RENTABILITÉ — analyse par bien, année civile (Étape 6)
 // ═════════════════════════════════════════════════════
@@ -9342,12 +9842,24 @@ function openLocataireModal(id, presetBienId) {
 
     <!-- Statut -->
     <div class="locf-sect">${sfAccIcon('horloge',15)} Statut</div>
+    ${/* ⚠️ « PRÉAVIS » NE SE COCHE PLUS ICI — même arbitrage que « Acheté »,
+          retiré de la picklist des biens le jour où l'acquisition est devenue
+          un acte (voir `TI_BIENS.STATUTS_SAISISSABLES`). Un congé, ce n'est
+          pas un bouton radio : c'est une date de réception, une durée, un
+          motif et une reprise des loyers. Le cocher ici posait une date de
+          sortie sans dire laquelle — la confusion du 22/08/2026.
+          Il reste AFFICHÉ et cochable pour un locataire QUI Y EST DÉJÀ :
+          sans cela, enregistrer sa fiche le ferait changer de statut à son
+          insu. */''}
     <div class="mf-statut-radio" id="loc-statut-radio">
       ${LOC_STATUTS.map(s => {
         const checked = (l?.statut || 'Candidat') === s;
+        const verrouille = s === 'Préavis' && !checked;
         return `
-          <label class="mf-statut-opt ${checked?'active':''}" onclick="document.querySelectorAll('#loc-statut-radio .mf-statut-opt').forEach(o=>o.classList.remove('active'));this.classList.add('active');">
-            <input type="radio" name="loc-statut" value="${s}" ${checked?'checked':''}>
+          <label class="mf-statut-opt ${checked?'active':''}${verrouille?' est-verrouille':''}"
+                 ${verrouille ? 'title="Le congé s\'enregistre depuis la carte du locataire, dans l\'annuaire"'
+                              : `onclick="document.querySelectorAll('#loc-statut-radio .mf-statut-opt').forEach(o=>o.classList.remove('active'));this.classList.add('active');"`}>
+            <input type="radio" name="loc-statut" value="${s}" ${checked?'checked':''} ${verrouille?'disabled':''}>
             <span class="ic">${sfAccIcon(LOC_STATUT_ICONS[s], 17)}</span>
             <span class="lbl">${s}</span>
           </label>`;
@@ -9479,6 +9991,18 @@ async function saveLocataire() {
     showNotif('Renseignez la date de sortie : un préavis sans date de départ ne déclenche rien', true);
     document.getElementById('loc-date-sortie')?.focus();
     return;
+  }
+
+  /* ⚠️ REVENIR À « ACTIF » EFFACE LE CONGÉ. Sans cela, un locataire repassé
+     actif depuis cette fenêtre garderait sa date de réception et son motif :
+     la fenêtre de congé les reproposerait au congé SUIVANT, avec une date
+     d'il y a six mois. Un statut et les colonnes qui le justifient ne peuvent
+     pas se contredire.
+     ⚠️ « Sorti » les CONSERVE, lui : c'est l'histoire de son départ. */
+  if(data.statut === 'Actif' || data.statut === 'Candidat') {
+    data.date_conge_recu = null;
+    data.preavis_mois    = null;
+    data.preavis_motif   = null;
   }
 
   /* Vérification : UN SEUL OCCUPANT par bien à la fois.

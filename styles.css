@@ -2475,6 +2475,18 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 .bd-acq__lien{ background:none; border:0; padding:0; font:inherit;
   color:var(--sf-brand-vivid); cursor:pointer; text-decoration:underline; }
 
+/* CE QUE L'ÉCRITURE VA FAIRE, avant qu'elle ne le fasse — fenêtre de congé.
+   Des faits chiffrés, pas des puces décoratives : chaque ligne annonce une
+   écriture, et la vue de succès reprend la même liste au passé. */
+.bd-acq__liste{ list-style:none; margin:0; padding:0;
+  display:flex; flex-direction:column; gap:var(--sf-space-4); }
+.bd-acq__liste li{ position:relative; padding-left:var(--sf-space-6);
+  font-size:var(--sf-font-body-sm); color:var(--sf-text-2); line-height:1.55; }
+.bd-acq__liste li::before{ content:''; position:absolute; left:0; top:8px;
+  width:5px; height:5px; border-radius:50%; background:var(--sf-text-3); }
+.bd-acq__liste strong{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
+.bd-acq__liste em{ font-style:normal; color:var(--sf-text-3); }
+
 /* Un choix se lit comme un choix : deux ou trois cartes de même poids, et
    celle qui est retenue le montre — bordure, fond, et non la seule couleur. */
 .bd-acq__choix{ display:grid; grid-template-columns:repeat(2,1fr); gap:var(--sf-space-4); }
@@ -2778,6 +2790,12 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 .mf-statut-opt input{position:absolute;opacity:0;}
 .mf-statut-opt:hover{border-color:var(--accent);}
 .mf-statut-opt.active{border-color:var(--accent);background:var(--c-surface);box-shadow:0 0 0 3px rgba(23,160,107,0.1);}
+/* « Préavis » ne se coche pas : c'est un acte, pas un état qu'on déclare — la
+   fenêtre de congé demande la réception, la durée, le motif, et reprend les
+   loyers. L'option reste VISIBLE : un statut qu'on ne voit plus laisse croire
+   qu'il n'existe pas. Elle est seulement inerte, et le dit au survol. */
+.mf-statut-opt.est-verrouille{opacity:.45;cursor:not-allowed;}
+.mf-statut-opt.est-verrouille:hover{border-color:var(--c-border);}
 .mf-statut-opt .lbl{font-size:11px;font-weight:600;color:var(--c-text);}
 .mf-statut-opt .ic{font-size:18px;}
 
