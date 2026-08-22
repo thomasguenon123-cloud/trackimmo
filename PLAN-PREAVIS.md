@@ -135,7 +135,7 @@ la partie B de MODE-DETENTION : ils s'appliqueront quand le workflow saura les r
 `date_sortie` **reste la fin de préavis** — elle est déjà branchée sur tous les calculs.
 Écrite par le workflow, modifiable à la main.
 
-### Étape 3 — le workflow du congé (l'acte)
+### Étape 3 — le workflow du congé (l'acte) ✅ **FAITE (22/08/2026, v=76)**
 Copie du patron `bdAcq` : la fenêtre **collecte**, « Enregistrer le congé » **écrit d'un bloc**,
 « Annuler » n'a rien à défaire.
 
@@ -148,10 +148,26 @@ Copie du patron `bdAcq` : la fenêtre **collecte**, « Enregistrer le congé » 
    encaissées. **Rien n'est écrit tant que cette vue n'est pas confirmée.**
 3. **Vue 3 — succès.** Ce qui a été écrit, compté, pas deviné.
 
-**Deux points d'entrée, et deux seulement** — comme l'acquisition : un bouton sur le locataire
-actif, et le **dépôt dans la colonne « Préavis » du kanban**, qui rend la carte à sa colonne et
-ouvre la fenêtre. C'est la levée de la réserve du 5ᵉ point du cadrage : le glisser-déposer
-devient légitime **parce que** le workflow existe.
+**Deux points d'entrée étaient prévus.** Un seul est livré : le **bouton sur la carte** du
+locataire actif (« Enregistrer un congé »), et son symétrique sur une carte en préavis
+(« Annuler le congé »).
+
+⚠️ **Le glisser-déposer est reporté à l'étape 4, et c'est un arbitrage assumé.** Un kanban
+dont une seule colonne accepte le dépôt se lit plus mal qu'un kanban qui n'en accepte aucun :
+« Sorti » n'aura son acte — remise des clés, état des lieux — qu'à l'étape suivante, et y
+déposer une carte d'ici là recréerait exactement la donnée incomplète que le cadrage refusait.
+Les deux actes arriveront donc ensemble, et le tableau deviendra cohérent d'un coup.
+
+**Trois choses de plus, imposées par le workflow** :
+- **« Préavis » quitte les boutons radio de la fiche locataire** — même arbitrage que « Acheté »,
+  retiré de la picklist des biens le jour où l'acquisition est devenue un acte. L'option reste
+  visible mais inerte, et cochée pour qui y est déjà.
+- **Revenir à « Actif » efface le congé** (réception, durée, motif) : un statut et les colonnes
+  qui le justifient ne peuvent pas se contredire. « Sorti » les conserve — c'est son histoire.
+- **`mfEcheancesBail` cesse de déborder** : la restitution du dépôt se calculait à
+  `setMonth(+1)`, qui rendait le 3 mars pour une sortie au 31 janvier. Elle passe par
+  `sfFinPreavis`, la même arithmétique clampée — une seule dans le fichier, pas une juste et
+  une fausse.
 
 **Retour en arrière** : « Annuler le congé » remet `'Actif'`, efface les cinq colonnes et
 `date_sortie`, et régénère les loyers effacés. Sans lui, une erreur de saisie est définitive.

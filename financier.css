@@ -86,6 +86,12 @@
    balayage sans que la carte crie. */
 .mfx-loccard.est-en-retard{ border-color:var(--sf-loss); }
 
+/* L'acte de la carte — enregistrer un congé, l'annuler. Pas de second filet :
+   l'état de paiement juste au-dessus en pose déjà un, et deux traits
+   consécutifs alourdiraient une carte qui doit se lire d'un coup d'œil. */
+.mfx-loccard__pied{ margin-top:var(--sf-space-4); display:flex; }
+.mfx-loccard__pied .sf-btn{ width:100%; justify-content:center; }
+
 /* ═══════════════════════════════════════════════════════════════════════════
    CE QUI ARRIVE — trois mois côte à côte
    ═══════════════════════════════════════════════════════════════════════════
