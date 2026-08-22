@@ -68,6 +68,15 @@ Ce qu'elles deviennent, sans intervention :
   au nom d'un **« Locataire inconnu »**, pour un montant qui n'est dû par personne ;
 - et le consolidé compte ce `loyer_du` dans l'exercice.
 
+✅ **Constaté en vrai le 22/08/2026**, sur le premier congé saisi par Thomas : sortie au
+22/08, quatre lignes de septembre à décembre — **12 000 € de loyer et 2 000 € de charges**
+promis sur un logement vide. **Sept écrans lisaient ces lignes, trois seulement savaient
+les juger.** Corrigé en v=75 par `sfBailCouvre` et `sfLocataireDuLoyer` : plus aucun écran
+ne réclame un loyer hors bail, et la garde vit dans `sfLoyerEtat`, source unique de l'état
+d'un loyer. Restent deux choses, qui sont bien le travail du workflow :
+les lignes fantômes **à supprimer**, et le **mois de sortie à repasser au prorata** (août
+vaut 3 000 € en base pour 22 jours occupés).
+
 **La confirmation du congé doit donc reprendre ces lignes** : recalculer le mois de sortie au
 prorata, supprimer les mois strictement postérieurs — **et ne jamais toucher une ligne
 encaissée** (`'Payé'`, `'Partiel'`, ou `montant_encaisse > 0`), qu'on signale au lieu de
