@@ -113,11 +113,16 @@ la plateforme dans un état intermédiaire incohérent.
   d'occupation de l'agenda, il tombe aussi).
 
 ### Étape 2 — les colonnes (migration guidée, comme la partie B)
-Additive, aucune contrainte d'invariant, aucune valeur par défaut à rattraper.
-⚠️ **Elle embarque aussi les comptes rendus** — arbitrage du 22/08/2026 : la table
-`visites` devient `comptes_rendus`, `type_visite` passe à quatre valeurs et
-`locataire_id` sort de sa dormance. **Une seule manipulation Supabase au lieu de deux**
-(voir `NOTE-COMPTES-RENDUS.md`).
+📄 **Écrite : `MIGRATION-PREAVIS.sql`.** Additive, aucun invariant, aucune valeur par
+défaut à rattraper — les cinq colonnes naissent NULL et rien ne change à l'écran.
+⚠️ **Elle embarque aussi les comptes rendus** : `type_visite` passe à quatre valeurs
+(les deux états des lieux), une colonne `conforme` porte le verdict, et `locataire_id`
+sort de sa dormance. **Une seule manipulation Supabase au lieu de deux.**
+⚠️ **Le renommage de la table en `comptes_rendus` n'y est PAS** : c'est un changement
+cassant pour la plateforme déployée, et il n'apporte rien au préavis. Il part avec la
+migration de l'écran à la charte (voir `NOTE-COMPTES-RENDUS.md`).
+⚠️ Les **invariants croisés** sont écrits dans le fichier mais **en commentaire**, comme
+la partie B de MODE-DETENTION : ils s'appliqueront quand le workflow saura les respecter.
 
 | Colonne | Type | Rôle |
 |---|---|---|
