@@ -1529,7 +1529,10 @@ function sfPointsAttention() {
   const pl = (n, s, p) => n > 1 ? p : s;
 
   // 1. Du capital immobilise qui ne produit rien : le plus couteux.
-  const sansLoc = acquis.filter(b => !allLocataires.some(l => l.bien_id === b.id && l.statut === 'Actif'));
+  // ⚠️ « Sans locataire » s'entend PRÉAVIS COMPRIS : un locataire qui a donné
+  // son congé occupe encore le bien et paie encore son loyer. Annoncer sa
+  // mensualité comme perdue serait faux, et faux au pire moment.
+  const sansLoc = acquis.filter(b => !sfLocataireEnPlace(b.id));
   if (sansLoc.length) {
     const mensu = sansLoc.reduce((s, b) => s + (parseFloat(b.mensualite_credit) || 0), 0);
     pts.push({ rang: 0, type: 'loss', icone: 'maison',
@@ -1680,7 +1683,10 @@ function sfLoyersAttendus() {
   const MOIS = ['janv','févr','mars','avr','mai','juin','juil','août','sept','oct','nov','déc'];
 
   for (const loc of allLocataires) {
-    if (loc.statut !== 'Actif' || !loc.bien_id) continue;
+    // Preavis compris : le conge donne ne suspend pas le loyer, il en annonce
+    // le dernier. Sortir ce locataire de l'agenda ferait disparaitre les
+    // echeances qu'il reste justement a encaisser.
+    if (!sfEstOccupant(loc) || !loc.bien_id) continue;
     const bien = allBiens.find(b => b.id === loc.bien_id);
     const jour = Math.min(Math.max(parseInt(loc.jour_paiement, 10) || 5, 1), 28);
 
@@ -1688,6 +1694,17 @@ function sfLoyersAttendus() {
       const d = new Date(now.getFullYear(), now.getMonth() + i, jour);
       if (d > fin) continue;
       const mois = d.getMonth() + 1, annee = d.getFullYear();
+
+      /* ⚠️ LE BAIL COUVRE-T-IL CE MOIS-LA ? La boucle part du mois COURANT,
+         sans regarder les dates du bail : elle annoncait donc un loyer pour un
+         locataire pas encore entre, et — des lors que le preavis entre ici —
+         elle en annoncerait pour les mois d'apres son depart. On s'aligne sur
+         le calcul calendaire de `mfLoyerProrata`, deja source unique du
+         montant du : hors periode d'occupation, rien n'est attendu. */
+      const prorata = mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, mois, annee,
+                                     loc.date_entree, loc.date_sortie);
+      if (prorata.jours === 0) continue;
+
       const ligne = mfFindLoyer(loc.bien_id, mois, annee) || null;
       const pointe = sfLoyerPointe(ligne);
 
@@ -1706,8 +1723,10 @@ function sfLoyersAttendus() {
         titre: `Loyer attendu — ${esc(bien?.titre || 'Bien')}`,
         meta: `${esc([loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Locataire')} · le ${jour} de chaque mois`,
         // Le montant du fait foi quand la ligne existe : il peut porter un
-        // prorata loi 1989 que le loyer de bail ne reflete pas.
-        montant: ligne ? (parseFloat(ligne.loyer_du) || 0) : (parseFloat(loc.loyer_bail_hc) || 0),
+        // prorata loi 1989 que le loyer de bail ne reflete pas. Quand elle
+        // n'existe pas, on annonce le PRORATA et non le loyer plein : le mois
+        // de sortie d'un preavis n'est du qu'au jour du depart.
+        montant: ligne ? (parseFloat(ligne.loyer_du) || 0) : prorata.montant,
         ligneId: ligne?.id || null, pointe, enRetard,
       });
     }
@@ -3724,7 +3743,7 @@ async function renderBienDetail(el) {
 
   // Données locatives (déjà en mémoire depuis le démarrage — P2)
   const locataires = allLocataires.filter(l => l.bien_id === b.id);
-  const locActif   = locataires.find(l => l.statut === 'Actif') || null;
+  const locActif   = sfLocataireEnPlace(b.id);   // preavis compris : il occupe encore
   const occupation = mfStatutOccupation(b.id);
   const sciBien    = allSCI.find(s => s.id === b.sci_id) || null;
   const annee      = new Date().getFullYear();
@@ -4352,7 +4371,9 @@ async function renderBienDetail(el) {
    les crée désormais seule, au rattachement comme à la création. Une étape de
    moins à l'écran, et une fenêtre qui tient sans défilement. */
 function bdEtapesGestion(b) {
-  const locActif = allLocataires.find(l => l.bien_id === b.id && l.statut === 'Actif') || null;
+  // L'etape « locataire » est FAITE des qu'un locataire occupe le bien, preavis
+  // compris : un conge en cours ne remet pas la mise en gestion a refaire.
+  const locActif = sfLocataireEnPlace(b.id);
   return [
     /* ⚠️ RÈGLE OBLIGATOIRE, arrêtée le 12/08/2026 : un bien passé en « Acheté »
        DÉCLARE COMMENT IL EST DÉTENU — en propre (personne physique) ou via une
@@ -4476,7 +4497,7 @@ async function bdOpenMiseEnGestion(bienId) {
   const b = allBiens.find(x => x.id === bienId);
   if(!b) return;
   if(!allSCI.length && currentUser) await loadSCIList();
-  const locActif = allLocataires.find(l => l.bien_id === b.id && l.statut === 'Actif') || null;
+  const locActif = sfLocataireEnPlace(b.id);
   bdAcq = { bienId, mode:'reprise', vue:'gestion',
             detention: b.mode_detention || null, sciId: b.sci_id || null,
             locChoix: locActif ? 'existant' : null, locId: locActif?.id || null,
@@ -4737,7 +4758,14 @@ async function bdAcqConfirmer() {
 
     if(loc) {
       const patchLoc = { bien_id: b.id };
-      if(loc.statut !== 'Actif') patchLoc.statut = 'Actif';
+      /* ⚠️ On ne RESSUSCITE pas un locataire en preavis. `!== 'Actif'` le
+         repassait en « Actif » au passage, effacant silencieusement le conge
+         qu'il avait donne — et avec lui la seule trace de son depart.
+         ⚠️ Mais SEULEMENT s'il est en place SUR CE BIEN. Un locataire en
+         preavis ailleurs qu'on rattache ici change de logement : son conge
+         portait sur l'autre bail, le garder ferait entrer le nouveau locataire
+         avec une date de depart deja passee. */
+      if(!(sfEstOccupant(loc) && loc.bien_id === b.id)) patchLoc.statut = 'Actif';
       const { error: eLoc } = await db.from('locataires').update(patchLoc).eq('id', loc.id);
       if(eLoc) throw eLoc;
       Object.assign(loc, patchLoc);
@@ -6203,6 +6231,48 @@ const LOC_STATUTS = ['Candidat','Actif','Préavis','Sorti'];
 const LOC_STATUT_ICONS = {'Candidat':'user','Actif':'check','Préavis':'alerte','Sorti':'retour'};
 const TYPES_BAIL = ['Vide','Meublé','Saisonnier','Bail mobilité'];
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   QUI OCCUPE LE BIEN — source unique.
+
+   ⚠️ « Préavis » N'EST PAS UNE SORTIE : c'est une occupation dont la fin est
+   annoncée. Le locataire habite toujours le logement, et il doit toujours son
+   loyer jusqu'à la date de sortie. Or `statut === 'Actif'` s'écrivait DIX-SEPT
+   fois dans ce fichier : au premier congé enregistré, dix lectures se
+   mettaient à mentir EN MÊME TEMPS —
+     · le bien remontait en point d'attention « acquis sans locataire », sa
+       mensualité annoncée comme perdue alors que le loyer est dû ;
+     · `mfStatutOccupation` le déclarait « Vacant » alors qu'il est occupé ;
+     · ses loyers disparaissaient de l'agenda 60 jours ;
+     · sa fiche n'avait plus de locataire ;
+     · sa carte cessait d'afficher ses impayés — il pouvait devoir trois mois,
+       la carte se taisait ;
+     · le contrôle « un seul locataire par bien » ne le voyait plus.
+
+   C'est la dette n°3 de la revue du 13/08/2026 (règles métier dupliquées,
+   score 28) : une duplication est une divergence future, et celle-ci se
+   déclenchait toute seule à l'arrivée d'un statut. Le socle passe donc AVANT
+   le workflow de préavis — voir PLAN-PREAVIS.md, étape 1.
+
+   ⚠️ Déclarées en `function`, donc REMONTÉES : le tableau de bord et l'agenda
+   s'en servent alors qu'ils sont écrits plus haut dans le fichier. Leur place
+   est ici, avec les quatre statuts qu'elles interprètent.
+
+   ⚠️ CE QU'ELLES NE DISENT PAS. La fin de bail et la révision du loyer
+   (`mfEcheancesBail`) restent réservées à « Actif », volontairement : on ne
+   rappelle pas la reconduction d'un bail à un locataire qui s'en va.        */
+function sfEstOccupant(loc) {
+  return !!loc && (loc.statut === 'Actif' || loc.statut === 'Préavis');
+}
+
+// Le locataire EN PLACE sur un bien : celui qui l'occupe aujourd'hui, préavis
+// compris. Trois écrans le cherchaient chacun de leur côté, avec leur propre
+// définition — c'est exactement ainsi que deux écrans finissent par ne plus
+// dire la même chose.
+function sfLocataireEnPlace(bienId) {
+  if(!bienId) return null;
+  return allLocataires.find(l => l.bien_id === bienId && sfEstOccupant(l)) || null;
+}
+
 // Limite de taille fichier (50 MB pour Free plan Supabase Storage en V2)
 const MAX_DOC_SIZE_MB = 25; // V1 base64 - on reste plus conservateur que les 50MB Storage
 
@@ -6338,7 +6408,10 @@ function mfRenderShell() {
   if (!annees.includes(mfExercice)) mfExercice = annees[0];
   const k = mfConsolide(mfExercice);
   const nonSoldes = mfLoyersNonSoldes(mfExercice).length;
-  const locActifs = allLocataires.filter(l => l.statut === 'Actif').length;
+  // Le compteur de l'onglet « Locataires » : ceux qui occupent un bien, preavis
+  // compris. Un depart annonce ne fait pas disparaitre le locataire de l'onglet
+  // ou l'on va justement le suivre jusqu'au bout.
+  const locEnPlace = allLocataires.filter(sfEstOccupant).length;
 
   // ⚠️ « non disponible » plutôt qu'un zéro trompeur : un rendement incalculable
   // n'est pas un rendement nul. C'est la variante `--none` du composant KPI.
@@ -6395,7 +6468,7 @@ function mfRenderShell() {
         ['performance', 'Performance',   'graph',     null],
         ['portefeuille','Portefeuille',  'mallette',  k.biens.length || null],
         ['suivi',       'Suivi mensuel', 'agenda',    nonSoldes || null],
-        ['locataires',  'Locataires',    'personnes', locActifs || null],
+        ['locataires',  'Locataires',    'personnes', locEnPlace || null],
       ].map(([id, lab, ic, n]) => `
         <button class="mfx-tab" role="tab" aria-selected="${mfTab === id}" onclick="switchMfTab('${id}')">
           ${sfAccIcon(ic, 16)} ${lab}${n ? `<span class="mfx-tab__n${id === 'suivi' ? ' mfx-tab__n--alerte' : ''}">${n}</span>` : ''}
@@ -8085,7 +8158,11 @@ function mfEcheancesBail(loc, bien) {
     if(d && !isNaN(d)) out.push({ d, type, libelle, detail, loc, bien, montant: null });
   };
 
-  // ── Fin du bail, et la reconduction qu'elle déclenche
+  /* ── Fin du bail, et la reconduction qu'elle déclenche
+     ⚠️ « Actif » ET PAS « occupant » — c'est délibéré, à l'inverse du reste du
+     fichier depuis le socle du 22/08/2026. On ne rappelle pas la reconduction
+     d'un bail, ni la révision de son loyer, à un locataire qui s'en va : son
+     échéance à lui, c'est son départ. */
   let duree = MF_DUREES_BAIL[loc.type_bail];
   if(loc.type_bail === 'Vide' && bien?.mode_detention === 'sci') duree = 6;
   if(duree && loc.statut === 'Actif') {
@@ -8139,7 +8216,10 @@ function renderMfLocataires(c) {
      quatre colonnes en même temps. `mfLocataireFilter` et `setMfLocFilter`
      sont supprimés — du code mort qui ressort à chaque recherche. */
 
-  const loyerActif = allLocataires.filter(l => l.statut === 'Actif')
+  /* ⚠️ LE LOYER QUI RENTRE CE MOIS-CI, preavis compris — un conge donne ne
+     suspend pas le loyer. L'indicateur ne peut donc plus s'appeler « actif »
+     sans mentir sur ce qu'il additionne : il porte les baux EN COURS. */
+  const loyerEnCours = allLocataires.filter(sfEstOccupant)
     .reduce((s, l) => s + (parseFloat(l.loyer_bail_hc) || 0) + (parseFloat(l.charges_bail) || 0), 0);
 
   // ── À réclamer : les loyers échus non soldés, regroupés par locataire ──
@@ -8228,7 +8308,7 @@ function renderMfLocataires(c) {
     <div class="sff-block">
       <div class="sff-block__h">
         <p class="sff-block__t">Annuaire</p>
-        <span class="sff-block__n">${cnt.all} locataire${cnt.all > 1 ? 's' : ''} · ${cnt['Actif']} actif${cnt['Actif'] > 1 ? 's' : ''} · ${cnt['Candidat']} candidat${cnt['Candidat'] > 1 ? 's' : ''} · ${sfEur(loyerActif)} de loyer mensuel actif</span>
+        <span class="sff-block__n">${cnt.all} locataire${cnt.all > 1 ? 's' : ''} · ${cnt['Actif']} actif${cnt['Actif'] > 1 ? 's' : ''} · ${cnt['Candidat']} candidat${cnt['Candidat'] > 1 ? 's' : ''} · ${sfEur(loyerEnCours)} de loyer mensuel en cours</span>
         <span class="sff-block__a">
           <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="openLocataireModal(null)">${sfAccIcon('plus', 15)} Nouveau locataire</button>
         </span>
@@ -8340,7 +8420,10 @@ function mfCarteLocataire(l) {
      retrouver dans l'annuaire. La carte se suffit désormais à elle-même.
      Même source que l'alerte — `mfLoyersNonSoldes` — pour qu'un écart entre
      les deux soit impossible. */
-  const impayes = l.statut === 'Actif'
+  /* ⚠️ Preavis compris. Un locataire qui part en devant trois mois est
+     precisement celui qu'il ne faut pas perdre de vue : c'est le dernier
+     moment pour reclamer, et le depot de garantie est en face. */
+  const impayes = sfEstOccupant(l)
     ? mfLoyersNonSoldes(mfExercice).filter(x => x.locataire?.id === l.id) : [];
   const dus = impayes.reduce((s, x) => s + (x.reste || 0), 0);
 
@@ -8368,7 +8451,7 @@ function mfCarteLocataire(l) {
       <div class="mfx-li">${sfAccIcon('euro', 15)}${sfEur((parseFloat(l.loyer_bail_hc) || 0) + (parseFloat(l.charges_bail) || 0))} <em>par mois, charges comprises${(parseFloat(l.depot_garantie) || 0) > 0 ? ` · dépôt ${sfEur(l.depot_garantie)}` : ''}</em></div>` : ''}
       <div class="mfx-li">${sfAccIcon('agenda', 15)}${entree || '—'}${sortie ? ` <em>→ ${sortie}</em>` : (l.statut === 'Actif' ? ' <em>· en cours</em>' : '')}</div>
       ${docs ? `<div class="mfx-li">${sfAccIcon('trombone', 15)}${docs} <em>document${docs > 1 ? 's' : ''}</em></div>` : ''}
-      ${l.statut === 'Actif' ? (dus > 0 ? `
+      ${sfEstOccupant(l) ? (dus > 0 ? `
         <p class="mfx-loccard__paie mfx-loccard__paie--du">
           ${sfAccIcon('alerte', 14)}
           <b>${sfEur(dus)}</b> dus <em>· ${impayes.length} mois échu${impayes.length > 1 ? 's' : ''}</em>
@@ -8991,11 +9074,15 @@ function mfBiensExercice(annee) {
   return allBiens.filter(b => mfDansLePerimetre(b, annee));
 }
 
-// Statut occupation d'un bien
+/* Statut occupation d'un bien.
+   ⚠️ « Vacant » se lisait sur `statut === 'Actif'` : un bien dont le locataire
+   avait donne son conge s'affichait donc VIDE alors qu'il est occupe, qu'il
+   rapporte, et que le badge trone sur la fiche a cote du nom de son occupant.
+   ⚠️ On n'invente PAS un quatrieme type « preavis » ici : `type` est consomme
+   par quatre ecrans et leur CSS. Le bien est occupe, le badge le dit ; le
+   depart annonce se raconte dans la section qui lui est dediee. */
 function mfStatutOccupation(bienId) {
-  const locataireActif = allLocataires.find(l =>
-    l.bien_id === bienId && l.statut === 'Actif'
-  );
+  const locataireActif = sfLocataireEnPlace(bienId);
   if(!locataireActif) return { type: 'vacant', label: 'Vacant', locataire: null };
 
   // Impayés sur les 3 derniers mois.
@@ -9279,25 +9366,73 @@ async function saveLocataire() {
   // 01/08/2026 : 1 locataire actif a 830 EUR/mois, 0 ligne dans loyers_mensuels.
   // bdGenererLoyers (voir plus haut) controlait deja cette date ; ce chemin-ci
   // ne le faisait pas. On aligne les deux.
-  if(data.statut === 'Actif' && data.bien_id && !data.date_entree) {
+  // ⚠️ La regle vaut pour TOUT OCCUPANT, preavis compris : un locataire passe
+  // en preavis sans date d'entree tombe dans le meme piege, et personne ne le
+  // lui dit.
+  if(sfEstOccupant(data) && data.bien_id && !data.date_entree) {
     showNotif("Renseignez la date d'entrée : elle détermine les loyers à générer", true);
     document.getElementById('loc-date-entree')?.focus();
     return;
   }
 
-  // Vérification : un seul "Actif" par bien à la fois
-  if(data.statut === 'Actif' && data.bien_id) {
+  /* ⚠️ UN PRÉAVIS SANS DATE DE SORTIE NE DÉCLENCHE RIEN. C'est la donnée
+     incomplète et silencieuse que le cadrage du 16/08/2026 refusait — la raison
+     pour laquelle le glisser-déposer vers « Préavis » est resté absent. Le
+     statut à lui seul n'a aucun effet : `mfEcheancesBail` ne produit l'échéance
+     de départ que si `date_sortie` existe, et le prorata du dernier mois en
+     découle. On le dit au lieu de laisser croire qu'un congé est enregistré. */
+  if(data.statut === 'Préavis' && !data.date_sortie) {
+    showNotif('Renseignez la date de sortie : un préavis sans date de départ ne déclenche rien', true);
+    document.getElementById('loc-date-sortie')?.focus();
+    return;
+  }
+
+  /* Vérification : UN SEUL OCCUPANT par bien à la fois.
+     ⚠️ Le controle ne voyait que « Actif » : on pouvait donc activer un second
+     locataire sur un bien dont l'occupant etait en preavis, SANS UN MOT. Et ce
+     n'est pas un detail de confort — `loyers_mensuels` porte une contrainte
+     UNIQUE (user_id, bien_id, mois, annee) : deux locataires qui se chevauchent
+     sur un mois ne peuvent pas y avoir chacun leur ligne. Le chevauchement se
+     traite, il ne s'improvise pas. */
+  if(sfEstOccupant(data) && data.bien_id) {
     const conflit = allLocataires.find(l =>
       l.id !== editingLocataireId &&
       l.bien_id === data.bien_id &&
-      l.statut === 'Actif'
+      sfEstOccupant(l)
     );
     if(conflit) {
       const fullName = [conflit.prenom, conflit.nom].filter(Boolean).join(' ') || conflit.nom;
-      const ok = confirm(`Le bien sélectionné a déjà un locataire actif (${fullName}).\n\nVoulez-vous le marquer comme "Sorti" (date de sortie = aujourd'hui) pour pouvoir activer ce nouveau locataire ?`);
+      const aujourdhui = new Date().toISOString().split('T')[0];
+      const enFr = iso => new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR');
+
+      /* ⚠️ DEUX BAUX QUI SE RECOUVRENT NE PEUVENT PAS COEXISTER EN BASE.
+         `loyers_mensuels` porte une contrainte UNIQUE (user_id, bien_id, mois,
+         annee) : un mois n'a qu'UNE ligne de loyer, donc un seul locataire. Si
+         on laissait passer, l'upsert d'`autoGenerateLoyers` ignorerait
+         silencieusement les mois déjà pris et `mfLocataireForBienMonth`
+         attribuerait ces mois au partant. On refuse, en disant pourquoi :
+         le relet chevauchant est un chantier à lui seul (voir PLAN-PREAVIS.md). */
+      if(conflit.date_sortie && data.date_entree && data.date_entree <= conflit.date_sortie) {
+        showNotif(`${fullName} occupe ce bien jusqu'au ${enFr(conflit.date_sortie)} : une entrée au ${enFr(data.date_entree)} chevaucherait son bail. Ajustez la date d'entrée.`, true);
+        document.getElementById('loc-date-entree')?.focus();
+        return;
+      }
+
+      /* ⚠️ NE JAMAIS ECRASER UNE DATE DE SORTIE DEJA POSEE. Un locataire en
+         preavis a une date de depart negociee ; l'avancer a aujourd'hui
+         supprimerait des loyers encore dus et fausserait son prorata de
+         dernier mois. On le clot a la date prevue, et on ne fixe « aujourd'hui »
+         que lorsqu'aucune date n'existe.
+         La phrase suit le temps de la date : un depart passe ne « part » pas. */
+      const ok = confirm(!conflit.date_sortie
+        ? `Le bien sélectionné a déjà un locataire en place (${fullName}).\n\nVoulez-vous le marquer comme "Sorti" (date de sortie = aujourd'hui) pour pouvoir activer ce nouveau locataire ?`
+        : conflit.date_sortie > aujourdhui
+          ? `Le bien sélectionné est encore occupé par ${fullName}, qui part le ${enFr(conflit.date_sortie)}.\n\nLe marquer comme "Sorti" à cette date pour activer ce nouveau locataire ?`
+          : `${fullName} devait quitter ce bien le ${enFr(conflit.date_sortie)}, sans que sa sortie ait été enregistrée.\n\nLe marquer comme "Sorti" à cette date pour activer ce nouveau locataire ?`);
       if(!ok) return;
-      const today = new Date().toISOString().split('T')[0];
-      const upd = await db.from('locataires').update({statut:'Sorti', date_sortie:today}).eq('id', conflit.id);
+      const patchSortie = { statut: 'Sorti' };
+      if(!conflit.date_sortie) patchSortie.date_sortie = aujourdhui;
+      const upd = await db.from('locataires').update(patchSortie).eq('id', conflit.id);
       if(upd.error) { showNotif('Erreur clôture du locataire actuel : '+upd.error.message, true); return; }
     }
   }
@@ -9350,7 +9485,12 @@ async function saveLocataire() {
       }
     }
     let loyersGenes = 0;
-    if(data.statut === 'Actif' && data.bien_id && data.date_entree && savedId) {
+    /* ⚠️ Preavis compris : basculer un locataire en preavis depuis cette
+       fenetre CESSAIT de generer ses loyers restants. `autoGenerateLoyers`
+       s'arrete de lui-meme a la date de sortie (`mfLoyerProrata` rend 0 au-dela)
+       — le lui interdire ici ne protegeait de rien et faisait manquer les
+       derniers mois dus. */
+    if(sfEstOccupant(data) && data.bien_id && data.date_entree && savedId) {
       loyersGenes = await autoGenerateLoyers({
         ...data,
         id: savedId,
@@ -9361,7 +9501,7 @@ async function saveLocataire() {
     // la validation ci-dessus : autoGenerateLoyers ne genere rien pour une
     // entree prevue l'annee prochaine, et rien de neuf si les lignes existent
     // deja. On le dit, au lieu de laisser croire que des loyers ont ete crees.
-    const attenduDesLoyers = data.statut === 'Actif' && data.bien_id;
+    const attenduDesLoyers = sfEstOccupant(data) && data.bien_id;
     const suffixe = loyersGenes
       ? ` · ${loyersGenes} loyer${loyersGenes>1?'s':''} généré${loyersGenes>1?'s':''}`
       : (attenduDesLoyers ? ' · aucun nouveau loyer à générer' : '');

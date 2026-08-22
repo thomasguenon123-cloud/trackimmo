@@ -49,10 +49,11 @@ ces lectures ne le voit.**
 | `app.js:8343 · 8371` | Sa carte **cesse d'afficher ses impayés** : il peut devoir trois mois, la carte se tait |
 | `app.js:9289` | Le contrôle **« un seul actif par bien »** ne le voit pas : on peut activer un second locataire sans un mot |
 
-**Conséquence de plan : l'étape 1 n'est pas le workflow, c'est le socle.** Un helper
-`sfLocOccupe(l)` (`'Actif' || 'Préavis'`) posé comme source unique — le pendant de
-`sfEstAcquis` que la revue recommandait déjà. Sans lui, le jour où le premier congé
-est enregistré, **huit écrans se mettent à mentir en même temps.**
+**Conséquence de plan : l'étape 1 n'est pas le workflow, c'est le socle.** Deux
+prédicats posés comme source unique — `sfEstOccupant(loc)` (`'Actif' || 'Préavis'`) et
+`sfLocataireEnPlace(bienId)` — le pendant de `sfEstAcquis` que la revue recommandait déjà.
+Sans eux, le jour où le premier congé est enregistré, **huit écrans se mettent à mentir en
+même temps.** ✅ **Livré le 22/08/2026 (v=74).**
 
 ### 2.2 Les loyers déjà générés après la sortie deviennent des impayés fantômes
 
@@ -86,14 +87,21 @@ vaut **2 mois** si l'état des lieux de sortie n'est pas conforme. À reprendre 
 Chaque étape est un commit, une version `?v=N`, un déploiement vérifiable. Aucune ne laisse
 la plateforme dans un état intermédiaire incohérent.
 
-### Étape 1 — « Préavis » devient un état d'occupation
-**Aucune colonne, aucun écran, aucun arbitrage à prendre : elle peut démarrer tout de suite.**
-- `sfLocOccupe(l)` posé une fois, appliqué aux ~10 lectures listées en §2.1.
+### Étape 1 — « Préavis » devient un état d'occupation ✅ **FAITE (22/08/2026, v=74)**
+**Aucune colonne, aucun écran, aucun arbitrage à prendre.**
+- `sfEstOccupant(loc)` et `sfLocataireEnPlace(bienId)` posés une fois, appliqués aux
+  quatorze lectures listées en §2.1.
 - Ce qui **ne** change **pas**, volontairement : `mfEcheancesBail` continue de ne produire
   « fin de bail » et « révision du loyer » que pour un `'Actif'` — un locataire qui part n'a
   pas besoin qu'on lui rappelle la reconduction de son bail.
-- Vérification : `npm test` + une garde de régression **validée par mutation** (on remet
-  `=== 'Actif'` et le test doit tomber).
+- Trois défauts de plus, trouvés en revue du diff et corrigés dans la foulée : un
+  locataire en préavis **ressuscité en « Actif »** par la mise en gestion ; un **préavis
+  sans date de sortie** accepté en silence, qui ne déclenche jamais rien ; deux baux
+  **qui se chevauchent** écrits sans un mot, alors que `loyers_mensuels` n'accepte qu'une
+  ligne par bien et par mois.
+- Vérification : `npm test` — 43 cas, 43 passent — dont **quatre gardes de régression
+  validées PAR MUTATION** (on remet `=== 'Actif'`, le test tombe ; on retire la garde
+  d'occupation de l'agenda, il tombe aussi).
 
 ### Étape 2 — les colonnes (migration guidée, comme la partie B)
 Additive, aucune contrainte d'invariant, aucune valeur par défaut à rattraper.
@@ -131,6 +139,10 @@ devient légitime **parce que** le workflow existe.
 `date_sortie`, et régénère les loyers effacés. Sans lui, une erreur de saisie est définitive.
 
 ### Étape 4 — la sortie, les clés, le dépôt (le second acte)
+⚠️ **Qui dit remise des clés dit état des lieux de sortie, donc COMPTE RENDU.** L'analyse
+de cette section — table `visites`, colonne `locataire_id` déjà présente et jamais
+utilisée, trois architectures possibles — est dans **`NOTE-COMPTES-RENDUS.md`**.
+
 Depuis une carte en préavis : **« Le locataire est parti »** → date de remise des clés ·
 *« L'état des lieux de sortie est-il conforme à celui d'entrée ? »* → écrit `'Sorti'`.
 C'est **à ce moment** qu'on sait, et pas avant.
@@ -171,6 +183,11 @@ la remise des clés. Même clampage, même test.
 
 **Aucune ne bloque l'étape 1.** Pour chacune je donne ma recommandation : sans réponse de ta
 part, c'est elle que j'applique, et je te la signale au moment de l'écrire.
+
+**Arbitrages rendus par Thomas le 22/08/2026** : questions 1, 3 et 6 → recommandation
+retenue. Question 7 (le contenu de la box) → **on la construit et on la teste en vrai**,
+les retours viendront de l'écran, pas du document. Les autres restent sur ma
+recommandation, à confirmer au moment de les écrire.
 
 | # | Question | Ma recommandation |
 |---|---|---|
