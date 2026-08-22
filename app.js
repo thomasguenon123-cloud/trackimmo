@@ -1558,8 +1558,15 @@ function sfPointsAttention() {
   }
 
   // 2. Loyers deja echus mais non pointes : le cashflow reel est fausse.
-  const echus = allLoyers.filter(l =>
-    l.annee === annee && l.mois < moisCourant && l.statut !== 'Payé');
+  // ⚠️ Ce compteur ne lisait QUE la ligne — statut et mois — sans jamais
+  // demander si un bail couvrait ce mois. Quatre lignes laissees apres une
+  // sortie faisaient donc annoncer sept loyers en retard la ou le Suivi
+  // mensuel, lui garde, en comptait quatre. Le tableau de bord et le module
+  // se contredisaient sur le meme chiffre.
+  const echus = allLoyers.filter(l => {
+    if (l.annee !== annee || l.mois >= moisCourant || l.statut === 'Payé') return false;
+    return sfBailCouvre(sfLocataireDuLoyer(l, l.bien_id, l.mois, annee), l.mois, annee);
+  });
 
   // Le filtre ci-dessus ecarte le mois EN COURS (`mois < moisCourant`), et il ne
   // voit que les lignes deja creees en base — or un loyer du mois courant n'a
@@ -1656,8 +1663,18 @@ function sfLoyerPointe(ligne) {
 //   'ko'     échu, non soldé   'avenir' échéance pas encore arrivée
 //   'none'   rien en base
 function sfLoyerEtat(ligne, mois, annee, locataire) {
+  /* ⚠️ HORS BAIL — la garde passe AVANT tout le reste, et c'est ici qu'elle
+     doit vivre : cette fonction est la source unique de l'état d'un loyer, et
+     un mois que le bail ne couvre pas ne doit RIEN, quoi qu'il y ait en base.
+     Sans elle, une ligne restée après une date de sortie virait au rouge « échu »
+     dans la grille du Suivi mensuel et sur la frise de la fiche, pendant que les
+     compteurs d'à côté — eux gardés — ne la comptaient pas. Deux écrans du même
+     module en désaccord : exactement ce que cette fonction existe pour empêcher.
+     ⚠️ Un ENCAISSEMENT reste un encaissement : « Payé » l'emporte, parce que
+     l'argent, lui, est bien entré. On ne réclame pas, on n'efface pas. */
   if (ligne && ligne.statut === 'Payé')    return 'ok';
   if (ligne && ligne.statut === 'Partiel') return 'part';
+  if (locataire && !sfBailCouvre(locataire, mois, annee)) return 'none';
 
   const jour = Math.min(Math.max(parseInt(locataire?.jour_paiement, 10) || 5, 1), 28);
   const aujourdhui = new Date(); aujourdhui.setHours(0, 0, 0, 0);
@@ -1701,9 +1718,9 @@ function sfLoyersAttendus() {
          elle en annoncerait pour les mois d'apres son depart. On s'aligne sur
          le calcul calendaire de `mfLoyerProrata`, deja source unique du
          montant du : hors periode d'occupation, rien n'est attendu. */
+      if (!sfBailCouvre(loc, mois, annee)) continue;
       const prorata = mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, mois, annee,
                                      loc.date_entree, loc.date_sortie);
-      if (prorata.jours === 0) continue;
 
       const ligne = mfFindLoyer(loc.bien_id, mois, annee) || null;
       const pointe = sfLoyerPointe(ligne);
@@ -4287,10 +4304,11 @@ async function renderBienDetail(el) {
                       const l = loyersAnnee.find(x => x.mois === mois);
                       // Le bail peut changer en cours d'année : on prend celui
                       // du mois concerné, pas le locataire courant.
-                      const loc = mfLocataireForBienMonth(b.id, mois, annee) || locActif;
+                      const loc = sfLocataireDuLoyer(l, b.id, mois, annee) || locActif;
                       const st = sfLoyerEtat(l, mois, annee, loc);
                       const tip = st === 'avenir' ? `${lab} : échéance à venir`
                                 : !l ? `${lab} : rien de saisi`
+                                : st === 'none' ? `${lab} : hors bail — le bail ne couvre pas ce mois`
                                 : `${lab} : ${esc(l.statut||'')} — ${sfEur(l.montant_encaisse||0)} sur ${sfEur(l.loyer_du||0)} dus`;
                       return `<div class="bd-month ${st}" title="${tip}"><span>${lab}</span></div>`;
                     }).join('')}
@@ -6273,6 +6291,50 @@ function sfLocataireEnPlace(bienId) {
   return allLocataires.find(l => l.bien_id === bienId && sfEstOccupant(l)) || null;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   LE BAIL COUVRE-T-IL CE MOIS ? — la question qui décide si un loyer est DÛ.
+
+   ⚠️ Ce n'est PAS la même question que « une ligne existe-t-elle en base ».
+   `autoGenerateLoyers` crée les lignes jusqu'à DÉCEMBRE dès la mise en
+   location. Le jour où une date de sortie est posée en cours d'année, les mois
+   d'après restent donc en base, à plein tarif, sur un logement vide — et trois
+   écrans les prennent pour argent comptant : l'échéancier les annonce comme
+   « attendus », les compteurs d'impayés les réclameront dès leur échéance
+   passée, et l'agenda 60 jours les affichait.
+
+   Constaté sur les données réelles le 22/08/2026 : locataire sortant le 22/08,
+   quatre lignes de septembre à décembre — 12 000 € de loyer et 2 000 € de
+   charges annoncés pour un bien que personne n'occupe.
+
+   Les lignes fantômes, elles, se SUPPRIMENT — c'est le travail du workflow de
+   congé (PLAN-PREAVIS, étape 3). Ce prédicat empêche seulement de les compter
+   d'ici là, et empêchera qu'une ligne oubliée ne soit jamais réclamée à tort.
+
+   ⚠️ Sans locataire identifié, on ne juge pas : une ligne orpheline reste
+   visible. Cacher une donnée qu'on ne sait pas interpréter est pire que de la
+   montrer.                                                                  */
+function sfBailCouvre(loc, mois, annee) {
+  if(!loc) return true;
+  return mfDaysOccupiedInMonth(mois, annee, loc.date_entree, loc.date_sortie) > 0;
+}
+
+/* LE LOCATAIRE D'UNE LIGNE DE LOYER — et pourquoi il fallait le centraliser.
+
+   ⚠️ `mfLocataireForBienMonth` répond « qui occupait ce mois-là », donc NULL
+   pour un mois postérieur à la sortie. C'est juste — mais les écrans qui s'en
+   contentaient perdaient alors tout moyen de juger la ligne : sans locataire,
+   pas de bail, donc pas de garde, et la ligne fantôme repassait en « échu ».
+   Six écrans résolvaient ce locataire chacun à leur façon, trois avec ce
+   défaut. La ligne, elle, sait de qui elle parle : `locataire_id`.
+
+   L'ordre compte : l'OCCUPANT DU MOIS d'abord — c'est lui qui fait foi quand
+   le bail a changé en cours d'année — et à défaut celui que la ligne désigne. */
+function sfLocataireDuLoyer(ligne, bienId, mois, annee) {
+  return mfLocataireForBienMonth(bienId, mois, annee)
+      || (ligne ? allLocataires.find(x => x.id === ligne.locataire_id) : null)
+      || null;
+}
+
 // Limite de taille fichier (50 MB pour Free plan Supabase Storage en V2)
 const MAX_DOC_SIZE_MB = 25; // V1 base64 - on reste plus conservateur que les 50MB Storage
 
@@ -6357,9 +6419,12 @@ function mfLoyersNonSoldes(annee, bienId) {
     if (!mfDansLePerimetre(bien, annee)) continue;
     for (let m = 1; m <= 12; m++) {
       const l   = mfFindLoyer(bien.id, m, annee);
-      const loc = mfLocataireForBienMonth(bien.id, m, annee)
-               || (l ? allLocataires.find(x => x.id === l.locataire_id) : null);
+      const loc = sfLocataireDuLoyer(l, bien.id, m, annee);
       if (!l && !loc) continue;                       // rien n'était dû ce mois-là
+      // ⚠️ Ni après la sortie : une ligne restée en base sur un mois que le
+      // bail ne couvre plus n'est pas un impayé, c'est un vestige. La réclamer
+      // ferait grossir « X € dus » d'un loyer que personne ne doit.
+      if (!sfBailCouvre(loc, m, annee)) continue;
       const etat = sfLoyerEtat(l, m, annee, loc);
       const manquante = etat === 'none' && !!loc;     // échéance due, ligne jamais créée
       if (etat !== 'ko' && etat !== 'part' && !manquante) continue;
@@ -7306,7 +7371,10 @@ function renderMfSuivi(c) {
   for (const b of liste) {
     for (let m = 1; m <= 12; m++) {
       const l = mfFindLoyer(b.id, m, annee);
-      const loc = mfLocataireForBienMonth(b.id, m, annee);
+      // ⚠️ Le locataire de la LIGNE, pas seulement l'occupant du mois : sans
+      // lui, une ligne posterieure a la sortie n'avait plus de bail contre
+      // lequel etre jugee, et repassait en « a venir » sur un logement vide.
+      const loc = sfLocataireDuLoyer(l, b.id, m, annee);
       if (!l && !loc) continue;
       if (sfLoyerEtat(l, m, annee, loc) !== 'avenir') continue;
       const du = l ? (parseFloat(l.loyer_du) || 0)
@@ -7451,7 +7519,7 @@ function mfSuiviLignesBien(b, annee) {
    côté, montrait un mois échu en rouge. */
 function mfSuiviCelluleLoyer(b, mois, annee) {
   const l   = mfFindLoyer(b.id, mois, annee);
-  const loc = mfLocataireForBienMonth(b.id, mois, annee);
+  const loc = sfLocataireDuLoyer(l, b.id, mois, annee);
   const titreMois = `${MOIS_LONGS[mois - 1]} ${annee}`;
 
   // Ni ligne ni locataire : rien n'était dû ce mois-là. Ce n'est pas un trou de
@@ -7474,8 +7542,14 @@ function mfSuiviCelluleLoyer(b, mois, annee) {
                 avenir: 'mfx-cell--avenir', none: 'mfx-cell--none' }[etat] || 'mfx-cell--avenir';
   const montant = (etat === 'ok' || etat === 'part')
     ? (parseFloat(l.montant_encaisse) || 0) : (parseFloat(l.loyer_du) || 0);
-  const libelle = { ok: 'encaissé', part: 'partiellement encaissé', ko: 'échu, non soldé',
-                    avenir: 'à venir', none: 'sans échéance' }[etat] || '';
+  /* ⚠️ « Hors bail » se dit, il ne se cache pas. La cellule reste visible et
+     cliquable — le Suivi mensuel est la SURFACE DE SAISIE, c'est ici qu'on
+     corrige une ligne restée après une sortie. Elle cesse seulement d'être
+     peinte en rouge et d'être réclamée. */
+  const libelle = (etat === 'none' && l)
+    ? 'hors bail — le bail ne couvre pas ce mois'
+    : ({ ok: 'encaissé', part: 'partiellement encaissé', ko: 'échu, non soldé',
+         avenir: 'à venir', none: 'sans échéance' }[etat] || '');
 
   return `<td class="mfx-cell ${cls}" data-loyer-id="${l.id}"
     onclick="mfQuickToggleLoyer(this,'${l.id}')"
@@ -8255,8 +8329,12 @@ function renderMfLocataires(c) {
 
   for (const l of allLoyers) {
     if (l.annee !== annee) continue;
-    const loc = allLocataires.find(x => x.id === l.locataire_id);
+    const loc = sfLocataireDuLoyer(l, l.bien_id, l.mois, annee);
     if (sfLoyerEtat(l, l.mois, annee, loc) !== 'avenir') continue;
+    // ⚠️ Une ligne existe ≠ un loyer est dû. Après la date de sortie, le bail
+    // ne couvre plus le mois : l'annoncer « attendu » promet un encaissement
+    // sur un logement vide, et le fait entrer dans le total du mois.
+    if (!sfBailCouvre(loc, l.mois, annee)) continue;
     const jour = Math.min(Math.max(parseInt(loc?.jour_paiement, 10) || 5, 1), 28);
     const d = new Date(annee, l.mois - 1, jour);
     if (d < auj || d > horizon) continue;
@@ -8981,7 +9059,15 @@ function mfMoisEcoules(annee) {
 // ligne de `loyers_mensuels` qui fait foi, prorata loi 1989 compris.
 function mfLoyerDuMois(bienId, mois, annee) {
   const l = allLoyers.find(x => x.bien_id === bienId && x.mois === mois && x.annee === annee);
-  return l ? (parseFloat(l.loyer_du) || 0) : 0;
+  if (!l) return 0;
+  /* ⚠️ DÛ, pas « écrit en base ». Ce total alimente `mfReelExercice.loyer_du`,
+     donc le RENDEMENT NET (`loyer_du − charges`) et les consolidés. Une ligne
+     restée après une sortie y ajoutait un loyer que personne ne paiera : le
+     rendement d'un bien vacant continuait de monter tout seul.
+     ⚠️ `mfLoyerEncaisseMois` n'est PAS touchée, et ne doit pas l'être : ce qui
+     a été encaissé l'a été, même sur un mois mal saisi. */
+  return sfBailCouvre(sfLocataireDuLoyer(l, bienId, mois, annee), mois, annee)
+    ? (parseFloat(l.loyer_du) || 0) : 0;
 }
 
 // Le réel d'un bien sur un exercice, borné aux mois ÉCOULÉS.
@@ -9234,8 +9320,16 @@ function openLocataireModal(id, presetBienId) {
       <div class="sf-field"><label class="sf-label">Date d'entrée <span class="sf-label__req">*</span></label>
         <input class="sf-input" id="loc-date-entree" type="date" value="${esc(l?.date_entree||'')}">
         <div class="sf-hint">Requise dès qu'un locataire actif est rattaché à un bien : c'est elle qui détermine les loyers générés.</div></div>
+      ${/* ⚠️ QUELLE DATE ? La question s'est posée dès le premier congé saisi
+            (Thomas, 22/08/2026) : la réception du congé, ou la fin du préavis ?
+            Le champ ne le disait pas, et tout le calcul dépend de la réponse —
+            c'est cette date qui arrête les loyers et déclenche la restitution
+            du dépôt. Elle vaut donc FIN DE PRÉAVIS, et l'écran le dit.
+            Le calcul « réception + 1 ou 3 mois » arrive avec le workflow de
+            congé (PLAN-PREAVIS, étape 3) : d'ici là, elle se pose à la main. */''}
       <div class="sf-field"><label class="sf-label">Date de sortie</label>
-        <input class="sf-input" id="loc-date-sortie" type="date" value="${esc(l?.date_sortie||'')}"></div>
+        <input class="sf-input" id="loc-date-sortie" type="date" value="${esc(l?.date_sortie||'')}">
+        <div class="sf-hint">Le <b>dernier jour du bail</b>, pas la date à laquelle le congé a été reçu. C'est elle qui arrête les loyers et fait partir le délai de restitution du dépôt.</div></div>
     </div>
     <div class="locf-grid">
       <div class="sf-field"><label class="sf-label">Loyer HC (€/mois)</label>
@@ -9586,17 +9680,36 @@ async function autoGenerateLoyers(loc) {
   }
   if(!rows.length) return 0;
 
-  // Insert avec onConflict: ne rien faire (les loyers déjà existants sont préservés)
-  const { error } = await db.from('loyers_mensuels').upsert(rows, {
+  /* Insert avec onConflict: ne rien faire (les loyers déjà existants sont préservés)
+
+     ⚠️ ON COMPTE CE QUI A ÉTÉ CRÉÉ, PAS CE QUI A ÉTÉ PROPOSÉ. Cette fonction
+     rendait `rows.length`, c'est-à-dire le nombre de lignes ENVOYÉES — alors
+     que `ignoreDuplicates` en écarte silencieusement toutes celles qui
+     existent déjà. Rouvrir la fiche d'un locataire en place pour corriger un
+     numéro de téléphone annonçait donc « 12 loyers générés » sans qu'aucune
+     ligne ne soit créée. Le commentaire d'à côté, dans `saveLocataire`, dit
+     pourtant l'intention inverse : ne pas laisser croire qu'on a créé.
+     `.select()` fait remonter les lignes RÉELLEMENT insérées — avec
+     `ON CONFLICT DO NOTHING`, les doublons n'en font pas partie.
+     ⚠️ Si la sélection ne rend rien d'exploitable, on annonce ZÉRO : sous-
+     estimer fait dire « aucun nouveau loyer », ce qui est au pire incomplet.
+     Sur-estimer fait affirmer une création qui n'a pas eu lieu. */
+  const { data, error } = await db.from('loyers_mensuels').upsert(rows, {
     onConflict: 'user_id,bien_id,mois,annee',
     ignoreDuplicates: true,
-  });
+  }).select();
   if(error) {
     console.error('autoGenerateLoyers', error);
     showNotif('Loyers : '+error.message, true);
     return 0;
   }
-  return rows.length;
+  /* Les lignes créées entrent en mémoire : sans cela, le Suivi mensuel et les
+     compteurs ne les voient qu'au prochain rechargement complet — un écran qui
+     annonce « 3 loyers générés » et n'en montre aucun. */
+  if(Array.isArray(data)) {
+    for(const l of data) if(!allLoyers.some(x => x.id === l.id)) allLoyers.push(l);
+  }
+  return Array.isArray(data) ? data.length : 0;
 }
 
 // ══════════════════════════════════════════════════════
