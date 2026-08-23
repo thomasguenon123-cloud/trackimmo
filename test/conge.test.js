@@ -340,3 +340,66 @@ test('un dépôt oublié depuis plus d’un an ne remonte plus', () => {
     date_remise_cles: '2024-01-31', edl_sortie_conforme: true, depot_garantie: 1600 }] });
   assert.deepEqual(Array.from(a.sfBauxQuiSeTerminent()), []);
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LE PRORATA DES CHARGES — `sfProrataBail`.
+   Cinq chemins d'écriture appliquaient le prorata de la loi de 1989 au loyer
+   et recopiaient les charges PLEINES à côté : 636 € de loyer pour 23 jours,
+   et 490 € de charges pour le mois entier. Constaté sur les données réelles
+   le 23/08/2026 — visible au mois de sortie, mais présent depuis toujours sur
+   tous les mois d'entrée.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const BAIL = { loyer_bail_hc: 830, charges_bail: 490,
+               date_entree: '2025-06-11', date_sortie: null };
+
+test('RÉGRESSION — les charges suivent le prorata du loyer', () => {
+  const p = app.sfProrataBail({ ...BAIL, date_sortie: '2026-09-23' }, 9, 2026);
+  assert.equal(p.jours, 23);
+  assert.equal(p.loyer, 636,   '830 € × 23/30');
+  assert.equal(p.charges, 376, '490 € × 23/30 — et non 490 € pleins');
+});
+
+test('un mois entier ne proratise rien, ni loyer ni charges', () => {
+  const p = app.sfProrataBail(BAIL, 7, 2026);
+  assert.equal(p.prorata, false);
+  assert.equal(p.loyer, 830);
+  assert.equal(p.charges, 490);
+});
+
+test('hors période d’occupation, ni loyer ni charges', () => {
+  const p = app.sfProrataBail({ ...BAIL, date_sortie: '2026-08-22' }, 9, 2026);
+  assert.equal(p.jours, 0);
+  assert.equal(p.loyer, 0);
+  assert.equal(p.charges, 0);
+});
+
+test('un bail sans charges n’en invente pas', () => {
+  const p = app.sfProrataBail({ ...BAIL, charges_bail: 0, date_sortie: '2026-09-23' }, 9, 2026);
+  assert.equal(p.charges, 0);
+  assert.equal(p.loyer, 636);
+});
+
+test('un bail à loyer nul garde ses charges proratisées', () => {
+  // Charges seules — un logement de fonction, par exemple. Le mois doit
+  // quand même produire sa ligne : c'est `jours` qui décide, pas le loyer.
+  const p = app.sfProrataBail({ ...BAIL, loyer_bail_hc: 0, date_sortie: '2026-09-23' }, 9, 2026);
+  assert.equal(p.loyer, 0);
+  assert.equal(p.charges, 376);
+  assert.equal(p.jours, 23);
+});
+
+test('le mois de sortie d’un congé reprend AUSSI ses charges', () => {
+  const lignes = [{ id: 'l-9', annee: 2026, mois: 9, loyer_du: 830, charges_dues: 490,
+                    statut: 'En attente', montant_encaisse: 0 }];
+  const r = app.sfCongeReprise(lignes, '2026-09-23', 830, '2025-06-11', 490);
+  assert.equal(r.prorata.nouveau, 636);
+  assert.equal(r.prorata.ancienCharges, 490);
+  assert.equal(r.prorata.nouvellesCharges, 376);
+});
+
+test('sfNoteProrata ne signe que les mois réellement partiels', () => {
+  assert.equal(app.sfNoteProrata(app.sfProrataBail(BAIL, 7, 2026)), null);
+  assert.match(app.sfNoteProrata(app.sfProrataBail({ ...BAIL, date_sortie: '2026-09-23' }, 9, 2026)),
+               /^Prorata loi 1989 : 23\/30 jours$/);
+});

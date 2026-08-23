@@ -1787,16 +1787,16 @@ async function sfPointerLoyer(bienId, mois, annee, boite) {
     } else {
       const loc = mfLocataireForBienMonth(bienId, mois, annee);
       if (!loc) { showNotif('Aucun bail actif sur ce mois', true); return; }
-      const prorata = mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, mois, annee, loc.date_entree, loc.date_sortie);
-      if (prorata.montant === 0) { showNotif('Pas d\'occupation ce mois', true); return; }
+      const prorata = sfProrataBail(loc, mois, annee);
+      if (prorata.jours === 0) { showNotif('Pas d\'occupation ce mois', true); return; }
 
       const { data, error } = await db.from('loyers_mensuels').upsert({
         user_id: currentUser.id, bien_id: bienId, locataire_id: loc.id,
         mois, annee,
-        loyer_du: prorata.montant,
-        charges_dues: parseFloat(loc.charges_bail) || 0,
-        statut: 'Payé', montant_encaisse: prorata.montant, date_encaissement: today,
-        notes: prorata.prorata ? `Prorata loi 1989 : ${prorata.jours}/${prorata.joursMois} jours` : null
+        loyer_du: prorata.loyer,
+        charges_dues: prorata.charges,
+        statut: 'Payé', montant_encaisse: prorata.loyer, date_encaissement: today,
+        notes: sfNoteProrata(prorata)
       }, { onConflict: 'user_id,bien_id,mois,annee' }).select().maybeSingle();
       if (error) throw error;
       if (data) {
@@ -6216,6 +6216,45 @@ function mfDaysOccupiedInMonth(mois, annee, dateEntree, dateSortie) {
   return Math.max(0, Math.min(days, daysInMonth));
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   CE QUE LE BAIL DOIT POUR UN MOIS — loyer ET charges, au même prorata.
+
+   ⚠️ LES CHARGES N'ÉTAIENT PAS PRORATISÉES. Cinq chemins d'écriture
+   appliquaient le prorata de la loi de 1989 au loyer et recopiaient les
+   charges PLEINES à côté : un locataire sorti le 23 septembre devait 636 € de
+   loyer pour 23 jours… et 490 € de charges pour le mois entier. Constaté sur
+   les données réelles le 23/08/2026, au premier congé enregistré — le mois de
+   sortie rend le défaut visible, mais il frappait tous les mois d'entrée
+   depuis toujours.
+
+   La provision pour charges est une AVANCE sur des dépenses réelles : elle
+   suit l'occupation, comme le loyer. La régularisation annuelle corrigera,
+   mais un an plus tard — et entre-temps le locataire aura avancé un mois de
+   services dont il n'a pas eu la moitié.
+
+   ⚠️ UNE SEULE FONCTION POUR LES DEUX, et c'est le point. Cinq endroits
+   écrivaient `mfLoyerProrata(...)` pour le loyer puis `charges_bail` pour les
+   charges : cinq occasions d'oublier la seconde ligne. C'est exactement le
+   motif qui avait produit deux générateurs de loyers divergents.
+
+   ⚠️ Chaque montant est arrondi SÉPARÉMENT : la base stocke `loyer_du` et
+   `charges_dues` dans deux colonnes, et c'est chacune qui doit être juste.  */
+function sfProrataBail(loc, mois, annee) {
+  const p = mfLoyerProrata(parseFloat(loc?.loyer_bail_hc) || 0, mois, annee,
+                           loc?.date_entree, loc?.date_sortie);
+  const pleines = parseFloat(loc?.charges_bail) || 0;
+  const charges = p.jours === 0 ? 0
+                : p.prorata   ? Math.round(pleines * p.jours / p.joursMois)
+                : pleines;
+  return { loyer: p.montant, charges, jours: p.jours, joursMois: p.joursMois,
+           prorata: p.prorata };
+}
+
+// La note portée par la ligne : elle dit CE QUI a été appliqué, pas comment.
+function sfNoteProrata(p) {
+  return p?.prorata ? `Prorata loi 1989 : ${p.jours}/${p.joursMois} jours` : null;
+}
+
 // Calcule le montant prorata pour un mois donné selon la loi 1989
 function mfLoyerProrata(loyerMensuel, mois, annee, dateEntree, dateSortie) {
   const daysInMonth = mfDaysInMonth(mois, annee);
@@ -7713,7 +7752,7 @@ async function mfQuickToggleLoyer(cellEl, loyerId) {
 async function mfCreateLoyerLine(bienId, locataireId, mois, annee) {
   const loc = allLocataires.find(l => l.id === locataireId);
   if(!loc) return;
-  const prorata = mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, mois, annee, loc.date_entree, loc.date_sortie);
+  const prorata = sfProrataBail(loc, mois, annee);
   if(prorata.montant === 0) {
     showNotif('Pas d\'occupation ce mois', true);
     return;
@@ -7724,10 +7763,10 @@ async function mfCreateLoyerLine(bienId, locataireId, mois, annee) {
       bien_id: bienId,
       locataire_id: locataireId,
       mois, annee,
-      loyer_du: prorata.montant,
-      charges_dues: parseFloat(loc.charges_bail) || 0,
+      loyer_du: prorata.loyer,
+      charges_dues: prorata.charges,
       statut: 'En attente',
-      notes: prorata.prorata ? `Prorata loi 1989 : ${prorata.jours}/${prorata.joursMois} jours` : null
+      notes: sfNoteProrata(prorata)
     }, { onConflict: 'user_id,bien_id,mois,annee' })
       .select().maybeSingle();
     if(error) throw error;
@@ -7758,8 +7797,10 @@ async function mfGenerateMissingLoyers(annee) {
       const existing = mfFindLoyer(b.id, m, annee);
       if(existing) { skipped++; continue; }
 
-      const prorata = mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, m, annee, loc.date_entree, loc.date_sortie);
-      if(prorata.montant === 0) { skipped++; continue; }
+      const prorata = sfProrataBail(loc, m, annee);
+      // ⚠️ `jours` et non `loyer` : un bail à loyer nul — charges seules, cas
+      // d'un logement de fonction — doit quand même produire sa ligne.
+      if(prorata.jours === 0) { skipped++; continue; }
 
       try {
         const { data, error } = await db.from('loyers_mensuels').insert({
@@ -7767,10 +7808,10 @@ async function mfGenerateMissingLoyers(annee) {
           bien_id: b.id,
           locataire_id: loc.id,
           mois: m, annee,
-          loyer_du: prorata.montant,
-          charges_dues: parseFloat(loc.charges_bail) || 0,
+          loyer_du: prorata.loyer,
+          charges_dues: prorata.charges,
           statut: 'En attente',
-          notes: prorata.prorata ? `Prorata loi 1989 : ${prorata.jours}/${prorata.joursMois} jours` : null
+          notes: sfNoteProrata(prorata)
         }).select().maybeSingle();
         if(error) throw error;
         if(data) { allLoyers.push(data); created++; }
@@ -7930,11 +7971,16 @@ async function mfPopupConfirm() {
 
   // Locataire pour récupérer le loyer_du
   const loc = mfLocataireForBienMonth(bienId, mois, annee);
-  const prorata = loc ? mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, mois, annee, loc.date_entree, loc.date_sortie) : { montant: 0 };
-  let loyerDu = prorata.montant;
+  const prorata = loc ? sfProrataBail(loc, mois, annee) : { loyer: 0, charges: 0 };
+  let loyerDu = prorata.loyer;
+  /* ⚠️ La ligne existante fait foi sur les DEUX montants : elle peut porter un
+     prorata déjà calculé, ou un ajustement saisi à la main. Recopier
+     `charges_bail` ici écrasait la charge proratisée du mois de sortie dès
+     qu'on pointait l'encaissement. */
+  let chargesDues = prorata.charges;
   if(loyerId) {
     const l = allLoyers.find(x => x.id === loyerId);
-    if(l) loyerDu = parseFloat(l.loyer_du) || 0;
+    if(l) { loyerDu = parseFloat(l.loyer_du) || 0; chargesDues = parseFloat(l.charges_dues) || 0; }
   }
 
   let montantEnc = null;
@@ -7953,7 +7999,7 @@ async function mfPopupConfirm() {
       locataire_id: loc?.id || null,
       mois, annee,
       loyer_du: loyerDu,
-      charges_dues: parseFloat(loc?.charges_bail) || 0,
+      charges_dues: chargesDues,
       statut,
       montant_encaisse: montantEnc,
       date_encaissement: dateEnc,
@@ -8740,7 +8786,7 @@ function sfFinPreavis(dateISO, mois) {
 
    ⚠️ « Encaissée » ne se lit pas sur le seul libellé : un montant encaissé sans
    statut « Payé » reste de l'argent reçu. Même prudence qu'à `sfLoyerEtat`. */
-function sfCongeReprise(lignes, dateSortie, loyerHc, dateEntree) {
+function sfCongeReprise(lignes, dateSortie, loyerHc, dateEntree, chargesBail) {
   const vide = { prorata: null, aSupprimer: [], encaissees: [] };
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateSortie || '');
   if(!m || !Array.isArray(lignes)) return vide;
@@ -8758,11 +8804,20 @@ function sfCongeReprise(lignes, dateSortie, loyerHc, dateEntree) {
     if (l.annee === anS && l.mois === moisS && !encaissee(l)) {
       /* ⚠️ La date d'ENTRÉE entre dans le calcul : un locataire entré ET
          sorti dans le même mois n'a pas occupé depuis le 1er. Sans elle, un
-         bail du 5 au 22 août serait facturé 22 jours au lieu de 18. */
-      const p = mfLoyerProrata(parseFloat(loyerHc) || 0, moisS, anS, dateEntree || null, dateSortie);
-      const ancien = parseFloat(l.loyer_du) || 0;
-      if (p.prorata && Math.round(p.montant) !== Math.round(ancien)) {
-        out.prorata = { ligne: l, ancien, nouveau: p.montant, jours: p.jours, joursMois: p.joursMois };
+         bail du 5 au 22 août serait facturé 22 jours au lieu de 18.
+         ⚠️ LES CHARGES SUIVENT LE MÊME PRORATA que le loyer — elles restaient
+         pleines jusqu'au 23/08/2026 : 490 € de provision pour 23 jours
+         d'occupation. Voir `sfProrataBail`. */
+      const p = sfProrataBail({ loyer_bail_hc: loyerHc, charges_bail: chargesBail,
+                                date_entree: dateEntree || null, date_sortie: dateSortie },
+                              moisS, anS);
+      const ancien   = parseFloat(l.loyer_du) || 0;
+      const ancienCh = parseFloat(l.charges_dues) || 0;
+      if (p.prorata && (Math.round(p.loyer) !== Math.round(ancien)
+                     || Math.round(p.charges) !== Math.round(ancienCh))) {
+        out.prorata = { ligne: l, ancien, nouveau: p.loyer,
+                        ancienCharges: ancienCh, nouvellesCharges: p.charges,
+                        jours: p.jours, joursMois: p.joursMois };
       }
     }
   }
@@ -8971,7 +9026,8 @@ function sfCongeVueConge(loc) {
   const vide   = loc.type_bail === 'Vide';
   const sel = (a, b) => a === b ? ' est-choisi' : '';
 
-  const rep = sfCongeReprise(sfConge.lignes, sfConge.dateSortie, loc.loyer_bail_hc, loc.date_entree);
+  const rep = sfCongeReprise(sfConge.lignes, sfConge.dateSortie, loc.loyer_bail_hc,
+                             loc.date_entree, loc.charges_bail);
   const motifRequis = vide && sfConge.mois === 1;
   /* ⚠️ Une sortie ANTÉRIEURE À L'ENTRÉE supprimerait des loyers encore dus et
      laisserait le mois de sortie sans prorata : le bouton reste fermé. */
@@ -9062,9 +9118,14 @@ function sfCongeVueConge(loc) {
         <h3 class="bd-acq__st">${sfAccIcon('euro',15)} Ce que ça change aux loyers</h3>
         ${(rep.prorata || rep.aSupprimer.length || rep.encaissees.length) ? `
           <ul class="bd-acq__liste">
-            ${rep.prorata ? `<li><strong>${MOIS_LONGS[rep.prorata.ligne.mois - 1]}</strong> passe de
-              ${sfEur(rep.prorata.ancien)} à <strong>${sfEur(rep.prorata.nouveau)}</strong>
-              <em>· prorata de ${rep.prorata.jours}/${rep.prorata.joursMois} jours</em></li>` : ''}
+            ${rep.prorata ? (() => {
+              const av = rep.prorata.ancien + rep.prorata.ancienCharges;
+              const ap = rep.prorata.nouveau + rep.prorata.nouvellesCharges;
+              const avecCharges = rep.prorata.ancienCharges > 0;
+              return `<li><strong>${MOIS_LONGS[rep.prorata.ligne.mois - 1]}</strong> passe de
+                ${sfEur(av)} à <strong>${sfEur(ap)}</strong>
+                <em>· ${avecCharges ? 'loyer et charges au ' : ''}prorata de ${rep.prorata.jours}/${rep.prorata.joursMois} jours</em></li>`;
+            })() : ''}
             ${rep.aSupprimer.length ? `<li><strong>${sfNombreEnLettres(rep.aSupprimer.length, true)} échéance${rep.aSupprimer.length > 1 ? 's' : ''}</strong>
               après la sortie ${rep.aSupprimer.length > 1 ? 'seront supprimées' : 'sera supprimée'}
               <em>· ${rep.aSupprimer.map(l => MOIS_LONGS[l.mois - 1].toLowerCase()).join(', ')}</em></li>` : ''}
@@ -9106,7 +9167,9 @@ function sfCongeVueSucces(loc) {
       ${/* On COMPTE ce qui a été fait, on ne le promet pas. */''}
       <ul class="bd-acq__liste">
         <li>${r.prorata
-          ? `Le mois de sortie est repassé au prorata : <strong>${sfEur(r.prorata.nouveau)}</strong> au lieu de ${sfEur(r.prorata.ancien)}`
+          ? `Le mois de sortie est repassé au prorata : <strong>${sfEur(r.prorata.nouveau + r.prorata.nouvellesCharges)}</strong>
+             au lieu de ${sfEur(r.prorata.ancien + r.prorata.ancienCharges)}${r.prorata.ancienCharges > 0
+             ? ` <em>· loyer ${sfEur(r.prorata.nouveau)} et charges ${sfEur(r.prorata.nouvellesCharges)}</em>` : ''}`
           : `Aucun prorata à appliquer sur le mois de sortie`}</li>
         <li>${r.supprimees
           ? `<strong>${sfNombreEnLettres(r.supprimees, true)} échéance${r.supprimees > 1 ? 's' : ''}</strong> postérieure${r.supprimees > 1 ? 's' : ''} supprimée${r.supprimees > 1 ? 's' : ''}`
@@ -9170,7 +9233,8 @@ async function sfCongeConfirmer() {
   const bouton = document.getElementById('cg-ok');
   if(bouton) { bouton.disabled = true; bouton.textContent = 'Enregistrement…'; }
 
-  const rep = sfCongeReprise(sfConge.lignes, sfConge.dateSortie, loc.loyer_bail_hc, loc.date_entree);
+  const rep = sfCongeReprise(sfConge.lignes, sfConge.dateSortie, loc.loyer_bail_hc,
+                             loc.date_entree, loc.charges_bail);
   const patch = { statut: 'Préavis', date_conge_recu: sfConge.dateConge,
                   preavis_mois: sfConge.mois, preavis_motif: sfConge.motif,
                   date_sortie: sfConge.dateSortie };
@@ -9183,6 +9247,7 @@ async function sfCongeConfirmer() {
     if(rep.prorata) {
       const { error: eP } = await db.from('loyers_mensuels')
         .update({ loyer_du: rep.prorata.nouveau,
+                  charges_dues: rep.prorata.nouvellesCharges,
                   notes: `Prorata loi 1989 : ${rep.prorata.jours}/${rep.prorata.joursMois} jours` })
         .eq('id', rep.prorata.ligne.id);
       if(eP) throw eP;
@@ -9269,13 +9334,16 @@ async function sfCongeRevoquer(locId) {
     const encaissee = ligne && (ligne.statut === 'Payé' || ligne.statut === 'Partiel'
                              || (parseFloat(ligne.montant_encaisse) || 0) > 0);
     if(ligne && !encaissee) {
-      const p = mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, mo, an, loc.date_entree, null);
-      if(Math.round(p.montant) !== Math.round(parseFloat(ligne.loyer_du) || 0)) {
+      // La date de sortie vient d'être effacée : le mois redevient entier —
+      // loyer ET charges. Rendre l'un sans l'autre laisserait une provision
+      // amputée sur un mois pourtant complet.
+      const p = sfProrataBail({ ...loc, date_sortie: null }, mo, an);
+      if(Math.round(p.loyer) !== Math.round(parseFloat(ligne.loyer_du) || 0)
+      || Math.round(p.charges) !== Math.round(parseFloat(ligne.charges_dues) || 0)) {
         const { error: eR } = await db.from('loyers_mensuels')
-          .update({ loyer_du: p.montant,
-                    notes: p.prorata ? `Prorata loi 1989 : ${p.jours}/${p.joursMois} jours` : null })
+          .update({ loyer_du: p.loyer, charges_dues: p.charges, notes: sfNoteProrata(p) })
           .eq('id', ligne.id);
-        if(!eR) rendu = { mois: mo, montant: p.montant };
+        if(!eR) rendu = { mois: mo, montant: p.loyer };
       }
     }
   }
@@ -10878,19 +10946,18 @@ async function autoGenerateLoyers(loc) {
      sortie. */
   const rows = [];
   for(let m = moisDebut; m <= 12; m++) {
-    const p = mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, m, annee,
-                             loc.date_entree, loc.date_sortie);
-    if(p.montant === 0) continue;   // mois hors période d'occupation
+    const p = sfProrataBail(loc, m, annee);
+    if(p.jours === 0) continue;   // mois hors période d'occupation
     rows.push({
       user_id:       currentUser.id,
       bien_id:       loc.bien_id,
       locataire_id:  loc.id,
       mois:          m,
       annee:         annee,
-      loyer_du:      p.montant,
-      charges_dues:  loc.charges_bail || 0,
+      loyer_du:      p.loyer,
+      charges_dues:  p.charges,
       statut:        'En attente',
-      notes:         p.prorata ? `Prorata loi 1989 : ${p.jours}/${p.joursMois} jours` : null,
+      notes:         sfNoteProrata(p),
     });
   }
   if(!rows.length) return 0;

@@ -265,6 +265,21 @@ recommandation, à confirmer au moment de les écrire.
 
 ---
 
+## 5 bis. Chantiers connexes, révélés par ce plan
+
+Le préavis n'a pas créé ces défauts — il les a rendus visibles, parce qu'un mois de sortie
+est un mois partiel qu'on regarde de près.
+
+| Chantier | État |
+|---|---|
+| **Le prorata des charges** — cinq chemins proratisaient le loyer et recopiaient les charges pleines | ✅ **Fait le 23/08/2026 (v=80)**, `sfProrataBail` |
+| **L'encaissement des charges n'est suivi nulle part** — `montant_encaisse` ne solde que `loyer_du` | ⏳ Ouvert. Ce n'est pas un bug : c'est un choix jamais explicité, à trancher. |
+| **Le modèle d'état des lieux** — grille pièce par pièce, inventaire obligatoire en meublé | ⏳ Ouvert, voir `NOTE-COMPTES-RENDUS.md` |
+| **Les invariants croisés** (partie C de la migration) | ⏳ Prêts à poser : les workflows écrivent désormais ces colonnes |
+| **Renommage `comptes_rendus` + migration de l'écran** | ⏳ Ouvert, à faire d'un seul tenant |
+
+---
+
 ## 6. Ce qui reste hors périmètre, et pourquoi
 
 - **Le congé du bailleur** — décision du cadrage : motif obligatoire, notice annexée,
