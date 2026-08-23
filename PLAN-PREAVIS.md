@@ -188,7 +188,30 @@ Puis `mfEcheancesBail` est repris : délai ancré sur la **remise des clés**, *
 conforme, **2 mois** sinon, et tant que rien n'est constaté on garde le plus court en le
 disant (*« au plus tôt »*) — un rappel trop tôt est utile, l'inverse non.
 
-### Étape 5 — la box « Préavis en cours » (onglet Locataires)
+### Étape 5 — « Baux qui se terminent » (onglet Locataires) ✅ **FAITE (23/08/2026, v=79)**
+
+⚠️ **Le périmètre a changé, et c'est le test du 23/08 qui l'a imposé.** Un état des lieux
+non conforme repousse la restitution du dépôt de 1 600 € du 20 octobre au 20 novembre — et
+l'échéance **sort alors de l'échéancier**, qui ne montre que trois mois. Une obligation
+chiffrée, dont le retard coûte 10 % du loyer par mois commencé, n'était plus visible nulle
+part. Plus le constat est défavorable, plus l'échéance s'éloigne, et moins on la voit.
+
+La box ne liste donc pas « les préavis en cours » mais **ce qui reste ouvert sur un bail qui
+se termine** — trois natures, une seule question :
+- un **préavis qui court** : il part quand, et que reste-t-il à encaisser d'ici là ;
+- un **dépôt à rendre** : combien, avant quand, en retard ou non ;
+- un **état des lieux non constaté** : il fige le délai au plus court.
+
+**Une ligne par bail, pas une par obligation** — un même locataire cumule souvent le constat
+manquant et le dépôt à rendre. Aucun total, aucun pourcentage, aucune carte d'indicateur :
+des faits datés et l'action qui suit.
+
+Elle a exigé une **partie D de migration** : sans `depot_restitue_le`, un dépôt déjà rendu y
+resterait « à rendre » pour toujours, et une liste qui ne se vide jamais cesse d'être lue.
+
+Ce qui suit était la maquette d'origine :
+
+### ~~Étape 5 — la box « Préavis en cours »~~ (maquette initiale)
 Elle n'apparaît **que s'il y a au moins un préavis** — comme l'alerte des impayés. Une ligne
 par départ, quatre faits, **aucun KPI** :
 

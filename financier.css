@@ -696,3 +696,35 @@
 @media (max-width:900px){ .mfx-bilan{ grid-template-columns:minmax(0,1fr); } }
 .mfx-acts{ display:flex; gap:var(--sf-space-4); flex-wrap:wrap;
   margin-top:var(--sf-space-7); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BAUX QUI SE TERMINENT — préavis en cours et dépôts à restituer.
+   Une ligne par bail, pas une par obligation : un même locataire cumule
+   souvent l'état des lieux manquant et le dépôt à rendre. Des faits datés et
+   l'action qui suit — aucun total, aucun pourcentage, aucune carte
+   d'indicateur : le garde-fou du cadrage, « une vraie valeur sans surenchère
+   de KPI qui ne ferait que perdre l'utilisateur ».
+   ═══════════════════════════════════════════════════════════════════════════ */
+.sfx-fins{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; }
+.sfx-fin{ display:flex; align-items:flex-start; gap:var(--sf-space-5);
+  padding:var(--sf-space-5) 0; border-top:1px solid var(--sf-border); }
+.sfx-fin:first-child{ border-top:0; padding-top:0; }
+.sfx-fin__ic{ flex-shrink:0; color:var(--sf-text-3); margin-top:2px; }
+.sfx-fin__c{ flex:1; min-width:0; }
+.sfx-fin__t{ font-size:var(--sf-font-body); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text); margin:0 0 2px; }
+.sfx-fin__t em{ font-style:normal; font-weight:var(--sf-weight-regular); color:var(--sf-text-3); }
+.sfx-fin__x{ font-size:var(--sf-font-body-sm); color:var(--sf-text-2);
+  line-height:1.5; margin:0; }
+.sfx-fin__x b{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
+.sfx-fin__a{ flex-shrink:0; display:flex; flex-direction:column; gap:var(--sf-space-3);
+  align-items:stretch; }
+/* Le retard se signale par l'icône et le texte, pas par un fond rouge : la
+   ligne doit rester lisible, c'est une consigne de travail, pas une alarme. */
+.sfx-fin.est-en-retard .sfx-fin__ic{ color:var(--sf-loss); }
+
+@media (max-width: 720px){
+  .sfx-fin{ flex-wrap:wrap; }
+  .sfx-fin__a{ width:100%; flex-direction:row; }
+  .sfx-fin__a .sf-btn{ flex:1; justify-content:center; }
+}

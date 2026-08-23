@@ -30,11 +30,15 @@
 -- PARTIE B  la table `visites` accueille les états des lieux : deux types de
 --           plus, un verdict de conformité, et sa colonne `locataire_id`
 --           — présente depuis toujours, jamais utilisée — enfin indexée.
+-- PARTIE D  le suivi de la RESTITUTION du dépôt — ajoutée le 23/08/2026 avec
+--           la liste « Baux qui se terminent », qui ne se viderait jamais sans
+--           elle. Additive comme A et B.
 -- PARTIE C  les invariants croisés. ⚠️ VOLONTAIREMENT EN COMMENTAIRE : ils
 --           s'appliqueront quand le workflow de congé écrira ces colonnes,
 --           pas avant. Même discipline que la migration MODE-DETENTION, dont
 --           la partie B a attendu que les trois chemins d'écriture soient
---           alignés.
+--           alignés. Elle vient APRÈS D dans le fichier : ce qui s'exécute
+--           d'abord se lit d'abord.
 --
 -- ── CE QU'ELLE NE FAIT PAS, ET C'EST UN CHOIX ──────────────────────────────
 -- ⚠️ ELLE NE RENOMME PAS `visites` EN `comptes_rendus`. L'arbitrage du
@@ -162,6 +166,50 @@ create index if not exists idx_visites_locataire
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- PARTIE D — LA RESTITUTION DU DÉPÔT (ajoutée le 23/08/2026, étape 5)
+--
+-- Pourquoi elle n'était pas dans les parties A et B : tant qu'aucun écran ne
+-- listait « ce qui reste à faire », suivre la restitution n'apportait rien —
+-- l'arbitrage du 22/08 était explicite, « v1 : l'échéance seulement ».
+--
+-- La box « Baux qui se terminent » change la donne : sans marqueur de
+-- restitution, un dépôt déjà rendu y resterait « à rendre » POUR TOUJOURS, et
+-- une liste qui ne se vide jamais cesse d'être lue. C'est tout ce que
+-- `depot_restitue_le` sert à dire.
+--
+-- `depot_retenue` accompagne : le bailleur garde parfois une part du dépôt
+-- pour des dégradations. Sans elle, on saurait que le dépôt est rendu, mais
+-- pas combien — et le montant réellement restitué serait perdu.
+--
+-- ⚠️ SANS CETTE PARTIE, le bouton « Dépôt restitué » de la box se refuse et le
+-- dit : le code détecte l'absence de la colonne au lieu de laisser Postgres
+-- répondre « column does not exist ». Rien d'autre ne dépend d'elle.
+-- ═══════════════════════════════════════════════════════════════════════════
+alter table public.locataires
+  add column if not exists depot_restitue_le date,
+  add column if not exists depot_retenue     numeric(10,2);
+
+comment on column public.locataires.depot_restitue_le is
+  'Date à laquelle le dépôt de garantie a été rendu. NULL = pas encore restitué — c''est ce qui maintient le bail dans « Baux qui se terminent ».';
+comment on column public.locataires.depot_retenue is
+  'Part du dépôt conservée pour dégradations. Une retenue se justifie par l''état des lieux de sortie : sans constat contradictoire, elle n''est pas opposable.';
+
+-- Une retenue ne peut pas être négative.
+-- ⚠️ ET PAS « ni supérieure au dépôt versé », alors que ce serait vrai : une
+-- contrainte CROISÉE est revérifiée à CHAQUE mise à jour de la ligne. Or
+-- `saveLocataire` réécrit `depot_garantie` à chaque enregistrement de la fiche
+-- — vider ce champ après une retenue ferait échouer une modification sans
+-- rapport, avec un message Postgres brut. La règle est tenue par l'écran, qui
+-- borne la retenue au dépôt ; elle rejoint les invariants croisés de la
+-- partie C, à poser quand tous les chemins d'écriture s'y conforment.
+alter table public.locataires
+  drop constraint if exists locataires_depot_retenue_valide;
+alter table public.locataires
+  add constraint locataires_depot_retenue_valide
+  check (depot_retenue is null or depot_retenue >= 0);
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- PARTIE C — LES INVARIANTS CROISÉS
 --
 -- ⚠️ NE PAS EXÉCUTER MAINTENANT. Ils sont écrits ici pour ne pas être
@@ -195,6 +243,14 @@ create index if not exists idx_visites_locataire
 --   add constraint locataires_remise_cles_apres_entree
 --   check (date_remise_cles is null or date_entree is null
 --          or date_remise_cles >= date_entree);
+--
+-- 3 bis. Une retenue ne peut pas dépasser le dépôt versé. Croisée, donc
+--    revérifiée à chaque mise à jour de la ligne : à ne poser que le jour où
+--    `saveLocataire` cesse de réécrire `depot_garantie` sans le lire.
+--
+-- alter table public.locataires
+--   add constraint locataires_retenue_sous_le_depot
+--   check (depot_retenue is null or depot_retenue <= coalesce(depot_garantie, 0));
 --
 -- 4. Un état des lieux porte sur QUELQU'UN, et le verdict de conformité n'a
 --    de sens que sur une SORTIE.
@@ -235,7 +291,15 @@ select 'policies RLS locataires', count(*), 4
   from pg_policies where schemaname = 'public' and tablename = 'locataires'
 union all
 select 'policies RLS visites', count(*), 4
-  from pg_policies where schemaname = 'public' and tablename = 'visites';
+  from pg_policies where schemaname = 'public' and tablename = 'visites'
+union all
+select 'colonnes restitution', count(*), 2
+  from information_schema.columns
+ where table_schema = 'public' and table_name = 'locataires'
+   and column_name in ('depot_restitue_le','depot_retenue')
+union all
+select 'contrainte retenue', count(*), 1
+  from pg_constraint where conname = 'locataires_depot_retenue_valide';
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -247,7 +311,11 @@ select 'policies RLS visites', count(*), 4
 -- ═══════════════════════════════════════════════════════════════════════════
 -- alter table public.locataires
 --   drop constraint if exists locataires_preavis_mois_valide,
---   drop constraint if exists locataires_preavis_motif_valide;
+--   drop constraint if exists locataires_preavis_motif_valide,
+--   drop constraint if exists locataires_depot_retenue_valide;
+-- alter table public.locataires
+--   drop column if exists depot_restitue_le,
+--   drop column if exists depot_retenue;
 -- alter table public.locataires
 --   drop column if exists date_conge_recu,
 --   drop column if exists preavis_mois,

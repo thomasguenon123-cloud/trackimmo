@@ -8313,6 +8313,9 @@ function renderMfLocataires(c) {
   }
   const aReclamer = [...parLoc.values()].sort((a, b) => b.total - a.total);
 
+  // ── Les baux qui se terminent : préavis en cours, dépôts à restituer ──
+  const finsDeBail = sfBauxQuiSeTerminent();
+
   /* ── Ce qui arrive : trois mois, deux natures d'échéance ──────────────────
      Les LOYERS, qui reviennent chaque mois, et les DATES DE BAIL, qui
      n'arrivent qu'une fois — ce sont ces dernières qu'on oublie. Les deux
@@ -8387,6 +8390,57 @@ function renderMfLocataires(c) {
       <span style="margin-left:auto">
         <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="switchMfTab('suivi')">Ouvrir le suivi mensuel</button>
       </span>
+    </div>` : ''}
+
+    ${/* ═══ CE QUI RESTE OUVERT SUR UN BAIL QUI SE TERMINE ═══════════════════
+          N'apparaît QUE s'il y a quelque chose à faire — comme l'alerte des
+          impayés juste au-dessus. Un bloc vide en permanence apprend à ne plus
+          regarder au même endroit. */''}
+    ${finsDeBail.length ? `
+    <div class="sff-block">
+      <div class="sff-block__h">
+        <p class="sff-block__t">Baux qui se terminent</p>
+        ${/* ⚠️ Le pluriel de « bail » est « BAUX ». Un `s` aveugle écrivait
+              « Deux bails » deux lignes sous le titre « Baux qui se terminent ».
+              Même famille que « Préaviss », corrigé au kanban. */''}
+        <span class="sff-block__n">${sfNombreEnLettres(finsDeBail.length, true)} ${finsDeBail.length > 1 ? 'baux' : 'bail'} avec quelque chose à faire</span>
+      </div>
+      <div class="sff-block__b">
+        <ul class="sfx-fins">
+          ${finsDeBail.map(f => {
+            const nom  = [f.loc.prenom, f.loc.nom].filter(Boolean).join(' ') || 'Locataire';
+            const dFr  = new Date(f.date + 'T00:00:00').toLocaleDateString('fr-FR');
+            const tard = f.jours < 0;
+            const quand = tard ? `il y a ${sfNombreEnLettres(-f.jours)} jour${f.jours < -1 ? 's' : ''}`
+                       : f.jours === 0 ? `aujourd'hui`
+                       : `dans ${sfNombreEnLettres(f.jours)} jour${f.jours > 1 ? 's' : ''}`;
+            return `
+            <li class="sfx-fin${tard ? ' est-en-retard' : ''}">
+              <span class="sfx-fin__ic">${sfAccIcon(f.etape === 'preavis' ? 'horloge' : 'euro', 17)}</span>
+              <div class="sfx-fin__c">
+                <p class="sfx-fin__t">${esc(nom)}${f.bien ? ` <em>· ${esc(f.bien.titre || 'Bien')}</em>` : ''}</p>
+                ${f.etape === 'preavis' ? `
+                  <p class="sfx-fin__x"><b>Part le ${dFr}</b> — ${quand}${f.loc.preavis_mois
+                    ? ` · préavis ${f.loc.preavis_mois === 1 ? "d'un mois" : 'de trois mois'}${f.loc.preavis_motif ? ` (${esc(f.loc.preavis_motif.toLowerCase())})` : ''}` : ''}</p>
+                  ${f.reste > 0 ? `<p class="sfx-fin__x"><b>${sfEur(f.reste)}</b> restent à encaisser d'ici son départ</p>` : ''}`
+                : `
+                  <p class="sfx-fin__x"><b>${sfEur(f.dep.depot)} à restituer${tard ? '' : ` avant le ${dFr}`}</b>
+                    ${tard ? `— <span class="sf-loss">échéance dépassée ${quand}</span>` : `— ${quand}`}</p>
+                  <p class="sfx-fin__x">${esc(sfDepotDetail(f.dep))}${tard
+                    ? ` · la loi prévoit 10 % du loyer hors charges par mois commencé` : ''}</p>`}
+              </div>
+              <div class="sfx-fin__a">
+                ${f.etape === 'preavis'
+                  ? `<button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="sfSortieDemarrer('${f.loc.id}')">${sfAccIcon('check',14)} Le locataire est parti</button>`
+                  : f.aConstater
+                  ? `<button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="sfSortieDemarrer('${f.loc.id}')">${sfAccIcon('balance',14)} Constater l'état des lieux</button>
+                     <button class="sf-btn sf-btn--ghost sf-btn--sm" onclick="sfDepotRendu('${f.loc.id}')">Dépôt restitué</button>`
+                  : `<button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="sfDepotRendu('${f.loc.id}')">${sfAccIcon('check',14)} Dépôt restitué</button>`}
+              </div>
+            </li>`;
+          }).join('')}
+        </ul>
+      </div>
     </div>` : ''}
 
     <div class="sff-block">
@@ -8752,6 +8806,119 @@ function sfDepotDetail(e) {
   return e.mois === 1
     ? `Un mois après ${ancre} — état des lieux conforme`
     : `Deux mois après ${ancre} — état des lieux non conforme`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CE QUI RESTE OUVERT SUR UN BAIL QUI SE TERMINE — étape 5.
+
+   ⚠️ POURQUOI CE N'EST PAS SEULEMENT « LES PRÉAVIS EN COURS ». Le test du
+   23/08/2026 l'a montré : un état des lieux non conforme repousse la
+   restitution du dépôt de 1 600 € du 20 octobre au 20 novembre — et l'échéance
+   SORT alors de l'échéancier, qui ne montre que trois mois. Une obligation
+   chiffrée, dont le retard coûte 10 % du loyer par mois commencé, n'était plus
+   visible nulle part. Le paradoxe était complet : plus l'état des lieux est
+   défavorable, plus l'échéance s'éloigne, et plus elle a de chances de sortir
+   du champ.
+
+   Trois natures, une seule question — QU'EST-CE QUI RESTE À FAIRE ?
+     · un préavis COURT       → il part quand, et que reste-t-il à encaisser ;
+     · un dépôt À RENDRE      → combien, avant quand, et en retard ou non ;
+     · un état des lieux NON CONSTATÉ → il fige le délai au plus court.
+
+   ⚠️ UNE LIGNE PAR BAIL, pas une par obligation : un même locataire cumule
+   souvent l'état des lieux manquant et le dépôt à rendre. Deux lignes pour la
+   même personne, c'est la surenchère que le cadrage refusait.
+
+   ⚠️ Le garde-fou de Thomas, cité tel quel : « apporter une vraie valeur sans
+   tomber dans la surenchère de KPI qui ne ferait que perdre l'utilisateur. »
+   D'où : aucun total, aucun pourcentage, aucune carte d'indicateur. Des faits
+   datés et l'action qui suit.                                              */
+function sfBauxQuiSeTerminent() {
+  const auj = new Date(); auj.setHours(0, 0, 0, 0);
+  const enJours = iso => Math.round((Date.parse(iso + 'T00:00:00') - auj.getTime()) / 86400000);
+  const out = [];
+
+  for (const loc of allLocataires) {
+    const bien = loc.bien_id ? allBiens.find(b => b.id === loc.bien_id) : null;
+
+    if (loc.statut === 'Préavis' && loc.date_sortie) {
+      out.push({ etape: 'preavis', loc, bien, date: loc.date_sortie,
+                 jours: enJours(loc.date_sortie), reste: sfResteAEncaisser(loc) });
+      continue;
+    }
+
+    /* ⚠️ Un dépôt DÉJÀ RESTITUÉ sort de la liste — sans quoi elle ne se vide
+       jamais, et une liste qui ne se vide pas cesse d'être lue. C'est ce que
+       `depot_restitue_le` sert à dire, et rien d'autre. */
+    if (loc.statut === 'Sorti' && !loc.depot_restitue_le) {
+      const dep = sfEcheanceDepot(loc);
+      /* ⚠️ PASSÉ UN AN, ON SE TAIT. Les baux clos avant que cette colonne
+         n'existe ont tous `depot_restitue_le` à NULL : sans borne, chaque
+         locataire jamais parti de la base remonterait « échéance dépassée il y
+         a 400 jours ». Une ligne rouge que personne ne peut faire disparaître
+         apprend à ne plus lire la liste — c'est l'inverse du but.
+         Un an couvre très largement le délai légal (deux mois au plus) ; au-delà,
+         c'est un trou de saisie, pas une obligation vivante. */
+      if (dep?.date && enJours(dep.date) > -365) {
+        out.push({ etape: 'depot', loc, bien, date: dep.date, jours: enJours(dep.date),
+                   dep, aConstater: !dep.constate });
+      }
+    }
+  }
+  // Le plus urgent d'abord — un retard passe donc devant tout le reste.
+  return out.sort((a, b) => a.jours - b.jours);
+}
+
+/* Ce qu'il reste à encaisser sur un bail, jusqu'à son terme — arriérés
+   compris : ils restent dus, et c'est le dernier moment pour les réclamer.
+   ⚠️ On s'arrête à la SORTIE : au-delà, le bail ne couvre plus rien, et
+   `sfBailCouvre` écarte déjà ces lignes partout ailleurs. */
+function sfResteAEncaisser(loc) {
+  if(!loc?.date_sortie) return 0;
+  const m = /^(\d{4})-(\d{2})-/.exec(loc.date_sortie);
+  if(!m) return 0;
+  const anS = +m[1], moisS = +m[2];
+
+  /* ⚠️ ON ÉNUMÈRE LES MOIS, PAS LES LIGNES. Une ligne peut manquer :
+     `autoGenerateLoyers` s'arrête au 31 décembre, donc un départ en mars 2027
+     n'a aucune ligne pour janvier à mars — 2 490 € dus, invisibles si l'on se
+     contente de parcourir `allLoyers`. Même défaut que celui corrigé dans
+     `mfLoyersNonSoldes` à la revue du 13/08/2026, et même correction.
+     Deux sources de mois : les lignes existantes (les arriérés) et le
+     calendrier d'ici la sortie (ce qui reste à venir). */
+  const mois = new Set();
+  for (const l of allLoyers) if (l.locataire_id === loc.id) mois.add(`${l.annee}-${l.mois}`);
+  const auj = new Date();
+  let a = auj.getFullYear(), mo = auj.getMonth() + 1, garde = 0;
+  while ((a < anS || (a === anS && mo <= moisS)) && garde++ < 60) {
+    mois.add(`${a}-${mo}`);
+    if(++mo > 12) { mo = 1; a++; }
+  }
+
+  let reste = 0;
+  for (const cle of mois) {
+    const [an, mm] = cle.split('-').map(Number);
+    if (an > anS || (an === anS && mm > moisS)) continue;
+    // ⚠️ Les MÊMES gardes que le reste du module : hors bail, rien n'est dû.
+    if (!sfBailCouvre(loc, mm, an)) continue;
+    const l = allLoyers.find(x => x.locataire_id === loc.id && x.annee === an && x.mois === mm);
+    /* ⚠️ L'ÉTAT VIENT DE `sfLoyerEtat`, SOURCE UNIQUE — pas d'une comparaison
+       maison. Une ligne « Payé » dont le montant encaissé est resté vide est
+       SOLDÉE : la lire autrement ferait annoncer une dette que l'alerte du
+       dessus, elle, ne compte pas. */
+    if (l && sfLoyerEtat(l, mm, an, loc) === 'ok') continue;
+    /* ⚠️ LE LOYER SEUL, PAS LES CHARGES — et ce n'est pas un oubli.
+       `montant_encaisse` solde `loyer_du` partout ailleurs : l'encaissement des
+       charges n'est suivi nulle part dans la plateforme. Les ajouter ici ferait
+       annoncer 490 € encore dus sur CHAQUE mois pourtant payé. Le suivi des
+       charges est un sujet à lui seul, au backlog avec leur prorata. */
+    const du  = l ? (parseFloat(l.loyer_du) || 0)
+                  : mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, mm, an,
+                                   loc.date_entree, loc.date_sortie).montant;
+    const enc = l ? (parseFloat(l.montant_encaisse) || 0) : 0;
+    if (du > enc) reste += du - enc;
+  }
+  return reste;
 }
 
 /* Le brouillon. Rien n'est écrit tant que « Enregistrer le congé » n'est pas
@@ -9121,6 +9288,132 @@ async function sfCongeRevoquer(locId) {
   const c = document.getElementById('mf-content');
   if(c && mfTab === 'locataires') renderMfLocataires(c);
   if(currentPage === 'bien-detail') bdRefresh();
+}
+
+/* LE DÉPÔT EST RENDU — le dernier acte, celui qui referme le bail.
+
+   ⚠️ Sans lui, la liste « Baux qui se terminent » ne se vide JAMAIS : un dépôt
+   restitué y resterait à restituer, et une liste qui ne se vide pas cesse
+   d'être lue. C'est tout ce que `depot_restitue_le` sert à dire.
+
+   ⚠️ LA RETENUE SE JUSTIFIE PAR L'ÉTAT DES LIEUX, pas par une humeur : la
+   fenêtre le rappelle quand rien n'a été constaté, parce que retenir sans
+   constat contradictoire n'est pas opposable. On n'empêche pas — on prévient.
+
+   ⚠️ LES DEUX COLONNES ARRIVENT PAR MIGRATION (partie D de
+   MIGRATION-PREAVIS.sql). Tant qu'elle n'est pas passée, `select('*')` ne
+   rapporte pas la clé : on le détecte et on le DIT, au lieu de laisser
+   Postgres répondre « column does not exist » à l'utilisateur. */
+function sfDepotColonnesPretes(loc) {
+  return !!loc && Object.prototype.hasOwnProperty.call(loc, 'depot_restitue_le');
+}
+
+let sfDepot = null;
+
+function sfDepotRendu(locId) {
+  const loc = allLocataires.find(l => l.id === locId);
+  if(!loc) return;
+  if(!sfDepotColonnesPretes(loc)) {
+    showNotif('Migration à passer : la partie D de MIGRATION-PREAVIS.sql ajoute le suivi de la restitution', true);
+    return;
+  }
+  const e = sfEcheanceDepot(loc);
+  sfDepot = { locId, vue: 'depot', date: new Date().toISOString().slice(0, 10),
+              retenue: 0, echeance: e, enCours: false };
+  sfDepotRender();
+  openModal('modal-detail');
+}
+
+function sfDepotRender() {
+  if(!sfDepot) return;
+  const loc = allLocataires.find(l => l.id === sfDepot.locId);
+  if(!loc) { sfDepotFermer(); return; }
+  const nom   = [loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Ce locataire';
+  const total = parseFloat(loc.depot_garantie) || 0;
+  const ret   = Math.min(Math.max(parseFloat(sfDepot.retenue) || 0, 0), total);
+  const rendu = total - ret;
+  const e     = sfDepot.echeance;
+  const fr    = iso => iso ? new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR') : '—';
+  const tard  = e?.date && sfDepot.date > e.date;
+
+  document.getElementById('detail-titre').textContent = `Restitution du dépôt — ${nom}`;
+  document.getElementById('detail-content').innerHTML = `
+    <div class="bd-acq">
+     <div class="bd-acq__corps">
+      <p class="bd-acq__intro">Le dépôt de <strong>${sfEur(total)}</strong> versé par
+        <strong>${esc(nom)}</strong>${e?.date ? ` était à rendre avant le <strong>${fr(e.date)}</strong>` : ''}.</p>
+
+      <section class="bd-acq__s">
+        <h3 class="bd-acq__st">${sfAccIcon('agenda',15)} Date de restitution</h3>
+        <div class="bd-acq__sous">
+          <input type="date" class="sf-input" id="dp-date" value="${esc(sfDepot.date)}"
+                 onchange="sfDepotSetDate(this.value)" aria-label="Date de restitution">
+          ${tard ? `<p class="bd-acq__note sf-loss">Après l'échéance : la loi prévoit
+             <strong>10 % du loyer mensuel hors charges par mois commencé</strong> de retard.</p>` : ''}
+        </div>
+      </section>
+
+      <section class="bd-acq__s">
+        <h3 class="bd-acq__st">${sfAccIcon('euro',15)} Retenue éventuelle</h3>
+        <p class="bd-acq__sx">Ce que vous gardez sur le dépôt${e && !e.constate
+          ? ` — <strong>attention</strong>, aucun état des lieux de sortie n'est constaté : une retenue
+             sans constat contradictoire n'est pas opposable` : ''}.</p>
+        <div class="bd-acq__sous">
+          <input type="number" class="sf-input" id="dp-retenue" min="0" max="${total}" step="10"
+                 value="${esc(sfDepot.retenue)}" onchange="sfDepotSetRetenue(this.value)"
+                 aria-label="Montant retenu">
+          <ul class="bd-acq__liste" style="margin-top:var(--sf-space-5)">
+            <li>Retenu : <strong>${sfEur(ret)}</strong></li>
+            <li><strong>${sfEur(rendu)}</strong> rendus au locataire</li>
+          </ul>
+        </div>
+      </section>
+     </div>
+
+      <div class="bd-step-pied">
+        <button class="sf-btn sf-btn--ghost" onclick="sfDepotFermer()">Annuler</button>
+        <button class="sf-btn sf-btn--primary" id="dp-ok"
+                onclick="sfDepotConfirmer()">${sfAccIcon('check',16)} Enregistrer la restitution</button>
+      </div>
+    </div>`;
+  document.getElementById('modal-detail')?.classList.add('modal-overlay--acq');
+  bdAcqVerrouiller(true);
+}
+
+function sfDepotSetDate(v)    { if(sfDepot) { sfDepot.date = v || null; sfDepotRender(); } }
+function sfDepotSetRetenue(v) { if(sfDepot) { sfDepot.retenue = v; sfDepotRender(); } }
+function sfDepotFermer() {
+  bdAcqVerrouiller(false);
+  document.getElementById('modal-detail')?.classList.remove('modal-overlay--acq');
+  closeModal('modal-detail');
+  sfDepot = null;
+}
+
+async function sfDepotConfirmer() {
+  if(!sfDepot || sfDepot.enCours) return;
+  const loc = allLocataires.find(l => l.id === sfDepot.locId);
+  if(!loc) return;
+  if(!sfDepot.date) { showNotif('Indiquez la date de restitution', true); return; }
+  const total = parseFloat(loc.depot_garantie) || 0;
+  const ret   = Math.min(Math.max(parseFloat(sfDepot.retenue) || 0, 0), total);
+
+  sfDepot.enCours = true;
+  const b = document.getElementById('dp-ok');
+  if(b) { b.disabled = true; b.textContent = 'Enregistrement…'; }
+
+  const patch = { depot_restitue_le: sfDepot.date, depot_retenue: ret };
+  const { error } = await db.from('locataires').update(patch).eq('id', loc.id);
+  if(error) {
+    sfDepot.enCours = false;
+    showNotif('Erreur : ' + error.message, true);
+    sfDepotRender(); return;
+  }
+  Object.assign(loc, patch);
+  sfDepotFermer();
+  showNotif(`Dépôt restitué · ${sfEur(total - ret)} rendus${ret > 0 ? ` · ${sfEur(ret)} retenus` : ''}`);
+  await loadLocataires();
+  const c = document.getElementById('mf-content');
+  if(c && mfTab === 'locataires') renderMfLocataires(c);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

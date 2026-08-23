@@ -218,3 +218,125 @@ test('RÉGRESSION — l’échéancier n’affirme plus un état des lieux confo
                          .find(e => e.type === 'depot');
   assert.match(sansConstat.detail, /Au plus tôt/, 'on n’affirme pas ce qui n’est pas constaté');
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CE QUI RESTE OUVERT SUR UN BAIL QUI SE TERMINE — `sfBauxQuiSeTerminent`.
+   Née du test du 23/08/2026 : un état des lieux non conforme repousse la
+   restitution du dépôt de 1 600 € au-delà des trois mois de l'échéancier, et
+   l'obligation disparaît de tous les écrans. Plus le constat est défavorable,
+   plus l'échéance s'éloigne — et moins elle est visible.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const { poser: poser2, injecter: inj2 } = (() => {
+  const d = require('./donnees.js'); const c = require('./charger-app.js');
+  return { poser: d.poser, injecter: c.injecter };
+})();
+
+test('sfBauxQuiSeTerminent — un préavis en cours, avec ce qu’il reste à encaisser', () => {
+  const a = charger({ maintenant: new Date('2026-08-23T12:00:00') });
+  poser2(inj2, a, { allLocataires: [{ ...require('./donnees.js').LOCATAIRE,
+    statut: 'Préavis', date_sortie: '2026-09-23', preavis_mois: 1 }] });
+  const f = a.sfBauxQuiSeTerminent();
+  assert.equal(f.length, 1);
+  assert.equal(f[0].etape, 'preavis');
+  assert.equal(f[0].jours, 31);
+  /* Le jeu de données porte douze lignes de 830 € de loyer, encaissées en
+     janvier, mars, avril et mai : restent cinq mois dus jusqu'à la sortie.
+     ⚠️ LE LOYER SEUL — `montant_encaisse` solde `loyer_du` partout ailleurs,
+     l'encaissement des charges n'étant suivi nulle part. Compter les charges
+     ici ferait dire « 490 € encore dus » sur chaque mois pourtant payé. */
+  assert.equal(f[0].reste, 5 * 830);
+});
+
+test('RÉGRESSION — un dépôt à rendre reste visible quand l’échéance sort des trois mois', () => {
+  /* Le cas réel : clés le 20/09, état des lieux NON conforme, échéance au
+     20/11. L'échéancier s'arrête au 31/10 — sans cette liste, 1 600 € et une
+     date butoir n'apparaissaient plus nulle part. */
+  const a = charger({ maintenant: new Date('2026-08-23T12:00:00') });
+  poser2(inj2, a, { allLocataires: [{ ...require('./donnees.js').LOCATAIRE,
+    statut: 'Sorti', date_sortie: '2026-09-23', date_remise_cles: '2026-09-20',
+    edl_sortie_conforme: false, depot_garantie: 1600 }] });
+  const f = a.sfBauxQuiSeTerminent();
+  assert.equal(f.length, 1);
+  assert.equal(f[0].etape, 'depot');
+  assert.equal(f[0].date, '2026-11-20', 'deux mois après les clés');
+  assert.equal(f[0].aConstater, false);
+});
+
+test('un état des lieux non constaté est signalé, et fige le délai au plus court', () => {
+  const a = charger({ maintenant: new Date('2026-08-23T12:00:00') });
+  poser2(inj2, a, { allLocataires: [{ ...require('./donnees.js').LOCATAIRE,
+    statut: 'Sorti', date_sortie: '2026-09-23', date_remise_cles: '2026-09-20',
+    depot_garantie: 1600 }] });
+  const f = a.sfBauxQuiSeTerminent();
+  assert.equal(f[0].aConstater, true);
+  assert.equal(f[0].date, '2026-10-20', 'un mois — le plus court, tant que rien n’est constaté');
+});
+
+test('RÉGRESSION — un dépôt RESTITUÉ quitte la liste', () => {
+  // Sans cela, la liste ne se vide jamais — et une liste qui ne se vide pas
+  // cesse d'être lue.
+  const a = charger({ maintenant: new Date('2026-08-23T12:00:00') });
+  poser2(inj2, a, { allLocataires: [{ ...require('./donnees.js').LOCATAIRE,
+    statut: 'Sorti', date_sortie: '2026-09-23', date_remise_cles: '2026-09-20',
+    edl_sortie_conforme: true, depot_garantie: 1600, depot_restitue_le: '2026-10-15' }] });
+  assert.deepEqual(Array.from(a.sfBauxQuiSeTerminent()), []);
+});
+
+test('un locataire actif ou candidat n’a rien qui se termine', () => {
+  const a = charger({ maintenant: new Date('2026-08-23T12:00:00') });
+  poser2(inj2, a, { allLocataires: [
+    { ...require('./donnees.js').LOCATAIRE, statut: 'Actif' },
+    { ...require('./donnees.js').LOCATAIRE, id: 'c1', statut: 'Candidat' },
+  ]});
+  assert.deepEqual(Array.from(a.sfBauxQuiSeTerminent()), []);
+});
+
+test('le plus urgent d’abord — un retard passe devant', () => {
+  const L = require('./donnees.js').LOCATAIRE;
+  const a = charger({ maintenant: new Date('2026-12-15T12:00:00') });
+  poser2(inj2, a, { allLocataires: [
+    { ...L, id: 'l-futur',   statut: 'Préavis', date_sortie: '2027-02-28' },
+    { ...L, id: 'l-retard',  statut: 'Sorti',   date_sortie: '2026-09-23',
+      date_remise_cles: '2026-09-20', edl_sortie_conforme: true, depot_garantie: 1600 },
+  ]});
+  const f = a.sfBauxQuiSeTerminent();
+  assert.equal(f[0].loc.id, 'l-retard', 'l’échéance dépassée passe en tête');
+  assert.ok(f[0].jours < 0);
+});
+
+test('RÉGRESSION — un loyer « Payé » sans montant encaissé est SOLDÉ', () => {
+  /* `sfResteAEncaisser` comparait `loyer_du` à `montant_encaisse` sans passer
+     par `sfLoyerEtat` : une ligne pointée « Payé » dont le montant était resté
+     vide comptait comme une dette, et la box annonçait un reste que l'alerte
+     du dessus — elle, gardée — ne comptait pas. */
+  const L = require('./donnees.js').LOCATAIRE;
+  const a = charger({ maintenant: new Date('2026-08-23T12:00:00') });
+  const lignes = Array.from({ length: 9 }, (_, i) => ({
+    id: `p-${i+1}`, bien_id: L.bien_id, locataire_id: L.id, annee: 2026, mois: i + 1,
+    loyer_du: 830, charges_dues: 490, statut: 'Payé', montant_encaisse: null }));
+  poser2(inj2, a, { allLoyers: lignes,
+    allLocataires: [{ ...L, statut: 'Préavis', date_sortie: '2026-09-23' }] });
+  assert.equal(a.sfBauxQuiSeTerminent()[0].reste, 0);
+});
+
+test('RÉGRESSION — les mois SANS ligne générée comptent aussi', () => {
+  /* `autoGenerateLoyers` s'arrête au 31 décembre : un départ en mars 2027 n'a
+     aucune ligne pour janvier à mars. Parcourir `allLoyers` seul les rendait
+     invisibles — 2 490 € dus, annoncés nulle part. */
+  const L = require('./donnees.js').LOCATAIRE;
+  const a = charger({ maintenant: new Date('2027-01-10T12:00:00') });
+  poser2(inj2, a, { allLoyers: [],
+    allLocataires: [{ ...L, statut: 'Préavis', date_sortie: '2027-03-31' }] });
+  // Janvier, février, mars 2027 : trois mois pleins à 830 €.
+  assert.equal(a.sfBauxQuiSeTerminent()[0].reste, 3 * 830);
+});
+
+test('un dépôt oublié depuis plus d’un an ne remonte plus', () => {
+  // Une ligne rouge que personne ne peut faire disparaître apprend à ne plus
+  // lire la liste — c'est l'inverse du but.
+  const L = require('./donnees.js').LOCATAIRE;
+  const a = charger({ maintenant: new Date('2026-08-23T12:00:00') });
+  poser2(inj2, a, { allLocataires: [{ ...L, statut: 'Sorti', date_sortie: '2024-01-31',
+    date_remise_cles: '2024-01-31', edl_sortie_conforme: true, depot_garantie: 1600 }] });
+  assert.deepEqual(Array.from(a.sfBauxQuiSeTerminent()), []);
+});
