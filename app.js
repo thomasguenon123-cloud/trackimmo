@@ -12750,9 +12750,16 @@ function visiteForm(v) {
       <div class="photos-preview-grid" id="photos-preview"></div>
     </div>
     <div class="modal-actions">
-      ${v?`<button class="btn btn-danger" onclick="deleteVisite('${v.id}')">${sfAccIcon('poubelle',14)} Supprimer</button>`:''}
+      ${/* ⚠️ LE PIED SE DÉCIDE SUR L'IDENTIFIANT, PAS SUR L'OBJET. Depuis que
+            l'acte de sortie pré-remplit le formulaire, `v` peut être un
+            BROUILLON — un objet vrai, mais sans `id`. Le pied y voyait un
+            compte rendu existant : il proposait « Supprimer » sur une fiche
+            qui n'existe pas, et enregistrait via `saveVisite('undefined')`,
+            que Postgres rejetait en « invalid input syntax for type uuid ».
+            Trouvé au premier état des lieux réel, le 23/08/2026. */''}
+      ${v?.id?`<button class="btn btn-danger" onclick="deleteVisite('${v.id}')">${sfAccIcon('poubelle',14)} Supprimer</button>`:''}
       <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Annuler</button>
-      <button class="btn btn-primary" onclick="saveVisite(${v?`'${v.id}'`:'null'})">${v?sfAccIcon('check',14)+' Enregistrer':'＋ Créer la visite'}</button>
+      <button class="btn btn-primary" onclick="saveVisite(${v?.id?`'${v.id}'`:'null'})">${v?.id?sfAccIcon('check',14)+' Enregistrer':'＋ Créer le compte rendu'}</button>
     </div>
   `;
 }

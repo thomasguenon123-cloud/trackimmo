@@ -167,6 +167,32 @@ bail, et **propose d'ouvrir le compte rendu pré-rempli** (date = remise des cl�
 
 ---
 
+## 4 bis. Au backlog — le MODÈLE d'état des lieux (demandé par Thomas le 23/08/2026)
+
+Aujourd'hui un état des lieux est un champ de notes libre. Or un constat sérieux se fait
+**pièce par pièce**, et il liste ce qui se compte : sols, murs, plafonds, ouvrants,
+équipements, **relevés de compteurs**, **nombre de clés remises** — et, en meublé,
+**l'inventaire du mobilier**.
+
+⚠️ Ce n'est pas qu'un confort de saisie : en location meublée, l'inventaire du mobilier
+est **obligatoire** et le logement doit contenir la liste d'équipements fixée par décret
+(literie, plaques de cuisson, four, réfrigérateur, **vaisselle et ustensiles**, table et
+sièges, rangements, luminaires, matériel d'entretien). Un état des lieux de sortie sans
+inventaire d'entrée en face ne permet de retenir **aucune** dégradation sur le dépôt :
+il n'y a rien à comparer. Le bail concerné — Test V1 — est justement un meublé.
+
+Trois façons de le faire, à arbitrer le moment venu :
+1. un **gabarit de texte** pré-rempli dans le champ de notes — coût nul, aucune structure ;
+2. une **grille structurée** (pièces × état) stockée en `jsonb` sur le compte rendu — se
+   compare d'un état des lieux à l'autre, et c'est là tout l'intérêt ;
+3. un **document imprimable** à signer, généré depuis la grille.
+
+Ma recommandation : **2 puis 3**. La grille est ce qui rend la comparaison entrée/sortie
+possible ; l'impression n'est qu'une vue de la grille. Le gabarit de texte donnerait
+l'illusion d'avancer sans jamais permettre de comparer quoi que ce soit.
+
+---
+
 ## 5. Ce qu'il me manque
 
 | # | Question | Ma recommandation |
