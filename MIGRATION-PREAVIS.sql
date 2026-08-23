@@ -18,6 +18,11 @@
 --      · données inchangées : 2 locataires (1 en préavis), 2 comptes rendus
 --        de type « achat », 31 lignes de loyers.
 --
+-- ✅ PARTIE D APPLIQUÉE par Thomas le 23/08/2026, vérifiée en lecture le jour
+--    même : 2 colonnes aux bons types (date · numeric), toutes deux nullables,
+--    contrainte `locataires_depot_retenue_valide` posée, commentaires en place,
+--    RLS intacte (4 policies), 0 ligne renseignée.
+--
 -- ⏳ RESTE LES COMMENTAIRES DE COLONNES (bloc facultatif en fin de partie A) :
 --    ils n'étaient pas dans les blocs transmis le 22/08 — mon oubli. Ils ne
 --    changent aucun comportement, mais ils font apparaître dans l'éditeur
