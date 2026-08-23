@@ -36,6 +36,26 @@ moment-là, pas une refonte.
 
 ---
 
+## 0 bis. Ce qui a été fait le 23/08/2026 (v=77)
+
+L'architecture A est en place, **sans le renommage ni la migration de l'écran** :
+
+- `type_visite` accepte les **quatre natures** (`SF_CR_TYPES` côté code, contrainte côté base),
+  et les libellés viennent d'une source unique — quatre ternaires à deux branches disparaissent ;
+- **`locataire_id` sort de sa dormance** : le formulaire le demande, `saveVisite` l'écrit, et un
+  état des lieux sans locataire est refusé ;
+- `conforme` est saisi sur les seuls états des lieux **de sortie** ;
+- ⚠️ **le constat met à jour la conclusion** : enregistrer un EDL de sortie reporte son verdict
+  sur `locataires.edl_sortie_conforme`, donc sur le délai de restitution du dépôt. **Un seul
+  sens** — du constat vers le bail. Sans ce report, la fenêtre de sortie promettait « le délai
+  sera recalculé » alors que rien ne le recalculait (§4 de cette note : deux faits différents,
+  mais pas indépendants).
+
+Restent à faire, ensemble : le **renommage** en `comptes_rendus` et la **migration de l'écran**
+à la charte Stonefolio.
+
+---
+
 ## 1. Ce qui existe déjà — la section n'est pas à construire, elle est à reprendre
 
 La fonctionnalité **existe et tourne**. Ce qui n'a pas été fait, c'est sa **migration à la

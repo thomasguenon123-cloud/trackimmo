@@ -91,6 +91,10 @@
    consécutifs alourdiraient une carte qui doit se lire d'un coup d'œil. */
 .mfx-loccard__pied{ margin-top:var(--sf-space-4); display:flex; }
 .mfx-loccard__pied .sf-btn{ width:100%; justify-content:center; }
+/* Deux actes sur une carte en préavis : le départ, puis le retrait du congé.
+   L'un sous l'autre — côte à côte, deux boutons de cette largeur se coupent
+   les libellés au premier rétrécissement de colonne. */
+.mfx-loccard__pied--deux{ flex-direction:column; gap:var(--sf-space-3); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CE QUI ARRIVE — trois mois côte à côte
@@ -172,6 +176,13 @@
 .mfk-col--candidat .mfk-col__h{ box-shadow:inset 0 2px 0 var(--sf-brand-vivid); }
 .mfk-col--actif    .mfk-col__h{ box-shadow:inset 0 2px 0 var(--sf-gain); }
 .mfk-col--preavis  .mfk-col__h{ box-shadow:inset 0 2px 0 var(--sf-alert); }
+
+/* Le glisser-déposer : la colonne visée se signale, la carte prise s'efface.
+   Repris du kanban des biens, aux jetons Stonefolio près. */
+.mfk-col.drag-over{ background:var(--sf-brand-wash); outline:2px dashed var(--sf-brand-vivid);
+  outline-offset:-4px; }
+.mfx-loccard[draggable="true"]{ cursor:grab; }
+.mfx-loccard.est-glissee{ opacity:.4; }
 .mfk-col--sorti    .mfk-col__h{ box-shadow:inset 0 2px 0 var(--sf-text-3); }
 /* Dans une colonne, la carte occupe toute la largeur : la grille de cartes
    d'origine (`.mfx-loccards`) n'a plus lieu d'être ici. */

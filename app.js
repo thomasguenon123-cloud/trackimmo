@@ -2455,6 +2455,9 @@ function renderKanbanCard(b, draggable=true) {
 function kanbanDragStart(e, id) {
   draggedBienId = id;
   e.dataTransfer.effectAllowed = 'move';
+  // Même omission que sur l'annuaire, trouvée en revue le 23/08/2026 : Firefox
+  // ne démarre pas un glisser sans donnée transportée.
+  try { e.dataTransfer.setData('text/plain', id); } catch(_) {}
   setTimeout(()=>e.target.classList.add('dragging'), 0);
 }
 function kanbanDragEnd(e) {
@@ -4167,7 +4170,7 @@ async function renderBienDetail(el) {
                 ? `<div class="sff-list">${visites.map(v=>`
                     <div class="sff-row" onclick="openDetailVisite('${v.id}')">
                       <div class="sff-row__d">${fmtActionDate(v.date_visite)}</div>
-                      <div class="sff-row__m">${v.type_visite==='locataire'?'Visite locataire':'Visite achat'}${v.adresse?` — ${esc(v.adresse)}`:''}
+                      <div class="sff-row__m">${esc(sfCrLabel(v.type_visite))}${v.adresse?` — ${esc(v.adresse)}`:''}
                         ${v.notes?`<div class="sff-row__s">${esc(v.notes.slice(0,110))}${v.notes.length>110?'…':''}</div>`:''}
                       </div>
                       ${v.note_sur_5?`<span class="sff-stars" title="${v.note_sur_5} sur 5">${sfAccIcon('etoile',13).repeat(v.note_sur_5)}</span>`:''}
@@ -8270,17 +8273,15 @@ function mfEcheancesBail(loc, bien) {
   if(loc.date_sortie) {
     const sortie = new Date(loc.date_sortie);
     if(loc.statut === 'Préavis') ajoute(sortie, 'preavis', `Départ — ${nomLoc}`, 'Fin de préavis');
-    const depot = parseFloat(loc.depot_garantie) || 0;
-    if(depot > 0) {
-      /* ⚠️ `setMonth(+1)` DÉBORDE, exactement comme il débordait sur le calcul
-         du préavis : une sortie au 31 janvier donnait « 31 février », reporté
-         au 3 mars. `sfFinPreavis` fait le même « + N mois » en ramenant au
-         dernier jour du mois cible — une seule arithmétique de date pour les
-         deux, plutôt qu'une juste et une fausse. */
-      const rest = new Date((sfFinPreavis(loc.date_sortie, 1) || '') + 'T00:00:00');
+    /* La restitution du dépôt : ancrée sur la REMISE DES CLÉS quand elle est
+       connue, un ou deux mois selon l'état des lieux. Tout est dans
+       `sfEcheanceDepot` — la même règle sert ici et dans la fenêtre de sortie,
+       qui l'annonce avant d'écrire. */
+    const dep = sfEcheanceDepot(loc);
+    if(dep?.date) {
+      const rest = new Date(dep.date + 'T00:00:00');
       const e = { d: rest, type: 'depot', libelle: `Restituer le dépôt — ${nomLoc}`,
-                  detail: 'Un mois après la sortie, état des lieux conforme',
-                  loc, bien, montant: depot };
+                  detail: sfDepotDetail(dep), loc, bien, montant: dep.depot };
       if(!isNaN(rest)) out.push(e);
     }
   }
@@ -8404,16 +8405,21 @@ function renderMfLocataires(c) {
               qu'un préavis court.
               L'ordre des colonnes suit LOC_STATUTS — Candidat · Actif · Préavis ·
               Sorti — c'est le cycle de vie d'un locataire, de l'entrée à la sortie.
-              ⚠️ PAS DE GLISSER-DÉPOSER pour l'instant : déposer une carte dans
-              « Préavis » n'a de sens qu'avec le workflow de congé, qui reste à
-              cadrer. Sans lui, on créerait un locataire en préavis SANS date de
-              sortie — une donnée incomplète et silencieuse. */''}
+              ⚠️ LE GLISSER-DÉPOSER EST ARRIVÉ le 23/08/2026, et pas avant :
+              il exigeait que les deux actes existent — le congé et la sortie.
+              Un dépôt OUVRE un acte, il n'écrit pas un statut. Trois
+              transitions seulement en ont un ; les autres rendent la carte et
+              disent par où passer. Voir `sfLocDrop`. */''}
         ${allLocataires.length ? `
           <div class="mfk-board">
             ${LOC_STATUTS.map(st => {
               const dedans = allLocataires.filter(l => l.statut === st);
               return `
-              <section class="mfk-col mfk-col--${st === 'Actif' ? 'actif' : st === 'Préavis' ? 'preavis' : st === 'Sorti' ? 'sorti' : 'candidat'}">
+              <section class="mfk-col mfk-col--${st === 'Actif' ? 'actif' : st === 'Préavis' ? 'preavis' : st === 'Sorti' ? 'sorti' : 'candidat'}"
+                       data-statut="${esc(st)}"
+                       ondragover="sfLocDragOver(event,this)"
+                       ondragleave="sfLocDragLeave(event)"
+                       ondrop="sfLocDrop(event,this)">
                 <header class="mfk-col__h">
                   ${/* ⚠️ « Préavis » finit déjà par un s : un pluriel aveugle
                         écrivait « Préaviss ». Le libellé vient de LOC_STATUTS. */''}
@@ -8511,7 +8517,9 @@ function mfCarteLocataire(l) {
   const dus = impayes.reduce((s, x) => s + (x.reste || 0), 0);
 
   return `
-    <article class="mfx-loccard${dus > 0 ? ' est-en-retard' : ''}" onclick="openLocataireModal('${l.id}')">
+    <article class="mfx-loccard${dus > 0 ? ' est-en-retard' : ''}"
+             draggable="true" ondragstart="sfLocDragStart(event,'${l.id}')" ondragend="sfLocDragEnd(event)"
+             onclick="openLocataireModal('${l.id}')">
       <span class="mfx-loccard__st"><span class="sf-pill ${pill}">${esc(l.statut || 'Candidat')}</span></span>
       <div class="mfx-loccard__h">
         <div class="mfx-loccard__av">${esc(initiales)}</div>
@@ -8551,8 +8559,23 @@ function mfCarteLocataire(l) {
             ${sfAccIcon('agenda', 14)} Enregistrer un congé
           </button>
         </div>` : ''}
-      ${l.statut === 'Préavis' ? `
+      ${/* ⚠️ DEUX SORTIES POSSIBLES pour un préavis, et elles ne se valent pas :
+            le départ ARRIVE (l'acte de sortie), ou le congé est RETIRÉ (le
+            locataire se rétracte). La première est la suite normale, elle
+            porte donc le bouton plein ; la seconde reste discrète. */''}
+      ${/* Une sortie enregistrée sans état des lieux se corrige : c'est ce
+            constat qui décide d'un ou deux mois pour rendre le dépôt. */''}
+      ${l.statut === 'Sorti' && l.date_sortie ? `
         <div class="mfx-loccard__pied">
+          <button class="sf-btn sf-btn--ghost sf-btn--sm" onclick="event.stopPropagation();sfSortieDemarrer('${l.id}')">
+            ${sfAccIcon('balance', 14)} ${l.edl_sortie_conforme == null ? "Constater l'état des lieux" : 'Corriger la sortie'}
+          </button>
+        </div>` : ''}
+      ${l.statut === 'Préavis' ? `
+        <div class="mfx-loccard__pied mfx-loccard__pied--deux">
+          <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="event.stopPropagation();sfSortieDemarrer('${l.id}')">
+            ${sfAccIcon('check', 14)} Le locataire est parti
+          </button>
           <button class="sf-btn sf-btn--ghost sf-btn--sm" onclick="event.stopPropagation();sfCongeRevoquer('${l.id}')">
             ${sfAccIcon('retour', 14)} Annuler le congé
           </button>
@@ -8593,6 +8616,28 @@ function mfCarteLocataire(l) {
    `locataires_preavis_motif_valide` porte exactement ces huit chaînes. Une
    variante d'orthographe ici ferait échouer l'enregistrement au dernier
    moment, après que l'utilisateur a tout saisi. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   LES QUATRE NATURES DE COMPTE RENDU.
+
+   ⚠️ LES CLÉS SONT CELLES DE LA BASE — `visites_type_visite_check` porte
+   exactement ces quatre valeurs depuis la migration du 22/08/2026. En changer
+   une ici sans changer la contrainte ferait échouer l'enregistrement au
+   dernier moment, après que tout a été saisi.
+
+   Un état des lieux n'est pas une visite : les deux premières sont des
+   IMPRESSIONS, notées sur cinq ; les deux dernières sont des CONSTATS, qui
+   portent un verdict et déclenchent un délai. Même support — une date, un
+   bien, une personne, des notes, des photos — d'où la table commune.
+   Voir NOTE-COMPTES-RENDUS.md pour l'arbitrage.                            */
+const SF_CR_TYPES = {
+  achat:      { court: 'Achat',     long: 'Visite achat' },
+  locataire:  { court: 'Locataire', long: 'Visite locataire' },
+  edl_entree: { court: 'EDL entrée', long: "État des lieux d'entrée" },
+  edl_sortie: { court: 'EDL sortie', long: 'État des lieux de sortie' },
+};
+const sfCrLabel   = (t, forme = 'long') => SF_CR_TYPES[t]?.[forme] || SF_CR_TYPES.achat[forme];
+const sfCrEstEdl  = t => t === 'edl_entree' || t === 'edl_sortie';
+
 const SF_PREAVIS_MOTIFS = [
   'Zone tendue', 'Logement social', 'RSA ou AAH', 'État de santé',
   'Violences conjugales', 'Premier emploi', 'Mutation professionnelle',
@@ -8668,6 +8713,45 @@ function sfCongeReprise(lignes, dateSortie, loyerHc, dateEntree) {
     }
   }
   return out;
+}
+
+/* QUAND FAUT-IL AVOIR RENDU LE DÉPÔT — fonction PURE, donc testable.
+
+   Deux règles de la loi de 1989, et une seule des deux était appliquée :
+     · le délai court depuis la REMISE DES CLÉS, pas depuis la fin du bail —
+       un locataire peut partir trois semaines avant son terme ;
+     · il vaut UN mois si l'état des lieux de sortie est conforme à celui
+       d'entrée, DEUX sinon.
+
+   ⚠️ Ce que faisait `mfEcheancesBail` jusqu'au 23/08/2026 : `date_sortie + 1
+   mois`, avec le détail « état des lieux conforme » — une affirmation que rien
+   n'établissait, sur une date qui n'était pas la bonne. Deux approximations
+   dans le même libellé.
+
+   ⚠️ TANT QUE RIEN N'EST CONSTATÉ, on retient le PLUS COURT et on le dit :
+   un rappel qui arrive trop tôt est utile, l'inverse coûte 10 % du loyer par
+   mois de retard. `constate` sert à l'écrire — « au plus tôt ».            */
+function sfEcheanceDepot(loc) {
+  const depot = parseFloat(loc?.depot_garantie) || 0;
+  if(!depot) return null;
+  const ancre = loc.date_remise_cles || loc.date_sortie;
+  if(!ancre) return null;
+  const conforme = loc.edl_sortie_conforme;
+  const mois = conforme === false ? 2 : 1;
+  return { date: sfFinPreavis(ancre, mois), mois, depot,
+           surCles: !!loc.date_remise_cles,
+           constate: conforme === true || conforme === false };
+}
+
+/* La phrase qui accompagne l'échéance. Elle dit CE QU'ON SAIT, et nomme ce
+   qu'on ignore — jamais l'inverse. */
+function sfDepotDetail(e) {
+  if(!e) return '';
+  const ancre = e.surCles ? 'la remise des clés' : 'la sortie';
+  if(!e.constate) return `Au plus tôt un mois après ${ancre} — état des lieux non constaté`;
+  return e.mois === 1
+    ? `Un mois après ${ancre} — état des lieux conforme`
+    : `Deux mois après ${ancre} — état des lieux non conforme`;
 }
 
 /* Le brouillon. Rien n'est écrit tant que « Enregistrer le congé » n'est pas
@@ -9037,6 +9121,320 @@ async function sfCongeRevoquer(locId) {
   const c = document.getElementById('mf-content');
   if(c && mfTab === 'locataires') renderMfLocataires(c);
   if(currentPage === 'bien-detail') bdRefresh();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LA SORTIE — étape 4 du PLAN-PREAVIS. « Le locataire est parti. »
+
+   Le congé annonce un départ ; la sortie le CONSTATE. Et c'est ce constat, pas
+   la fin du bail, qui met en marche l'horloge du dépôt de garantie :
+     · le délai court depuis la REMISE DES CLÉS ;
+     · il vaut UN mois si l'état des lieux est conforme à celui d'entrée,
+       DEUX sinon ;
+     · le retard coûte 10 % du loyer mensuel hors charges par mois commencé.
+
+   ⚠️ POURQUOI DEMANDER ICI, ET PAS AU CONGÉ. Au moment du congé, ni la date
+   des clés ni la conformité ne sont connues — les inscrire alors aurait été
+   inventer. On demande quand la réponse existe : c'est la même règle que la
+   zone tendue, qu'on demande au lieu de la déduire.
+
+   ⚠️ RENDRE LES CLÉS PLUS TÔT NE RACCOURCIT PAS LE BAIL. Le loyer reste dû
+   jusqu'au terme du préavis, sauf relocation avant l'échéance — la fenêtre le
+   dit, parce que c'est précisément la question qu'on se pose en recevant les
+   clés en avance. Aucun loyer n'est donc retouché ici : la sortie ne change
+   pas ce qui est dû, elle constate un état.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let sfSortie = null;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LE GLISSER-DÉPOSER DE L'ANNUAIRE — la réserve du cadrage se lève ici.
+
+   ⚠️ Il était VOLONTAIREMENT ABSENT depuis le 16/08/2026 : déposer une carte
+   dans « Préavis » aurait créé un locataire en préavis SANS DATE DE SORTIE,
+   donc une donnée incomplète et silencieuse. Il arrive aujourd'hui parce que
+   les DEUX actes existent — le congé et la sortie — et qu'un dépôt ouvre
+   désormais un acte au lieu d'écrire un statut. Exactement le patron du
+   kanban des biens, où déposer dans « Finalisé » ouvre l'acquisition.
+
+   ⚠️ TROIS TRANSITIONS SEULEMENT ont un acte derrière elles. Les autres ne
+   sont pas refusées en silence : la carte revient à sa colonne et l'écran dit
+   POURQUOI, et par où passer. Un geste qui ne fait rien sans un mot est pire
+   qu'un geste impossible.                                                   */
+let sfLocDrag = null;
+
+function sfLocDragStart(e, id) {
+  sfLocDrag = id;
+  e.dataTransfer.effectAllowed = 'move';
+  // ⚠️ Firefox REFUSE de démarrer un glisser dont le `dataTransfer` est vide :
+  // sans cette ligne, tout le tableau est inerte sur ce navigateur.
+  try { e.dataTransfer.setData('text/plain', id); } catch(_) {}
+  setTimeout(() => e.target.classList.add('est-glissee'), 0);
+}
+function sfLocDragEnd(e) {
+  e.target.classList.remove('est-glissee');
+  document.querySelectorAll('.mfk-col').forEach(c => c.classList.remove('drag-over'));
+}
+function sfLocDragOver(e, colEl) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  colEl.classList.add('drag-over');
+}
+function sfLocDragLeave(e) {
+  if(!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('drag-over');
+}
+
+async function sfLocDrop(e, colEl) {
+  e.preventDefault();
+  colEl.classList.remove('drag-over');
+  const id = sfLocDrag; sfLocDrag = null;
+  if(!id) return;
+  const loc = allLocataires.find(l => l.id === id);
+  if(!loc) return;
+  const cible = colEl.dataset.statut;
+  if(!cible || cible === loc.statut) return;
+
+  /* La carte est rendue à sa colonne AVANT d'ouvrir quoi que ce soit : tant
+     que l'acte n'est pas confirmé, rien n'a bougé — ni en base, ni à l'écran.
+     Même règle qu'au dépôt dans « Finalisé ». */
+  const c = document.getElementById('mf-content');
+  if(c && mfTab === 'locataires') renderMfLocataires(c);
+
+  if(loc.statut === 'Actif'   && cible === 'Préavis') return sfCongeDemarrer(id);
+  if(loc.statut === 'Préavis' && cible === 'Sorti')   return sfSortieDemarrer(id);
+  if(loc.statut === 'Préavis' && cible === 'Actif')   return sfCongeRevoquer(id);
+
+  // Ce qui n'a pas d'acte — on dit où ça se passe, au lieu de ne rien faire.
+  if(loc.statut === 'Actif' && cible === 'Sorti')
+    return showNotif("Enregistrez d'abord le congé : la sortie constate un départ annoncé", true);
+  if(loc.statut === 'Candidat' && cible === 'Actif')
+    return showNotif("L'activation passe par la fiche : il faut un bien et une date d'entrée", true);
+  if(loc.statut === 'Sorti')
+    return showNotif('Un locataire sorti ne se réactive pas — créez un nouveau bail', true);
+  showNotif('Ce déplacement ne correspond à aucune étape du bail', true);
+}
+
+async function sfSortieDemarrer(locId) {
+  const loc = allLocataires.find(l => l.id === locId);
+  if(!loc) { showNotif('Locataire introuvable', true); return; }
+  /* ⚠️ « Sorti » EST ACCEPTÉ, et c'est nécessaire : une sortie enregistrée
+     « pas encore constaté » doit pouvoir être corrigée quand l'état des lieux
+     est fait. Sans ce chemin, le délai de restitution restait figé à un mois
+     pour toujours. Refuser un locataire actif reste juste : la sortie
+     CONSTATE un départ annoncé, elle ne le décide pas. */
+  if(loc.statut !== 'Préavis' && loc.statut !== 'Sorti') {
+    showNotif("La sortie se constate après un congé enregistré", true); return;
+  }
+  sfSortie = { locId, vue: 'sortie', correction: loc.statut === 'Sorti',
+               dateCles: loc.date_remise_cles || loc.date_sortie
+                         || new Date().toISOString().slice(0, 10),
+               conforme: loc.edl_sortie_conforme ?? null,
+               enCours: false, resume: null };
+  sfSortieRender();
+  openModal('modal-detail');
+}
+
+function sfSortieRender() {
+  if(!sfSortie) return;
+  const loc = allLocataires.find(l => l.id === sfSortie.locId);
+  if(!loc) { sfSortieFermer(); return; }
+  const { titre, corps } = sfSortie.vue === 'succes'
+    ? sfSortieVueSucces(loc) : sfSortieVueSortie(loc);
+  document.getElementById('detail-titre').textContent = titre;
+  document.getElementById('detail-content').innerHTML = corps;
+  document.getElementById('modal-detail')?.classList.add('modal-overlay--acq');
+  bdAcqVerrouiller(sfSortie.vue !== 'succes');
+}
+
+// ── Vue 1 : les clés, et l'état des lieux ─────────────────────────────────
+function sfSortieVueSortie(loc) {
+  const nom  = [loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Ce locataire';
+  const bien = loc.bien_id ? allBiens.find(b => b.id === loc.bien_id) : null;
+  const fr   = iso => iso ? new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR') : '—';
+  const sel  = (a, b) => a === b ? ' est-choisi' : '';
+
+  // L'échéance du dépôt, calculée sur le BROUILLON : elle bouge sous les yeux.
+  const dep = sfEcheanceDepot({ ...loc, date_remise_cles: sfSortie.dateCles,
+                                edl_sortie_conforme: sfSortie.conforme });
+  const avantTerme = !!loc.date_sortie && !!sfSortie.dateCles && sfSortie.dateCles < loc.date_sortie;
+  const avantEntree = !!loc.date_entree && !!sfSortie.dateCles && sfSortie.dateCles < loc.date_entree;
+  const pret = !!sfSortie.dateCles && !avantEntree;
+
+  return { titre: `${sfSortie.correction ? 'Corriger la sortie' : 'Sortie'} — ${nom}`, corps: `
+    <div class="bd-acq">
+     <div class="bd-acq__corps">
+      <p class="bd-acq__intro"><strong>${esc(nom)}</strong> a quitté
+        ${bien ? `<strong>${esc(bien.titre || 'le logement')}</strong>` : 'le logement'}.
+        C'est la <strong>remise des clés</strong> qui fait courir le délai de restitution du
+        dépôt de garantie — pas la fin du bail.</p>
+
+      <section class="bd-acq__s">
+        <h3 class="bd-acq__st">${sfAccIcon('agenda',15)} Remise des clés</h3>
+        <p class="bd-acq__sx">Le jour où vous avez récupéré les clés${loc.date_sortie ? ` · fin de bail au ${fr(loc.date_sortie)}` : ''}.</p>
+        <div class="bd-acq__sous">
+          <input type="date" class="sf-input" id="so-cles" value="${esc(sfSortie.dateCles || '')}"
+                 onchange="sfSortieSetCles(this.value)" aria-label="Date de remise des clés">
+          ${avantEntree
+            ? `<p class="bd-acq__note sf-loss">Les clés ne peuvent pas être rendues avant l'entrée
+                 dans les lieux (${esc(fr(loc.date_entree))}).</p>`
+            : avantTerme
+            ? `<p class="bd-acq__note">Les clés reviennent <strong>avant le terme du bail</strong>.
+                 Les loyers restent dus jusqu'au ${esc(fr(loc.date_sortie))} : partir plus tôt ne
+                 raccourcit pas le préavis, sauf relocation d'ici là.</p>` : ''}
+        </div>
+      </section>
+
+      <section class="bd-acq__s">
+        <h3 class="bd-acq__st">${sfAccIcon('balance',15)} État des lieux de sortie</h3>
+        <p class="bd-acq__sx">Comparé à celui d'entrée. C'est lui qui fixe le délai : <strong>un mois</strong>
+          s'il est conforme, <strong>deux</strong> sinon.</p>
+        <div class="bd-acq__choix bd-acq__choix--3">
+          <button type="button" class="bd-choix${sel(sfSortie.conforme, true)}" onclick="sfSortieSetConforme(true)">
+            <span class="bd-choix__t">Conforme</span>
+            <span class="bd-choix__x">Rien à retenir</span>
+          </button>
+          <button type="button" class="bd-choix${sel(sfSortie.conforme, false)}" onclick="sfSortieSetConforme(false)">
+            <span class="bd-choix__t">Non conforme</span>
+            <span class="bd-choix__x">Dégradations constatées</span>
+          </button>
+          <button type="button" class="bd-choix${sel(sfSortie.conforme, null)}" onclick="sfSortieSetConforme(null)">
+            <span class="bd-choix__t">Pas encore constaté</span>
+            <span class="bd-choix__x">L'état des lieux reste à faire</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="bd-acq__s">
+        <h3 class="bd-acq__st">${sfAccIcon('euro',15)} Restitution du dépôt</h3>
+        ${dep?.date ? `
+          <ul class="bd-acq__liste">
+            <li><strong>${sfEur(dep.depot)}</strong> à restituer <strong>avant le ${esc(fr(dep.date))}</strong>
+              <em>· ${esc(sfDepotDetail(dep))}</em></li>
+            ${!dep.constate ? `<li>Le délai sera <strong>recalculé</strong> dès que l'état des lieux sera
+              renseigné — deux mois s'il n'est pas conforme.</li>` : ''}
+            <li>Passé ce terme, la loi prévoit <strong>10 % du loyer mensuel hors charges par mois
+              commencé</strong> de retard.</li>
+          </ul>`
+        : `<p class="bd-acq__sx">Aucun dépôt de garantie n'est enregistré sur ce bail : rien à restituer.</p>`}
+      </section>
+
+      <section class="bd-acq__s">
+        <h3 class="bd-acq__st">${sfAccIcon('carnet',15)} Le constat lui-même</h3>
+        <p class="bd-acq__sx">L'état des lieux est un <strong>compte rendu</strong> : une date, un bien, un
+          locataire, des observations et des photos. Vous pourrez le rédiger juste après, pré-rempli.</p>
+      </section>
+     </div>
+
+      <div class="bd-step-pied">
+        <button class="sf-btn sf-btn--ghost" onclick="sfSortieFermer()">Annuler</button>
+        <button class="sf-btn sf-btn--primary" id="so-ok" ${pret ? '' : 'disabled'}
+                onclick="sfSortieConfirmer()">${sfAccIcon('check',16)} ${sfSortie.correction ? 'Enregistrer la correction' : 'Enregistrer la sortie'}</button>
+      </div>
+    </div>` };
+}
+
+// ── Vue 2 : c'est constaté ────────────────────────────────────────────────
+function sfSortieVueSucces(loc) {
+  const r = sfSortie.resume || {};
+  const nom = [loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Ce locataire';
+  const fr  = iso => iso ? new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR') : '—';
+  const faits = [
+    { l: 'Clés rendues le', v: fr(r.dateCles) },
+    { l: 'État des lieux',  v: r.conforme === true ? 'Conforme'
+                             : r.conforme === false ? 'Non conforme' : 'À constater' },
+    { l: 'Dépôt à rendre',  v: r.depot?.date ? `avant le ${fr(r.depot.date)}` : '—' },
+  ];
+  return { titre: 'Sortie enregistrée', corps: `
+    <div class="bd-acq">
+      <p class="bd-succes__t">${esc(nom)} est sorti le ${fr(r.dateCles)}</p>
+      <p class="bd-succes__x">Le bien est désormais <strong>vacant</strong>. ${r.depot?.date
+        ? `Il vous reste à restituer le dépôt de garantie.`
+        : `Aucun dépôt n'était enregistré sur ce bail.`}</p>
+
+      <dl class="bd-succes__kpis">
+        ${faits.map(f => `<div><dt>${f.l}</dt><dd>${esc(f.v)}</dd></div>`).join('')}
+      </dl>
+
+      <ul class="bd-acq__liste">
+        <li>Les loyers ne sont plus attendus au-delà du ${fr(loc.date_sortie)}${r.avantTerme
+          ? ` — les clés sont revenues avant, mais le bail allait jusque-là` : ''}</li>
+        ${r.depot?.date ? `<li><strong>${sfEur(r.depot.depot)}</strong> à restituer avant le
+          <strong>${fr(r.depot.date)}</strong> <em>· ${esc(sfDepotDetail(r.depot))}</em></li>` : ''}
+      </ul>
+
+      ${r.conforme === null ? `
+        <p class="bd-acq__note">L'état des lieux reste à constater : tant qu'il ne l'est pas, l'échéance
+          affichée est la plus courte des deux.</p>` : ''}
+
+      <div class="bd-step-pied">
+        <button class="sf-btn sf-btn--ghost" onclick="sfSortieFermer()">Fermer</button>
+        <button class="sf-btn sf-btn--primary"
+                onclick="sfSortieVersCompteRendu()">${sfAccIcon('carnet',16)} Rédiger l'état des lieux</button>
+      </div>
+    </div>` };
+}
+
+// ── Le brouillon : ces fonctions n'écrivent RIEN ──────────────────────────
+function sfSortieSetCles(v)     { if(sfSortie) { sfSortie.dateCles = v || null; sfSortieRender(); } }
+function sfSortieSetConforme(v) { if(sfSortie) { sfSortie.conforme = v; sfSortieRender(); } }
+
+function sfSortieFermer() {
+  bdAcqVerrouiller(false);
+  document.getElementById('modal-detail')?.classList.remove('modal-overlay--acq');
+  closeModal('modal-detail');
+  sfSortie = null;
+}
+
+/* Le passage au compte rendu — pré-rempli de ce qu'on vient de saisir. C'est
+   le chaînage promis : qui dit remise des clés dit état des lieux, donc
+   compte rendu. `locataire_id` sort enfin de sa dormance. */
+function sfSortieVersCompteRendu() {
+  if(!sfSortie) return;
+  const loc = allLocataires.find(l => l.id === sfSortie.locId);
+  const preset = { type: 'edl_sortie', locataireId: sfSortie.locId,
+                   date: sfSortie.resume?.dateCles || sfSortie.dateCles,
+                   conforme: sfSortie.resume?.conforme ?? sfSortie.conforme };
+  sfSortieFermer();
+  openNouvelleVisite(loc?.bien_id || null, preset);
+}
+
+/* L'ÉCRITURE — trois colonnes, aucune ligne de loyer touchée.
+   La sortie CONSTATE, elle ne recalcule pas : ce qui est dû l'a été fixé par
+   le congé. */
+async function sfSortieConfirmer() {
+  if(!sfSortie || sfSortie.enCours) return;
+  const loc = allLocataires.find(l => l.id === sfSortie.locId);
+  if(!loc) return;
+  if(!sfSortie.dateCles) { showNotif('Indiquez la date de remise des clés', true); return; }
+  if(loc.date_entree && sfSortie.dateCles < loc.date_entree) {
+    showNotif("Les clés ne peuvent pas être rendues avant l'entrée dans les lieux", true); return;
+  }
+
+  sfSortie.enCours = true;
+  const bouton = document.getElementById('so-ok');
+  if(bouton) { bouton.disabled = true; bouton.textContent = 'Enregistrement…'; }
+
+  const patch = { statut: 'Sorti', date_remise_cles: sfSortie.dateCles,
+                  edl_sortie_conforme: sfSortie.conforme };
+  try {
+    const { error } = await db.from('locataires').update(patch).eq('id', loc.id);
+    if(error) throw error;
+    Object.assign(loc, patch);
+
+    sfSortie.resume = { dateCles: sfSortie.dateCles, conforme: sfSortie.conforme,
+                        depot: sfEcheanceDepot(loc),
+                        avantTerme: !!loc.date_sortie && sfSortie.dateCles < loc.date_sortie };
+    sfSortie.vue = 'succes';
+    sfSortieRender();
+
+    await loadLocataires();
+    const c = document.getElementById('mf-content');
+    if(c && mfTab === 'locataires') renderMfLocataires(c);
+    if(currentPage === 'bien-detail') bdRefresh();
+  } catch(e) {
+    sfSortie.enCours = false;
+    showNotif('Erreur : ' + (e.message || 'enregistrement impossible'), true);
+    sfSortieRender();
+  }
 }
 
 // ═════════════════════════════════════════════════════
@@ -12091,10 +12489,18 @@ async function renderVisites(el) {
   // Mettre les visites générales en dernier
   const sortedKeys = Object.keys(groups).sort(a => a === '__general__' ? 1 : -1);
 
-  // Stats rapides
-  const nbAchat = (visites||[]).filter(v=>v.type_visite==='achat').length;
-  const nbLoc = (visites||[]).filter(v=>v.type_visite==='locataire').length;
-  const avgNote = visites?.length ? ((visites||[]).reduce((a,v)=>a+(v.note_sur_5||0),0)/visites.length).toFixed(1) : null;
+  /* Stats rapides — comptees PAR NATURE, depuis `SF_CR_TYPES` et non deux
+     compteurs ecrits a la main : depuis le 23/08/2026 il y a quatre natures,
+     et un etat des lieux n'apparaissait dans aucune des deux.
+     ⚠️ La note moyenne ne porte QUE sur ce qui est note. Un etat des lieux n'a
+     pas de note sur cinq — l'inclure a zero tirait la moyenne vers le bas et
+     annoncait « 2,7 » sur des visites toutes notees 4. */
+  const parNature = Object.keys(SF_CR_TYPES)
+    .map(k => ({ k, n: (visites||[]).filter(v => v.type_visite === k).length }))
+    .filter(x => x.n);
+  const notes = (visites||[]).filter(v => (v.note_sur_5||0) > 0);
+  const avgNote = notes.length
+    ? (notes.reduce((a,v)=>a+v.note_sur_5,0)/notes.length).toFixed(1) : null;
 
   el.innerHTML = `
     <!-- Hero section -->
@@ -12102,17 +12508,16 @@ async function renderVisites(el) {
       <div>
         <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;opacity:0.7;margin-bottom:4px">Vos visites</div>
         <div style="font-size:26px;font-weight:800;letter-spacing:-0.5px">${visites?.length||0} compte${(visites?.length||0)>1?'s':''} rendu${(visites?.length||0)>1?'s':''}</div>
-        <div style="font-size:13px;opacity:0.75;margin-top:4px">Notes de visites achat et locataires</div>
+        <div style="font-size:13px;opacity:0.75;margin-top:4px">Visites d'achat, visites locataires et états des lieux</div>
       </div>
       <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
-        ${nbAchat?`<div style="text-align:center"><div style="font-size:20px;font-weight:800">${nbAchat}</div><div style="font-size:10px;opacity:0.7;margin-top:2px">🏠 Achat</div></div>`:''}
-        ${nbLoc?`<div style="text-align:center"><div style="font-size:20px;font-weight:800">${nbLoc}</div><div style="font-size:10px;opacity:0.7;margin-top:2px">👤 Locataire</div></div>`:''}
+        ${parNature.map(x=>`<div style="text-align:center"><div style="font-size:20px;font-weight:800">${x.n}</div><div style="font-size:10px;opacity:0.7;margin-top:2px">${esc(sfCrLabel(x.k,'court'))}</div></div>`).join('')}
         ${avgNote?`<div style="text-align:center"><div style="font-size:20px;font-weight:800">${avgNote} ⭐</div><div style="font-size:10px;opacity:0.7;margin-top:2px">Note moyenne</div></div>`:''}
-        <button class="btn" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3)" onclick="openNouvelleVisite()">＋ Nouvelle visite</button>
+        <button class="btn" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3)" onclick="openNouvelleVisite()">＋ Nouveau compte rendu</button>
       </div>
     </div>
 
-    ${!visites?.length ? '<div class="empty-state"><h3>Aucune visite</h3><p>Ajoutez votre premier compte rendu de visite.</p></div>' :
+    ${!visites?.length ? '<div class="empty-state"><h3>Aucun compte rendu</h3><p>Visite d’achat, visite locataire ou état des lieux : tout se consigne ici.</p></div>' :
       sortedKeys.map((key,idx) => {
         const g = groups[key];
         const isGeneral = key === '__general__';
@@ -12156,7 +12561,7 @@ function renderVisiteCard(v) {
             <div class="visite-adresse" style="margin-top:4px">${v.adresse || v.biens?.titre || '—'}</div>
             ${v.biens?.titre && v.adresse ? `<div class="visite-bien">🏠 ${v.biens.titre}</div>` : ''}
           </div>
-          <span class="visite-type ${v.type_visite}" style="margin-top:2px">${v.type_visite==='achat'?'Achat':'Locataire'}</span>
+          <span class="visite-type ${v.type_visite}" style="margin-top:2px">${esc(sfCrLabel(v.type_visite,'court'))}</span>
         </div>
         ${truncNotes?`<div style="font-size:12px;color:var(--c-dim);line-height:1.55;margin-bottom:8px">${truncNotes}</div>`:'<div style="font-size:11px;color:var(--c-muted);font-style:italic;margin-bottom:8px">Aucune note rédigée</div>'}
         <div class="visite-footer">
@@ -12200,14 +12605,34 @@ function renderVisiteCard(v) {
   </div>`;
 }
 
-function openNouvelleVisite(bienId) {
+/* `preset` : { type, locataireId, date, conforme } — le pré-remplissage venu
+   de l'acte de sortie. Un état des lieux n'est pas saisi de zéro : on sait
+   déjà de quel bien, de qui, de quand et de quel constat il parle. */
+function openNouvelleVisite(bienId, preset) {
   visitPhotos=[]; visitRating=0;
-  document.getElementById('detail-titre').textContent = 'Nouvelle visite';
-  document.getElementById('detail-content').innerHTML = visiteForm(null);
+  const brouillon = preset ? { type_visite: preset.type, locataire_id: preset.locataireId,
+                               date_visite: preset.date, conforme: preset.conforme ?? null,
+                               bien_id: bienId || null } : null;
+  document.getElementById('detail-titre').textContent =
+    preset ? sfCrLabel(preset.type) : 'Nouveau compte rendu';
+  document.getElementById('detail-content').innerHTML = visiteForm(brouillon);
   // Pré-sélection quand on arrive depuis la fiche d'un bien
   if(bienId) { const s = document.getElementById('v-bien'); if(s) s.value = bienId; }
   refreshPhotosPreview();
   openModal('modal-detail');
+}
+
+/* Le formulaire est rendu une fois : changer le type doit donc révéler ou
+   cacher le verdict de conformité sans tout redessiner — sinon la saisie en
+   cours serait perdue. */
+function sfCrMajType() {
+  const t = document.getElementById('v-type')?.value;
+  const bloc = document.getElementById('v-conforme-bloc');
+  if(bloc) bloc.hidden = t !== 'edl_sortie';
+  // Le locataire devient obligatoire sur un état des lieux : l'étoile le dit,
+  // et `saveVisite` le vérifie.
+  const etoile = document.getElementById('v-loc-req');
+  if(etoile) etoile.hidden = !sfCrEstEdl(t);
 }
 
 async function openReadVisite(id) {
@@ -12218,7 +12643,7 @@ async function openReadVisite(id) {
   const photoItems = await tiResolveMedia(v.photos_paths, v.photos, 'visites-photos');
   const photos = photoItems.map(x=>x.url);
   const dateStr = v.date_visite ? new Date(v.date_visite+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',year:'numeric',month:'long',day:'numeric'}) : '—';
-  const typeLabel = v.type_visite==='achat'?'🏠 Visite achat':'👤 Visite locataire';
+  const typeLabel = (v.type_visite==='achat'?'🏠 ':sfCrEstEdl(v.type_visite)?'📋 ':'👤 ') + sfCrLabel(v.type_visite);
 
   document.getElementById('detail-titre').textContent = v.adresse || v.biens?.titre || 'Visite';
   document.getElementById('detail-content').innerHTML = `
@@ -12273,15 +12698,36 @@ function visiteForm(v) {
   return `
     <div class="form-grid" style="margin-bottom:14px">
       <div class="form-group"><label>Date de la visite *</label><input type="date" id="v-date" value="${esc(v?.date_visite||new Date().toISOString().split('T')[0])}"></div>
-      <div class="form-group"><label>Type de visite</label>
-        <select id="v-type">
-          <option value="achat" ${v?.type_visite==='achat'?'selected':''}>Visite achat</option>
-          <option value="locataire" ${v?.type_visite==='locataire'?'selected':''}>Visite locataire</option>
+      <div class="form-group"><label>Nature du compte rendu</label>
+        <select id="v-type" onchange="sfCrMajType()">
+          ${Object.keys(SF_CR_TYPES).map(k =>
+            `<option value="${k}" ${v?.type_visite===k?'selected':''}>${esc(sfCrLabel(k))}</option>`).join('')}
         </select>
       </div>
       <div class="form-group form-full"><label>Adresse (libre)</label><input type="text" id="v-adresse" value="${esc(v?.adresse||'')}" placeholder="ex: 12 rue de la Paix, Paris 75001"></div>
       <div class="form-group form-full"><label>Rattacher à un bien (optionnel)</label>
         <select id="v-bien"><option value="">— Aucun bien rattaché —</option>${bienOptions}</select>
+      </div>
+      ${/* ⚠️ `locataire_id` EXISTAIT DEPUIS L'ORIGINE, avec sa clé étrangère, et
+            n'a jamais été ni écrite ni lue : une « visite locataire » savait
+            qu'elle en était une, mais pas DE QUI. Un état des lieux, lui, ne
+            veut rien dire sans la personne dont on constate le logement. */''}
+      <div class="form-group form-full" id="v-loc-bloc"><label>Locataire concerné<span id="v-loc-req" ${sfCrEstEdl(v?.type_visite)?'':'hidden'}> *</span></label>
+        <select id="v-locataire">
+          <option value="">— Aucun locataire —</option>
+          ${allLocataires.map(l => {
+            const nom = [l.prenom, l.nom].filter(Boolean).join(' ') || 'Sans nom';
+            return `<option value="${l.id}" ${v?.locataire_id===l.id?'selected':''}>${esc(nom)} · ${esc(l.statut||'')}</option>`;
+          }).join('')}
+        </select>
+      </div>
+      <div class="form-group form-full" id="v-conforme-bloc" ${sfCrEstEdl(v?.type_visite) && v?.type_visite==='edl_sortie' ? '' : 'hidden'}>
+        <label>Conforme à l'état des lieux d'entrée ?</label>
+        <select id="v-conforme">
+          <option value="" ${v?.conforme==null?'selected':''}>— Pas encore constaté —</option>
+          <option value="oui" ${v?.conforme===true?'selected':''}>Oui, conforme · dépôt à rendre sous un mois</option>
+          <option value="non" ${v?.conforme===false?'selected':''}>Non conforme · deux mois pour rendre le dépôt</option>
+        </select>
       </div>
     </div>
     <div class="form-group" style="margin-bottom:14px">
@@ -12348,9 +12794,25 @@ async function saveVisite(id) {
   const bienId = document.getElementById('v-bien')?.value||null;
   const notes = document.getElementById('v-notes')?.value||null;
   if(!date){showNotif('La date est requise',true);return;}
+  // ⚠️ Un état des lieux sans locataire ne veut rien dire — et l'invariant
+  // `visites_edl_a_un_locataire` (partie C de la migration) le refusera.
+  if(sfCrEstEdl(type) && !document.getElementById('v-locataire')?.value){
+    showNotif('Un état des lieux porte sur un locataire : indiquez lequel', true);
+    document.getElementById('v-locataire')?.focus(); return;
+  }
   try {
     // 1. Insert/update sans les photos → récupérer l'id
-    const payload = {date_visite:date,type_visite:type,adresse,bien_id:bienId||null,note_sur_5:visitRating||null,notes,user_id:currentUser?.id};
+    /* ⚠️ `conforme` n'a de sens que sur un état des lieux DE SORTIE : ailleurs
+       il reste NULL, sans quoi on écrirait un verdict sur une visite d'achat.
+       C'est l'invariant tenu ici, en attendant qu'il passe en base (partie C
+       de MIGRATION-PREAVIS.sql). */
+    const locId = document.getElementById('v-locataire')?.value || null;
+    const conformeBrut = document.getElementById('v-conforme')?.value || '';
+    const conforme = type === 'edl_sortie' && conformeBrut
+      ? conformeBrut === 'oui' : null;
+    const payload = {date_visite:date,type_visite:type,adresse,bien_id:bienId||null,
+                     locataire_id:locId, conforme,
+                     note_sur_5:visitRating||null,notes,user_id:currentUser?.id};
     let visiteId = id;
     if(id){
       const {error} = await db.from('visites').update(payload).eq('id',id);
@@ -12372,9 +12834,39 @@ async function saveVisite(id) {
     // 3. Update paths + vider legacy
     const {error:upErr} = await db.from('visites').update({photos_paths:photosPaths, photos:[]}).eq('id',visiteId);
     if(upErr) throw upErr;
-    showNotif(id?'✓ Visite mise à jour':'✓ Visite enregistrée');
+    /* ⚠️ LE CONSTAT MET À JOUR LA CONCLUSION. `visites.conforme` porte ce qui a
+       été OBSERVÉ ; `locataires.edl_sortie_conforme` porte ce que le bailleur
+       en CONCLUT, et c'est cette conclusion qui fixe le délai de restitution du
+       dépôt — un ou deux mois. Les laisser vivre chacune de leur côté, c'était
+       promettre dans la fenêtre de sortie « le délai sera recalculé » sans que
+       rien ne le recalcule jamais. Enregistrer l'état des lieux de sortie
+       reporte donc le verdict sur le bail.
+       ⚠️ Un seul sens : du constat vers le bail. L'inverse écraserait une
+       observation datée par une case cochée ailleurs. */
+    let reporte = false;
+    if(type === 'edl_sortie' && locId && conforme !== null) {
+      const { error: eMaj } = await db.from('locataires')
+        .update({ edl_sortie_conforme: conforme }).eq('id', locId);
+      if(!eMaj) {
+        reporte = true;
+        const l = allLocataires.find(x => x.id === locId);
+        if(l) l.edl_sortie_conforme = conforme;
+      }
+    }
+    showNotif(`${id ? '✓ Compte rendu mis à jour' : '✓ Compte rendu enregistré'}${
+      reporte ? ` · délai de restitution du dépôt recalculé` : ''}`);
     closeModal('modal-detail');
-    renderVisites(document.getElementById('content'));
+    /* ⚠️ On ne redessine « Comptes rendus » QUE si l'on y est. Depuis l'acte de
+       sortie, l'état des lieux se rédige DEPUIS le Suivi financier : y écraser
+       la page par la liste des visites laissait la navigation sur un onglet et
+       le contenu sur un autre. */
+    if(currentPage === 'visites') renderVisites(document.getElementById('content'));
+    else {
+      await loadLocataires();
+      const c = document.getElementById('mf-content');
+      if(c && mfTab === 'locataires') renderMfLocataires(c);
+      if(currentPage === 'bien-detail') bdRefresh();
+    }
   } catch(error) {
     showNotif('Erreur : '+error.message,true);
   }

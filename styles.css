@@ -1265,6 +1265,17 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 .visite-type{font-size:10px;font-weight:700;padding:2px 9px;border-radius:4px;flex-shrink:0;}
 .visite-type.achat{background:rgba(23,160,107,0.1);color:var(--accent);}
 .visite-type.locataire{background:rgba(22,163,74,0.1);color:var(--positive-c);}
+/* Les états des lieux : un CONSTAT, pas une impression. Une teinte neutre les
+   distingue des deux visites, qui sont des appréciations. */
+.visite-type.edl_entree,
+.visite-type.edl_sortie{background:var(--sf-surface-2,rgba(148,163,184,0.12));color:var(--c-text);}
+
+/* ⚠️ `.form-group` est en `display:flex` : l'attribut `hidden` du navigateur,
+   qui vaut `display:none`, est donc ÉCRASÉ par cette règle plus spécifique.
+   Sans cette ligne, le bloc de conformité s'affiche sur tous les comptes
+   rendus et le masquage de `sfCrMajType` ne fait rien. Même correctif que
+   `.sff-pane[hidden]` et `.mfx-pane[hidden]`. */
+.form-group[hidden]{display:none;}
 .visite-adresse{font-size:14px;font-weight:700;color:var(--c-text);margin-bottom:3px;}
 .visite-bien{font-size:11px;color:var(--c-dim);}
 .visite-footer{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:9px;border-top:1px solid var(--c-border);}

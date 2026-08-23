@@ -152,7 +152,11 @@ Copie du patron `bdAcq` : la fenêtre **collecte**, « Enregistrer le congé » 
 locataire actif (« Enregistrer un congé »), et son symétrique sur une carte en préavis
 (« Annuler le congé »).
 
-⚠️ **Le glisser-déposer est reporté à l'étape 4, et c'est un arbitrage assumé.** Un kanban
+✅ **Le glisser-déposer est arrivé avec l'étape 4**, comme annoncé — trois transitions ont un
+acte derrière elles (Actif → Préavis, Préavis → Sorti, Préavis → Actif) ; les autres rendent la
+carte et disent par où passer. Ce qui suit est l'arbitrage qui l'avait différé :
+
+⚠️ **Le glisser-déposer était reporté à l'étape 4, et c'était un arbitrage assumé.** Un kanban
 dont une seule colonne accepte le dépôt se lit plus mal qu'un kanban qui n'en accepte aucun :
 « Sorti » n'aura son acte — remise des clés, état des lieux — qu'à l'étape suivante, et y
 déposer une carte d'ici là recréerait exactement la donnée incomplète que le cadrage refusait.
@@ -172,7 +176,7 @@ Les deux actes arriveront donc ensemble, et le tableau deviendra cohérent d'un 
 **Retour en arrière** : « Annuler le congé » remet `'Actif'`, efface les cinq colonnes et
 `date_sortie`, et régénère les loyers effacés. Sans lui, une erreur de saisie est définitive.
 
-### Étape 4 — la sortie, les clés, le dépôt (le second acte)
+### Étape 4 — la sortie, les clés, le dépôt (le second acte) ✅ **FAITE (23/08/2026, v=77)**
 ⚠️ **Qui dit remise des clés dit état des lieux de sortie, donc COMPTE RENDU.** L'analyse
 de cette section — table `visites`, colonne `locataire_id` déjà présente et jamais
 utilisée, trois architectures possibles — est dans **`NOTE-COMPTES-RENDUS.md`**.

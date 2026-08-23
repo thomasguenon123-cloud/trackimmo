@@ -154,3 +154,67 @@ test('RÉGRESSION — la restitution du dépôt ne déborde pas sur le mois suiv
   const dep2 = app.mfEcheancesBail(loc2, null).find(e => e.type === 'depot');
   assert.equal(jour(dep2.d), '2026-09-22');
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LA SORTIE — `sfEcheanceDepot` et `sfDepotDetail`.
+   Deux règles de la loi de 1989, dont une seule était appliquée : le délai
+   court depuis la REMISE DES CLÉS, et il vaut deux mois si l'état des lieux
+   n'est pas conforme. L'échéancier disait « un mois après la sortie, état des
+   lieux conforme » — la mauvaise date, et une affirmation que rien n'établissait.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const SORTI = { nom: 'Test', statut: 'Sorti', type_bail: 'Meublé',
+                date_entree: '2025-06-11', date_sortie: '2026-09-23',
+                depot_garantie: 1600 };
+
+test('sfEcheanceDepot — le délai part des CLÉS, pas de la fin de bail', () => {
+  const e = app.sfEcheanceDepot({ ...SORTI, date_remise_cles: '2026-09-20',
+                                  edl_sortie_conforme: true });
+  assert.equal(e.date, '2026-10-20', 'un mois après le 20/09, pas après le 23/09');
+  assert.equal(e.surCles, true);
+  assert.equal(e.mois, 1);
+});
+
+test('sfEcheanceDepot — un état des lieux NON conforme double le délai', () => {
+  const e = app.sfEcheanceDepot({ ...SORTI, date_remise_cles: '2026-09-20',
+                                  edl_sortie_conforme: false });
+  assert.equal(e.mois, 2);
+  assert.equal(e.date, '2026-11-20');
+});
+
+test('sfEcheanceDepot — tant que rien n’est constaté, on retient le plus court', () => {
+  // Un rappel qui arrive trop tôt est utile ; l'inverse coûte 10 % du loyer
+  // par mois commencé. Et la phrase le dit : « au plus tôt ».
+  const e = app.sfEcheanceDepot({ ...SORTI, date_remise_cles: '2026-09-20' });
+  assert.equal(e.mois, 1);
+  assert.equal(e.constate, false);
+  assert.match(app.sfDepotDetail(e), /^Au plus tôt un mois après la remise des clés/);
+});
+
+test('sfEcheanceDepot — sans clés, la sortie sert d’ancre, et l’écran le dit', () => {
+  const e = app.sfEcheanceDepot(SORTI);
+  assert.equal(e.surCles, false);
+  assert.equal(e.date, '2026-10-23');
+  assert.match(app.sfDepotDetail(e), /après la sortie/);
+});
+
+test('sfEcheanceDepot — sans dépôt ni ancre, aucune échéance inventée', () => {
+  assert.equal(app.sfEcheanceDepot({ ...SORTI, depot_garantie: 0 }), null);
+  assert.equal(app.sfEcheanceDepot({ ...SORTI, date_sortie: null }), null);
+  assert.equal(app.sfEcheanceDepot(null), null);
+});
+
+test('RÉGRESSION — l’échéancier n’affirme plus un état des lieux conforme', () => {
+  /* Le détail était écrit en dur : « Un mois après la sortie, état des lieux
+     conforme ». Deux approximations dans une phrase de six mots. */
+  const jour = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const dep = app.mfEcheancesBail({ ...SORTI, date_remise_cles: '2026-09-20',
+                                    edl_sortie_conforme: false }, null)
+                 .find(e => e.type === 'depot');
+  assert.equal(jour(dep.d), '2026-11-20', 'deux mois après les clés');
+  assert.match(dep.detail, /non conforme/);
+
+  const sansConstat = app.mfEcheancesBail({ ...SORTI, date_remise_cles: '2026-09-20' }, null)
+                         .find(e => e.type === 'depot');
+  assert.match(sansConstat.detail, /Au plus tôt/, 'on n’affirme pas ce qui n’est pas constaté');
+});
