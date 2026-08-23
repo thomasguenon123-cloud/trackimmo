@@ -273,6 +273,7 @@ est un mois partiel qu'on regarde de près.
 | Chantier | État |
 |---|---|
 | **Le prorata des charges** — cinq chemins proratisaient le loyer et recopiaient les charges pleines | ✅ **Fait le 23/08/2026 (v=80)**, `sfProrataBail` |
+| **La reprise de l'existant** — trois lignes portent des charges pleines sur un mois partiel | ⏳ SQL remis dans `REPRISE-CHARGES-PRORATA.sql`. Thomas décide : une ligne est **payée** et n'est pas retouchée, une autre attend l'arbitrage sur la sortie de Guénon. |
 | **L'encaissement des charges n'est suivi nulle part** — `montant_encaisse` ne solde que `loyer_du` | ⏳ Ouvert. Ce n'est pas un bug : c'est un choix jamais explicité, à trancher. |
 | **Le modèle d'état des lieux** — grille pièce par pièce, inventaire obligatoire en meublé | ⏳ Ouvert, voir `NOTE-COMPTES-RENDUS.md` |
 | **Les invariants croisés** (partie C de la migration) | ⏳ Prêts à poser : les workflows écrivent désormais ces colonnes |
