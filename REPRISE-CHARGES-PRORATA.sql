@@ -66,40 +66,22 @@ UPDATE loyers_mensuels
 
 
 -- ---------------------------------------------------------------------
--- 3. GUENON — donnees contradictoires, A ARBITRER AVANT TOUT UPDATE
+-- 3. GUENON — ARBITRE LE 30/08/2026 : RIEN A FAIRE
 -- ---------------------------------------------------------------------
--- statut = 'Actif' MAIS date_sortie = 2026-08-22 (hier).
--- Les deux ne peuvent pas etre vrais. Consequences en base :
---   * aout 2026 : loyer 3000 EUR et charges 500 EUR PLEINS sur 22/31 jours
---   * sept., oct., nov., dec. 2026 : quatre lignes de 3000 + 500 EUR
---     ENTIEREMENT posterieures au 22/08 — 0 jour occupe.
--- L'application les neutralise deja a l'affichage (sfBailCouvre), donc
--- elles ne faussent aucun indicateur. Elles restent fausses en base.
+-- Le bloc 3.b qui figurait ici (passage en « Sorti », prorata d'aout,
+-- suppression de quatre lignes) A ETE SUPPRIME SANS ETRE JOUE : Thomas a
+-- repousse la sortie au 22/10/2028 pour garder un locataire actif en
+-- reserve de test, ce qui inverse exactement ses trois effets.
 --
--- Choisis UN des deux blocs. Ne joue pas les deux.
-
--- --- 3.a  Il reste en place : la date de sortie est une scorie de test ---
--- UPDATE locataires
---    SET date_sortie = NULL
---  WHERE id = (SELECT id FROM locataires WHERE nom = 'Guénon' AND prenom = 'Thomas');
--- -> aout 2026 redevient un mois plein : 3000 + 500 EUR sont alors JUSTES,
---    et les lignes sept.-dec. redeviennent legitimes. Aucun autre UPDATE.
-
--- --- 3.b  Il est bien parti le 22/08/2026 -------------------------------
--- UPDATE locataires
---    SET statut = 'Sorti'
---  WHERE id = (SELECT id FROM locataires WHERE nom = 'Guénon' AND prenom = 'Thomas');
+-- Verifie en lecture apres son changement :
+--   * statut « Actif », date_sortie 2028-10-22, aucun conge -> coherent
+--   * aout 2026 est redevenu un mois PLEIN : 3000 + 500 EUR sont justes
+--   * sept. a dec. 2026 sont dans le bail : les quatre lignes sont dues
+--   * plus aucune ligne partielle sur ce bail
 --
--- -- aout 2026 : mois de sortie, 22/31 jours
--- UPDATE loyers_mensuels
---    SET loyer_du = 2129, charges_dues = 355
---  WHERE id = 'a2af2f91-8341-4372-a1b3-2e5d34203cb5'
---    AND statut <> 'Payé' AND montant_encaisse = 0;
---
--- -- sept. a dec. 2026 : quatre mois hors bail, aucun encaissement
--- DELETE FROM loyers_mensuels
---  WHERE id IN ('f265ddc0-d99f-4bf4-af76-5a8f6bb1b7f9',   -- 09/2026
---               'a8ec3255-104c-4b57-b9b4-9ca4ca2684cb',   -- 10/2026
---               '8067c44d-7540-4e66-ac3a-2e842f2563d4',   -- 11/2026
---               'b09cc679-0604-49fc-a32c-500feba0bf64')   -- 12/2026
---    AND statut <> 'Payé' AND montant_encaisse = 0;
+-- ⚠️ Une date de sortie a 2028 n'est PAS neutre, elle est seulement
+-- lointaine. `mfDaysOccupiedInMonth` la lit comme une fin d'occupation :
+-- en octobre 2028 le mois sera proratise a 22/31, et a partir de novembre
+-- 2028 `sfBailCouvre` ecartera tout loyer. Sans conge, c'est faux — voir
+-- le chantier « tacite reconduction » au PLAN §5 bis. Rien a corriger
+-- aujourd'hui : l'echeance est a plus de deux ans.

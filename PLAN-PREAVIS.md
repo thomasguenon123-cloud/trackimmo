@@ -273,7 +273,8 @@ est un mois partiel qu'on regarde de près.
 | Chantier | État |
 |---|---|
 | **Le prorata des charges** — cinq chemins proratisaient le loyer et recopiaient les charges pleines | ✅ **Fait le 23/08/2026 (v=80)**, `sfProrataBail` |
-| **La reprise de l'existant** — trois lignes portent des charges pleines sur un mois partiel | ⏳ SQL remis dans `REPRISE-CHARGES-PRORATA.sql`. Thomas décide : une ligne est **payée** et n'est pas retouchée, une autre attend l'arbitrage sur la sortie de Guénon. |
+| **La reprise de l'existant** — des lignes portent des charges pleines sur un mois partiel | ⏳ `REPRISE-CHARGES-PRORATA.sql`. Après l'arbitrage du 30/08 sur Guénon, il n'en reste que **deux** : une **payée**, jamais retouchée, et une seule à reprendre (490 → 376 €). |
+| **La tacite reconduction n'est pas modélisée** — `date_sortie` sert d'échéance de bail *et* de départ effectif, alors qu'un bail arrivé à terme se **renouvelle** si personne n'a donné congé | ⏳ Ouvert. Conséquence : une date de sortie posée « pour plus tard » proratise son mois et coupe les loyers au-delà, sans qu'aucun congé n'existe. Il manque une échéance de bail distincte, renouvelable. |
 | **L'encaissement des charges n'est suivi nulle part** — `montant_encaisse` ne solde que `loyer_du` | ⏳ Ouvert. Ce n'est pas un bug : c'est un choix jamais explicité, à trancher. |
 | **Le modèle d'état des lieux** — grille pièce par pièce, inventaire obligatoire en meublé | ⏳ Ouvert, voir `NOTE-COMPTES-RENDUS.md` |
 | **Les invariants croisés** (partie C de la migration) | ⏳ Prêts à poser : les workflows écrivent désormais ces colonnes |
