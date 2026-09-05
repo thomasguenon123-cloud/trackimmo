@@ -3083,7 +3083,7 @@ async function tiMigrateToStorage() {
 
     log(`<br><strong>✅ Migration terminée</strong>`);
     log(`Fichiers migrés : ${totalMigrated} · Erreurs : ${totalErrors}`);
-    log(`<em>Note : les colonnes base64 d'origine sont conservées (filet de sécurité). On les videra plus tard une fois la validation confirmée.</em>`);
+    log(`<em>Note : les colonnes base64 d'origine sont conservées — c'est le filet de sécurité, et il reste en place. Rien ne les videra automatiquement.</em>`);
     if (totalMigrated > 0) await loadBiens();
     showNotif(`Migration : ${totalMigrated} fichier(s) migré(s)${totalErrors?', '+totalErrors+' erreur(s)':''}`, totalErrors>0);
   } catch(e) {
@@ -5916,71 +5916,24 @@ function paramsMaintenanceHtml() {
       </div>
       <button id="ti-migration-btn" class="btn btn-primary" style="width:100%;font-size:13px" onclick="tiMigrateToStorage()">🔄 Lancer la migration base64 → Storage</button>
       <div id="ti-migration-log" style="display:none;margin-top:10px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:10px;font-size:11px;font-family:monospace;max-height:200px;overflow-y:auto;line-height:1.6"></div>
-    </div>
-    <div class="params-card" style="margin-top:14px;border-color:var(--negative,var(--sf-loss))">
-      <div class="params-card-title" style="color:var(--negative,var(--sf-loss))">⚠️ Purge des anciennes données base64</div>
-      <div style="font-size:12px;color:var(--c-muted);line-height:1.5;margin-bottom:10px">
-        Une fois la migration vers Storage terminée et validée, cette action libère l'espace en base de données
-        en vidant les colonnes base64 résiduelles (<code>photos</code>, <code>documents</code>, <code>pdf_data</code>).
-        <br><br>
-        <strong>Sécurité :</strong> seules les lignes <em>ayant déjà un équivalent Storage</em> sont purgées.
-        Aucune donnée non migrée n'est perdue. La structure des colonnes est conservée (porte de sortie).
-        L'action est ré-exécutable sans danger (idempotente).
-      </div>
-      <button id="ti-purge-btn" class="btn" style="width:100%;font-size:13px;background:var(--negative,var(--sf-loss));color:white;border:none" onclick="tiPurgeLegacyB64()">🗑️ Purger les anciennes données base64</button>
-      <div id="ti-purge-log" style="display:none;margin-top:10px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:10px;font-size:11px;font-family:monospace;max-height:200px;overflow-y:auto;line-height:1.6"></div>
     </div>`;
 }
 
-// ── Purge des colonnes base64 résiduelles (post-migration Storage) ──
-// Appelle la fonction SQL admin_purge_legacy_base64() qui :
-//  - vérifie le rôle admin côté serveur (sécurité indépendante de l'UI)
-//  - purge UNIQUEMENT les lignes dont l'équivalent Storage est présent
-//  - retourne un rapport détaillé (combien purgées par table)
-// Idempotente : peut être relancée plusieurs fois sans danger.
-async function tiPurgeLegacyB64() {
-  const btn = document.getElementById('ti-purge-btn');
-  const log = document.getElementById('ti-purge-log');
-  if(!btn || !log) return;
-
-  // Double confirmation — opération irréversible
-  if(!confirm('Purger définitivement les colonnes base64 résiduelles ?\n\nSeules les lignes ayant déjà un équivalent dans Supabase Storage seront purgées. Aucune donnée non migrée ne sera perdue.\n\nCette action est ré-exécutable mais irréversible pour les données purgées.')) return;
-
-  btn.disabled = true;
-  btn.textContent = '⏳ Purge en cours…';
-  log.style.display = 'block';
-  log.innerHTML = '<div style="color:var(--c-muted)">Lancement de la purge côté serveur…</div>';
-
-  try {
-    const { data, error } = await db.rpc('admin_purge_legacy_base64');
-    if(error) throw error;
-    if(!data || !data.success) throw new Error('Réponse invalide du serveur');
-
-    const lines = [
-      `<div style="color:var(--positive,var(--sf-gain));font-weight:700">✓ Purge terminée</div>`,
-      `<div style="margin-top:6px">• biens.photos : <strong>${data.biens_photos_purged}</strong> ligne(s) purgée(s)</div>`,
-      `<div>• biens.documents : <strong>${data.biens_documents_purged}</strong> ligne(s) purgée(s)</div>`,
-      `<div>• visites.photos : <strong>${data.visites_photos_purged}</strong> ligne(s) purgée(s)</div>`,
-      `<div>• simulations_credit (pdf_data + pdf_name) : <strong>${data.simulations_purged}</strong> ligne(s) purgée(s)</div>`,
-      `<div>• bilans_comptables.pdf_data : <strong>${data.bilans_purged}</strong> ligne(s) purgée(s)</div>`,
-      `<div>• locataires.documents : <strong>${data.locataires_purged}</strong> ligne(s) purgée(s)</div>`,
-    ];
-    if(data.biens_photos_skipped_no_storage > 0){
-      lines.push(`<div style="margin-top:6px;color:var(--warning,var(--sf-alert))">⚠️ ${data.biens_photos_skipped_no_storage} ligne(s) biens.photos NON purgée(s) (pas d'équivalent Storage — protégées).</div>`);
-    }
-    if(data.note){
-      lines.push(`<div style="margin-top:6px;color:var(--c-muted);font-style:italic">${data.note}</div>`);
-    }
-    log.innerHTML = lines.join('');
-    showNotif('Purge terminée avec succès', false);
-  } catch(e) {
-    log.innerHTML = `<div style="color:var(--negative,var(--sf-loss))">✗ Erreur : ${e.message || e}</div>`;
-    showNotif('Erreur lors de la purge : ' + (e.message || e), true);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🗑️ Purger les anciennes données base64';
-  }
-}
+/* ⚠️ LA PURGE DES COLONNES BASE64 A ÉTÉ RETIRÉE LE 05/09/2026, écran et code.
+   Elle appelait `admin_purge_legacy_base64()`, dont l'écran promettait — en
+   toutes lettres, au-dessus du bouton — que « seules les lignes ayant déjà un
+   équivalent Storage sont purgées ». Pour la table des locataires, la fonction
+   ne le faisait pas : elle vidait `documents` dès que la colonne n'était pas
+   vide, migrée ou non. Et aucune de ses cinq écritures n'était filtrée par
+   compte — `SECURITY DEFINER` contourne la RLS, contrairement aux suppressions
+   lancées depuis le client, que la policy `auth.uid() = user_id` borne.
+   Un clic effaçait donc la liste des documents de tous les locataires de tous
+   les comptes, en promettant l'inverse.
+   Retirer plutôt que réparer : la migration vers Storage est faite, cette purge
+   n'avait plus d'objet, et une opération destructrice qu'on ne relancera jamais
+   n'a pas à rester à portée de clic. ⚠️ La fonction SQL reste appelable par un
+   admin via l'API tant que son droit d'exécution n'est pas révoqué : le SQL est
+   dans REVOQUER-PURGE-BASE64.sql, à jouer par Thomas.                        */
 
 
 // ── Menu mobile (sidebar off-canvas) ──
