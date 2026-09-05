@@ -225,14 +225,108 @@ d'abord — sinon il conduit poliment le testeur dans le mur :
 
 ---
 
-## 8. Les décisions qui reviennent à Thomas
+## 8. Les arbitrages — tranchés le 05/09/2026
 
-1. **L'approche** — B seul, ou B plus autre chose ?
-2. **La porte d'entrée d'un bien possédé** — nouveau bouton distinct, ou
-   « Acheté » simplement rendu saisissable dans le formulaire ?
-3. **Les loyers passés** — on pose la question, ou on ne génère rien avant le
-   mois courant ?
-4. **Le vocabulaire** — faut-il expliquer quelque part cashflow réel/prévisionnel,
-   mode de détention, prorata, déclaration 2044 ? Et si oui, où ?
-5. **Les trois gestes** — lesquels ? Ma proposition : ajouter un bien → déclarer
-   son locataire → pointer un loyer. À confirmer ou corriger.
+| Question | Décision |
+|---|---|
+| Porte d'entrée d'un bien possédé | **Rendre « Acheté » saisissable** dans le formulaire |
+| Loyers passés d'un bail antérieur | **Poser la question une fois**, puis créer au bon statut |
+| Vocabulaire métier | **Infobulles au point d'usage**, pas de page à part |
+| Périmètre | **Les deux pièges + le parcours de démarrage** |
+
+Les trois gestes retenus : **ajouter un bien → déclarer son locataire → pointer
+un loyer**.
+
+⚠️ **« Acheté » saisissable retire un garde-fou**, et il faut le dire. Le
+commentaire du code était explicite : *« Deux gestes volontaires y mènent, et
+deux seulement. »* Passer un bien en patrimoine engageait donc un acte réfléchi.
+En ouvrant le statut au formulaire, on rend possible de le poser par
+inadvertance dans une liste déroulante. Ce qui le remplace :
+
+- le formulaire **demande le mode de détention** sur place quand « Acheté » est
+  choisi — c'est déjà une règle obligatoire, elle devient le nouveau seuil ;
+- le workflow d'acquisition **reste** le chemin depuis la prospection, avec sa
+  confirmation ; on n'ouvre pas une porte, on en ajoute une deuxième.
+
+---
+
+## 9. Le terrain de test — iPad Pro, Safari, au doigt
+
+Contrainte transmise le 05/09 : le testeur travaillera sur **iPad Pro avec
+clavier**, donc en Safari, et surtout **au doigt**. Ça ne change pas le
+périmètre, ça ajoute une dimension à chaque élément. Mesuré, pas supposé.
+
+### 9.1 Le zoom automatique — le plus gênant, et le moins visible
+
+> `.form-group input, .form-group select, .form-group textarea { font-size:13px }`
+
+**Safari sur iOS et iPadOS zoome la page dès qu'un champ sous 16 px reçoit le
+focus.** Tous les champs de l'application sont entre 11 et 14 px. Sur les
+**31 champs** du formulaire d'un bien, chaque passage au champ suivant
+déclenche un zoom que l'utilisateur doit défaire à la main.
+
+C'est le défaut qui rendra la saisie pénible sans que personne ne sache le
+nommer — on croira l'application « mal fichue sur tablette ». Correctif : porter
+les contrôles de saisie à `16px` sur pointeur grossier, via
+`@media (pointer: coarse)`, sans toucher au reste de la typographie.
+
+### 9.2 Les actions révélées au survol
+
+Cinq règles ne montrent une action qu'au `:hover`, dont deux sur des écrans du
+quotidien :
+
+- `.mfx-cell:hover .mfx-cell__more` — l'action d'une **cellule de loyer** du
+  Suivi mensuel ;
+- `.mfx-charge:hover .mfx-charge__a` — les actions d'une **charge**.
+
+**Il n'y a pas de survol au doigt.** Safari émule un premier survol au premier
+tap, ce qui transforme l'action en double-tap — quand ça marche. Correctif :
+sous `@media (hover: none)`, ces actions deviennent visibles en permanence.
+
+Le dépôt l'avait déjà compris ailleurs — la barre d'actions groupées porte le
+commentaire *« des actions qui ne se révèlent qu'au survol sont invisibles au
+clavier et au doigt »*. La règle existe, elle n'a simplement pas été appliquée
+partout.
+
+### 9.3 Les cibles tactiles
+
+`--sf-control-h-sm: 30px`, et les boutons d'action de documents font **26×26 px**.
+La recommandation d'Apple est de **44×44 pt**. On est 40 % en dessous sur les
+petits boutons — atteignables, mais avec des erreurs de visée.
+
+⚠️ Élargir toutes les cibles casserait la densité des écrans financiers, qui est
+un choix assumé. Correctif proportionné : agrandir **la zone tactile** sans
+changer la taille visuelle, par un pseudo-élément, et seulement sur
+`pointer: coarse`.
+
+### 9.4 Le glisser-déposer — à vérifier sur l'appareil, mais pas bloquant
+
+Six occurrences : kanban des biens et kanban des locataires. Le glisser HTML5 au
+doigt est capricieux sur iPadOS et **je ne peux pas le tester d'ici** — ça se
+vérifie sur l'iPad, pas dans un document.
+
+**Bonne nouvelle : ce n'est jamais le seul chemin.** Les cartes de locataire
+portent des boutons qui appellent directement `sfCongeDemarrer` et
+`sfSortieDemarrer`. Si le glisser ne répond pas au doigt, aucun workflow n'est
+inaccessible — on perd un raccourci, pas une fonction. À confirmer au test.
+
+### 9.5 Ce qui ne pose pas de problème
+
+- Les **`confirm()` natifs** s'affichent correctement sur iPad — ils restent
+  laids, c'est un autre sujet ;
+- les champs `type="date"` ouvrent le sélecteur iOS, plus confortable qu'au
+  clavier ;
+- `100vh` est utilisé cinq fois, mais sur des éléments (barre latérale, tiroir,
+  modale) où la barre d'adresse d'iPadOS ne provoque pas le décalage connu sur
+  iPhone. À regarder au test, pas à corriger à l'aveugle.
+
+### 9.6 Ce que l'iPad ajoute au périmètre
+
+Trois correctifs CSS, tous sous requête média, aucun effet sur le bureau :
+
+1. les contrôles de saisie à 16 px sous `pointer: coarse` ;
+2. les actions au survol rendues permanentes sous `hover: none` ;
+3. les cibles tactiles élargies sans changer l'apparence.
+
+C'est peu de code et ça conditionne tout le reste : un parcours de démarrage
+parfaitement écrit ne sauve pas une saisie qui zoome à chaque champ.
