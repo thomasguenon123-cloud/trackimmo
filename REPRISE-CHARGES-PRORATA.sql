@@ -43,13 +43,15 @@ ORDER BY annee, mois;
 -- ---------------------------------------------------------------------
 -- 1. TEST V1 — septembre 2026, mois de sortie (23/30 jours)
 -- ---------------------------------------------------------------------
--- Loyer deja proratise (636 EUR), charges restees pleines (490 EUR).
--- 490 -> 376 EUR. Ligne « En attente », rien d'encaisse : reprise sure.
-UPDATE loyers_mensuels
-   SET charges_dues = 376
- WHERE id = 'a459f131-2963-41a7-9a95-b8197f4fe56a'
-   AND statut <> 'Payé'          -- garde-fou : ne touche pas un mois paye
-   AND montant_encaisse = 0;
+-- ✅ JOUE PAR THOMAS LE 05/09/2026, verifie en lecture dans la foulee :
+--    charges 490 -> 376 EUR, loyer inchange a 636 EUR, total 1012 EUR.
+--    Statut « En attente », montant_encaisse a 0 : rien d'autre n'a bouge.
+-- Conserve tel quel comme trace. NE PAS REJOUER — sans effet, mais inutile.
+-- UPDATE loyers_mensuels
+--    SET charges_dues = 376
+--  WHERE id = 'a459f131-2963-41a7-9a95-b8197f4fe56a'
+--    AND statut <> 'Payé'          -- garde-fou : ne touche pas un mois paye
+--    AND montant_encaisse = 0;
 
 
 -- ---------------------------------------------------------------------
