@@ -4,6 +4,30 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stonefolio</title>
+
+<!-- ── IDENTITÉ DANS L'ONGLET ────────────────────────────────────────────────
+     Aucune favicon n'était déclarée jusqu'au 05/09/2026 : le navigateur
+     demandait /favicon.ico, recevait un 404, et affichait son globe générique.
+     L'onglet était la seule surface de Stonefolio à ne pas porter sa marque.
+
+     Le monogramme reprend le geste du logo du bandeau — trois assises de
+     pierres en appareil décalé — resserré pour tenir à 16 px. Tuile Eden, les
+     trois assises dans le même vert vif à trois opacités.
+
+     ⚠️ LA TUILE EST PLEINE, ET C'EST LE POINT. Un monogramme détouré disparaît
+     sur un onglet dont le fond est de sa couleur ; une tuile se détache des
+     deux côtés. La favicon ne suit pas le thème de l'application : elle vit
+     dans le navigateur, dont on ne connaît pas le fond.
+
+     Le SVG sert les navigateurs récents, le PNG 32 ceux qui l'ignorent, et
+     l'icône Apple l'ajout à l'écran d'accueil sur iPhone. Les trois portent
+     `?v=` comme le reste : une favicon est mise en cache très agressivement,
+     et sans la version le changement peut rester invisible des semaines. -->
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=82">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=82">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=82">
+<meta name="theme-color" content="#0A100C" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F5F8F6" media="(prefers-color-scheme: light)">
 <!-- ⚠️ Le chargement de Google Fonts a été retiré le 13/08/2026 : « Inter » n'est
      référencée par AUCUNE règle des quatre feuilles de style — vérifié, la seule
      occurrence du mot était « Interlignes », dans un commentaire. Les trois
@@ -14,7 +38,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<!-- ?v= : cache-busting — incrémenter à chaque déploiement modifiant CSS/JS -->
+<!-- ?v= : cache-busting — incrémenter à chaque déploiement modifiant CSS/JS.
+     Depuis le 05/09/2026, les trois icônes le portent aussi : 8 références en tout. -->
 <!-- Socle de jetons Stonefolio (phase 2). Ne declare que des variables : aucun
      effet visuel tant qu'aucun composant ne les consomme. Charge AVANT
      styles.css pour que la migration puisse s'appuyer dessus. -->

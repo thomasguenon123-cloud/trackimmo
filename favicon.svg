@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Stonefolio">
+  <!-- Monogramme Stonefolio : trois assises de pierres en appareil décalé,
+       le même geste que le logo du bandeau (index.html), resserré pour tenir
+       à 16 px. La tuile porte Eden, la couleur de fond de la marque : elle se
+       détache sur un onglet clair comme sur un onglet sombre, ce qu'un
+       monogramme détouré ne sait pas faire.
+       Les trois assises sont le MÊME vert vif à trois opacités — la
+       profondeur vient de la lumière, pas d'une couleur inventée. -->
+  <rect width="64" height="64" rx="14" fill="#1E4630"/>
+  <g fill="#17A06B">
+    <rect x="9"  y="11" width="32" height="12" rx="6"/>
+    <rect x="23" y="26" width="32" height="12" rx="6" opacity=".80"/>
+    <rect x="9"  y="41" width="32" height="12" rx="6" opacity=".62"/>
+  </g>
+</svg>
