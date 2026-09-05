@@ -578,6 +578,21 @@ const TI_BIENS = {
      badges, filtres, kanban, exports. On ne retire QUE la saisie. */
   get STATUTS_SAISISSABLES() { return this.STATUTS.filter(v => v !== 'Acheté'); },
 
+  /* ⚠️ LA FICHE, ELLE, PEUT POSER « ACHETÉ » — depuis le 05/09/2026.
+     Le retrait ci-dessus visait le changement EN MASSE, qui contournait la
+     mise en gestion : cette raison-là tient toujours, et la barre d'actions
+     groupées comme l'édition en ligne gardent `STATUTS_SAISISSABLES`. Ni
+     l'une ni l'autre n'a d'endroit où demander le mode de détention.
+     La fiche en a un. Elle porte le champ « Détention » juste à côté, et
+     `saveBien` refuse d'enregistrer un bien acquis sans mode — le garde-fou
+     change de nature, il ne disparaît pas.
+     ⚠️ POURQUOI C'ÉTAIT NÉCESSAIRE : sans cela, un bailleur qui possède déjà
+     ses biens devait les créer en PROSPECTION, puis déclarer une intention
+     d'achat qu'il n'a pas, pour finir sur un écran « Félicitations » à propos
+     d'un appartement acheté il y a sept ans. L'outil racontait l'histoire d'un
+     acheteur à quelqu'un qui est propriétaire. */
+  get STATUTS_FICHE() { return this.STATUTS; },
+
   TYPES: ['Studio','T1','T2','T3','T4+','Immeuble','Parking','Autre'],
 
   SOURCES: ['SeLoger','LeBonCoin','PAP','Logic-Immo','Bien\'ici','Jinka','Réseau agence','Particulier','Autre'],
@@ -2058,8 +2073,15 @@ const SF_FRAIS_CREATION_SCI = 200;
 
 function sfFraisCreationSci(bienId, mode, sciId) {
   if(mode !== 'sci' || !sciId) return 0;
+  /* ⚠️ `sfDetenu` EST INDISPENSABLE ICI. La règle dit « le bien qui a MOTIVÉ la
+     création » : une fiche encore en prospection n'a rien motivé, elle n'est
+     pas achetée. Sans ce filtre, poser une SCI sur un prospect suffisait à le
+     faire compter comme détenteur, et la première acquisition réelle dans cette
+     SCI enregistrait 0 € de frais au lieu de 200. Le défaut était théorique
+     tant que le champ s'appelait « SCI associée » et ne servait qu'aux biens
+     acquis ; il devient atteignable depuis que la fiche porte « Détention ». */
   const dejaDetenus = allBiens.filter(b =>
-    b.id !== bienId && b.sci_id === sciId && b.mode_detention === 'sci');
+    b.id !== bienId && b.sci_id === sciId && b.mode_detention === 'sci' && sfDetenu(b));
   return dejaDetenus.length ? 0 : SF_FRAIS_CREATION_SCI;
 }
 const sfRendement = b => (b.prix_affiche && b.loyer_en_etat)
@@ -2736,7 +2758,7 @@ async function renderNouveau(el, bien) {
                 </select>
                 <input type="hidden" id="f-statut" value="${esc(bien.statut)}">
                 <p class="form-aide" id="f-statut-aide">Bien acquis. Pour le remettre en prospection, utilisez l'action prévue sur sa fiche.</p>`
-              : `<select id="f-statut">${TI_BIENS.options('STATUTS_SAISISSABLES', bien?.statut)}</select>`}
+              : `<select id="f-statut">${TI_BIENS.options('STATUTS_FICHE', bien?.statut)}</select>`}
             </div>
             <div class="form-group form-full"><label>Lien de l'annonce</label><input type="url" id="f-lien" value="${esc(bien?.lien_annonce||'')}" placeholder="https://www.seloger.com/..."></div>
             <div class="form-group"><label>Source</label>
@@ -2745,11 +2767,23 @@ async function renderNouveau(el, bien) {
             <div class="form-group"><label>Balise</label>
               <select id="f-balise">${TI_BIENS.options('BALISES', bien?.balise, '— Sans balise —')}</select>
             </div>
-            <div class="form-group"><label>SCI associée</label>
-              <select id="f-sci-id">
-                <option value="">— Aucune SCI —</option>
-                ${allSCI.map(s=>`<option value="${s.id}" ${bien?.sci_id===s.id?'selected':''}>${esc(s.nom_sci)}</option>`).join('')}
+            <!-- ATTENTION : un seul controle pour deux colonnes, et c'est
+                 delibere. mode_detention et sci_id sont lies par un invariant en
+                 base (biens_mode_detention_coherent : 'sci' EXIGE une SCI,
+                 'propre' en INTERDIT une). Deux champs separes permettent de
+                 composer une paire incoherente, que Postgres refuse alors en
+                 bloc — perdant au passage toutes les autres modifications de la
+                 fiche. Une seule liste rend le cas impossible a saisir.
+                 Le champ s'appelait « SCI associee » et n'offrait aucun moyen de
+                 dire « en propre » : un bien acquis sans SCI restait donc sans
+                 mode, et le tableau de bord le signalait a juste titre. -->
+            <div class="form-group"><label>Détention</label>
+              <select id="f-sci-id" aria-describedby="f-detention-aide">
+                <option value="">— Non renseigné —</option>
+                <option value="propre" ${bien?.mode_detention==='propre'?'selected':''}>En propre</option>
+                ${allSCI.map(s=>`<option value="${s.id}" ${bien?.sci_id===s.id?'selected':''}>Via ${esc(s.nom_sci)}</option>`).join('')}
               </select>
+              <p class="form-aide" id="f-detention-aide">Obligatoire dès qu'un bien est acquis : sans elle, ni les loyers ni les charges n'entrent dans une déclaration fiscale.</p>
             </div>
           </div>
         </div>
@@ -3252,6 +3286,22 @@ function updatePrev() {
   updateNotaire();
 }
 
+/* LA DÉTENTION D'UN BIEN — une saisie, deux colonnes.
+
+   `mode_detention` et `sci_id` sont liés par l'invariant `biens_mode_detention_coherent`
+   posé en base : 'sci' exige une SCI, 'propre' en interdit une, et NULL les
+   dispense toutes deux. Composer cette paire à la main, c'est risquer de la
+   composer faux — et Postgres refuse alors l'enregistrement ENTIER, emportant
+   les modifications sans rapport de la même fiche.
+
+   Une seule fonction la fabrique, à partir de la seule valeur que l'écran
+   demande. Testée à part, elle ne peut pas produire de paire invalide. */
+function sfDetentionDepuisChamp(valeur) {
+  if (valeur === 'propre') return { mode_detention: 'propre', sci_id: null };
+  if (valeur)              return { mode_detention: 'sci',    sci_id: valeur };
+  return { mode_detention: null, sci_id: null };
+}
+
 function getFormData() {
   const v = id => parseFloat(document.getElementById(id)?.value)||0;
   const s = id => document.getElementById(id)?.value||null;
@@ -3264,7 +3314,24 @@ function getFormData() {
     statut:s('f-statut')||'Renseignements Web',
     balise:s('f-balise')||null,
     frais_notaire: Math.round(ha*notairePct()),
-    travaux:v('f-travaux'),frais_agence:v('f-agence'),creation_sci:sciVal,
+    travaux:v('f-travaux'),frais_agence:v('f-agence'),
+    /* ⚠️ DES FRAIS DE CONSTITUTION DE SCI SUR UN BIEN DÉTENU EN PROPRE N'ONT
+       AUCUN SENS, et la colonne vaut 200 € PAR DÉFAUT en base : basculer une
+       fiche sur « En propre » réécrivait donc ces 200 € au lieu de les effacer,
+       et ils entrent dans l'emprunt, donc dans le rendement et le cashflow.
+       C'est exactement le défaut que `sfFraisCreationSci` avait été écrite pour
+       supprimer — il revenait par la porte de la fiche.
+       ⚠️ Et quand la détention EST une SCI, on passe par la même source unique
+       que le workflow d'acquisition, au lieu d'un second calcul : deux chemins
+       divergents sur le même montant, c'est le motif qui a déjà produit deux
+       générateurs de loyers qui ne s'accordaient pas.
+       Le montant saisi à la main gagne : `sciOui` dit que quelqu'un a répondu
+       « oui » à la question des frais, et une valeur choisie n'est pas une
+       valeur par défaut. */
+    creation_sci: sfDetentionDepuisChamp(s('f-sci-id')).mode_detention === 'sci'
+      ? (sciOui ? sciVal
+                : sfFraisCreationSci(editingId, 'sci', sfDetentionDepuisChamp(s('f-sci-id')).sci_id))
+      : 0,
     mensualite_credit:v('f-mensualite'),duree_credit_ans:parseInt(s('f-duree'))||20,
     charge_copro:v('f-copro'),assurance_logement:v('f-assurance')||33,taxe_fonciere:v('f-taxe'),
     loyer_en_etat:v('f-loyer'),charges_locataire_etat:v('f-charges-loc'),
@@ -3279,9 +3346,14 @@ function getFormData() {
        ⚠️ Retirer la SCI ne veut pas dire « en propre » : cela rouvre la
        question. On remet `null` plutôt que de deviner. Un bien déjà déclaré
        « en propre » garde son mode : il n'avait pas de SCI à perdre. */
-    sci_id:s('f-sci-id')||null,
-    mode_detention: s('f-sci-id') ? 'sci'
-      : (allBiens.find(b => b.id === editingId)?.mode_detention === 'propre' ? 'propre' : null),
+    /* Le champ « Détention » rend UNE valeur qui porte les deux colonnes :
+       '' = non renseigné · 'propre' = en propre · sinon l'identifiant d'une SCI.
+       La paire produite ne peut donc jamais violer l'invariant croisé.
+       ⚠️ On ne devine plus rien : la version précédente conservait 'propre'
+       quand le champ revenait vide, parce que ce vide voulait dire « aucune
+       SCI » et non « aucun mode ». Le champ dit maintenant les deux, et un
+       vide est une réponse — celle de quelqu'un qui n'a pas encore tranché. */
+    ...sfDetentionDepuisChamp(s('f-sci-id')),
     intermediaire:s('f-inter'),telephone:s('f-tel'),mail:s('f-mail'),notes:s('f-notes'),
     user_id: currentUser?.id,
   };
@@ -3291,6 +3363,31 @@ async function saveBien() {
   const btn=document.getElementById('btn-save');
   const data=getFormData();
   if(!data.titre){showNotif('Le titre est requis',true);return;}
+
+  /* ⚠️ « ACHETÉ » EXIGE UN MODE DE DÉTENTION, ET C'EST CE CONTRÔLE QUI REMPLACE
+     LE GARDE-FOU RETIRÉ. Le statut n'était pas saisissable pour une raison :
+     il ne s'atteignait que par la mise en gestion, qui posait la question. En
+     l'ouvrant à la fiche, on doit la poser ici — sinon un bien acquis naît sans
+     mode, et ni ses loyers ni ses charges n'entrent dans une déclaration
+     fiscale. Le tableau de bord le signalerait après coup ; mieux vaut ne pas
+     créer le problème. */
+  /* ⚠️ SEULEMENT SUR LA TRANSITION, ET C'EST TOUTE LA DIFFÉRENCE. Appliqué à
+     chaque enregistrement, ce contrôle rendait INMODIFIABLES les biens déjà
+     acquis dont le mode est nul — précisément ceux que le tableau de bord
+     signale pour qu'on les corrige. Corriger une faute de frappe ou ajouter
+     une photo devenait impossible, et la seule issue était de déclarer un mode
+     faux. On empêche de CRÉER le problème, on n'emprisonne pas celui qui
+     l'a déjà. */
+  const avantSave = editingId ? allBiens.find(b => b.id === editingId) : null;
+  if(data.statut === 'Acheté' && !data.mode_detention && !sfDetenu(avantSave || {})){
+    showNotif('Un bien acquis se détient en propre ou via une SCI : renseignez « Détention »', true);
+    document.getElementById('f-sci-id')?.focus();
+    /* ⚠️ On ne touche PAS au bouton : il n'est pas encore désactivé à ce stade,
+       et son libellé varie (« ＋ Ajouter le bien » à la création, une icône
+       suivie d'« Enregistrer » à la modification). Le remettre à une chaîne
+       fixe l'aurait écrasé, icône comprise. */
+    return;
+  }
   btn.disabled=true;btn.textContent='⏳ Enregistrement...';
   try {
     // 1. Insert/update du bien SANS les fichiers → on récupère l'id
