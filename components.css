@@ -814,7 +814,15 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 .sf-pick{ width:100%; }
 .sfb-tools .sf-pick, .filter-bar .sf-pick{ width:auto; }
 
-@media (max-width: 720px){
+/* ⚠️ LA CONDITION EST « TACTILE », PAS « ÉTROIT » — corrigé le 05/09/2026.
+   La règle disait déjà la bonne chose : au doigt, le sélecteur natif fait mieux.
+   Mais elle ne se déclenchait que sous 720 px, alors qu'un iPad Pro fait 1024 px
+   et plus : l'appareil le PLUS tactile qui ouvrira Stonefolio passait à côté, et
+   se retrouvait avec le bouton personnalisé à 38 px et des options à 36 px.
+   `any-pointer: coarse` répare la cause ; la largeur restait un indice, pas la
+   raison. Voir tactile.css, qui porte le reste des correctifs du même ordre —
+   celui-ci vit ici pour ne pas dupliquer six déclarations. */
+@media (max-width: 720px), (any-pointer: coarse){
   /* Sur mobile le sélecteur natif fait mieux : roulette plein écran, clavier
      virtuel, accessibilité du système. On lui rend la main entièrement. */
   .sf-pick__btn{ display:none; }

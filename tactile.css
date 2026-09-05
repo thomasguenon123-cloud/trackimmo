@@ -1,0 +1,160 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   TACTILE — ce que l'application doit à un doigt plutôt qu'à une souris
+   Stonefolio · écrit le 05/09/2026 pour le test sur iPad Pro
+
+   ── POURQUOI UNE FEUILLE À PART ────────────────────────────────────────────
+   « S'adapter à un pointeur grossier » est une préoccupation TRANSVERSALE :
+   elle touche des règles dispersées dans les quatre autres feuilles. Écrite
+   sur place, elle serait éparpillée en dix endroits et personne ne saurait
+   plus ce qui relève du tactile. Ici, un seul fichier répond à une seule
+   question, et il se retire d'un bloc si l'on change d'avis.
+
+   Chargée EN DERNIER : à spécificité égale, c'est l'ordre qui tranche.
+
+   ── LE CHOIX DE REQUÊTE MÉDIA, QUI N'EST PAS ÉVIDENT ───────────────────────
+   `pointer` décrit le pointeur PRINCIPAL, `any-pointer` N'IMPORTE LEQUEL des
+   disponibles. Un iPad avec clavier — le terrain de test — peut porter un
+   trackpad, et rien ne garantit ce que Safari déclare alors comme pointeur
+   principal.
+
+   ⚠️ ON RETIENT DONC `any-pointer: coarse`, VOLONTAIREMENT PLUS LARGE. Les
+   deux erreurs possibles ne coûtent pas la même chose :
+     · se déclencher à tort sur un portable tactile → des champs un peu plus
+       grands et des actions toujours visibles. Personne n'est bloqué ;
+     · NE PAS se déclencher sur l'iPad → la saisie zoome à chaque champ et des
+       actions restent invisibles. C'est le test qui échoue.
+   Entre les deux, on prend la première.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   1. LE ZOOM AUTOMATIQUE DE SAFARI
+
+   Safari sur iOS et iPadOS AGRANDIT LA PAGE dès qu'un champ de saisie dont la
+   taille de police est inférieure à 16 px reçoit le focus. L'utilisateur doit
+   ensuite dézoomer à la main. Sur les 31 champs d'une fiche bien, c'est 31
+   fois — et personne ne saura le nommer : on dira que l'application est mal
+   fichue sur tablette.
+
+   Le seuil est de 16 px exactement, et il porte sur la taille CALCULÉE.
+
+   ⚠️ `!important` EST NÉCESSAIRE ICI, et c'est une exception assumée. La
+   raison principale n'est PAS les styles en ligne : il en existe un seul dans
+   tout le dépôt (`<select style="font-size:11px">`, app.js), et `!important`
+   d'auteur le dépasse de toute façon. C'est la SPÉCIFICITÉ : la taille des champs est fixée par
+   des règles de classe dispersées, `.form-group input{font-size:13px}`,
+   `.filter-input{font-size:12px}`, `.sci-form-input`, `.marche-search-input`
+   et d'autres. Un sélecteur nu `input` (0,0,1) perd contre chacune d'elles,
+   quel que soit l'ordre de chargement — l'ordre ne départage qu'à spécificité
+   ÉGALE. Les égaler toutes reviendrait à les énumérer, et à recommencer à
+   chaque nouvelle règle.
+   ⚠️ Ne pas retirer ce `!important` en croyant nettoyer : le zoom au focus
+   reviendrait en silence. Le geste reste borné à UNE propriété, sur TROIS
+   sélecteurs, dans UNE requête média.
+
+   ⚠️ Ne vise QUE les champs de saisie. Un bouton ou un libellé à 10 px ne
+   déclenche aucun zoom : les agrandir casserait la densité des écrans
+   financiers sans rien résoudre.
+   ─────────────────────────────────────────────────────────────────────────── */
+@media (any-pointer: coarse) {
+  input, select, textarea { font-size: 16px !important; }
+
+  /* Les cases et boutons radio n'affichent pas de texte : la règle ci-dessus
+     ne leur sert à rien et leur donnerait une taille de police absurde dont
+     héritent certains navigateurs pour dimensionner la coche elle-même. */
+  input[type="checkbox"], input[type="radio"] { font-size: inherit !important; }
+}
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   2. LES ACTIONS QUI NE SE RÉVÈLENT QU'AU SURVOL
+
+   Il n'y a pas de survol au doigt. Safari en émule un au premier tap, ce qui
+   transforme l'action en double-tap — quand cela fonctionne.
+
+   Le dépôt connaissait déjà la règle : la barre d'actions groupées porte le
+   commentaire « des actions qui ne se révèlent qu'au survol sont invisibles au
+   clavier et au doigt », et `.mfx-charge__a` a été corrigé sous 720 px avec le
+   même constat. Mais un iPad Pro fait 1024 px et plus : il passe à côté de ce
+   correctif, alors qu'il est le plus tactile des appareils qui l'ouvriront.
+
+   Deux actions sont réellement INATTEIGNABLES, pas seulement discrètes — leur
+   opacité par défaut est zéro :
+     · `.mfx-cell__more`  — l'action d'une cellule de loyer du Suivi mensuel,
+                            sans aucun repli au clavier ;
+     · `.mfx-charge__a`   — les actions d'une charge (elle, au moins, se
+                            révèle aussi au `:focus-within`).
+   ─────────────────────────────────────────────────────────────────────────── */
+@media (any-hover: none), (any-pointer: coarse) {
+  .mfx-cell__more { opacity: 1; }
+  .mfx-charge__a  { opacity: 1; }
+
+  /* Le crayon d'édition en ligne n'est pas une action mais une PROMESSE : il
+     annonce qu'un champ se modifie d'un tap. Invisible, le champ paraît figé.
+     Il reste `pointer-events:none` — on le montre, on ne le rend pas cliquable.
+     ⚠️ Atténué plutôt que pleinement opaque : affiché en permanence à pleine
+     force sur chaque ligne, il transformerait le Suivi financier en champ de
+     crayons. Il indique, il ne réclame pas. */
+  .inline-edit::after { opacity: .40; }
+  .inline-edit:focus-within::after { opacity: 0; }
+}
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   3. LES CIBLES TACTILES
+
+   Apple recommande 44 × 44 pt. Les petits boutons de l'application sont à
+   30 px (`--sf-control-h-sm`), 28 px (`.mfx-ic-btn`) et 26 px (`.act-btn`) —
+   soit jusqu'à 40 % en dessous. Atteignables, mais avec des erreurs de visée.
+
+   ⚠️ ON AGRANDIT LES ÉLÉMENTS, ON NE SUPERPOSE PAS DE ZONES INVISIBLES. La
+   technique du pseudo-élément étendu paraît élégante — la taille visuelle ne
+   bouge pas — mais dans une grille dense elle fait SE CHEVAUCHER les zones
+   tactiles voisines : le doigt tombe alors sur la cible d'à côté, et l'on a
+   aggravé exactement ce qu'on voulait corriger. Un élément qui grandit
+   repousse ses voisins ; une zone qui déborde les recouvre.
+
+   L'iPad Pro fait au moins 1024 px de large : la place existe.
+
+   ⚠️ L'ÉCHELLE SE DÉCALE ENTIÈREMENT, elle ne se tord pas. Porter le seul
+   `--sf-control-h-sm` à 40 px l'aurait rendu PLUS GRAND que `--sf-control-h`
+   resté à 38 : un bouton « petit » plus haut qu'un bouton normal, et deux
+   contrôles voisins désalignés dans la même barre d'outils. Les trois jetons
+   montent donc ensemble, en gardant leur ordre.
+   ─────────────────────────────────────────────────────────────────────────── */
+@media (any-pointer: coarse) {
+  :root {
+    --sf-control-h-sm: 40px;   /* 30 au repos */
+    --sf-control-h:    44px;   /* 38 — la recommandation d'Apple */
+    --sf-control-h-lg: 48px;   /* 46 */
+  }
+
+  .mf-doc-item .act-btn { width: 44px; height: 44px; }
+  .mfx-ic-btn           { width: 44px; height: 44px; }
+
+  /* ⚠️ LES HAUTEURS ÉCRITES EN DUR NE SUIVENT PAS LES JETONS, et ce sont
+     elles qui cassent l'alignement qu'on vient de rétablir. `.sfb-view` est
+     figé à 30 px dans la MÊME barre d'outils que le champ de recherche et les
+     sélecteurs, désormais à 44 : le décalage voisin que le point ci-dessus
+     prétend éviter. `.btn-close` ferme les fenêtres modales — c'est la cible
+     qu'on vise le plus souvent, et la plus petite. */
+  .sfb-view  { height: 44px; }
+  .btn-close { width: 44px; height: 44px; }
+}
+
+
+/* ───────────────────────────────────────────────────────────────────────────
+   4. LE SÉLECTEUR — LE CORRECTIF VIT DANS components.css, ET C'EST VOULU
+
+   Chaque `<select>` est remplacé à l'exécution par le composant `.sf-pick`
+   (app.js). Ce composant rendait déjà la main au sélecteur NATIF « sur mobile,
+   parce qu'au doigt il fait mieux » — mais sous `max-width: 720px`. Un iPad Pro
+   fait 1024 px et plus : l'appareil le plus tactile qui ouvrira Stonefolio
+   passait à côté, avec un bouton à 38 px et des options à 36 px.
+
+   La condition est devenue `(max-width: 720px), (any-pointer: coarse)` DANS
+   components.css, à l'endroit où vivent les six déclarations du repli. Les
+   recopier ici aurait créé une seconde source pour la même règle — exactement
+   ce que le dépôt s'interdit. Une préoccupation transversale mérite un fichier ;
+   elle ne justifie pas de dupliquer ce qui existe déjà ailleurs.
+   ─────────────────────────────────────────────────────────────────────────── */

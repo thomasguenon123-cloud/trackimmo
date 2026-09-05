@@ -14443,7 +14443,16 @@ async function deleteSCI() {
    en `overflow:hidden` (le tableau, une fenêtre modale) le tronquerait.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const SF_SEUIL_MOBILE = '(max-width: 720px)';
+/* ⚠️ CETTE CONDITION DOIT RESTER IDENTIQUE, AU CARACTÈRE PRÈS, À CELLE DU
+   REPLI NATIF DANS components.css. Elles décrivent le même arbitrage vu de
+   deux côtés : le CSS cache le bouton personnalisé, le JS s'abstient de le
+   construire. Si elles divergent, le JS habille un select dont le CSS masque
+   le bouton — et le panneau, positionné depuis un élément en `display:none`,
+   se pose dans le coin de la fenêtre, détaché de son champ, pendant que plus
+   aucun select n'est atteignable au clavier (le natif garde `tabindex="-1"`).
+   C'est exactement ce qui est arrivé le 05/09/2026 en élargissant la seule
+   règle CSS ; le test `tactile.test.js` compare désormais les deux chaînes. */
+const SF_SEUIL_MOBILE = '(max-width: 720px), (any-pointer: coarse)';
 let sfSelectOuvert = null;   // { natif, bouton, panneau, index }
 let sfSelectEnCours = false; // garde-fou anti-boucle de l'observateur
 
