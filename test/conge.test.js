@@ -403,3 +403,125 @@ test('sfNoteProrata ne signe que les mois réellement partiels', () => {
   assert.match(app.sfNoteProrata(app.sfProrataBail({ ...BAIL, date_sortie: '2026-09-23' }, 9, 2026)),
                /^Prorata loi 1989 : 23\/30 jours$/);
 });
+
+// ── Les invariants croisés du bail ────────────────────────────────────────
+/* Le pendant JS de la partie C de MIGRATION-PREAVIS.sql. Ce qui est testé
+   ici n'est pas la contrainte Postgres — elle, on lui fait confiance — mais
+   le fait que la FICHE refuse AVANT elle, avec une phrase et un champ.
+
+   ⚠️ Le piège que ces tests gardent : `saveLocataire` n'envoie qu'un patch
+   partiel. `date_remise_cles` et `depot_retenue` ne sont dans aucun
+   formulaire ; les lire dans `apres` seul conclurait « rien à vérifier ».
+   Les trois cas ci-dessous les prennent donc TOUS dans `avant`. */
+
+const BAIL_SORTI = {
+  id: 'loc-1', statut: 'Sorti', date_entree: '2025-06-11', date_sortie: '2026-09-23',
+  date_conge_recu: '2026-08-23', preavis_mois: 1, date_remise_cles: '2026-09-20',
+  depot_garantie: 1600, depot_retenue: 200,
+};
+
+test('un bail sans congé ni clés ni retenue ne déclenche rien', () => {
+  assert.equal(app.sfInvariantsBail(null, { date_entree: '2025-06-11', date_sortie: null,
+                                            depot_garantie: 0 }), null);
+  assert.equal(app.sfInvariantsBail(BAIL_SORTI, { date_entree: '2025-06-11',
+                                                  date_sortie: '2026-09-23',
+                                                  depot_garantie: 1600 }), null);
+});
+
+test('vider la date de sortie d’un bail qui porte un congé est refusé', () => {
+  const r = app.sfInvariantsBail(BAIL_SORTI, { date_sortie: null, date_entree: '2025-06-11',
+                                               depot_garantie: 1600 });
+  assert.equal(r.champ, 'loc-date-sortie');
+  assert.match(r.message, /congé a été reçu le 23\/08\/2026/);
+});
+
+test('repasser « Actif » efface le congé, donc ne viole rien', () => {
+  // Ce que fait saveLocataire juste avant d'appeler : les trois colonnes à null.
+  assert.equal(app.sfInvariantsBail(BAIL_SORTI,
+    { date_conge_recu: null, preavis_mois: null, preavis_motif: null,
+      date_sortie: null, date_entree: '2025-06-11', depot_garantie: 1600 }), null);
+});
+
+test('reculer l’entrée après la remise des clés est refusé', () => {
+  const r = app.sfInvariantsBail(BAIL_SORTI, { date_entree: '2026-09-25',
+                                               date_sortie: '2026-09-23',
+                                               depot_garantie: 1600 });
+  assert.equal(r.champ, 'loc-date-entree');
+  assert.match(r.message, /clés ont été rendues le 20\/09\/2026/);
+});
+
+test('ramener le dépôt sous une retenue déjà actée est refusé', () => {
+  const r = app.sfInvariantsBail(BAIL_SORTI, { depot_garantie: 0, date_entree: '2025-06-11',
+                                               date_sortie: '2026-09-23' });
+  assert.equal(r.champ, 'loc-depot');
+  assert.match(r.message, /200 € ont été retenus/);
+  // Le dépôt peut baisser TANT QU'IL COUVRE la retenue : 200 exactement passe.
+  assert.equal(app.sfInvariantsBail(BAIL_SORTI, { depot_garantie: 200,
+                                                  date_entree: '2025-06-11',
+                                                  date_sortie: '2026-09-23' }), null);
+});
+
+test('RÉGRESSION — une retenue absente du patch est lue dans la fiche existante', () => {
+  /* Le patch de `getLocataireFormData` ne contient JAMAIS `depot_retenue`.
+     Si `sfInvariantsBail` ne lisait que `apres`, ce cas passerait, la base
+     refuserait, et l'utilisateur verrait un message Postgres. */
+  const patch = { depot_garantie: 0, date_entree: '2025-06-11', date_sortie: '2026-09-23' };
+  assert.ok(!('depot_retenue' in patch));
+  assert.equal(app.sfInvariantsBail(BAIL_SORTI, patch).champ, 'loc-depot');
+});
+
+test('RÉGRESSION — le premier manquement rendu désigne SON champ', () => {
+  /* Trois violations d'un coup : c'est le congé qui doit parler, pas le dépôt.
+     Un message qui pointe le mauvais champ envoie corriger ce qui va bien. */
+  const r = app.sfInvariantsBail(BAIL_SORTI, { date_sortie: null, date_entree: '2026-09-25',
+                                               depot_garantie: 0 });
+  assert.equal(r.champ, 'loc-date-sortie');
+});
+
+test('repasser « Actif » efface TOUT le départ, pas seulement le congé', () => {
+  const e = app.sfEffacementDepart(true);
+  /* ⚠️ `date_remise_cles` est la sortie de secours des invariants croisés :
+     rien d'autre dans l'écran ne l'efface, et tant qu'elle est posée aucune
+     date d'entrée postérieure ne passe. La retirer d'ici rouvre le cul-de-sac. */
+  assert.equal(e.date_remise_cles, null);
+  assert.equal(e.edl_sortie_conforme, null);
+  assert.equal(e.date_conge_recu, null);
+  assert.equal(e.preavis_mois, null);
+  assert.equal(e.preavis_motif, null);
+  assert.equal(e.depot_restitue_le, null);
+  assert.equal(e.depot_retenue, null);
+});
+
+test('sans la partie D, les colonnes de dépôt restent HORS du patch', () => {
+  /* Les écrire ferait répondre « column does not exist » : la migration D
+     peut ne pas être passée. Absentes, pas à null — ce n'est pas pareil. */
+  const e = app.sfEffacementDepart(false);
+  assert.ok(!('depot_restitue_le' in e));
+  assert.ok(!('depot_retenue' in e));
+  assert.equal(e.date_remise_cles, null);
+});
+
+test('RÉGRESSION — l’effacement du départ lève tout blocage d’invariant', () => {
+  /* Le cul-de-sac que ces deux fonctions ferment ensemble : une fiche sortie,
+     réactivée pour un NOUVEAU bail dont l'entrée est postérieure aux clés
+     rendues. Sans l'effacement, `sfInvariantsBail` refuse pour toujours. */
+  const patch = { statut: 'Actif', date_entree: '2027-01-15', date_sortie: null,
+                  depot_garantie: 900, ...app.sfEffacementDepart(true) };
+  assert.equal(app.sfInvariantsBail(BAIL_SORTI, patch), null);
+  // Le même patch SANS l'effacement se heurte aux clés du bail précédent.
+  const sansEffacement = { statut: 'Actif', date_entree: '2027-01-15',
+                           date_sortie: null, depot_garantie: 900 };
+  assert.equal(app.sfInvariantsBail(BAIL_SORTI, sansEffacement).champ, 'loc-date-sortie');
+});
+
+test('le dépôt d’un bail soldé se refuse en le disant', () => {
+  const r = app.sfInvariantsBail({ ...BAIL_SORTI, depot_restitue_le: '2026-10-20' },
+                                 { depot_garantie: 0, date_entree: '2025-06-11',
+                                   date_sortie: '2026-09-23' });
+  assert.equal(r.champ, 'loc-depot');
+  assert.match(r.message, /soldé/);
+  // Non soldé : la phrase reste celle qui dit comment s'en sortir.
+  assert.match(app.sfInvariantsBail(BAIL_SORTI,
+    { depot_garantie: 0, date_entree: '2025-06-11', date_sortie: '2026-09-23' }).message,
+    /200 € ont été retenus/);
+});

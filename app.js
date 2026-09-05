@@ -8864,6 +8864,90 @@ function sfDepotDetail(e) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   LES INVARIANTS CROISÉS DU BAIL — le pendant JS de la partie C de
+   MIGRATION-PREAVIS.sql. Mêmes trois règles, mêmes noms.
+
+   ⚠️ POURQUOI LES DEUX. La contrainte en base est le dernier rempart : elle
+   garantit qu'aucune ligne fausse n'existe, quel que soit le chemin. Mais elle
+   refuse en Postgres brut — « violates check constraint
+   locataires_conge_a_une_fin » —, ce qu'on ne met pas sous les yeux de
+   quelqu'un qui enregistre une fiche. Cette fonction dit la même chose en
+   français, et désigne le champ à corriger.
+
+   ⚠️ POURQUOI ICI ET PAS DANS `saveLocataire`. Les trois workflows (congé,
+   sortie, dépôt) tiennent déjà ces règles chacun de leur côté ; c'est la
+   FICHE qui peut les rompre, parce qu'elle réécrit tout le bail d'un bloc,
+   `date_entree` et `depot_garantie` compris, sans lire ce que les workflows
+   ont posé. Isolée, la règle est testable et ne se dédouble pas.
+
+   `avant` : la fiche telle qu'elle est en base — null à la création.
+   `apres` : ce que l'écran s'apprête à écrire, éventuellement partiel.
+   Rend `{ champ, message }` au premier manquement, ou null.            */
+/* CE QU'UN RETOUR À « ACTIF » EFFACE — le pendant de `sfInvariantsBail`.
+
+   Un statut et les colonnes qui le justifient ne peuvent pas se contredire :
+   quelqu'un qui occupe le logement n'a pas donné congé, n'en a pas rendu les
+   clés, et son dépôt n'a pas été restitué. La règle existait pour le congé
+   seul ; elle vaut pour tout le départ.
+
+   ⚠️ CE N'EST PAS QUE DE LA COHÉRENCE, C'EST UNE SORTIE DE SECOURS. Depuis
+   les invariants croisés, une `date_remise_cles` que rien n'efface interdit
+   POUR TOUJOURS une date d'entrée postérieure — or réactiver une fiche pour
+   un nouveau bail est un geste que l'écran autorise. Sans cet effacement,
+   l'invariant se refermerait sur l'utilisateur sans issue.
+
+   `depotPret` : la partie D de la migration est-elle passée ? Sans elle,
+   `select('*')` ne rapporte pas ces deux clés et les écrire ferait répondre
+   « column does not exist ». */
+function sfEffacementDepart(depotPret) {
+  const vide = { date_conge_recu: null, preavis_mois: null, preavis_motif: null,
+                 date_remise_cles: null, edl_sortie_conforme: null };
+  if(depotPret) { vide.depot_restitue_le = null; vide.depot_retenue = null; }
+  return vide;
+}
+
+function sfInvariantsBail(avant, apres) {
+  /* ⚠️ UNE COLONNE ABSENTE DU PATCH N'EST PAS UNE COLONNE VIDÉE. `.update()`
+     ne touche que les clés présentes : `date_remise_cles` et `depot_retenue`
+     ne sont dans aucun formulaire, elles survivent à l'enregistrement. Lire
+     `apres` seul conclurait « pas de retenue » et laisserait passer. */
+  const val = cle => Object.prototype.hasOwnProperty.call(apres || {}, cle)
+    ? apres[cle] : (avant ? avant[cle] : null);
+  const jour = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+                        return m ? `${m[3]}/${m[2]}/${m[1]}` : iso; };
+
+  // locataires_conge_a_une_fin — un congé reçu implique une fin de préavis.
+  const conge = val('date_conge_recu');
+  if(conge && !val('date_sortie'))
+    return { champ: 'loc-date-sortie',
+             message: `Un congé a été reçu le ${jour(conge)} : ce bail ne peut pas rester sans date de sortie.` };
+
+  // locataires_remise_cles_apres_entree — on ne rend pas les clés avant d'entrer.
+  const cles = val('date_remise_cles'), entree = val('date_entree');
+  if(cles && entree && cles < entree)
+    return { champ: 'loc-date-entree',
+             message: `Les clés ont été rendues le ${jour(cles)} : l'entrée ne peut pas lui être postérieure.` };
+
+  // locataires_retenue_sous_le_depot — une retenue ne dépasse pas le dépôt versé.
+  const ret = parseFloat(val('depot_retenue'));
+  const dep = parseFloat(val('depot_garantie')) || 0;
+  if(Number.isFinite(ret) && ret > dep)
+    /* ⚠️ SUR UN BAIL DÉJÀ SOLDÉ, IL N'Y A PAS D'ISSUE DANS L'ÉCRAN, et c'est
+       assumé : la fenêtre de dépôt ne se rouvre pas une fois la restitution
+       enregistrée — `sfBauxQuiSeTerminent` sort le bail de la liste, c'est
+       tout l'objet de `depot_restitue_le`. Le dépôt d'un bail soldé est un
+       fait comptable, comme un mois de loyer encaissé : on ne le réécrit pas
+       depuis une fiche. La phrase le dit, plutôt que d'envoyer chercher un
+       bouton qui n'existe pas. */
+    return { champ: 'loc-depot',
+             message: val('depot_restitue_le')
+               ? `Ce dépôt est soldé : ${fmt(ret)} € retenus, restitution enregistrée. Son montant ne se corrige plus depuis la fiche.`
+               : `${fmt(ret)} € ont été retenus sur ce dépôt : il ne peut pas être ramené à ${fmt(dep)} €.` };
+
+  return null;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    CE QUI RESTE OUVERT SUR UN BAIL QUI SE TERMINE — étape 5.
 
    ⚠️ POURQUOI CE N'EST PAS SEULEMENT « LES PRÉAVIS EN COURS ». Le test du
@@ -10752,16 +10836,34 @@ async function saveLocataire() {
     return;
   }
 
-  /* ⚠️ REVENIR À « ACTIF » EFFACE LE CONGÉ. Sans cela, un locataire repassé
-     actif depuis cette fenêtre garderait sa date de réception et son motif :
-     la fenêtre de congé les reproposerait au congé SUIVANT, avec une date
-     d'il y a six mois. Un statut et les colonnes qui le justifient ne peuvent
-     pas se contredire.
+  /* ⚠️ REVENIR À « ACTIF » EFFACE TOUT LE DÉPART. Sans cela, un locataire
+     repassé actif depuis cette fenêtre garderait sa date de réception et son
+     motif — la fenêtre de congé les reproposerait au congé SUIVANT, avec une
+     date d'il y a six mois — mais aussi sa remise des clés, qui lui
+     interdirait toute nouvelle date d'entrée. Le détail et le pourquoi sont
+     dans `sfEffacementDepart`.
      ⚠️ « Sorti » les CONSERVE, lui : c'est l'histoire de son départ. */
+  const avantFiche = editingLocataireId
+    ? allLocataires.find(l => l.id === editingLocataireId) : null;
+
   if(data.statut === 'Actif' || data.statut === 'Candidat') {
-    data.date_conge_recu = null;
-    data.preavis_mois    = null;
-    data.preavis_motif   = null;
+    Object.assign(data, sfEffacementDepart(sfDepotColonnesPretes(avantFiche)));
+  }
+
+  /* ⚠️ LA FICHE RÉÉCRIT TOUT LE BAIL, y compris ce que les workflows de congé,
+     de sortie et de dépôt ont posé — vider la date de sortie d'un locataire
+     sorti, reculer son entrée après la remise des clés, ramener à zéro un
+     dépôt dont une part a été retenue. Chacun de ces trois gestes casse un
+     invariant que la base refuse désormais (partie C de MIGRATION-PREAVIS.sql).
+     On le dit AVANT, en désignant le champ ; sans cela l'utilisateur reçoit
+     « violates check constraint locataires_conge_a_une_fin » et reste seul
+     devant sa fiche. Le contrôle est placé APRÈS l'effacement du congé
+     ci-dessus : repasser « Actif » supprime le congé, donc ne le viole pas. */
+  const rupture = sfInvariantsBail(avantFiche, data);
+  if(rupture) {
+    showNotif(rupture.message, true);
+    document.getElementById(rupture.champ)?.focus();
+    return;
   }
 
   /* Vérification : UN SEUL OCCUPANT par bien à la fois.

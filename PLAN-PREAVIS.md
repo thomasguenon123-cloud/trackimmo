@@ -277,7 +277,7 @@ est un mois partiel qu'on regarde de près.
 | **La tacite reconduction n'est pas modélisée** — `date_sortie` sert d'échéance de bail *et* de départ effectif, alors qu'un bail arrivé à terme se **renouvelle** si personne n'a donné congé | ⏳ Ouvert. Conséquence : une date de sortie posée « pour plus tard » proratise son mois et coupe les loyers au-delà, sans qu'aucun congé n'existe. Il manque une échéance de bail distincte, renouvelable. |
 | **L'encaissement des charges n'est suivi nulle part** — `montant_encaisse` ne solde que `loyer_du` | ⏳ Ouvert. Ce n'est pas un bug : c'est un choix jamais explicité, à trancher. |
 | **Le modèle d'état des lieux** — grille pièce par pièce, inventaire obligatoire en meublé | ⏳ Ouvert, voir `NOTE-COMPTES-RENDUS.md` |
-| **Les invariants croisés** (partie C de la migration) | ⏳ Prêts à poser : les workflows écrivent désormais ces colonnes |
+| **Les invariants croisés** (partie C de la migration) | 🔵 **Code livré le 05/09/2026 (v=81)** — `sfInvariantsBail` + `sfEffacementDepart`. Le SQL est décommenté et attend d'être joué par Thomas. |
 | **Renommage `comptes_rendus` + migration de l'écran** | ⏳ Ouvert, à faire d'un seul tenant |
 
 ---

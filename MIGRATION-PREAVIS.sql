@@ -38,10 +38,11 @@
 -- PARTIE D  le suivi de la RESTITUTION du dépôt — ajoutée le 23/08/2026 avec
 --           la liste « Baux qui se terminent », qui ne se viderait jamais sans
 --           elle. Additive comme A et B.
--- PARTIE C  les invariants croisés. ⚠️ VOLONTAIREMENT EN COMMENTAIRE : ils
---           s'appliqueront quand le workflow de congé écrira ces colonnes,
---           pas avant. Même discipline que la migration MODE-DETENTION, dont
---           la partie B a attendu que les trois chemins d'écriture soient
+-- PARTIE C  les invariants croisés — DÉCOMMENTÉE LE 05/09/2026, quand la
+--           fiche locataire a cessé de pouvoir défaire ce que les workflows
+--           posent (`sfInvariantsBail`, v=81). Elle est restée en commentaire
+--           deux semaines : même discipline que la migration MODE-DETENTION,
+--           dont la partie B a attendu que les chemins d'écriture soient
 --           alignés. Elle vient APRÈS D dans le fichier : ce qui s'exécute
 --           d'abord se lit d'abord.
 --
@@ -215,62 +216,131 @@ alter table public.locataires
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PARTIE C — LES INVARIANTS CROISÉS
---
--- ⚠️ NE PAS EXÉCUTER MAINTENANT. Ils sont écrits ici pour ne pas être
--- oubliés, et resteront en commentaire tant que le workflow de congé
--- (étape 3) et l'acte de sortie (étape 4) n'écrivent pas ces colonnes.
---
--- La leçon de MIGRATION-MODE-DETENTION : un invariant posé avant que le code
--- ne sache le respecter transforme chaque enregistrement en erreur. Celui-là
--- a attendu deux jours et c'était la bonne décision.
---
--- 1. Un MOTIF n'existe que sur un préavis RÉDUIT. Trois mois de préavis avec
---    « mutation professionnelle » en face est une contradiction : le motif
---    sert précisément à justifier le raccourcissement.
---
--- alter table public.locataires
---   add constraint locataires_preavis_motif_coherent
---   check (preavis_motif is null or preavis_mois = 1);
---
--- 2. Un CONGÉ REÇU implique une FIN DE PRÉAVIS. C'est la donnée incomplète et
---    silencieuse que le cadrage refusait : un congé sans date de sortie ne
---    déclenche rien, ni échéance de départ, ni prorata du dernier mois.
---
--- alter table public.locataires
---   add constraint locataires_conge_a_une_fin
---   check (date_conge_recu is null or date_sortie is not null);
---
--- 3. On ne rend pas les clés avant d'être parti. Une remise antérieure à la
---    fin du bail est possible en droit, mais pas ANTÉRIEURE À L'ENTRÉE.
---
--- alter table public.locataires
---   add constraint locataires_remise_cles_apres_entree
---   check (date_remise_cles is null or date_entree is null
---          or date_remise_cles >= date_entree);
---
--- 3 bis. Une retenue ne peut pas dépasser le dépôt versé. Croisée, donc
---    revérifiée à chaque mise à jour de la ligne : à ne poser que le jour où
---    `saveLocataire` cesse de réécrire `depot_garantie` sans le lire.
---
--- alter table public.locataires
---   add constraint locataires_retenue_sous_le_depot
---   check (depot_retenue is null or depot_retenue <= coalesce(depot_garantie, 0));
---
--- 4. Un état des lieux porte sur QUELQU'UN, et le verdict de conformité n'a
---    de sens que sur une SORTIE.
---
--- alter table public.visites
---   add constraint visites_edl_a_un_locataire
---   check (type_visite not in ('edl_entree','edl_sortie') or locataire_id is not null);
--- alter table public.visites
---   add constraint visites_conforme_sur_sortie
---   check (conforme is null or type_visite = 'edl_sortie');
+-- CONTRÔLE DES INVARIANTS — À JOUER AVANT LA PARTIE C, QUI SUIT (lecture seule).
+-- Chaque ligne DOIT rendre 0. Une seule violation, et l'`alter` correspondant
+-- échouera : corrige la donnée d'abord, ne désactive pas la contrainte.
+-- ═══════════════════════════════════════════════════════════════════════════
+select '1. motif => preavis 1 mois' as invariant, count(*) as violations
+  from public.locataires where not (preavis_motif is null or preavis_mois = 1)
+union all
+select '2. conge => date de sortie', count(*)
+  from public.locataires where not (date_conge_recu is null or date_sortie is not null)
+union all
+select '3. cles apres entree', count(*)
+  from public.locataires where not (date_remise_cles is null or date_entree is null
+                                    or date_remise_cles >= date_entree)
+union all
+select '3bis. retenue <= depot', count(*)
+  from public.locataires where not (depot_retenue is null
+                                    or depot_retenue <= coalesce(depot_garantie, 0))
+union all
+select '4a. edl => locataire', count(*)
+  from public.visites where not (type_visite not in ('edl_entree','edl_sortie')
+                                 or locataire_id is not null)
+union all
+select '4b. conforme => edl_sortie', count(*)
+  from public.visites where not (conforme is null or type_visite = 'edl_sortie');
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- VÉRIFICATION — à exécuter APRÈS les parties A et B (lecture seule)
--- Attendu : 5 colonnes de préavis + 1 colonne `conforme`, 4 contraintes
+-- PARTIE C — LES INVARIANTS CROISÉS  (applicable depuis le 05/09/2026)
+--
+-- Ce qu'ils interdisent tient en trois phrases : un motif ne se justifie que
+-- sur un préavis réduit, un congé reçu a une fin, et on ne rend pas les clés
+-- avant d'être entré. Plus deux sur les comptes rendus, et la retenue bornée
+-- au dépôt versé.
+--
+-- ── POURQUOI ILS ONT ATTENDU, ET POURQUOI C'EST FINI ──────────────────────
+-- La leçon de MIGRATION-MODE-DETENTION : un invariant posé avant que le code
+-- ne sache le respecter transforme chaque enregistrement en erreur. Celui-là
+-- a attendu deux semaines, le temps que les workflows de congé, de sortie et
+-- de dépôt existent ET que la FICHE cesse de pouvoir les défaire.
+--
+-- Les trois workflows tenaient déjà leurs règles chacun de son côté :
+--   * `sfCongeConfirmer` écrit `date_sortie` DANS LE MÊME patch que le congé,
+--     refuse une sortie antérieure à l'entrée, et `sfCongeSetMois` efface le
+--     motif dès qu'on repasse à trois mois ;
+--   * `sfSortieConfirmer` refuse des clés rendues avant l'entrée ;
+--   * `sfDepotConfirmer` borne la retenue au dépôt par un `Math.min` ;
+--   * `saveVisite` refuse un état des lieux sans locataire et n'écrit
+--     `conforme` que sur une sortie.
+--
+-- ⚠️ LE TROU ÉTAIT LA FICHE LOCATAIRE. `saveLocataire` réécrit tout le bail
+-- d'un bloc — `date_sortie`, `date_entree`, `depot_garantie` compris — sans
+-- lire ce que ces workflows ont posé. Trois gestes ordinaires suffisaient à
+-- casser un invariant : vider la date de sortie d'un locataire sorti, reculer
+-- son entrée après la remise des clés, ramener à zéro un dépôt dont une part
+-- a été retenue. `sfInvariantsBail` (app.js, v=81) ferme ce trou et refuse
+-- AVANT la base, en français, en désignant le champ.
+--
+-- ⚠️ 3 BIS EST POSÉE, contrairement à ce qu'annonçait la partie D. Sa réserve
+-- — « à poser le jour où `saveLocataire` cesse de réécrire `depot_garantie`
+-- sans le lire » — visait le symptôme. Il le réécrit toujours ; ce qui a
+-- changé, c'est qu'il ne peut plus le faire DESCENDRE SOUS LA RETENUE.
+-- L'invariant est tenu, par un autre chemin que celui prévu.
+--
+-- ── VÉRIFIÉ EN LECTURE LE 05/09/2026, AVANT ÉCRITURE ──────────────────────
+-- Les six invariants comptent ZÉRO violation sur les données existantes
+-- (2 locataires, 2 comptes rendus). Aucun `ALTER` ci-dessous ne peut donc
+-- échouer sur l'existant. Relance la requête de contrôle en fin de fichier
+-- pour t'en assurer toi-même avant de jouer ce bloc.
+--
+-- Idempotent comme le reste : `drop ... if exists` avant chaque `add`.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- 1. Un MOTIF n'existe que sur un préavis RÉDUIT. Trois mois de préavis avec
+--    « mutation professionnelle » en face est une contradiction : le motif
+--    sert précisément à justifier le raccourcissement.
+alter table public.locataires
+  drop constraint if exists locataires_preavis_motif_coherent;
+alter table public.locataires
+  add constraint locataires_preavis_motif_coherent
+  check (preavis_motif is null or preavis_mois = 1);
+
+-- 2. Un CONGÉ REÇU implique une FIN DE PRÉAVIS. C'est la donnée incomplète et
+--    silencieuse que le cadrage refusait : un congé sans date de sortie ne
+--    déclenche rien, ni échéance de départ, ni prorata du dernier mois.
+alter table public.locataires
+  drop constraint if exists locataires_conge_a_une_fin;
+alter table public.locataires
+  add constraint locataires_conge_a_une_fin
+  check (date_conge_recu is null or date_sortie is not null);
+
+-- 3. On ne rend pas les clés avant d'être entré. Une remise ANTÉRIEURE À LA
+--    FIN DU BAIL est licite — c'est même le cas courant d'un départ anticipé ;
+--    antérieure à l'ENTRÉE, non.
+alter table public.locataires
+  drop constraint if exists locataires_remise_cles_apres_entree;
+alter table public.locataires
+  add constraint locataires_remise_cles_apres_entree
+  check (date_remise_cles is null or date_entree is null
+         or date_remise_cles >= date_entree);
+
+-- 3 bis. Une retenue ne peut pas dépasser le dépôt versé.
+alter table public.locataires
+  drop constraint if exists locataires_retenue_sous_le_depot;
+alter table public.locataires
+  add constraint locataires_retenue_sous_le_depot
+  check (depot_retenue is null or depot_retenue <= coalesce(depot_garantie, 0));
+
+-- 4. Un état des lieux porte sur QUELQU'UN, et le verdict de conformité n'a
+--    de sens que sur une SORTIE.
+alter table public.visites
+  drop constraint if exists visites_edl_a_un_locataire;
+alter table public.visites
+  add constraint visites_edl_a_un_locataire
+  check (type_visite not in ('edl_entree','edl_sortie') or locataire_id is not null);
+
+alter table public.visites
+  drop constraint if exists visites_conforme_sur_sortie;
+alter table public.visites
+  add constraint visites_conforme_sur_sortie
+  check (conforme is null or type_visite = 'edl_sortie');
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- VÉRIFICATION — à exécuter APRÈS les parties A, B, D et C (lecture seule)
+-- Attendu : 5 colonnes de préavis + 1 colonne `conforme`, les contraintes
 -- nommées, l'index, et les 4 + 4 policies RLS INTACTES.
 -- ═══════════════════════════════════════════════════════════════════════════
 select 'colonnes preavis' as controle, count(*) as trouve, 5 as attendu
@@ -304,16 +374,43 @@ select 'colonnes restitution', count(*), 2
    and column_name in ('depot_restitue_le','depot_retenue')
 union all
 select 'contrainte retenue', count(*), 1
-  from pg_constraint where conname = 'locataires_depot_retenue_valide';
-
-
+  from pg_constraint where conname = 'locataires_depot_retenue_valide'
+union all
+select 'invariants croises (C)', count(*), 6
+  from pg_constraint
+ where conname in ('locataires_preavis_motif_coherent',
+                   'locataires_conge_a_une_fin',
+                   'locataires_remise_cles_apres_entree',
+                   'locataires_retenue_sous_le_depot',
+                   'visites_edl_a_un_locataire',
+                   'visites_conforme_sur_sortie')
+   and convalidated;
 -- ═══════════════════════════════════════════════════════════════════════════
 -- RETOUR EN ARRIÈRE — si quelque chose se passe mal
--- Aucune donnée n'est détruite par ce retour : les colonnes ajoutées sont
--- vides, personne ne les écrit encore.
+--
+-- ⚠️ CE RETOUR DÉTRUIT DES DONNÉES, ET CE N'EST PLUS THÉORIQUE. La phrase qui
+-- figurait ici — « aucune donnée n'est détruite, les colonnes sont vides » —
+-- était vraie le 22/08/2026 et ne l'est plus : au 05/09, un bail porte sa date
+-- de congé, sa durée de préavis, sa remise des clés et son verdict d'état des
+-- lieux. `drop column` emporte tout cela sans retour. Sauvegarde d'abord.
+--
 -- ⚠️ La contrainte de type doit être REMISE dans son état d'origine, sinon
 -- `visites` accepterait des types que l'écran ne sait pas afficher.
+--
+-- ⚠️ Les invariants de la partie C sont retirés EN PREMIER et explicitement.
+-- Cinq d'entre eux disparaîtraient d'eux-mêmes avec leur colonne, mais pas
+-- `visites_edl_a_un_locataire` : il ne porte que sur `type_visite` et
+-- `locataire_id`, qui survivent tous deux au retour. Il resterait en place,
+-- orphelin, à refuser des lignes pour une règle que plus rien n'explique.
 -- ═══════════════════════════════════════════════════════════════════════════
+-- alter table public.locataires
+--   drop constraint if exists locataires_preavis_motif_coherent,
+--   drop constraint if exists locataires_conge_a_une_fin,
+--   drop constraint if exists locataires_remise_cles_apres_entree,
+--   drop constraint if exists locataires_retenue_sous_le_depot;
+-- alter table public.visites
+--   drop constraint if exists visites_edl_a_un_locataire,
+--   drop constraint if exists visites_conforme_sur_sortie;
 -- alter table public.locataires
 --   drop constraint if exists locataires_preavis_mois_valide,
 --   drop constraint if exists locataires_preavis_motif_valide,
