@@ -23,9 +23,9 @@
      l'icône Apple l'ajout à l'écran d'accueil sur iPhone. Les trois portent
      `?v=` comme le reste : une favicon est mise en cache très agressivement,
      et sans la version le changement peut rester invisible des semaines. -->
-<link rel="icon" type="image/svg+xml" href="favicon.svg?v=84">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=84">
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=84">
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=85">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=85">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=85">
 <meta name="theme-color" content="#0A100C" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#F5F8F6" media="(prefers-color-scheme: light)">
 <!-- ⚠️ Le chargement de Google Fonts a été retiré le 13/08/2026 : « Inter » n'est
@@ -43,19 +43,19 @@
 <!-- Socle de jetons Stonefolio (phase 2). Ne declare que des variables : aucun
      effet visuel tant qu'aucun composant ne les consomme. Charge AVANT
      styles.css pour que la migration puisse s'appuyer dessus. -->
-<link rel="stylesheet" href="tokens.css?v=84">
-<link rel="stylesheet" href="components.css?v=84">
-<link rel="stylesheet" href="styles.css?v=84">
+<link rel="stylesheet" href="tokens.css?v=85">
+<link rel="stylesheet" href="components.css?v=85">
+<link rel="stylesheet" href="styles.css?v=85">
 <!-- Suivi financier : chargé APRÈS styles.css, c'est ce qui permet aux deux
      surcharges de géométrie (`.sff-line` à 2 colonnes au lieu de 5) de gagner
      dans le seul périmètre `.mf-page`, sans toucher à la fiche bien. -->
-<link rel="stylesheet" href="financier.css?v=84">
+<link rel="stylesheet" href="financier.css?v=85">
 <!-- Tactile : chargée EN DERNIER, et c'est ce qui la fait fonctionner. Elle ne
      contient que des surcharges sous requête média (`any-pointer: coarse`) qui
      doivent gagner contre les quatre feuilles précédentes ; à spécificité égale,
      c'est l'ordre de chargement qui tranche. Aucun effet sur un poste sans
      pointeur tactile. -->
-<link rel="stylesheet" href="tactile.css?v=84">
+<link rel="stylesheet" href="tactile.css?v=85">
 </head>
 <body>
 
@@ -228,7 +228,7 @@
 
 <div class="notif" id="notif"></div>
 
-<script src="app.js?v=84"></script>
+<script src="app.js?v=85"></script>
 
 <!-- LIGHTBOX -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">

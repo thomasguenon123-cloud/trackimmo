@@ -11019,11 +11019,29 @@ async function saveLocataire() {
        s'arrete de lui-meme a la date de sortie (`mfLoyerProrata` rend 0 au-dela)
        — le lui interdire ici ne protegeait de rien et faisait manquer les
        derniers mois dus. */
+    /* ⚠️ ON REFERME LE FORMULAIRE AVANT DE POSER LA MOINDRE QUESTION. La
+       fenêtre de confirmation vit dans `#modal-detail` (z-index 200), le
+       formulaire locataire dans `#adm-modal-overlay` (z-index 2001) : posée
+       avant, la question s'ouvrait DERRIÈRE, invisible et incliquable — et
+       `sfConfirmer` plaçant le focus sur « Oui », une touche Entrée aurait
+       marqué huit mois comme encaissés sans que personne ne voie rien. Un
+       défaut pire que celui qu'on corrigeait. */
+    closeAdmModal();
+
     if(sfEstOccupant(data) && data.bien_id && data.date_entree && savedId) {
-      loyersGenes = await autoGenerateLoyers({
-        ...data,
-        id: savedId,
-      });
+      const locSauve = { ...data, id: savedId };
+      /* ⚠️ LA QUESTION NE SE POSE QUE SUR CE CHEMIN, ET C'EST DÉLIBÉRÉ.
+         Les deux autres appelants d'`autoGenerateLoyers` ne sont pas des
+         arrivées : `sfCongeRevoquer` régénère un bail existant — le bailleur
+         n'est pas en train de déclarer son parc, il annule un congé.
+         Quant à `bdAcqConfirmer`, il vit DANS `modal-detail`, la fenêtre que
+         `sfConfirmer` réutilise : y ouvrir la question écraserait le workflow
+         d'acquisition en cours. Un bien acquis avec un locataire en place
+         garde donc ses loyers « En attente », et le tableau de bord les
+         signale — c'est une limite connue, pas un oubli. */
+      const statutPasses = await sfDemanderLoyersPasses(
+        locSauve, new Date().getFullYear(), sfMoisDebutGeneration(locSauve));
+      loyersGenes = await autoGenerateLoyers(locSauve, statutPasses);
     }
 
     // Le cas "actif sur un bien mais aucun loyer genere" reste possible apres
@@ -11035,7 +11053,6 @@ async function saveLocataire() {
       ? ` · ${loyersGenes} loyer${loyersGenes>1?'s':''} généré${loyersGenes>1?'s':''}`
       : (attenduDesLoyers ? ' · aucun nouveau loyer à générer' : '');
     showNotif(`Locataire ${editingLocataireId ? 'mis à jour' : 'créé'}${suffixe}`);
-    closeAdmModal();
     await loadLocataires();
     const c = document.getElementById('mf-content');
     if(c && mfTab === 'locataires') renderMfLocataires(c);
@@ -11070,18 +11087,162 @@ async function deleteLocataire() {
 // À la création/passage en "Actif", on génère 1 ligne par mois entre date_entree
 // et la fin de l'année courante. Idempotent grâce à la contrainte unique
 // (user_id, bien_id, mois, annee) → onConflict: ne rien faire.
-async function autoGenerateLoyers(loc) {
+/* À QUEL MOIS COMMENCE LA GÉNÉRATION D'UNE ANNÉE ?
+
+   Du mois d'entrée si le bail commence dans l'année, de janvier s'il est
+   antérieur, et `null` s'il commence plus tard — il n'y a alors rien à générer.
+
+   ⚠️ Extraite le 05/09/2026 pour que la QUESTION posée au bailleur et la
+   GÉNÉRATION qui suit partent du même mois. Deux calculs séparés auraient pu
+   compter des mois différents : on aurait annoncé « 8 loyers déjà échus » puis
+   créé autre chose. */
+function sfMoisDebutGeneration(loc, annee = new Date().getFullYear()) {
+  /* ⚠️ TESTER LA VALEUR AVANT DE LA DATER. `new Date(null)` ne rend pas une
+     date invalide mais l'ÉPOQUE UNIX — le 1er janvier 1970, une année
+     parfaitement valide et antérieure à toutes les autres. Un bail sans date
+     d'entrée renvoyait donc « janvier », et aurait fait générer douze mois de
+     loyer à partir de rien. Trouvé par le test, pas à l'œil. */
+  if(!loc?.date_entree) return null;
+  const d = new Date(loc.date_entree);
+  if(isNaN(d)) return null;
+  if(d.getFullYear() === annee) return d.getMonth() + 1;
+  if(d.getFullYear() <  annee) return 1;
+  return null;
+}
+
+/* LA QUESTION DES LOYERS PASSÉS — le défaut le plus coûteux du premier
+   lancement, et il ne se voit pas sur un écran vide.
+
+   ⚠️ CE QUI SE PASSAIT SANS ELLE. Un bailleur saisit un locataire en place
+   depuis 2023. `autoGenerateLoyers` crée toute l'année en cours au statut
+   « En attente » : douze lignes impayées, dont huit déjà échues un 5 septembre.
+   Le tableau de bord les compte aussitôt comme loyers échus non pointés, voire
+   « en retard » en rouge. Trois biens à 800 EUR : l'application annonce environ
+   19 000 EUR d'arriérés A QUELQU'UN QUI A ENCAISSÉ CES LOYERS, sur son premier
+   écran, et il lui faudrait vingt-quatre clics pour effacer une alerte qui
+   n'aurait jamais dû s'afficher.
+
+   On pose donc la question, une fois, au moment où elle se pose vraiment.
+
+   ⚠️ ON NE DEVINE PAS. Marquer « Payé » par défaut aurait été indolore et
+   faux : l'application inventerait un fait comptable que personne n'a
+   confirmé. Ne rien générer aurait laissé l'historique vide et les indicateurs
+   sur douze mois faux sans le dire. La question est le seul chemin honnête.
+
+   Rend le statut à donner aux mois échus : 'Payé' ou 'En attente'. */
+async function sfDemanderLoyersPasses(loc, annee, moisDebut) {
+  const n = moisDebut ? sfMoisEchusAGenerer(loc, annee, moisDebut) : 0;
+  if(!n) return 'En attente';   // rien d'échu : aucune question à poser
+
+  const depuis = /^(\d{4})-(\d{2})-(\d{2})/.exec(loc.date_entree || '');
+  const quand = depuis ? `depuis le ${depuis[3]}/${depuis[2]}/${depuis[1]}` : 'déjà en cours';
+
+  const ok = await sfConfirmer({
+    titre: 'Les loyers déjà passés',
+    question: `Ce bail court ${quand} : ${n} loyer${n > 1 ? 's' : ''} de ${annee} ${n > 1 ? 'sont' : 'est'} déjà échu${n > 1 ? 's' : ''}.`,
+    detail: `Les avez-vous encaissés&nbsp;?<br><br>`
+          + `<strong>Oui</strong> — ils sont enregistrés comme payés, et votre historique est juste dès le premier jour.<br>`
+          + `<strong>Pas encore</strong> — ils restent à encaisser, et le tableau de bord vous les signalera.<br><br>`
+          + `<em>Le mois en cours reste à encaisser dans les deux cas : lui seul dépend de votre jour de paiement.</em>`,
+    ok: 'Oui, déjà encaissés',
+    annuler: 'Pas encore',
+  });
+  return ok ? 'Payé' : 'En attente';
+}
+
+/* LES LIGNES QU'UN BAIL DOIT PRODUIRE SUR UNE ANNÉE — fonction pure.
+
+   Extraite d'`autoGenerateLoyers` le 05/09/2026 pour servir DEUX usages à
+   partir d'un seul calcul : compter les mois déjà échus, afin de savoir s'il y
+   a une question à poser, puis produire les lignes. Deux parcours de calendrier
+   séparés auraient fini par diverger — c'est le motif qui a déjà produit deux
+   générateurs de loyers désaccordés dans ce dépôt.
+
+   `statutPasses` s'applique aux mois STRICTEMENT ANTÉRIEURS au mois courant.
+   ⚠️ Le mois EN COURS reste toujours « En attente » : selon le jour de
+   paiement du bail, il peut être dû ou non, et rien ici ne permet de trancher.
+   On ne devine pas un encaissement. */
+function sfLignesAGenerer(loc, annee, moisDebut, statutPasses) {
+  /* ⚠️ `moisDebut` vaut `null` pour un bail qui commence l'an prochain. Sans
+     ce garde-fou la boucle démarrerait à zéro — `null <= 12` est vrai, et le
+     premier `m++` rend 1 après avoir déjà servi `m = null`. On demanderait
+     alors un prorata sur un mois 0, qui n'existe pas. */
+  if(!moisDebut || moisDebut < 1 || moisDebut > 12) return [];
+  const maintenant = new Date();
+  const moisCourant = (annee === maintenant.getFullYear())
+    ? maintenant.getMonth() + 1
+    : (annee < maintenant.getFullYear() ? 13 : 0);   // année révolue : tout est passé
+
+  const rows = [];
+  for(let m = moisDebut; m <= 12; m++) {
+    const p = sfProrataBail(loc, m, annee);
+    if(p.jours === 0) continue;   // mois hors période d'occupation
+    const passe = m < moisCourant;
+    const paye  = passe && statutPasses === 'Payé';
+    rows.push({
+      /* `?.` pour que cette fonction reste PURE et testable : `currentUser`
+         est un `let` de haut niveau, absent du contexte `vm` des tests. En
+         production il est toujours présent — et s'il ne l'était pas, l'insert
+         échouerait de toute façon, avec un message plus clair qu'un
+         « cannot read properties of null ». */
+      user_id:       currentUser?.id,
+      bien_id:       loc.bien_id,
+      locataire_id:  loc.id,
+      mois:          m,
+      annee:         annee,
+      loyer_du:      p.loyer,
+      charges_dues:  p.charges,
+      statut:        paye ? 'Payé' : 'En attente',
+      /* ⚠️ `montant_encaisse` NE SOLDE QUE LE LOYER, ici comme partout
+         ailleurs dans l'application. C'est une limite connue et documentée,
+         pas un oubli : l'encaissement des charges n'est suivi nulle part, et
+         c'est un arbitrage encore ouvert. */
+      montant_encaisse: paye ? p.loyer : null,
+      /* ⚠️ ET LA DATE RESTE NULLE, DÉLIBÉRÉMENT. On sait que ces loyers ont
+         été encaissés — le bailleur vient de le dire — mais pas QUAND. Écrire
+         la date du jour serait un mensonge sur une date comptable ; écrire le
+         jour de paiement du bail serait une supposition. « Jamais de chiffre
+         inventé » vaut aussi pour les dates.
+         Vérifié : la déclaration fiscale filtre sur `statut` et `annee`, jamais
+         sur `date_encaissement` — ces lignes y entrent normalement, seule la
+         colonne « Date » de l'export détaillé reste vide. */
+      date_encaissement: null,
+      notes: [sfNoteProrata(p), paye ? 'Encaissé avant la mise en service — date non renseignée' : null]
+               .filter(Boolean).join(' · ') || null,
+    });
+  }
+  return rows;
+}
+
+/* Combien de mois DÉJÀ ÉCHUS ce bail va-t-il produire ? C'est ce nombre qui
+   décide s'il y a une question à poser au bailleur. */
+function sfMoisEchusAGenerer(loc, annee, moisDebut, existantes) {
+  /* ⚠️ NE COMPTER QUE CE QUI SERA RÉELLEMENT CRÉÉ. `autoGenerateLoyers` pose
+     `ignoreDuplicates: true` : une ligne déjà en base n'est jamais réécrite.
+     Sans ce filtre, corriger un numéro de téléphone sur un locataire en place
+     rouvrait la question — et répondre « oui, déjà encaissés » n'aurait rien
+     changé, les lignes restant « En attente ». On aurait promis à l'écran
+     l'inverse de ce qui se passe. */
+  const dejaLa = existantes || (typeof allLoyers !== 'undefined' ? allLoyers : []);
+  return sfLignesAGenerer(loc, annee, moisDebut, 'En attente')
+    .filter(l => sfEstMoisPasse(l.mois, l.annee))
+    .filter(l => !dejaLa.some(x => x.bien_id === l.bien_id
+                               && x.mois === l.mois && x.annee === l.annee))
+    .length;
+}
+
+function sfEstMoisPasse(mois, annee) {
+  const n = new Date();
+  return annee < n.getFullYear() || (annee === n.getFullYear() && mois < n.getMonth() + 1);
+}
+
+async function autoGenerateLoyers(loc, statutPasses = 'En attente') {
   if(!loc.bien_id || !loc.date_entree || !loc.id) return 0;
   const dEntree = new Date(loc.date_entree);
   if(isNaN(dEntree)) return 0;
-  const today = new Date();
-  const annee = today.getFullYear();
-
-  // Période : du max(janvier, mois entrée si même année) à décembre
-  let moisDebut;
-  if(dEntree.getFullYear() === annee) moisDebut = dEntree.getMonth() + 1;
-  else if(dEntree.getFullYear() < annee) moisDebut = 1;
-  else return 0; // entrée future année prochaine, on ne génère pas encore
+  const annee = new Date().getFullYear();
+  const moisDebut = sfMoisDebutGeneration(loc, annee);
+  if(moisDebut === null) return 0;   // entrée l'année prochaine : rien à générer
 
   /* ⚠️ DIVERGENCE TROUVÉE EN REVUE — deux générateurs, deux règles.
      Ce chemin écrivait `loyer_du = loc.loyer_bail_hc` SANS PRORATA, alors que
@@ -11096,22 +11257,7 @@ async function autoGenerateLoyers(loc) {
      → `mfLoyerProrata` devient la source unique. Un mois complet retourne le
      loyer plein, la fonction ne change donc rien hors mois d'entrée et de
      sortie. */
-  const rows = [];
-  for(let m = moisDebut; m <= 12; m++) {
-    const p = sfProrataBail(loc, m, annee);
-    if(p.jours === 0) continue;   // mois hors période d'occupation
-    rows.push({
-      user_id:       currentUser.id,
-      bien_id:       loc.bien_id,
-      locataire_id:  loc.id,
-      mois:          m,
-      annee:         annee,
-      loyer_du:      p.loyer,
-      charges_dues:  p.charges,
-      statut:        'En attente',
-      notes:         sfNoteProrata(p),
-    });
-  }
+  const rows = sfLignesAGenerer(loc, annee, moisDebut, statutPasses);
   if(!rows.length) return 0;
 
   /* Insert avec onConflict: ne rien faire (les loyers déjà existants sont préservés)
