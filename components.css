@@ -677,6 +677,14 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 }
 .acc-verdict--alerte{ background:var(--sf-alert-wash); }
 .acc-verdict--ok{ background:var(--sf-gain-wash); }
+/* ⚠️ LE DÉMARRAGE A BESOIN DE SON PROPRE HABILLAGE. Sans modificateur, le
+   verdict rendait `class="acc-verdict acc-verdict--"` — qui ne correspond à
+   aucune règle : plus de fond, et surtout une pastille SANS couleur de fond,
+   dont l'icône est dessinée en `--sf-bg`. Elle devenait donc invisible sur le
+   fond de la page, qui est ce même `--sf-bg`. Exactement sur l'écran d'un
+   compte neuf, le seul que ce code sert. */
+.acc-verdict--demarrage{ background:var(--sf-brand-wash); }
+.acc-verdict--demarrage .acc-verdict__ic{ background:var(--sf-brand-vivid); }
 .acc-verdict__ic{
   width:38px; height:38px; flex-shrink:0; display:grid; place-items:center;
   /* Le texte de la pastille se lit sur un aplat sature (alerte ou gain) :
@@ -832,4 +840,52 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
     border:var(--sf-border-width) solid var(--sf-border); border-radius:var(--sf-radius-sm);
     font-family:var(--sf-font-ui); font-size:var(--sf-font-body-sm);
   }
+}
+
+/* ── Le parcours de démarrage (accueil) ──────────────────────────────────────
+   Trois étapes ordonnées, dont une seule est actionnable. La numérotation
+   encode une DÉPENDANCE réelle — sans bien acquis, pas de bail à rattacher ;
+   sans bail, pas de loyer à pointer — et non un simple décompte.
+   Il réutilise la carte et les jetons des points d'attention : c'est le même
+   véhicule, montré à un moment où il n'y a encore rien à signaler. */
+.acc-pas{
+  display:flex; align-items:flex-start; gap:var(--sf-space-5);
+  padding:var(--sf-space-6) var(--sf-space-7);
+  border-top:var(--sf-border-width) solid var(--sf-border);
+}
+.acc-pas:first-child{ border-top:0; }
+
+.acc-pas__n{
+  width:26px; height:26px; flex-shrink:0; display:grid; place-items:center;
+  border-radius:var(--sf-radius-full);
+  font-family:var(--sf-font-display); font-size:var(--sf-font-caption);
+  font-weight:var(--sf-weight-semibold); font-variant-numeric:tabular-nums;
+  background:var(--sf-surface-3); color:var(--c-dim);
+}
+.acc-pas__t{
+  margin:0; font-weight:var(--sf-weight-semibold); color:var(--c-text);
+  font-size:var(--sf-font-body);
+}
+.acc-pas__x{
+  margin:3px 0 0; font-size:var(--sf-font-caption); color:var(--c-dim);
+  line-height:1.55; max-width:62ch;
+}
+.acc-pas__body{ min-width:0; }
+.acc-pas__a{ margin-left:auto; padding-left:var(--sf-space-5); }
+
+/* L'étape faite s'efface : elle a rempli son office. */
+.acc-pas--fait .acc-pas__n{ background:var(--sf-gain); color:var(--sf-bg); }
+.acc-pas--fait .acc-pas__t{ color:var(--c-dim); }
+.acc-pas--fait .acc-pas__x{ display:none; }
+
+/* Celle qui vient est la seule à porter une couleur et un bouton. */
+.acc-pas--suivant .acc-pas__n{ background:var(--sf-brand-vivid); color:var(--sf-bg); }
+
+/* Celles d'après sont montrées, pas proposées : elles ne sont pas encore
+   atteignables, et un bouton y serait une promesse fausse. */
+.acc-pas--plus-tard{ opacity:.55; }
+
+@media (max-width:640px){
+  .acc-pas{ flex-wrap:wrap; }
+  .acc-pas__a{ margin-left:calc(26px + var(--sf-space-5)); padding-left:0; }
 }

@@ -1536,6 +1536,87 @@ function sfAccIcon(n, t) {
 
 // Detecteurs. Chacun ne produit un point QUE s'il se declenche reellement :
 // le nombre affiche est donc toujours vrai, jamais une liste figee.
+/* ═══════════════════════════════════════════════════════════════════════════
+   LE PARCOURS DE DÉMARRAGE — les trois gestes qui rendent Stonefolio utile.
+
+   ⚠️ CE QU'IL CORRIGE. `renderAccueil` n'avait aucune branche « première
+   ouverture » : le verdict se calculait sur `pts.length === 0` sans distinguer
+   « rien à signaler » de « rien du tout ». Un compte neuf lisait donc « Rien ne
+   demande votre attention — vos loyers sont pointés et vos fiches sont
+   complètes », alors qu'il n'avait rien saisi. Deux phrases fausses, à
+   l'endroit exact où devrait se trouver la seule utile : par quoi commencer.
+
+   ⚠️ AUCUN ÉTAT N'EST STOCKÉ, et c'est ce qui rend ce parcours honnête. Il se
+   DÉDUIT des données : un bien acquis, un bail dessus, un loyer pointé. Une
+   case cochée en base mentirait le jour où l'on supprime le dernier bien ;
+   ici le parcours réapparaît de lui-même, parce qu'il redevient vrai.
+
+   ⚠️ L'ORDRE N'EST PAS DÉCORATIF : chaque geste rend le suivant possible. Sans
+   bien acquis, aucun bail à rattacher ; sans bail, aucun loyer à pointer.
+   C'est pourquoi les étapes suivantes sont montrées sans bouton — elles ne
+   sont pas encore atteignables, et le dire vaut mieux que laisser cliquer.  */
+function sfParcoursDemarrage(biens, loyers, locataires) {
+  /* Les données sont des PARAMÈTRES, avec les globales pour défaut : sans
+     cela la fonction ne se teste que sur l'état réel de l'application, et
+     les quatre étapes d'un compte qui se remplit ne sont pas vérifiables. */
+  const tousBiens  = biens  || (typeof allBiens  !== 'undefined' ? allBiens  : []);
+  const tousLoyers = loyers || (typeof allLoyers !== 'undefined' ? allLoyers : []);
+  const acquis = tousBiens.filter(sfDetenu);
+  return [
+    { fait: acquis.length > 0,
+      titre: 'Déclarez un bien',
+      enjeu: 'Un logement que vous possédez déjà — choisissez « Acheté » comme statut — ou une annonce que vous suivez.',
+      action: 'Ajouter un bien', cible: "navigate('nouveau')" },
+
+    { fait: acquis.some(b => sfLocataireEnPlace(b.id, locataires)),
+      titre: 'Déclarez son locataire',
+      enjeu: "C'est le bail qui fait naître les échéances : sa date d'entrée, son loyer et ses charges suffisent à générer l'année.",
+      action: 'Ajouter un locataire', cible: "navigate('module-financier')" },
+
+    { fait: tousLoyers.some(sfLoyerPointe),
+      titre: 'Pointez un loyer encaissé',
+      enjeu: 'Stonefolio sépare ce qui est <strong>dû</strong> de ce qui est <strong>encaissé</strong> : votre cashflow réel ne compte que le second.',
+      action: 'Ouvrir le suivi', cible: "navigate('module-financier')" },
+  ];
+}
+
+/* Le rendu du parcours. Trois états, et un seul geste actionnable à la fois :
+   ce qui est fait porte une coche, ce qui vient porte son bouton, ce qui suit
+   reste gris. Montrer un bouton sur une étape inatteignable serait promettre
+   un raccourci qui n'existe pas. */
+function sfParcoursHtml(parcours) {
+  const prochain = parcours.findIndex(g => !g.fait);
+  return parcours.map((g, i) => {
+    const etat = g.fait ? 'fait' : i === prochain ? 'suivant' : 'plus-tard';
+    return `
+      <div class="acc-pas acc-pas--${etat}">
+        <span class="acc-pas__n" aria-hidden="true">${g.fait ? sfAccIcon('ok', 14) : i + 1}</span>
+        <div class="acc-pas__body">
+          <p class="acc-pas__t">${esc(g.titre)}</p>
+          <p class="acc-pas__x">${g.enjeu}</p>
+        </div>
+        ${i === prochain ? `<span class="acc-pas__a">
+          <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="${g.cible}">${esc(g.action)}</button>
+        </span>` : ''}
+      </div>`;
+  }).join('');
+}
+
+/* ⚠️ LE PARCOURS NE S'EFFACE PAS DEVANT LES POINTS D'ATTENTION, et la
+   première version de ce code avait tort de le croire. Elle le masquait dès
+   qu'un point existait, en pensant lui « passer le relais ». Mais
+   `sfPointsAttention` émet TOUJOURS quelque chose sitôt qu'un bien est acquis
+   — « aucune charge saisie cette année », « fiche à compléter », « pas de
+   mensualité de crédit ». Le parcours ne pouvait donc jamais dépasser sa
+   première étape : les deux suivantes n'étaient atteignables dans aucun état
+   de l'application. Un cul-de-sac, pas un relais.
+   Les deux listes répondent à des questions différentes — « par où
+   commencer » et « qu'est-ce qui ne va pas » — et cohabitent, le parcours
+   au-dessus tant qu'il reste un geste à faire. */
+function sfParcoursAMontrer(parcours) {
+  return parcours.some(g => !g.fait);
+}
+
 function sfPointsAttention() {
   const pts = [];
   const acquis      = allBiens.filter(b => b.statut === 'Acheté');
@@ -1861,7 +1942,32 @@ function renderAccueil(el) {
   const prenom = (currentProfile?.prenom || '').trim();
   const dateJour = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
 
-  const verdict = pts.length === 0
+  const parcours = sfParcoursDemarrage();
+  const demarrage = sfParcoursAMontrer(parcours);
+  const reste = parcours.filter(g => !g.fait).length;
+
+  /* ⚠️ « RIEN NE DEMANDE VOTRE ATTENTION » EST FAUX SUR UN COMPTE NEUF. La
+     phrase se calculait sur `pts.length === 0`, qui ne distingue pas « rien à
+     signaler » de « rien du tout ». Quelqu'un qui n'a rien saisi lisait donc
+     que ses loyers étaient pointés et ses fiches complètes.
+
+     ⚠️ MAIS L'ARGENT PASSE AVANT LE DÉMARRAGE. Un loyer en retard coûte
+     pendant qu'on apprend à se servir de l'outil : annoncer « plus que deux
+     gestes » au-dessus d'un impayé enterrerait le seul point qui presse. Le
+     verdict suit donc cet ordre — ce qui coûte, puis le démarrage, puis le
+     reste. */
+  const verdict = coutent
+    ? { type:'alerte', icone:'alerte',
+        txt:`${pts.length} point${pts.length>1?'s':''} demande${pts.length>1?'nt':''} votre attention`,
+        sub:`${coutent === 1 ? 'L\'un d\'eux vous coûte' : coutent + ' d\'entre eux vous coûtent'} de l'argent chaque mois${pts.length > coutent ? ' ; les autres faussent vos chiffres.' : '.'}` }
+    : demarrage
+    ? { type:'demarrage', icone:'info',
+        txt: reste === 3 ? 'Votre patrimoine n’est pas encore déclaré'
+                         : `Plus que ${reste} geste${reste > 1 ? 's' : ''} pour démarrer`,
+        sub: pts.length
+          ? `Stonefolio calculera vos loyers et votre cashflow réel. ${pts.length} point${pts.length>1?'s':''} vous attend${pts.length>1?'ent':''} plus bas.`
+          : 'Ensuite, Stonefolio calcule vos loyers, votre cashflow réel et votre déclaration.' }
+    : pts.length === 0
     ? { type:'ok', icone:'ok', txt:'Rien ne demande votre attention',
         sub:'Vos loyers sont pointés et vos fiches sont complètes.' }
     : { type:'alerte', icone:'alerte',
@@ -1886,6 +1992,12 @@ function renderAccueil(el) {
 
     <div class="acc-bento">
       <section>
+        ${demarrage ? `
+        <h2 class="acc-sec">Pour démarrer <span class="acc-sec__n sf-num">${3 - reste} sur 3</span></h2>
+        <div class="sf-card sf-card--flat" style="margin-bottom:var(--sf-space-7)">
+          ${sfParcoursHtml(parcours)}
+        </div>` : ''}
+
         <h2 class="acc-sec">À traiter <span class="acc-sec__n sf-num">${pts.length} point${pts.length>1?'s':''}</span></h2>
         <div class="sf-card sf-card--flat">
           ${pts.length ? pts.map(p => `
@@ -1900,12 +2012,17 @@ function renderAccueil(el) {
               </span>
             </div>`).join('') : `
             <div class="sf-empty">
-              <div class="sf-empty__icon">${sfAccIcon('ok', 22)}</div>
-              <h3 class="sf-empty__title">Tout est à jour</h3>
-              <p class="sf-empty__text">Aucun loyer en attente, aucune fiche incomplète. Vous pouvez prospecter l'esprit tranquille.</p>
-              <div class="sf-empty__actions">
+              <div class="sf-empty__icon">${sfAccIcon(demarrage ? 'info' : 'ok', 22)}</div>
+              ${/* ⚠️ NE PAS SE FÉLICITER PENDANT LE DÉMARRAGE. « Tout est à
+                    jour » et « prospectez l'esprit tranquille » sont vrais
+                    d'un portefeuille tenu, faux d'un compte qui n'a rien. */''}
+              <h3 class="sf-empty__title">${demarrage ? 'Rien à signaler pour l’instant' : 'Tout est à jour'}</h3>
+              <p class="sf-empty__text">${demarrage
+                ? 'Les alertes apparaîtront ici dès que vous aurez déclaré un bien et son bail.'
+                : 'Aucun loyer en attente, aucune fiche incomplète. Vous pouvez prospecter l\'esprit tranquille.'}</p>
+              ${demarrage ? '' : `<div class="sf-empty__actions">
                 <button class="sf-btn sf-btn--primary" type="button" onclick="navigate('marche-recherche')">Explorer une ville</button>
-              </div>
+              </div>`}
             </div>`}
         </div>
       </section>
@@ -6378,9 +6495,13 @@ function sfEstOccupant(loc) {
 // compris. Trois écrans le cherchaient chacun de leur côté, avec leur propre
 // définition — c'est exactement ainsi que deux écrans finissent par ne plus
 // dire la même chose.
-function sfLocataireEnPlace(bienId) {
+function sfLocataireEnPlace(bienId, locataires) {
   if(!bienId) return null;
-  return allLocataires.find(l => l.bien_id === bienId && sfEstOccupant(l)) || null;
+  /* `locataires` est injectable pour les tests ; la globale reste le défaut.
+     ⚠️ On ajoute un paramètre plutôt que de recopier la règle ailleurs : « qui
+     occupe ce bien » ne doit s'écrire qu'ICI. */
+  const tous = locataires || (typeof allLocataires !== 'undefined' ? allLocataires : []);
+  return tous.find(l => l.bien_id === bienId && sfEstOccupant(l)) || null;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
