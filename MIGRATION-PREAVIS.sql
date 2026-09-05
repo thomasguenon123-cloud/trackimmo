@@ -38,6 +38,13 @@
 -- PARTIE D  le suivi de la RESTITUTION du dépôt — ajoutée le 23/08/2026 avec
 --           la liste « Baux qui se terminent », qui ne se viderait jamais sans
 --           elle. Additive comme A et B.
+-- ✅ PARTIE C APPLIQUÉE par Thomas le 05/09/2026, vérifiée en lecture le jour
+--    même : les 6 invariants posés et `convalidated = true` — Postgres a
+--    réellement scanné les lignes existantes —, définitions conformes au mot
+--    près, contraintes A/B/D toujours en place (4), RLS intacte (4 + 4),
+--    index présent, données inchangées : 2 locataires, 3 comptes rendus dont
+--    le premier état des lieux de sortie, 28 lignes de loyer.
+--
 -- PARTIE C  les invariants croisés — DÉCOMMENTÉE LE 05/09/2026, quand la
 --           fiche locataire a cessé de pouvoir défaire ce que les workflows
 --           posent (`sfInvariantsBail`, v=81). Elle est restée en commentaire
