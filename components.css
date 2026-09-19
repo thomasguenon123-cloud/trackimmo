@@ -889,3 +889,66 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
   .acc-pas{ flex-wrap:wrap; }
   .acc-pas__a{ margin-left:calc(26px + var(--sf-space-5)); padding-left:0; }
 }
+
+/* ── Le lexique : expliquer un mot là où il est lu ───────────────────────────
+   ⚠️ CE COMPOSANT EXISTE PARCE QUE `title=` NE MARCHE PAS AU DOIGT. Le dépôt
+   en porte 49, et aucun ne s'affiche sur iPad — l'appareil du premier testeur.
+   L'ancre est donc un vrai bouton, qui s'ouvre au tap comme au clavier. */
+.sf-lex{ position:relative; display:inline-flex; align-items:center; gap:4px; }
+
+.sf-lex__b{
+  /* ⚠️ `relative` EST INDISPENSABLE : sans elle, le pseudo-élément qui élargit
+     la cible tactile plus bas s'ancre sur `.sf-lex` (le seul parent positionné)
+     et recouvre le MOT au lieu du bouton — le « ? » restait à 16 px, et taper
+     le terme ouvrait la bulle. */
+  position:relative;
+  width:16px; height:16px; flex-shrink:0; padding:0; border:0; cursor:pointer;
+  border-radius:var(--sf-radius-full); line-height:1;
+  font-family:var(--sf-font-ui); font-size:10px; font-weight:var(--sf-weight-semibold);
+  background:var(--sf-surface-3); color:var(--c-dim);
+  transition:background var(--sf-dur) var(--sf-ease), color var(--sf-dur) var(--sf-ease);
+}
+.sf-lex__b:hover,
+.sf-lex__b[aria-expanded="true"]{ background:var(--sf-brand-vivid); color:var(--sf-bg); }
+.sf-lex__b:focus-visible{
+  outline:var(--sf-focus-width) solid var(--sf-focus); outline-offset:2px;
+}
+
+/* ⚠️ `fixed`, ET POSITIONNÉE EN JS — comme le panneau de `.sf-pick`, et pour
+   la même raison, écrite noir sur blanc dans app.js : « sinon un parent en
+   overflow:hidden (le tableau, une fenêtre modale) le tronquerait ». Trois
+   des cinq ancres vivent précisément dans de tels parents — `.sff-kpis` fait
+   115 px de haut et masque ce qui dépasse, la définition y était coupée aux
+   deux tiers. Une bulle en `absolute` n'avait aucune chance. */
+.sf-lex__x{
+  position:fixed; top:0; left:0; z-index:400;
+  width:max-content; max-width:min(320px, 78vw);
+  padding:var(--sf-space-5) var(--sf-space-6);
+  background:var(--sf-surface-2); color:var(--c-text);
+  border:var(--sf-border-width) solid var(--sf-border-strong);
+  border-radius:var(--sf-radius-md); box-shadow:var(--sf-shadow-md, 0 4px 16px rgba(0,0,0,.28));
+  font-size:var(--sf-font-caption); line-height:1.6; text-align:left; white-space:normal;
+  /* ⚠️ LA TYPOGRAPHIE SE REMET À PLAT. Les ancres sont posées dans des
+     libellés en capitales — `.sff-kpi__l`, `.sff-block__t` — dont la bulle
+     héritait : trois définitions sur cinq s'affichaient EN MAJUSCULES, avec
+     l'interlettrage d'un titre. Une définition est du texte courant. */
+  text-transform:none; letter-spacing:normal;
+  font-weight:var(--sf-weight-regular); font-family:var(--sf-font-ui);
+}
+.sf-lex__x b{ display:block; margin-bottom:3px; color:var(--sf-brand-vivid); }
+
+/* ⚠️ La cible tactile du bouton est portée À 44 px SANS l'agrandir à l'œil :
+   un rond de 16 px au milieu d'une phrase ne peut pas grossir sans casser la
+   ligne, et il est ici ISOLÉ — aucune cible voisine à recouvrir, contrairement
+   aux grilles denses où cette technique est proscrite (voir tactile.css). */
+@media (any-pointer: coarse){
+  .sf-lex__b::after{
+    content:''; position:absolute; top:50%; left:0; transform:translateY(-50%);
+    width:44px; height:44px; margin-left:-14px;
+  }
+  /* ⚠️ PAS DE `right:0` ICI. La première version ancrait la bulle de 320 px
+     sur la droite d'un span de ~120 px : elle débordait de ~180 px par la
+     GAUCHE, hors de l'écran. C'est désormais le JS qui la borne au cadre,
+     des deux côtés — la largeur seule reste une affaire de CSS. */
+  .sf-lex__x{ max-width:min(320px, 86vw); }
+}

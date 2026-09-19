@@ -1555,6 +1555,120 @@ function sfAccIcon(n, t) {
    bien acquis, aucun bail à rattacher ; sans bail, aucun loyer à pointer.
    C'est pourquoi les étapes suivantes sont montrées sans bouton — elles ne
    sont pas encore atteignables, et le dire vaut mieux que laisser cliquer.  */
+/* ═══════════════════════════════════════════════════════════════════════════
+   LE LEXIQUE — expliquer un mot là où il est lu, et nulle part ailleurs.
+
+   Stonefolio manipule des notions qui ne vont pas de soi pour qui découvre :
+   le cashflow réel opposé au prévisionnel, le mode de détention, le prorata,
+   la déclaration 2044. Thomas les connaît pour les avoir arbitrées ; un
+   bailleur qui ouvre l'outil, non.
+
+   ⚠️ POURQUOI PAS `title=`. Le dépôt en porte 49, et AUCUN ne s'affiche au
+   doigt : l'infobulle native demande un survol, qui n'existe pas sur iPad —
+   l'appareil du premier testeur. Une explication invisible pour son seul
+   destinataire ne vaut rien. Il fallait donc un mécanisme qui s'ouvre au TAP,
+   et qui reste atteignable au clavier : un vrai `<button>`.
+
+   ⚠️ LES DÉFINITIONS VIVENT ICI, PAS DANS LES ÉCRANS. Écrites en ligne à
+   chaque emploi, « cashflow réel » aurait fini par vouloir dire deux choses
+   selon la page — le défaut le plus cher de ce dépôt, appliqué aux mots.
+   Un terme, une définition, un endroit.                                     */
+const SF_LEXIQUE = {
+  'cashflow-reel': {
+    terme: 'Cashflow réel',
+    texte: "Ce qui est réellement entré et sorti : les loyers que vous avez POINTÉS comme encaissés, moins les charges saisies et la mensualité de crédit. Un loyer dû mais non pointé n'y figure pas — c'est voulu, un loyer attendu n'est pas un loyer reçu.",
+  },
+  'cashflow-previsionnel': {
+    terme: 'Cashflow prévisionnel',
+    texte: "Ce que le bien RAPPORTERAIT si tout se passait comme prévu : le loyer du bail, moins les charges connues et le crédit. Il sert à comparer des biens avant l'achat. Le réel, lui, se calcule sur ce qui est encaissé.",
+  },
+  'mode-detention': {
+    terme: 'Mode de détention',
+    texte: "En propre, ou via une SCI. Ce n'est pas un détail administratif : il décide du régime fiscal du bien, donc de la déclaration où ses loyers et ses charges atterrissent. Sans lui, un bien acquis n'entre dans aucune déclaration.",
+  },
+  'prorata': {
+    terme: 'Prorata',
+    texte: "Un locataire entré le 15 ne doit pas le mois entier. La loi du 6 juillet 1989 fait payer au prorata des jours d'occupation — loyer ET provisions pour charges. Stonefolio l'applique aux mois d'entrée et de sortie, et le note sur la ligne concernée.",
+  },
+  'declaration-2044': {
+    terme: 'Déclaration 2044',
+    texte: "Le formulaire des revenus fonciers, pour un bien détenu en propre ou via une SCI à l'impôt sur le revenu. Stonefolio le pré-remplit à partir des loyers ENCAISSÉS et des charges saisies : ce qui n'est pas pointé n'y figure pas.",
+  },
+};
+
+/* L'ancre : le mot, suivi d'un point d'interrogation qui ouvre l'explication.
+   ⚠️ C'est un `<button type="button">` et pas un `<span>` : le clavier doit
+   l'atteindre, et un lecteur d'écran doit l'annoncer comme actionnable. */
+function sfLex(cle, libelle) {
+  const e = SF_LEXIQUE[cle];
+  /* ⚠️ Une clé inconnue rend le libellé SEUL, jamais une ancre morte : mieux
+     vaut perdre l'explication que poser un bouton qui n'explique rien. */
+  if(!e) return esc(libelle || cle);
+  return `<span class="sf-lex">${esc(libelle || e.terme)}<button type="button" class="sf-lex__b"`
+       + ` aria-label="Que veut dire « ${esc(e.terme)} » ?" aria-expanded="false"`
+       + ` onclick="sfLexOuvrir(this)">?</button>`
+       + `<span class="sf-lex__x" role="tooltip" hidden><b>${esc(e.terme)}</b>${esc(e.texte)}</span></span>`;
+}
+
+/* Une seule explication ouverte à la fois : deux bulles superposées sur un
+   écran de tablette se recouvrent et deviennent illisibles. */
+function sfLexOuvrir(btn) {
+  const ouvert = btn.getAttribute('aria-expanded') === 'true';
+  document.querySelectorAll('.sf-lex__b[aria-expanded="true"]').forEach(b => {
+    b.setAttribute('aria-expanded', 'false');
+    const x = b.nextElementSibling; if(x) x.hidden = true;
+  });
+  if(!ouvert) {
+    btn.setAttribute('aria-expanded', 'true');
+    const x = btn.nextElementSibling;
+    if(x) { x.hidden = false; sfLexPlacer(btn, x); }
+  }
+}
+
+/* ⚠️ LA BULLE EST EN `position:fixed`, DONC C'EST ICI QU'ELLE SE PLACE. Même
+   mécanique que le panneau de `.sf-pick`, et pour la raison qu'app.js écrit
+   déjà à son sujet : un parent en `overflow:hidden` — le tableau, une fenêtre
+   modale — tronquerait une bulle en `absolute`. Trois des cinq ancres vivent
+   dans de tels parents ; `.sff-kpis` fait 115 px de haut et coupait la
+   définition aux deux tiers.
+   On la borne au cadre des deux côtés, et on la bascule AU-DESSUS du bouton
+   quand elle déborderait par le bas — ce qui arrive sur les ancres du bas
+   d'écran, typiquement la déclaration fiscale. */
+function sfLexPlacer(btn, bulle) {
+  const MARGE = 8;
+  const r = btn.getBoundingClientRect();
+  const b = bulle.getBoundingClientRect();
+  const largeurMax = Math.max(0, window.innerWidth - b.width - MARGE);
+  bulle.style.left = Math.min(Math.max(MARGE, r.left), largeurMax) + 'px';
+
+  const dessous = r.bottom + MARGE;
+  const deborde = dessous + b.height > window.innerHeight - MARGE;
+  const dessus = r.top - b.height - MARGE;
+  /* On ne bascule au-dessus que s'il y a VRAIMENT la place : sinon on reste
+     dessous, quitte à toucher le bord — une bulle à moitié hors de l'écran en
+     haut est pire qu'une bulle basse. */
+  bulle.style.top = (deborde && dessus >= MARGE ? dessus : dessous) + 'px';
+}
+
+/* Un défilement détacherait la bulle de son bouton : on referme plutôt que de
+   la laisser flotter à côté du mot qu'elle explique. */
+window.addEventListener('scroll', () => {
+  document.querySelectorAll('.sf-lex__b[aria-expanded="true"]').forEach(b => {
+    b.setAttribute('aria-expanded', 'false');
+    const x = b.nextElementSibling; if(x) x.hidden = true;
+  });
+}, true);
+
+/* Un tap ailleurs referme : sur une tablette, il n'y a pas de « sortie de
+   survol » pour le faire à notre place. */
+document.addEventListener('click', e => {
+  if(e.target.closest && e.target.closest('.sf-lex')) return;
+  document.querySelectorAll('.sf-lex__b[aria-expanded="true"]').forEach(b => {
+    b.setAttribute('aria-expanded', 'false');
+    const x = b.nextElementSibling; if(x) x.hidden = true;
+  });
+}, true);
+
 function sfParcoursDemarrage(biens, loyers, locataires) {
   /* Les données sont des PARAMÈTRES, avec les globales pour défaut : sans
      cela la fonction ne se teste que sur l'état réel de l'application, et
@@ -2894,7 +3008,7 @@ async function renderNouveau(el, bien) {
                  Le champ s'appelait « SCI associee » et n'offrait aucun moyen de
                  dire « en propre » : un bien acquis sans SCI restait donc sans
                  mode, et le tableau de bord le signalait a juste titre. -->
-            <div class="form-group"><label>Détention</label>
+            <div class="form-group"><label>${sfLex('mode-detention', 'Détention')}</label>
               <select id="f-sci-id" aria-describedby="f-detention-aide">
                 <option value="">— Non renseigné —</option>
                 <option value="propre" ${bien?.mode_detention==='propre'?'selected':''}>En propre</option>
@@ -3990,7 +4104,11 @@ async function renderBienDetail(el) {
   const acquis = b.statut === 'Acheté';
   // Le « /mois » quittait le libellé pour le sous-titre : un indicateur dit ce
   // qu'il EST, sa périodicité se lit en dessous avec le reste de sa qualification.
-  const cfLab = dHero.mode === 'reel' ? 'Cashflow réel' : 'Cashflow prévisionnel';
+  /* ⚠️ L'EXPLICATION SUIT LE MODE AFFICHÉ. C'est ici que la distinction se
+     joue pour un nouveau venu : le même emplacement montre tantôt l'un,
+     tantôt l'autre, et rien ne disait pourquoi le chiffre changeait. */
+  const cfLab = dHero.mode === 'reel'
+    ? sfLex('cashflow-reel') : sfLex('cashflow-previsionnel');
   const cfVal = dHero.value != null ? (dHero.value>=0?'+':'−')+sfEur(Math.abs(dHero.value)) : 'Non calculé';
   const cfSub = dHero.mode === 'reel' && dHero.hasPrev ? `par mois · prévisionnel ${dHero.prev>=0?'+':'−'}${sfEur(Math.abs(dHero.prev))}`
               : dHero.attenteReel ? 'réel dès la saisie des loyers'
@@ -4494,7 +4612,7 @@ async function renderBienDetail(el) {
                     <div class="sff-line"><span class="sff-line__l">Loyers encaissés</span><span class="sff-line__v">${sfEur(reel12.loyer_encaisse)}</span><span></span></div>
                     <div class="sff-line"><span class="sff-line__l">Charges payées</span><span class="sff-line__v">${sfEur(reel12.charges_payees)}</span><span></span></div>
                     <div class="sff-line"><span class="sff-line__l">Mensualités de crédit</span><span class="sff-line__v">${sfEur(reel12.mensualites_credit)}</span><span></span></div>
-                    <div class="sff-line sff-line--tot"><span class="sff-line__l">Cashflow réel</span><span class="sff-line__v ${reel12.cashflow>=0?'sf-gain':'sf-loss'}">${reel12.cashflow>=0?'+':'−'}${sfEur(Math.abs(reel12.cashflow))}</span><span></span></div>`
+                    <div class="sff-line sff-line--tot"><span class="sff-line__l">${sfLex('cashflow-reel')}</span><span class="sff-line__v ${reel12.cashflow>=0?'sf-gain':'sf-loss'}">${reel12.cashflow>=0?'+':'−'}${sfEur(Math.abs(reel12.cashflow))}</span><span></span></div>`
                   : `
                     <div class="sff-line"><span class="sff-line__l">Loyer encaissé</span><span class="sff-line__v">${sfEur(loyerAttendu)}</span><span></span></div>
                     <div class="sff-line"><span class="sff-line__l">Charges et mensualité de crédit</span><span class="sff-line__v">${sfEur(mensu + chargesFixes)}</span><span></span></div>
@@ -7058,7 +7176,7 @@ function mfSectionDeclaration(annee) {
   if (!decls.length) {
     return `
     <div class="sff-block">
-      <div class="sff-block__h"><p class="sff-block__t">Déclaration fiscale</p></div>
+      <div class="sff-block__h"><p class="sff-block__t">${sfLex('declaration-2044', 'Déclaration fiscale')}</p></div>
       <div class="sff-block__b"><div class="sff-empty">
         <div class="sff-empty__ic">${sfAccIcon('balance', 34)}</div>
         <div class="sff-empty__t">Aucun déclarant</div>
@@ -8052,7 +8170,11 @@ function mfOpenEncaissementPopup(event, bienId, mois, annee) {
       <p class="mfx-prorata">
         ${sfAccIcon('balance', 15)}
         <span>${esc(bien?.titre || 'Bien')} · loyer dû <b>${sfEur(montantDu)}</b>${
-          prorata?.prorata ? `. Prorata loi 1989 : ${prorata.jours} jours sur ${prorata.joursMois}.` : '.'}</span>
+          /* ⚠️ C'est LE moment où le mot se rencontre : le bailleur voit un
+             montant qui n'est pas celui de son bail, et se demande pourquoi.
+             L'explication doit être à portée de doigt, pas dans une page
+             d'aide qu'il faudrait aller chercher. */
+          prorata?.prorata ? `. ${sfLex('prorata')} loi 1989 : ${prorata.jours} jours sur ${prorata.joursMois}.` : '.'}</span>
       </p>
       ${opts.map(([v, lab]) => `
         <label class="mfx-opt opt${statutActuel === v ? ' selected' : ''}">
