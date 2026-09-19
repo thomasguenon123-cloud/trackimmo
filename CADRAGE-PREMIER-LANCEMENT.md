@@ -207,13 +207,28 @@ d'abord — sinon il conduit poliment le testeur dans le mur :
 
 ## 7. Périmètre proposé
 
-**Dans le périmètre**
+**Dans le périmètre — ✅ LIVRÉ du 05 au 19/09/2026**
 
-1. Le tableau de bord distingue le compte vide et propose trois gestes ordonnés.
-2. Une entrée « j'ai déjà ce bien » qui crée directement un bien acquis.
-3. La question des loyers passés à la création d'un bail antérieur à l'année.
-4. Le prénom demandé (ou l'accueil reformulé sans lui).
-5. Le bouton « Relancer » d'À propos : soit il fait quelque chose, soit il part.
+| # | Chantier | État |
+|---|---|---|
+| 1 | Les trois correctifs tactiles (iPad) | ✅ v=83 |
+| 2 | « Acheté » saisissable + mode de détention demandé | ✅ v=84 |
+| 3 | La question des loyers passés | ✅ v=85 |
+| 4 | Le parcours de démarrage sur le tableau de bord | ✅ v=86 |
+| 5 | Le lexique au point d'usage | ✅ v=87 |
+
+Le socle de tests est passé de 100 à **156 cas**, toutes les gardes validées
+par mutation.
+
+⚠️ **Deux points du périmètre initial n'ont PAS été faits**, et il faut le
+dire plutôt que de les laisser croire livrés :
+
+- **le prénom** n'est toujours pas demandé — l'accueil dit « Bonjour » tout
+  court quand le profil ne le porte pas ;
+- **le bouton « Relancer »** d'À propos répond encore « Tutoriel : bientôt
+  disponible ». Le parcours de démarrage le rend d'ailleurs discutable : il
+  n'y a plus de tutoriel à relancer, il y a un parcours qui réapparaît seul.
+  Le bouton devrait sans doute partir.
 
 **Hors périmètre**
 
