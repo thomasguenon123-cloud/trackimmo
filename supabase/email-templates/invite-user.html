@@ -47,9 +47,21 @@
     surfaces   #FFFFFF · #F5F8F6 · #EDF3EF
     bordure    #D6E2DA
 
-  VARIABLE DE PRÉNOM : `{{ .Data.first_name }}` lit user_metadata, que
-  `admin-invite-user` remplit toujours — la fonction REFUSE une invitation
-  sans firstName. Le prénom est donc garanti présent, ce n'est pas un pari.
+  VARIABLE DE PRÉNOM — et la garde qui l'entoure :
+
+  `{{ .Data.first_name }}` lit `auth.users.user_metadata`. C'est la syntaxe
+  documentée par Supabase, et `admin-invite-user` la remplit toujours : la
+  fonction REFUSE une invitation sans firstName. Le prénom est donc garanti
+  au moment de l'envoi.
+
+  ⚠️ MAIS IL EST ENVELOPPÉ DANS `{{ if .Data }}`, ET CE N'EST PAS DÉCORATIF.
+  Le gabarit est rendu par le moteur de templates Go. Quand `.Data` est
+  absent — c'est le cas de l'aperçu du tableau de bord, qui n'a aucun
+  utilisateur réel sous la main — lire `.first_name` dessus fait ÉCHOUER
+  l'exécution entière, et la sortie est vide. D'où un aperçu tout blanc.
+  Le test `{{ if .Data }}` se contente de regarder si l'objet existe, ce qui
+  ne lève jamais : avec données on lit « Bonjour Sylas, », sans données
+  « Bonjour, ». Aucun des deux n'est cassé.
 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" lang="fr">
@@ -163,7 +175,7 @@
       <td bgcolor="#FFFFFF" class="sf-card sf-pad sf-pad-top" style="background-color:#FFFFFF; border-left:1px solid #D6E2DA; border-right:1px solid #D6E2DA; padding:40px 36px 8px 36px;">
 
         <p class="sf-t2" style="margin:0 0 6px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size:14px; line-height:22px; color:#3D5145;">
-          Bonjour {{ .Data.first_name }},
+          Bonjour{{ if .Data }} {{ .Data.first_name }}{{ end }},
         </p>
 
         <h1 class="sf-h1 sf-t1" style="margin:0 0 18px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size:26px; line-height:34px; color:#0C1710; font-weight:700; letter-spacing:-0.6px;">
