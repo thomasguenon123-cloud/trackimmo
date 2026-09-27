@@ -844,6 +844,44 @@ let currentProfile = null;
 let userPrefs = { notaire_pct: 7.0, duree_credit_ans: 20, assurance_mois: 33, seuil_rentabilite: 5.0 };
 const ADMIN_EMAIL = 'thomasguenon123@gmail.com';
 
+/* LE NOM DE L'UTILISATEUR — une lecture, aux clés que la base rend vraiment.
+
+   ⚠️ LE DÉFAUT QUE CETTE FONCTION CORRIGE. Trois endroits lisaient les clés
+   « prenom » et « nom » du profil. Or get_my_profile() fait un row_to_json()
+   sur la table profiles : les clés rendues sont les NOMS DE COLONNES,
+   c'est-à-dire first_name et last_name. Les trois lectures valaient donc
+   `undefined` DEPUIS TOUJOURS, en silence :
+     · l'accueil disait « Bonjour » tout court ;
+     · l'avatar retombait sur la première lettre de l'e-mail — « T » au lieu
+       de « TG » ;
+     · le menu affichait l'adresse e-mail au lieu du nom.
+   Le prénom était pourtant bien en base, saisi à la création du compte : les
+   deux profils en portent un, vérifié en lecture le 19/09/2026. Aucune donnée
+   ne manquait — on la cherchait au mauvais endroit.
+
+   ⚠️ UNE SEULE FONCTION POUR LE NOM D'AFFICHAGE. Corriger trois lectures
+   aurait laissé la quatrième se tromper. Il y en avait d'ailleurs deux autres,
+   le document bancaire et la liste d'administration, qui recomposaient le nom
+   à leur façon — en laissant un DOUBLE ESPACE au milieu quand un champ portait
+   une espace parasite, `.trim()` ne nettoyant que les bords.
+
+   ⚠️ Elle prend un profil EN PARAMÈTRE, ce qui lui permet de servir aussi pour
+   un AUTRE utilisateur que celui connecté — la liste d'administration en
+   affiche une trentaine.
+
+   ⚠️ Lire first_name seul reste légitime là où l'on remplit un CHAMP de
+   formulaire : ce n'est pas un nom d'affichage, c'est une valeur à éditer.  */
+function sfProfilNom(profil) {
+  const p = profil || (typeof currentProfile !== 'undefined' ? currentProfile : null);
+  const prenom = (p?.first_name || '').trim();
+  const nom    = (p?.last_name  || '').trim();
+  return {
+    prenom, nom,
+    complet:   [prenom, nom].filter(Boolean).join(' '),
+    initiales: ((prenom[0] || '') + (nom[0] || '')).toUpperCase(),
+  };
+}
+
 async function loadProfile() {
   try {
     const { data } = await db.rpc('get_my_profile');
@@ -875,11 +913,9 @@ function sfRefreshTopnav() {
   // Initiales : prenom + nom, a defaut la premiere lettre de l'e-mail.
   const av = document.getElementById('sf-avatar');
   if(av) {
-    const p = (currentProfile?.prenom || '').trim();
-    const n = (currentProfile?.nom || '').trim();
-    const ini = (p[0] || '') + (n[0] || '');
-    av.textContent = (ini || (currentUser?.email || '?')[0] || '?').toUpperCase();
-    const nom = [p, n].filter(Boolean).join(' ') || currentUser?.email || 'Mon compte';
+    const id = sfProfilNom();
+    av.textContent = (id.initiales || (currentUser?.email || '?')[0] || '?').toUpperCase();
+    const nom = id.complet || currentUser?.email || 'Mon compte';
     av.parentElement?.setAttribute('title', nom);
     av.parentElement?.setAttribute('aria-label', 'Mon compte — ' + nom);
   }
@@ -944,7 +980,7 @@ function buildUserRowsHtml(users, myEmail) {
   }
   return users.map(function(u) {
     var isMe = u.email === myEmail;
-    var fullName = esc([u.first_name, u.last_name].filter(Boolean).join(' ') || '—');
+    var fullName = esc(sfProfilNom(u).complet || '—');
     var statusCls = u.status === 'active' ? 'active' : u.status === 'pending' ? 'pending' : 'disabled';
     var statusLabel = u.status === 'active' ? sfAccIcon("ok",13)+' Actif'
       : u.status === 'pending' ? sfAccIcon("horloge",13)+' En attente'
@@ -2053,7 +2089,7 @@ function renderAccueil(el) {
   const pts = sfPointsAttention();
   const agenda = sfAgenda60j();
   const coutent = pts.filter(p => p.type === 'loss').length;
-  const prenom = (currentProfile?.prenom || '').trim();
+  const prenom = sfProfilNom().prenom;
   const dateJour = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
 
   const parcours = sfParcoursDemarrage();
@@ -5536,7 +5572,10 @@ function bkdocBuildPages(d){
   // d = { bien, profil, sci, preset, sim, photoUrls, extraPhotos, coverUrl, logoUrl, caption }
   const P = d.preset;
   const vars = `--bk-primary:${P.couleur_primaire};--bk-secondary:${P.couleur_secondaire};--bk-accent:${P.couleur_accent}`;
-  const propName = ((d.profil?.first_name || '') + ' ' + (d.profil?.last_name || '')).trim() || (currentUser?.email || '');
+  /* ⚠️ La concaténation d'origine laissait un DOUBLE ESPACE au milieu quand un
+     des deux champs portait une espace parasite. Le document bancaire affichait
+     « Thomas  Guénon » là où le bandeau montrait le nom propre. */
+  const propName = sfProfilNom(d.profil).complet || (currentUser?.email || '');
   const propTel = d.profil?.phone || '';
   const propMail = d.profil?.email || currentUser?.email || '';
   const sciName = d.sci?.nom_sci || '';
@@ -6190,9 +6229,17 @@ function paramsAproposHtml() {
     </div>
     <div class="params-card">
       <div class="params-card-title">Aide & ressources</div>
+      <!-- ATTENTION : le bouton « Relancer » a ete retire le 27/09/2026. Il
+           promettait de reactiver un guide d'accueil, et se bornait a notifier
+           « Tutoriel : bientot disponible » — une promesse tenue par une
+           notification, seule aide de toute l'application.
+           Il n'a plus d'objet : depuis v=86, le PARCOURS DE DEMARRAGE du
+           tableau de bord ne se relance pas, il REAPPARAIT de lui-meme des
+           qu'un de ses trois gestes redevient a faire. Un bouton pour rallumer
+           ce qui s'allume tout seul n'a rien a rallumer. -->
       <div class="settings-row">
-        <div><div class="settings-label">Tutoriel de première connexion</div><div class="settings-sub">Réactiver le guide d'accueil</div></div>
-        <button class="btn btn-secondary" style="padding:6px 14px;font-size:12px" onclick="showNotif('Tutoriel : bientôt disponible')">Relancer</button>
+        <div><div class="settings-label">Guide de démarrage</div><div class="settings-sub">Les trois gestes à faire s'affichent sur le tableau de bord tant qu'il en reste un.</div></div>
+        <button class="btn btn-secondary" style="padding:6px 14px;font-size:12px" onclick="navigate('accueil')">Voir</button>
       </div>
       <div style="font-size:11px;color:var(--c-muted);margin-top:10px;line-height:1.5">
         Vos données personnelles (biens, contacts, documents) sont stockées de manière sécurisée et cloisonnée par compte. Mentions légales et politique de confidentialité à venir.
