@@ -952,3 +952,53 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
      des deux côtés — la largeur seule reste une affaire de CSS. */
   .sf-lex__x{ max-width:min(320px, 86vw); }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOT « RELIQUATS TRACKIMMO » — 27/09/2026
+   Ce que les emojis retirés laissaient faire gratuitement, et qu'il faut
+   maintenant écrire : une taille d'illustration, un état d'urgence, une
+   attente qui tourne.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Illustration d'état vide. L'emoji tenait sa taille de `font-size:40px` ;
+   une icône tient la sienne de son attribut, et sa couleur du texte. */
+.adm-vide-ic{ color:var(--sf-text-3); margin-bottom:var(--sf-space-5);
+              display:flex; justify-content:center; }
+
+/* Le compteur d'échéances en retard.
+   ⚠️ CETTE RÈGLE NE POUVAIT PAS GAGNER au premier jet, et rien ne le
+   signalait. `.adm-kpi-val{color:white}` vit dans styles.css, qui est chargé
+   APRÈS components.css : à spécificité égale, c'est le dernier qui peint. La
+   couleur d'urgence était donc morte. Deux classes valent une spécificité de
+   plus, et l'ordre de chargement cesse de décider.
+   ⚠️ La couleur ne porte pas seule — règle 4 : le compteur affiche « N / M »
+   et son `title` dit l'urgence en toutes lettres. */
+.adm-kpi-val.adm-kpi-val--urgent{ color:var(--sf-alert); }
+
+/* L'icône de l'alerte de connexion — premier écran qu'un invité voit. */
+.auth-alert__ic{ display:inline-flex; flex:none; }
+
+/* ⚠️ L'ATTENTE NE S'ÉCRIT PLUS ⏳. Sept boutons portaient cet emoji, qui
+   tombe en police système : sur certains Android il ne s'affiche pas du tout,
+   et il ne tourne jamais. Un vrai indicateur dit que quelque chose se passe.
+   `currentColor` : il suit la couleur du bouton, clair ou sombre. */
+.sf-attente{ display:inline-block; width:13px; height:13px; vertical-align:-1px;
+             border:2px solid currentColor; border-right-color:transparent;
+             border-radius:50%; margin-right:var(--sf-space-4);
+             animation:sf-tourne .7s linear infinite; }
+@keyframes sf-tourne{ to{ transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce){
+  .sf-attente{ animation-duration:2.4s; }
+}
+
+/* Les notes en étoiles. L'étoile éteinte se DESSINE vide — elle ne se peint
+   plus à l'opacité 0,2, qui la rendait grise sur fond clair et invisible sur
+   fond sombre. */
+/* `flex-shrink:0` n'est pas un detail : ce bloc vit dans une rangee flex
+   (`.sff-row` de la fiche bien) ou un titre long le comprimerait jusqu'a
+   tasser les etoiles les unes sur les autres. L'ancienne `.sff-stars` le
+   portait ; l'oublier en la remplacant aurait ete une regression invisible
+   tant qu'aucun compte rendu n'a de titre long. */
+.sf-notes{ display:inline-flex; gap:2px; vertical-align:-2px; flex-shrink:0; }
+.sf-notes__e{ display:inline-flex; color:var(--sf-text-3); }
+.sf-notes__e--pleine{ color:var(--sf-alert); }

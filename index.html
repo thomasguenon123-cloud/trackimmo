@@ -23,9 +23,9 @@
      l'icône Apple l'ajout à l'écran d'accueil sur iPhone. Les trois portent
      `?v=` comme le reste : une favicon est mise en cache très agressivement,
      et sans la version le changement peut rester invisible des semaines. -->
-<link rel="icon" type="image/svg+xml" href="favicon.svg?v=89">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=89">
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=89">
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=90">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=90">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=90">
 <meta name="theme-color" content="#0A100C" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#F5F8F6" media="(prefers-color-scheme: light)">
 <!-- ⚠️ Le chargement de Google Fonts a été retiré le 13/08/2026 : « Inter » n'est
@@ -43,19 +43,19 @@
 <!-- Socle de jetons Stonefolio (phase 2). Ne declare que des variables : aucun
      effet visuel tant qu'aucun composant ne les consomme. Charge AVANT
      styles.css pour que la migration puisse s'appuyer dessus. -->
-<link rel="stylesheet" href="tokens.css?v=89">
-<link rel="stylesheet" href="components.css?v=89">
-<link rel="stylesheet" href="styles.css?v=89">
+<link rel="stylesheet" href="tokens.css?v=90">
+<link rel="stylesheet" href="components.css?v=90">
+<link rel="stylesheet" href="styles.css?v=90">
 <!-- Suivi financier : chargé APRÈS styles.css, c'est ce qui permet aux deux
      surcharges de géométrie (`.sff-line` à 2 colonnes au lieu de 5) de gagner
      dans le seul périmètre `.mf-page`, sans toucher à la fiche bien. -->
-<link rel="stylesheet" href="financier.css?v=89">
+<link rel="stylesheet" href="financier.css?v=90">
 <!-- Tactile : chargée EN DERNIER, et c'est ce qui la fait fonctionner. Elle ne
      contient que des surcharges sous requête média (`any-pointer: coarse`) qui
      doivent gagner contre les quatre feuilles précédentes ; à spécificité égale,
      c'est l'ordre de chargement qui tranche. Aucun effet sur un poste sans
      pointeur tactile. -->
-<link rel="stylesheet" href="tactile.css?v=89">
+<link rel="stylesheet" href="tactile.css?v=90">
 </head>
 <body>
 
@@ -220,7 +220,7 @@
   <div class="modal">
     <div class="modal-header">
       <div class="modal-title" id="detail-titre">—</div>
-      <button class="btn-close" onclick="closeModal('modal-detail')">✕</button>
+      <button class="btn-close" onclick="closeModal('modal-detail')" aria-label="Fermer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </div>
     <div id="detail-content"></div>
   </div>
@@ -228,11 +228,11 @@
 
 <div class="notif" id="notif"></div>
 
-<script src="app.js?v=89"></script>
+<script src="app.js?v=90"></script>
 
 <!-- LIGHTBOX -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
-  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <button class="lightbox-close" onclick="closeLightbox()" aria-label="Fermer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
   <img id="lightbox-img" src="" alt="Photo">
 </div>
 
@@ -261,7 +261,7 @@
       <!-- ─── FORM: CONNEXION ─── -->
       <div id="form-login">
         <div class="auth-welcome">
-          <h2>Bon retour 👋</h2>
+          <h2>Bon retour</h2>
           <p>Connectez-vous à votre espace investisseur</p>
         </div>
         <div class="auth-tabs">
@@ -352,7 +352,7 @@
 
       <!-- ─── FORM: NOUVEAU MOT DE PASSE (après clic lien email) ─── -->
       <div id="form-newpwd" style="display:none">
-        <div class="auth-recovery-badge">🔐 Lien de récupération détecté — définissez votre nouveau mot de passe</div>
+        <div class="auth-recovery-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10.5" width="16" height="10" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg> Lien de récupération détecté — définissez votre nouveau mot de passe</div>
         <div class="auth-field">
           <label>Nouveau mot de passe</label>
           <input type="password" id="newpwd" placeholder="Min. 8 caractères">
@@ -414,7 +414,7 @@
   <div class="sci-modal">
     <div class="sci-modal-header">
       <div class="sci-modal-title" id="sci-modal-title">Nouvelle SCI</div>
-      <button class="sci-modal-close" onclick="closeSCIModal()">✕</button>
+      <button class="sci-modal-close" onclick="closeSCIModal()" aria-label="Fermer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </div>
     <div class="sci-modal-body">
 
@@ -448,7 +448,7 @@
       <div id="sci-docs-existing"></div>
       <div id="sci-docs-list"></div>
       <label class="sci-doc-upload-btn">
-        📎 Ajouter un document (PDF ou image)
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11.5 12 19.4a5 5 0 0 1-7.1-7.1l8.5-8.4a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4l7.7-7.6"/></svg> Ajouter un document (PDF ou image)
         <input type="file" id="sci-doc-file" accept=".pdf,image/*" multiple style="display:none" onchange="handleSCIDoc(event)">
       </label>
 
@@ -462,10 +462,10 @@
     </div>
     <div class="sci-modal-footer">
       <button class="sci-btn sci-btn-danger" id="sci-btn-delete" onclick="deleteSCI()" style="display:none;margin-right:auto">
-        🗑 Supprimer la SCI
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2"/><path d="M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/><path d="M10.5 11v6M13.5 11v6"/></svg> Supprimer la SCI
       </button>
       <button class="sci-btn sci-btn-cancel" onclick="closeSCIModal()">Annuler</button>
-      <button class="sci-btn sci-btn-primary" id="sci-btn-save" onclick="saveSCI()">✓ Enregistrer</button>
+      <button class="sci-btn sci-btn-primary" id="sci-btn-save" onclick="saveSCI()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> Enregistrer</button>
     </div>
   </div>
 </div>
@@ -474,12 +474,12 @@
 <div class="sim-action-bar" id="sim-action-bar">
   <span class="sim-action-count">0 sélectionnée</span>
   <div class="sim-action-sep"></div>
-  <button class="sim-action-btn" onclick="simActionDupliquer()" title="Dupliquer les simulations sélectionnées">📋 Dupliquer</button>
-  <button class="sim-action-btn" onclick="simActionAttribuer()" title="Attribuer à un bien">🏠 Attribuer à un bien</button>
+  <button class="sim-action-btn" onclick="simActionDupliquer()" title="Dupliquer les simulations sélectionnées"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3h11a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 17.5 21h-11A2.5 2.5 0 0 1 4 18.5v-13A2.5 2.5 0 0 1 6.5 3Z"/><path d="M4 17.5h15"/><path d="M8.5 7.5h7"/></svg> Dupliquer</button>
+  <button class="sim-action-btn" onclick="simActionAttribuer()" title="Attribuer à un bien"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M6 21V9l6-5 6 5v12M10 21v-5h4v5"/></svg> Attribuer à un bien</button>
   <div class="sim-action-sep"></div>
-  <button class="sim-action-btn danger" onclick="simActionDelete()">🗑 Supprimer</button>
+  <button class="sim-action-btn danger" onclick="simActionDelete()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2"/><path d="M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/><path d="M10.5 11v6M13.5 11v6"/></svg> Supprimer</button>
   <div class="sim-action-sep"></div>
-  <button class="sim-action-btn" style="opacity:0.6" onclick="simDeselectAll()">✕ Désélectionner</button>
+  <button class="sim-action-btn" style="opacity:0.6" onclick="simDeselectAll()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg> Désélectionner</button>
 </div>
 
 </body>

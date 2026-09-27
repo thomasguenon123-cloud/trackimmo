@@ -116,9 +116,13 @@ function showForm(name) {
 // ── Alertes ──
 function showAuthAlert(msg, type='error') {
   const el = document.getElementById('auth-alert');
-  const icons = {error:'⚠️', success:'✅', info:'ℹ️'};
+  /* ⚠️ DES CLES DU JEU, PLUS DES EMOJIS. Les trois caracteres d'avant
+     tombaient en police systeme : leur dessin dependait de l'OS, pas de la
+     charte, et ils ne suivaient pas la couleur du texte. C'est le tout
+     premier ecran qu'un invite voit — celui de la connexion. */
+  const icons = {error:'alerte', success:'ok', info:'info'};
   el.className = 'auth-alert '+type;
-  el.innerHTML = '<span>'+icons[type]+'</span><span>'+msg+'</span>';
+  el.innerHTML = '<span class="auth-alert__ic">'+sfAccIcon(icons[type]||'info',17)+'</span><span>'+msg+'</span>';
   el.style.display = 'flex';
   el.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
@@ -220,7 +224,7 @@ async function ensureProfileActive() {
     if(profile?.status === 'pending') {
       await db.auth.signOut();
       showAuthAlert(
-        '<strong>⏳ Compte en attente de validation</strong><br><br>' +
+        '<strong>Compte en attente de validation</strong><br><br>' +
         'Votre inscription a bien été reçue. Un administrateur va valider votre accès très bientôt. ' +
         'Vous pourrez ensuite vous connecter avec ces identifiants.',
         'info'
@@ -230,7 +234,7 @@ async function ensureProfileActive() {
     if(profile?.status === 'disabled') {
       await db.auth.signOut();
       showAuthAlert(
-        '<strong>🚫 Compte désactivé</strong><br><br>' +
+        '<strong>Compte désactivé</strong><br><br>' +
         'Votre accès à Stonefolio a été suspendu. Contactez un administrateur pour plus d\'informations.',
         'error'
       );
@@ -299,7 +303,7 @@ function checkOAuthErrorInUrl() {
   history.replaceState(null, null, window.location.pathname);
   const d = decodeURIComponent(desc.replace(/\+/g,' '));
   if(d.includes('TRACKIMMO_SSO_RESTREINT') || d.includes('Database error saving new user'))
-    return '<strong>🚫 Connexion Google refusée</strong><br><br>' +
+    return '<strong>Connexion Google refusée</strong><br><br>' +
       'Aucun compte Stonefolio n\'est associé à cet email Google. ' +
       'La connexion Google est réservée aux comptes existants : connectez-vous d\'abord ' +
       'avec votre email et mot de passe, ou contactez un administrateur pour être invité.';
@@ -337,7 +341,7 @@ async function doSignup() {
     // Confirm email est ACTIF côté Supabase → pas de session immédiate
     // Le user reçoit un mail "Confirmez votre inscription" qu'il doit cliquer.
     showAuthAlert(
-      '<strong>📬 Vérifiez vos emails</strong><br><br>' +
+      '<strong>Vérifiez vos e-mails</strong><br><br>' +
       'Nous avons envoyé un lien de confirmation à <strong>' + email + '</strong>. ' +
       'Cliquez dessus pour activer votre compte.<br><br>' +
       '<em style="font-size:11px;color:var(--sf-text-2)">Pensez à vérifier vos spams si vous ne le voyez pas.</em>',
@@ -371,7 +375,7 @@ async function doReset() {
     const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo });
     if(error) { showAuthAlert(authErrorToFr(error)); return; }
     showAuthAlert(
-      '<strong>📬 Email envoyé</strong><br><br>' +
+      '<strong>E-mail envoyé</strong><br><br>' +
       'Si un compte existe pour <strong>'+email+'</strong>, un lien de réinitialisation vient de partir. ' +
       'Cliquez sur le lien dans le mail pour définir un nouveau mot de passe.<br><br>' +
       '<em style="font-size:11px;color:var(--sf-text-2)">Pensez à vérifier vos spams. Le lien expire dans 1 heure.</em>',
@@ -467,10 +471,10 @@ function checkRecoveryHash() {
           const titleEl = document.querySelector('#form-newpwd .auth-welcome h2');
           const subEl   = document.querySelector('#form-newpwd .auth-welcome p');
           if(type === 'invite') {
-            if(titleEl) titleEl.textContent = '🎉 Bienvenue sur Stonefolio';
+            if(titleEl) titleEl.textContent = 'Bienvenue sur Stonefolio';
             if(subEl)   subEl.textContent   = 'Pour activer votre compte, définissez votre mot de passe.';
           } else {
-            if(titleEl) titleEl.textContent = '🔐 Nouveau mot de passe';
+            if(titleEl) titleEl.textContent = 'Nouveau mot de passe';
             if(subEl)   subEl.textContent   = 'Définissez un nouveau mot de passe pour votre compte.';
           }
           // Nettoyer le hash de l'URL
@@ -1316,7 +1320,7 @@ async function init() {
       showForm('newpwd');
       const titleEl = document.querySelector('#form-newpwd .auth-welcome h2');
       const subEl   = document.querySelector('#form-newpwd .auth-welcome p');
-      if(titleEl) titleEl.textContent = '🔐 Nouveau mot de passe';
+      if(titleEl) titleEl.textContent = 'Nouveau mot de passe';
       if(subEl)   subEl.textContent   = 'Définissez un nouveau mot de passe pour votre compte.';
     }
   });
@@ -1561,10 +1565,56 @@ const SF_ACC_ICONS = {
   // Les fleches Unicode et les emojis tombent en police systeme : leur dessin
   // depend du systeme d'exploitation, pas de la charte.
   retour:  '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  // Le chevron existe vers la droite ; le tri de colonne et les accordeons
+  // ont besoin des deux autres sens. Trois dessins valent mieux qu'une
+  // rotation CSS : une icone tournee ne pese pas pareil a l'oeil.
+  'chevron-haut': '<path d="m6 15 6-6 6 6"/>',
+  'chevron-bas':  '<path d="m6 9 6 6 6-6"/>',
+  // Le pendant VIDE de `check` : une case a cocher non cochee. Les deux se
+  // lisent en couple dans les listes d'echeances.
+  cercle:  '<circle cx="12" cy="12" r="8"/>',
+  // ⚠️ L'ETOILE PLEINE N'EST PAS UNE OPACITE. Les notes sur 5 peignaient la
+  // meme etoile a l'opacite 0,2 pour l'eteindre — ce qui la rendait grise sur
+  // fond clair et invisible sur fond sombre. Une etoile vide se DESSINE vide.
+  'etoile-pleine': '<path fill="currentColor" d="m12 3.5 2.6 5.5 5.9.8-4.3 4.2 1.1 6-5.3-2.9-5.3 2.9 1.1-6L3.5 9.8l5.9-.8L12 3.5Z"/>',
+
+  // ── Lot « reliquats TrackImmo » du 27/09/2026 ────────────────────────────
+  // Dix-huit dessins qui manquaient au jeu, tous tires des emojis qu'ils
+  // remplacent. Sept d'entre eux ne servent qu'a la grille des equipements de
+  // proximite de l'ecran Marche : c'est un mini-jeu dans le jeu, et c'est la
+  // que le lot pouvait deraper.
+  actu:     '<rect x="3" y="4.5" width="13.5" height="15" rx="1.6"/><path d="M16.5 8.5H20a1 1 0 0 1 1 1v8a2 2 0 0 1-2 2"/><path d="M6 8.5h7.5M6 12h7.5M6 15.5h5"/>',
+  dossier:  '<path d="M3 7.2a2 2 0 0 1 2-2h3.4a2 2 0 0 1 1.5.7l1.3 1.5H19a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7.2Z"/>',
+  eclair:   '<path d="M13.2 2.5 4.6 13.7h6.2l-1 7.8 8.6-11.2h-6.2l1-7.8Z"/>',
+  carte:    '<path d="m9 4.5-6 2.2V21l6-2.2 6 2.2 6-2.2V4.5L15 6.7 9 4.5Z"/><path d="M9 4.5v14.3M15 6.7V21"/>',
+  sortie:   '<path d="M10 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4"/><path d="m15.5 16 4.5-4-4.5-4"/><path d="M20 12H9"/>',
+  disquette:'<path d="M5 4h11l3 3v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M8 4v5h7V4"/><path d="M8 20.5v-7h8v7"/>',
+  etiquette:'<path d="M3.5 11.4V4.5a1 1 0 0 1 1-1h6.9a1 1 0 0 1 .7.3l8.1 8.1a1 1 0 0 1 0 1.4l-6.9 6.9a1 1 0 0 1-1.4 0L3.8 12.1a1 1 0 0 1-.3-.7Z"/><circle cx="8" cy="8" r="1.4"/>',
+  bouclier: '<path d="M12 3 4.5 6v6c0 4.5 3.2 7.8 7.5 9 4.3-1.2 7.5-4.5 7.5-9V6L12 3Z"/>',
+  commerce: '<circle cx="9.5" cy="19.6" r="1.4"/><circle cx="17.2" cy="19.6" r="1.4"/><path d="M2.5 3.5h2.9l2.5 12.1h10.5l2.1-8.6H6.3"/>',
+  sante:    '<rect x="3.5" y="3.5" width="17" height="17" rx="3.4"/><path d="M12 8.2v7.6M8.2 12h7.6"/>',
+  ecole:    '<path d="M12 4 2.5 8.4 12 12.8l9.5-4.4L12 4Z"/><path d="M6.6 10.6V16c0 1.7 2.4 3 5.4 3s5.4-1.3 5.4-3v-5.4"/><path d="M21.5 8.4v5.2"/>',
+  sport:    '<circle cx="12" cy="12" r="9"/><path d="m12 7.3 4.2 3-1.6 4.9H9.4L7.8 10.3l4.2-3Z"/><path d="M12 3.1v4.2M3.5 9.7l4.3 .6M20.5 9.7l-4.3 .6M7 19.8l2.4-4.6M17 19.8l-2.4-4.6"/>',
+  transport:'<rect x="4" y="3.5" width="16" height="13.5" rx="2.6"/><path d="M4 11h16"/><path d="M7.5 17v2.6M16.5 17v2.6"/><circle cx="8" cy="14" r=".95" fill="currentColor" stroke="none"/><circle cx="16" cy="14" r=".95" fill="currentColor" stroke="none"/>',
+  thermo:   '<path d="M14 14.6V5.2a2 2 0 1 0-4 0v9.4a4.4 4.4 0 1 0 4 0Z"/><circle cx="12" cy="17.6" r="1.5" fill="currentColor" stroke="none"/>',
   lien:    '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/>',
   tel:     '<path d="M6.5 3.5h3l1.5 4-2 1.5a12 12 0 0 0 6 6L16.5 13l4 1.5v3a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.5 5.7a2 2 0 0 1 2-2.2Z"/>',
   mail:    '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6 8.5-6"/>',
 };
+/* LA NOTE SUR CINQ — une seule fois, trois ecrans la lisaient.
+   ⚠️ L'ETOILE ETEINTE SE DESSINE VIDE. Les trois copies d'avant peignaient la
+   MEME etoile pleine a l'opacite 0,2 : gris pale sur fond clair, et quasiment
+   invisible sur fond sombre. Une etoile vide reste une etoile a tous les
+   contrastes — et le titre porte la note en toutes lettres, parce que la
+   forme seule ne se compte pas d'un coup d'oeil. */
+function sfNotes(note, taille = 13) {
+  const n = Math.max(0, Math.min(5, parseInt(note, 10) || 0));
+  const etoiles = Array.from({ length: 5 }, (_, i) =>
+    `<span class="sf-notes__e${i < n ? ' sf-notes__e--pleine' : ''}">`
+    + sfAccIcon(i < n ? 'etoile-pleine' : 'etoile', taille) + '</span>').join('');
+  return `<span class="sf-notes" title="${n} sur 5" aria-label="${n} sur 5">${etoiles}</span>`;
+}
+
 function sfAccIcon(n, t) {
   // Cle inconnue : on ne rend RIEN. La version precedente emettait un <svg>
   // vide, qui occupait sa largeur sans rien dessiner — un trou invisible a la
@@ -2063,7 +2113,7 @@ async function sfPointerLoyer(bienId, mois, annee, boite) {
         .select().maybeSingle();
       if (error) throw error;
       if (data) Object.assign(ligne, data);
-      showNotif(patch.statut === 'Payé' ? '✓ Loyer pointé' : 'Pointage annulé');
+      showNotif(patch.statut === 'Payé' ? 'Loyer pointé' : 'Pointage annulé');
 
     } else {
       const loc = mfLocataireForBienMonth(bienId, mois, annee);
@@ -2557,7 +2607,7 @@ function renderBiensTableau(l) {
   // au-dessus de chiffres à droite laisse un trou au milieu de la colonne.
   const th = (c,t,num) => `<th data-sort="${c}"${num?' class="sf-num"':''}${bienSortBy===c?` aria-sort="${bienSortAsc?'ascending':'descending'}"`:''}
       onclick="setTriBiens('${c}')" tabindex="0" onkeydown="if(event.key==='Enter')setTriBiens('${c}')">
-      ${t}<span class="ar">${bienSortAsc?'↑':'↓'}</span></th>`;
+      ${t}<span class="ar">${sfAccIcon(bienSortAsc ? 'chevron-haut' : 'chevron-bas', 12)}</span></th>`;
   const tousCoches = l.length > 0 && l.every(b => bienSelection.has(b.id));
   return `<div class="sfb-tablewrap"><table class="sfb-t">
     <thead><tr>
@@ -2766,7 +2816,7 @@ function renderKanbanCard(b, draggable=true) {
       <div class="kc-title">${esc(b.titre)}</div>
       <div class="kc-cf ${cfC}">${cfTxt}</div>
     </div>
-    <div class="kc-loc">📍 ${loc}</div>
+    <div class="kc-loc">${sfAccIcon('pin',12)} ${loc}</div>
     <div class="kc-meta">
       ${b.type_bien?`<span class="kc-tag">${b.type_bien}${b.surface_m2?' · '+b.surface_m2+'m²':''}</span>`:''}
       ${b.prix_affiche?`<span class="kc-tag">${fmt(b.prix_affiche)}€</span>`:''}
@@ -3099,7 +3149,7 @@ async function renderNouveau(el, bien) {
             <div class="form-group">
               <label>Frais de notaire <span style="color:var(--positive-c);font-weight:600">(${+(notairePct()*100).toFixed(1)}% auto)</span></label>
               <div class="calc-field" id="f-notaire-display">
-                <span class="calc-field-badge">🔒 Auto</span>
+                <span class="calc-field-badge">${sfAccIcon('lock',11)} Auto</span>
                 <span id="notaire-val">${bien?.prix_affiche?fmt(Math.round((bien.prix_affiche||0)*notairePct()))+' €':'—'}</span>
               </div>
             </div>
@@ -3171,21 +3221,21 @@ async function renderNouveau(el, bien) {
           <div class="form-group" style="margin-bottom:12px">
             <label>Photos du bien</label>
             <div class="photo-upload-area" onclick="document.getElementById('bien-photo-input').click()" style="padding:14px">
-              📸 Ajouter des photos (JPG, PNG)
+              ${sfAccIcon('image',15)} Ajouter des photos (JPG, PNG)
             </div>
             <input type="file" id="bien-photo-input" accept="image/*" multiple style="display:none" onchange="handleBienPhotos(event)">
             <div class="media-grid" id="bien-photos-grid">
-              ${bienPhotos.map((p,i)=>`<div class="media-thumb-wrap"><img class="media-thumb" src="${p}"><button class="media-remove" onclick="removeBienPhoto(${i})">✕</button></div>`).join('')}
+              ${bienPhotos.map((p,i)=>`<div class="media-thumb-wrap"><img class="media-thumb" src="${p}"><button class="media-remove" onclick="removeBienPhoto(${i})" aria-label="Retirer la photo">${sfAccIcon('croix',12)}</button></div>`).join('')}
             </div>
           </div>
           <div class="form-group">
             <label>Documents (PDF)</label>
             <div class="photo-upload-area" onclick="document.getElementById('bien-doc-input').click()" style="padding:14px">
-              📄 Ajouter des PDF (offre, compromis, devis...)
+              ${sfAccIcon('doc',15)} Ajouter des PDF (offre, compromis, devis…)
             </div>
             <input type="file" id="bien-doc-input" accept="application/pdf" multiple style="display:none" onchange="handleBienDocs(event)">
             <div class="media-grid" id="bien-docs-grid">
-              ${bienDocs.map((d,i)=>`<div class="media-thumb-wrap"><div class="media-thumb-doc">📄<span>${d.name||'PDF'}</span></div><button class="media-remove" onclick="removeBienDoc(${i})">✕</button></div>`).join('')}
+              ${bienDocs.map((d,i)=>`<div class="media-thumb-wrap"><div class="media-thumb-doc">${sfAccIcon('doc',18)}<span>${esc(d.name||'PDF')}</span></div><button class="media-remove" onclick="removeBienDoc(${i})" aria-label="Retirer le document">${sfAccIcon('croix',12)}</button></div>`).join('')}
             </div>
           </div>
         </div>
@@ -3305,14 +3355,14 @@ async function tiMigrateToStorage() {
   const logEl = document.getElementById('ti-migration-log');
   const btn = document.getElementById('ti-migration-btn');
   const log = (msg) => { if(logEl){ logEl.innerHTML += msg + '<br>'; logEl.scrollTop = logEl.scrollHeight; } };
-  if(btn){ btn.disabled = true; btn.textContent = '⏳ Migration en cours...'; }
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="sf-attente"></span>Migration en cours…'; }
   if(logEl){ logEl.style.display = 'block'; logEl.innerHTML = ''; }
 
   let totalMigrated = 0, totalErrors = 0;
 
   try {
     // ── 1. BIENS : photos + documents ──
-    log('<strong>📦 Biens (photos + documents)...</strong>');
+    log('<strong>Biens — photos et documents…</strong>');
     const { data: biens, error: bErr } = await db.from('biens')
       .select('id, photos, documents, photos_paths, documents_paths')
       .eq('user_id', currentUser.id);
@@ -3331,7 +3381,7 @@ async function tiMigrateToStorage() {
             const up = await TI_STORAGE.uploadDataURL('biens-photos', b.id, b.photos[i], `photo-${i+1}.jpg`);
             paths.push({ path: up.path, name: up.name });
             totalMigrated++;
-          } catch(e) { totalErrors++; log(`&nbsp;&nbsp;⚠️ photo ${i+1} bien ${b.id.slice(0,8)} : ${e.message}`); }
+          } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] photo ${i+1} bien ${b.id.slice(0,8)} : ${e.message}`); }
         }
         update.photos_paths = paths;
       }
@@ -3343,18 +3393,18 @@ async function tiMigrateToStorage() {
             const up = await TI_STORAGE.uploadDataURL('biens-documents', b.id, d.data || d, d.name || `doc-${i+1}.pdf`);
             paths.push({ path: up.path, name: up.name });
             totalMigrated++;
-          } catch(e) { totalErrors++; log(`&nbsp;&nbsp;⚠️ doc ${i+1} bien ${b.id.slice(0,8)} : ${e.message}`); }
+          } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] doc ${i+1} bien ${b.id.slice(0,8)} : ${e.message}`); }
         }
         update.documents_paths = paths;
       }
       if (Object.keys(update).length) {
         const { error: uErr } = await db.from('biens').update(update).eq('id', b.id);
-        if (uErr) { totalErrors++; log(`&nbsp;&nbsp;⚠️ update bien ${b.id.slice(0,8)} : ${uErr.message}`); }
-        else log(`&nbsp;&nbsp;✓ Bien ${b.id.slice(0,8)} migré`);
+        if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update bien ${b.id.slice(0,8)} : ${uErr.message}`); }
+        else log(`&nbsp;&nbsp;[ok] Bien ${b.id.slice(0,8)} migré`);
       }
     }
 
-    log(`<br><strong>📸 Visites (photos)...</strong>`);
+    log(`<br><strong>Comptes rendus — photos…</strong>`);
     const { data: visites, error: vErr } = await db.from('visites')
       .select('id, photos, photos_paths')
       .eq('user_id', currentUser.id);
@@ -3368,14 +3418,14 @@ async function tiMigrateToStorage() {
           const up = await TI_STORAGE.uploadDataURL('visites-photos', v.id, v.photos[i], `photo-${i+1}.jpg`);
           paths.push({ path: up.path, name: up.name });
           totalMigrated++;
-        } catch(e) { totalErrors++; log(`&nbsp;&nbsp;⚠️ photo ${i+1} visite ${v.id.slice(0,8)} : ${e.message}`); }
+        } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] photo ${i+1} visite ${v.id.slice(0,8)} : ${e.message}`); }
       }
       const { error: uErr } = await db.from('visites').update({ photos_paths: paths }).eq('id', v.id);
-      if (uErr) { totalErrors++; log(`&nbsp;&nbsp;⚠️ update visite ${v.id.slice(0,8)} : ${uErr.message}`); }
-      else log(`&nbsp;&nbsp;✓ Visite ${v.id.slice(0,8)} migrée`);
+      if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update visite ${v.id.slice(0,8)} : ${uErr.message}`); }
+      else log(`&nbsp;&nbsp;[ok] Visite ${v.id.slice(0,8)} migrée`);
     }
 
-    log(`<br><strong>🏦 Simulations (PDF)...</strong>`);
+    log(`<br><strong>Simulations — PDF…</strong>`);
     const { data: sims, error: sErr } = await db.from('simulations_credit')
       .select('id, pdf_data, pdf_name, pdf_path')
       .eq('user_id', currentUser.id);
@@ -3386,12 +3436,12 @@ async function tiMigrateToStorage() {
       try {
         const up = await TI_STORAGE.uploadDataURL('simulations-pdf', sim.id, sim.pdf_data, sim.pdf_name || 'simulation.pdf');
         const { error: uErr } = await db.from('simulations_credit').update({ pdf_path: up.path }).eq('id', sim.id);
-        if (uErr) { totalErrors++; log(`&nbsp;&nbsp;⚠️ update sim ${sim.id.slice(0,8)} : ${uErr.message}`); }
-        else { totalMigrated++; log(`&nbsp;&nbsp;✓ Simulation ${sim.id.slice(0,8)} migrée`); }
-      } catch(e) { totalErrors++; log(`&nbsp;&nbsp;⚠️ PDF sim ${sim.id.slice(0,8)} : ${e.message}`); }
+        if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update sim ${sim.id.slice(0,8)} : ${uErr.message}`); }
+        else { totalMigrated++; log(`&nbsp;&nbsp;[ok] Simulation ${sim.id.slice(0,8)} migrée`); }
+      } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] PDF sim ${sim.id.slice(0,8)} : ${e.message}`); }
     }
 
-    log(`<br><strong>👤 Locataires (documents)...</strong>`);
+    log(`<br><strong>Locataires — documents…</strong>`);
     const { data: locs, error: lErr } = await db.from('locataires')
       .select('id, documents')
       .eq('user_id', currentUser.id);
@@ -3408,26 +3458,31 @@ async function tiMigrateToStorage() {
             migrated.push({ name:doc.name, type:doc.type, mime:doc.mime, size:doc.size, uploaded_at:doc.uploaded_at, storage_path:up.path, data:null });
             needUpdate = true;
             totalMigrated++;
-          } catch(e) { totalErrors++; migrated.push(doc); log(`&nbsp;&nbsp;⚠️ doc locataire ${loc.id.slice(0,8)} : ${e.message}`); }
+          } catch(e) { totalErrors++; migrated.push(doc); log(`&nbsp;&nbsp;[erreur] doc locataire ${loc.id.slice(0,8)} : ${e.message}`); }
         } else { migrated.push(doc); }
       }
       if (needUpdate) {
         const { error: uErr } = await db.from('locataires').update({ documents: migrated }).eq('id', loc.id);
-        if (uErr) { totalErrors++; log(`&nbsp;&nbsp;⚠️ update locataire ${loc.id.slice(0,8)} : ${uErr.message}`); }
-        else log(`&nbsp;&nbsp;✓ Locataire ${loc.id.slice(0,8)} migré`);
+        if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update locataire ${loc.id.slice(0,8)} : ${uErr.message}`); }
+        else log(`&nbsp;&nbsp;[ok] Locataire ${loc.id.slice(0,8)} migré`);
       }
     }
 
-    log(`<br><strong>✅ Migration terminée</strong>`);
+    log(`<br><strong>Migration terminée</strong>`);
     log(`Fichiers migrés : ${totalMigrated} · Erreurs : ${totalErrors}`);
     log(`<em>Note : les colonnes base64 d'origine sont conservées — c'est le filet de sécurité, et il reste en place. Rien ne les videra automatiquement.</em>`);
     if (totalMigrated > 0) await loadBiens();
     showNotif(`Migration : ${totalMigrated} fichier(s) migré(s)${totalErrors?', '+totalErrors+' erreur(s)':''}`, totalErrors>0);
   } catch(e) {
-    log(`<br><strong style="color:var(--sf-loss)">❌ Erreur globale : ${e.message}</strong>`);
+    log(`<br><strong style="color:var(--sf-loss)">Erreur globale : ${esc(e.message)}</strong>`);
     showNotif('Erreur migration : '+e.message, true);
   } finally {
-    if(btn){ btn.disabled = false; btn.textContent = '🔄 Lancer la migration base64 → Storage'; }
+    /* ⚠️ MEME LIBELLE QUE DANS LE GABARIT (`paramsMaintenanceHtml`). Le
+       `finally` REECRIVAIT l'ancien texte avec son emoji : apres UNE SEULE
+       migration, le bouton perdait son icone et retrouvait le vieux
+       libelle — definitivement, jusqu'au rechargement. */
+    if(btn){ btn.disabled = false;
+             btn.innerHTML = sfAccIcon('echange',14) + ' Lancer la migration base64 vers Storage'; }
   }
 }
 
@@ -3495,7 +3550,7 @@ async function refreshBienPhotos(){
   // Affichage : b64 direct, storage via URL signée (async)
   const items = await Promise.all(bienPhotos.map(async (p,i)=>{
     let src = p.kind==='b64' ? p.data : await TI_STORAGE.signedUrl(p.bucket||'biens-photos', p.path);
-    return `<div class="media-thumb-wrap"><img class="media-thumb" src="${src||''}"><button class="media-remove" onclick="removeBienPhoto(${i})">✕</button></div>`;
+    return `<div class="media-thumb-wrap"><img class="media-thumb" src="${src||''}"><button class="media-remove" onclick="removeBienPhoto(${i})" aria-label="Retirer la photo">${sfAccIcon('croix',12)}</button></div>`;
   }));
   el.innerHTML = items.join('');
 }
@@ -3512,7 +3567,7 @@ function removeBienDoc(i){bienDocs.splice(i,1);refreshBienDocs();}
 
 function refreshBienDocs(){
   const el=document.getElementById('bien-docs-grid');
-  if(el)el.innerHTML=bienDocs.map((d,i)=>`<div class="media-thumb-wrap"><div class="media-thumb-doc">📄<span style="font-size:9px;text-align:center;padding:2px">${(d.name||'').substring(0,10)}</span></div><button class="media-remove" onclick="removeBienDoc(${i})">✕</button></div>`).join('');
+  if(el)el.innerHTML=bienDocs.map((d,i)=>`<div class="media-thumb-wrap"><div class="media-thumb-doc">${sfAccIcon('doc',18)}<span style="font-size:9px;text-align:center;padding:2px">${esc((d.name||'').substring(0,10))}</span></div><button class="media-remove" onclick="removeBienDoc(${i})" aria-label="Retirer le document">${sfAccIcon('croix',12)}</button></div>`).join('');
 }
 
 function setSCI(oui) {
@@ -3691,7 +3746,7 @@ async function saveBien() {
        fixe l'aurait écrasé, icône comprise. */
     return;
   }
-  btn.disabled=true;btn.textContent='⏳ Enregistrement...';
+  btn.disabled=true;btn.innerHTML='<span class="sf-attente"></span>Enregistrement…';
   try {
     // 1. Insert/update du bien SANS les fichiers → on récupère l'id
     let bienId = editingId;
@@ -3705,7 +3760,7 @@ async function saveBien() {
     }
 
     // 2. Upload des NOUVEAUX fichiers (kind:'b64') vers Storage
-    btn.textContent='⏳ Upload des fichiers...';
+    btn.innerHTML='<span class="sf-attente"></span>Envoi des fichiers…';
     const photosPaths = [];
     for(const p of bienPhotos){
       if(p.kind==='storage'){ photosPaths.push({path:p.path, name:p.name}); }
@@ -3732,7 +3787,7 @@ async function saveBien() {
     }).eq('id', bienId);
     if(upErr) throw upErr;
 
-    showNotif(editingId?'✓ Bien mis à jour':'✓ Bien ajouté !');
+    showNotif(editingId?'Bien mis à jour':'Bien ajouté');
     await loadBiens();navigate('biens');
   } catch(error) {
     showNotif('Erreur : '+error.message,true);
@@ -4603,7 +4658,7 @@ async function renderBienDetail(el) {
                       <div class="sff-row__m">${esc(sfCrLabel(v.type_visite))}${v.adresse?` — ${esc(v.adresse)}`:''}
                         ${v.notes?`<div class="sff-row__s">${esc(v.notes.slice(0,110))}${v.notes.length>110?'…':''}</div>`:''}
                       </div>
-                      ${v.note_sur_5?`<span class="sff-stars" title="${v.note_sur_5} sur 5">${sfAccIcon('etoile',13).repeat(v.note_sur_5)}</span>`:''}
+                      ${v.note_sur_5 ? sfNotes(v.note_sur_5, 13) : ''}
                     </div>`).join('')}</div>`
                 : `<div class="sff-empty">
                      <div class="sff-empty__ic">${sfAccIcon('carnet',34)}</div>
@@ -5415,7 +5470,7 @@ async function saveAction() {
     if(editingActionId) res = await db.from('actions').update(payload).eq('id', editingActionId).eq('user_id', currentUser.id);
     else res = await db.from('actions').insert(payload);
     if(res.error) throw res.error;
-    showNotif(editingActionId ? 'Action mise à jour ✓' : 'Action ajoutée ✓');
+    showNotif(editingActionId ? 'Action mise à jour' : 'Action ajoutée');
     closeAdmModal();
     _reopenDetailTab = 'actions';
     openDetail(actionModalBienId);
@@ -5535,7 +5590,7 @@ async function openDossierModal(bienId){
   const b = allBiens.find(x => x.id === bienId);
   if(!b){ showNotif('Bien introuvable.', true); return; }
 
-  document.getElementById('adm-modal-title').textContent = '📄 Dossier banque — ' + (b.titre || 'Bien');
+  document.getElementById('adm-modal-title').textContent = 'Dossier banque — ' + (b.titre || 'Bien');
   document.getElementById('adm-modal-del').style.display = 'none';
   const saveBtn = document.getElementById('adm-modal-save');
   saveBtn.innerHTML = sfAccIcon('doc',14) + ' Générer le dossier';
@@ -5567,7 +5622,7 @@ async function openDossierModal(bienId){
     const sciOpts = ['<option value="">Sans SCI</option>']
       .concat(bkdocCtx.scis.map(s => `<option value="${s.id}" ${b.sci_id === s.id ? 'selected' : ''}>${esc(s.nom_sci)}</option>`)).join('');
     const simOpts = ['<option value="">Aucune</option>']
-      .concat(bkdocCtx.sims.map(s => `<option value="${s.id}">${esc(s.nom_simulation || 'Simulation')}${s.pdf_path ? ' 📎' : ''}</option>`)).join('');
+      .concat(bkdocCtx.sims.map(s => `<option value="${s.id}">${esc(s.nom_simulation || 'Simulation')}${s.pdf_path ? ' (PDF joint)' : ''}</option>`)).join('');
 
     let photosBlock = '';
     if(photoPaths.length === 0){
@@ -5577,7 +5632,7 @@ async function openDossierModal(bienId){
     } else {
       photosBlock = `<div style="font-size:12px;color:var(--c-muted);margin-bottom:2px">Ce bien a ${photoPaths.length} photos — sélectionnez-en 5 maximum (<span id="bkdoc-photo-count">5</span>/5) :</div>
         <div class="bkdoc-photo-grid" id="bkdoc-photo-grid">${photoPaths.map((p, i) =>
-          `<div class="bkdoc-photo-item ${i < 5 ? 'sel' : ''}" data-idx="${i}" onclick="bkdocTogglePhoto(${i})"><img data-bkpath="${esc(p.path || '')}" alt=""><span class="tick">✓</span></div>`).join('')}</div>`;
+          `<div class="bkdoc-photo-item ${i < 5 ? 'sel' : ''}" data-idx="${i}" onclick="bkdocTogglePhoto(${i})"><img data-bkpath="${esc(p.path || '')}" alt=""><span class="tick">${sfAccIcon('check',13)}</span></div>`).join('')}</div>`;
     }
 
     document.getElementById('adm-modal-body').innerHTML = `
@@ -5593,7 +5648,7 @@ async function openDossierModal(bienId){
       <div class="sci-form-group">
         <label class="sci-form-label">Simulation de crédit à joindre</label>
         <select class="sci-form-input" id="bkdoc-sim">${simOpts}</select>
-        <div style="font-size:11px;color:var(--c-muted);margin-top:3px">📎 = PDF de la banque joint en annexe. Sans simulation, la page « Plan de financement » est omise.</div>
+        <div style="font-size:11px;color:var(--c-muted);margin-top:3px">${sfAccIcon('trombone',12)} « PDF joint » = l'offre de la banque part en annexe. Sans simulation, la page « Plan de financement » est omise.</div>
       </div>
       <div class="sci-form-group">
         <label class="sci-form-label">Photos du bien</label>
@@ -5938,7 +5993,7 @@ async function bkdocGenerate(){
     } catch(e) { console.warn('trace dossier:', e.message); }
 
     closeAdmModal();
-    showNotif('Dossier banque généré ✓');
+    showNotif('Dossier banque généré');
   } catch(e) {
     console.error('bkdocGenerate:', e);
     bkdocProgress('');
@@ -6145,7 +6200,7 @@ function paramsCompteHtml() {
         <div class="params-field">
           <label class="params-field-label">Email de connexion</label>
           <input class="params-input" type="email" value="${esc(email)}" disabled title="L'email de connexion n'est pas modifiable ici">
-          <div class="params-field-hint">🔒 Non modifiable</div>
+          <div class="params-field-hint">${sfAccIcon('lock',12)} Non modifiable</div>
         </div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
@@ -6154,7 +6209,7 @@ function paramsCompteHtml() {
     </div>
     <div class="params-card">
       <div class="params-card-title">Session</div>
-      <div class="settings-action" onclick="doLogout()">🚪 Se déconnecter</div>
+      <div class="settings-action" onclick="doLogout()">${sfAccIcon('sortie',15)} Se déconnecter</div>
     </div>`;
 }
 
@@ -6164,7 +6219,7 @@ async function saveMyProfile() {
   const firstName = document.getElementById('acc-first-name')?.value || '';
   const lastName = document.getElementById('acc-last-name')?.value || '';
   const phone = document.getElementById('acc-phone')?.value || '';
-  if(btn){ btn.disabled = true; btn.textContent = '⏳ Enregistrement...'; }
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="sf-attente"></span>Enregistrement…'; }
   try {
     const { error } = await db.rpc('update_my_profile', {
       p_first_name: firstName,
@@ -6253,7 +6308,7 @@ async function saveMyPreferences() {
   const duree = parseInt(document.getElementById('pref-duree')?.value) || 20;
   const assurance = parseFloat(document.getElementById('pref-assurance')?.value) || 33;
   const seuil = parseFloat(document.getElementById('pref-seuil')?.value) || 5;
-  if(btn){ btn.disabled = true; btn.textContent = '⏳ Enregistrement...'; }
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="sf-attente"></span>Enregistrement…'; }
   try {
     const { error } = await db.rpc('update_my_preferences', {
       p_notaire_pct: notaire,
@@ -6367,7 +6422,7 @@ function paramsMaintenanceHtml() {
       <div style="font-size:12px;color:var(--c-muted);line-height:1.5;margin-bottom:10px">
         Migration des photos et documents depuis l'ancien stockage (base64 en base de données) vers Supabase Storage. Opération sûre et ré-exécutable : les fichiers déjà migrés sont ignorés, et les données d'origine sont conservées.
       </div>
-      <button id="ti-migration-btn" class="btn btn-primary" style="width:100%;font-size:13px" onclick="tiMigrateToStorage()">🔄 Lancer la migration base64 → Storage</button>
+      <button id="ti-migration-btn" class="btn btn-primary" style="width:100%;font-size:13px" onclick="tiMigrateToStorage()">${sfAccIcon('echange',14)} Lancer la migration base64 vers Storage</button>
       <div id="ti-migration-log" style="display:none;margin-top:10px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:10px;font-size:11px;font-family:monospace;max-height:200px;overflow-y:auto;line-height:1.6"></div>
     </div>
 
@@ -6376,7 +6431,7 @@ function paramsMaintenanceHtml() {
       <div style="font-size:12px;color:var(--c-muted);line-height:1.5;margin-bottom:10px">
         Jeux de données factices, pour éprouver les écrans sans saisie. Elles
         portent la mention « TEST » et n'existent que dans votre compte.
-        ⚠️ Elles entrent dans tous les calculs comme de vraies données.
+        ${sfAccIcon('alerte',13)} Elles entrent dans tous les calculs comme de vraies données.
       </div>
       <div class="settings-action" onclick="genTestData()">${sfAccIcon('boite',15)} Générer 5 fiches de bien</div>
       <div class="settings-action" onclick="purgeTestData()">${sfAccIcon('poubelle',15)} Supprimer les fiches de test</div>
@@ -8594,7 +8649,7 @@ function mfOpenChargeModal(preset) {
         <div class="form-group" style="grid-column:1/-1">
           <div class="mfs-toggle-row">
             <div>
-              <label for="charge-lissable">📊 Lisser sur 12 mois (pour cashflow réel)</label>
+              <label for="charge-lissable">${sfAccIcon('graph',14)} Lisser sur 12 mois (pour cashflow réel)</label>
               <div class="sub">Recommandé pour taxe foncière, assurance annuelle (charge divisée sur l'année dans les KPI)</div>
             </div>
             <input type="checkbox" id="charge-lissable" ${initial.lissable?'checked':''}>
@@ -8604,7 +8659,7 @@ function mfOpenChargeModal(preset) {
         <div class="form-group" style="grid-column:1/-1">
           <div class="mfs-toggle-row">
             <div>
-              <label for="charge-recuperable">↪️ Récupérable sur le locataire</label>
+              <label for="charge-recuperable">${sfAccIcon('echange',14)} Récupérable sur le locataire</label>
               <div class="sub">Cette dépense est refacturée au locataire (ex : TEOM, certaines charges copro)</div>
             </div>
             <input type="checkbox" id="charge-recuperable" ${initial.recuperable_locataire?'checked':''}>
@@ -8620,7 +8675,7 @@ function mfOpenChargeModal(preset) {
       </div>
 
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:14px;border-top:1px solid var(--c-border);gap:10px;flex-wrap:wrap">
-        <div style="font-size:11px;color:var(--c-muted);font-style:italic">💡 Les charges sont mappées automatiquement à la déclaration fiscale Cerfa 2044 (régime réel locations nues)</div>
+        <div style="font-size:11px;color:var(--c-muted);font-style:italic">${sfAccIcon('ampoule',13)} Les charges sont mappées automatiquement à la déclaration fiscale Cerfa 2044 (régime réel locations nues)</div>
         <div style="display:flex;gap:6px">
           <button class="sf-btn sf-btn--secondary" onclick="closeModal('modal-detail')">Annuler</button>
           <button class="sf-btn sf-btn--primary" onclick="mfSaveCharge('${isEdit ? initial.id : ''}')">${isEdit?sfAccIcon('check',14)+' Enregistrer':'＋ Ajouter la charge'}</button>
@@ -8643,10 +8698,10 @@ function mfUpdateCerfaInfo() {
   const m = CERFA_MAPPING[cat];
   info.innerHTML = `
     <div class="mfs-cerfa-info">
-      <span class="ico">📋</span>
+      <span class="ico">${sfAccIcon('carnet',14)}</span>
       <span>
         <strong>${m.label}</strong> — déclaration fiscale Cerfa 2044 (régime réel)
-        ${m.attention ? `<br><strong>⚠️ Attention :</strong> ${m.attention}` : ''}
+        ${m.attention ? `<br><strong>${sfAccIcon('alerte',13)} Attention :</strong> ${m.attention}` : ''}
       </span>
     </div>
   `;
@@ -8690,7 +8745,7 @@ async function mfSaveCharge(chargeId) {
       const idx = allCharges.findIndex(c => c.id === res.data.id);
       if(idx >= 0) allCharges[idx] = res.data; else allCharges.push(res.data);
     }
-    showNotif(chargeId ? '✅ Charge mise à jour' : '✅ Charge ajoutée');
+    showNotif(chargeId ? 'Charge mise à jour' : 'Charge ajoutée');
     closeModal('modal-detail');
     const c = document.getElementById('mf-content');
     if(c) renderMfSuivi(c);
@@ -9872,7 +9927,7 @@ async function sfCongeRevoquer(locId) {
     detail: `Le locataire redevient <strong>actif</strong>, sa date de sortie est effacée, le mois
              de sortie repasse au <strong>loyer plein</strong> et les échéances de ${anneeEnCours}
              sont régénérées. Les encaissements déjà pointés sont conservés.
-             ${auDela ? `<br><br>⚠️ Les échéances de <strong>${sortie.slice(0,4)}</strong> supprimées par
+             ${auDela ? `<br><br>${sfAccIcon('alerte',13)} Les échéances de <strong>${sortie.slice(0,4)}</strong> supprimées par
              le congé ne sont pas restaurées ici : elles se regénèrent depuis le Suivi mensuel.` : ''}`,
     ok: 'Annuler le congé', annuler: 'Ne rien changer' });
   if(!ok) return;
@@ -10469,7 +10524,7 @@ async function mfOpenBilanFeedModal(focusAttach) {
     if(!scis.length) {
       document.getElementById('detail-content').innerHTML = `
         <div style="padding:24px;text-align:center">
-          <div style="font-size:40px;margin-bottom:10px">🏛️</div>
+          <div class="adm-vide-ic">${sfAccIcon('colonne',40)}</div>
           <div style="font-size:15px;font-weight:700;margin-bottom:6px">Aucune SCI créée</div>
           <div style="font-size:13px;color:var(--c-muted)">Créez d'abord votre SCI dans <strong>Administration › SCI</strong>, puis associez-lui vos biens.</div>
         </div>`;
@@ -10545,8 +10600,8 @@ function mfBilanFeedRender() {
   const attachHtml = `
     <div class="bf-attach">
       <button class="bf-attach-toggle" onclick="bilanFeedCtx.showAttach=${attachOpen ? 'false' : 'true'};mfBilanFeedRender()">
-        <span>🏛️ Biens rattachés à cette SCI · <strong>${biensSci.length}</strong></span>
-        <span class="chev">${attachOpen ? '▲' : '▼'}</span>
+        <span>${sfAccIcon('colonne',14)} Biens rattachés à cette SCI · <strong>${biensSci.length}</strong></span>
+        <span class="chev">${sfAccIcon(attachOpen ? 'chevron-haut' : 'chevron-bas', 14)}</span>
       </button>
       ${attachOpen ? `
         <div class="bf-attach-body">
@@ -10561,7 +10616,7 @@ function mfBilanFeedRender() {
                   ${autre ? `<span class="bf-bien-tag">rattaché à ${esc(autre.nom_sci)}</span>` : ''}
                 </label>`;
               }).join('')}
-          ${biensAcquis.length ? `<button class="sf-btn sf-btn--secondary sf-btn--sm" style="margin-top:10px" onclick="mfBilanFeedSaveBiens()">💾 Enregistrer les rattachements</button>` : ''}
+          ${biensAcquis.length ? `<button class="sf-btn sf-btn--secondary sf-btn--sm" style="margin-top:10px" onclick="mfBilanFeedSaveBiens()">${sfAccIcon('disquette',14)} Enregistrer les rattachements</button>` : ''}
         </div>` : ''}
     </div>`;
 
@@ -10571,7 +10626,7 @@ function mfBilanFeedRender() {
       <span class="bilan-badge ${regime.toLowerCase()}">${regime}</span>
       <span style="color:var(--c-muted)">· statut ${esc(bilan.statut || 'Brouillon')}</span>
     </div>
-    ${bilanEstAlimente(bilan) ? `<div class="bilanfeed-warn">⚠️ Ce bilan contient déjà des données : l'écriture les remplacera.</div>` : ''}` : `
+    ${bilanEstAlimente(bilan) ? `<div class="bilanfeed-warn">${sfAccIcon('alerte',14)} Ce bilan contient déjà des données : l'écriture les remplacera.</div>` : ''}` : `
     <div class="form-group" style="margin-bottom:12px">
       <label class="form-label">Régime fiscal (le bilan ${annee} sera créé en Brouillon)</label>
       <div style="display:flex;gap:14px;font-size:13px;margin-top:4px">
@@ -10584,13 +10639,13 @@ function mfBilanFeedRender() {
   if(!biensSci.length) {
     apercuHtml = `
       <div class="bilanfeed-warn" style="margin-top:4px">
-        🏷️ Aucun bien acquis n'est rattaché à cette SCI.<br>
+        ${sfAccIcon('etiquette',14)} Aucun bien acquis n'est rattaché à cette SCI.<br>
         <span style="font-weight:400">Cochez les biens concernés ci-dessus, puis enregistrez : l'aperçu se calculera aussitôt.</span>
       </div>`;
   } else if(regime === 'IR') {
     const lignesTriees = Object.keys(d.parLigne).sort();
     apercuHtml = `
-      <div class="bilanfeed-src">📦 Sources : ${biensSci.length} bien${biensSci.length > 1 ? 's' : ''} · loyers encaissés et charges payées en ${annee}${d.recuperablesExclues > 0 ? ` · ${fmt(d.recuperablesExclues)} € de charges récupérables exclues` : ''}</div>
+      <div class="bilanfeed-src">${sfAccIcon('boite',13)} Sources : ${biensSci.length} bien${biensSci.length > 1 ? 's' : ''} · loyers encaissés et charges payées en ${annee}${d.recuperablesExclues > 0 ? ` · ${fmt(d.recuperablesExclues)} € de charges récupérables exclues` : ''}</div>
       <div class="bilan-resume-row"><span>Loyers perçus (encaissés)</span><span>${fmt(d.loyers)} €</span></div>
       ${lignesTriees.map(l => `<div class="bilan-resume-row sub"><span>L.${l} — ${CERFA_LIGNE_LABELS[l] || 'Autres'}</span><span>−${fmt(d.parLigne[l])} €</span></div>`).join('')}
       ${lignesTriees.length === 0 ? `<div class="bilan-resume-row sub"><span>Charges déductibles</span><span>0 €</span></div>` : ''}
@@ -10598,7 +10653,7 @@ function mfBilanFeedRender() {
   } else {
     const pcgTries = Object.keys(d.parPcg).sort((a, b) => (PCG_CR_LABELS.charges[a] || '').localeCompare(PCG_CR_LABELS.charges[b] || ''));
     apercuHtml = `
-      <div class="bilanfeed-src">📦 Sources : ${biensSci.length} bien${biensSci.length > 1 ? 's' : ''} · trésorerie ${annee}${d.recuperablesExclues > 0 ? ` · ${fmt(d.recuperablesExclues)} € de charges récupérables exclues` : ''}</div>
+      <div class="bilanfeed-src">${sfAccIcon('boite',13)} Sources : ${biensSci.length} bien${biensSci.length > 1 ? 's' : ''} · trésorerie ${annee}${d.recuperablesExclues > 0 ? ` · ${fmt(d.recuperablesExclues)} € de charges récupérables exclues` : ''}</div>
       <div class="bilan-resume-row"><span>${PCG_CR_LABELS.produits.loyers}</span><span>${fmt(d.loyers)} €</span></div>
       ${pcgTries.map(k => `<div class="bilan-resume-row sub"><span>${PCG_CR_LABELS.charges[k] || k}</span><span>−${fmt(d.parPcg[k])} €</span></div>`).join('')}
       <div style="font-size:11px;font-weight:700;color:var(--c-muted);margin:10px 0 4px">DOTATIONS AUX AMORTISSEMENTS (6811) — à saisir</div>
@@ -10617,12 +10672,12 @@ function mfBilanFeedRender() {
       ${regimeHtml}
       ${apercuHtml}
       <div style="font-size:11px;color:var(--c-dim);margin-top:12px;line-height:1.5">
-        ⚖️ Comptabilité de trésorerie : loyers effectivement encaissés et charges payées sur l'exercice, montants non lissés.
+        ${sfAccIcon('balance',14)} Comptabilité de trésorerie : loyers effectivement encaissés et charges payées sur l'exercice, montants non lissés.
         Faites valider par un expert-comptable avant tout dépôt officiel.
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--c-border)">
         <button class="sf-btn sf-btn--secondary" onclick="closeModal('modal-detail')">Annuler</button>
-        <button class="sf-btn sf-btn--primary" id="bf-write" onclick="mfBilanFeedWrite()" ${!biensSci.length ? 'disabled' : ''}>✍️ Écrire dans le bilan ${annee}</button>
+        <button class="sf-btn sf-btn--primary" id="bf-write" onclick="mfBilanFeedWrite()" ${!biensSci.length ? 'disabled' : ''}>${sfAccIcon('crayon',14)} Écrire dans le bilan ${annee}</button>
       </div>
     </div>`;
 
@@ -10737,7 +10792,7 @@ async function mfBilanFeedWrite() {
     closeModal('modal-detail');
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
-    if(btn) { btn.disabled = false; btn.textContent = `✍️ Écrire dans le bilan ${annee}`; }
+    if(btn) { btn.disabled = false; btn.innerHTML = sfAccIcon('crayon',14) + ` Écrire dans le bilan ${annee}`; }
   }
 }
 
@@ -11032,7 +11087,11 @@ function mfDocLabel(typeKey) {
   return LOC_DOC_TYPES.find(t => t.key === typeKey)?.label || 'Document';
 }
 function mfDocIcon(typeKey) {
-  return LOC_DOC_TYPES.find(t => t.key === typeKey)?.icon || '📄';
+  /* ⚠️ `LOC_DOC_TYPES` N'A PLUS DE CHAMP `icon` : la table ne porte que
+     `key` et `label`. Cette fonction rendait donc TOUJOURS le repli — l'emoji
+     — et la liste deroulante des types affichait « undefined » devant chaque
+     libelle. Une cle du jeu unique, et le meme dessin partout. */
+  return 'doc';
 }
 function mfDocFromFile(file, typeKey) {
   return new Promise((resolve, reject) => {
@@ -11202,7 +11261,7 @@ function openLocataireModal(id, presetBienId) {
     <div class="locf-sect">${sfAccIcon('trombone',15)} Documents</div>
     <div class="mf-doc-upload">
       <select class="sf-input" id="loc-doc-type" aria-label="Type de document">
-        ${LOC_DOC_TYPES.map(t => `<option value="${t.key}">${t.icon} ${t.label}</option>`).join('')}
+        ${LOC_DOC_TYPES.map(t => `<option value="${t.key}">${esc(t.label)}</option>`).join('')}
       </select>
       <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="document.getElementById('loc-doc-input').click()">${sfAccIcon('trombone',14)} Ajouter</button>
       <input type="file" id="loc-doc-input" accept="application/pdf,image/*" multiple style="display:none" onchange="handleLocDocUpload(event)">
@@ -11228,14 +11287,14 @@ function refreshLocDocsView() {
   }
   c.innerHTML = locataireDocsPending.map((d,i) => `
     <div class="mf-doc-item">
-      <span class="icon">${mfDocIcon(d.type)}</span>
+      <span class="icon">${sfAccIcon(mfDocIcon(d.type), 15)}</span>
       <div class="body">
         <div class="name">${d.name}<span class="mf-doc-type-badge">${mfDocLabel(d.type)}</span></div>
         <div class="meta">${mfFmtSize(d.size)} · ${d.uploaded_at ? new Date(d.uploaded_at).toLocaleDateString('fr-FR') : ''}</div>
       </div>
       <div class="actions">
-        <button class="act-btn" onclick="mfDocViewer(locataireDocsPending[${i}])" title="Voir">👁</button>
-        <button class="act-btn del" onclick="removeLocDoc(${i})" title="Supprimer">✕</button>
+        <button class="act-btn" onclick="mfDocViewer(locataireDocsPending[${i}])" title="Voir" aria-label="Voir le document">${sfAccIcon('loupe',13)}</button>
+        <button class="act-btn del" onclick="removeLocDoc(${i})" title="Supprimer" aria-label="Supprimer le document">${sfAccIcon('croix',13)}</button>
       </div>
     </div>`).join('');
 }
@@ -11757,7 +11816,7 @@ async function renderAdministration(el) {
           <div class="adm-kpi"><div class="adm-kpi-val" id="adm-k-contacts">—</div><div class="adm-kpi-lab">Contacts</div></div>
           <div class="adm-kpi"><div class="adm-kpi-val" id="adm-k-ech">—</div><div class="adm-kpi-lab">Échéances</div></div>
         </div>
-        <!-- ⚠️ TROIS BOUTONS ONT QUITTE CET EN-TETE le 27/09/2026, et il ne faut
+        <!-- ATTENTION : TROIS BOUTONS ONT QUITTE CET EN-TETE le 27/09/2026, et il ne faut
              pas les y remettre. « Generer tests », « Supprimer tests » et
              « Tout supprimer » etaient visibles de TOUT utilisateur, sans
              garde de role, a cote des indicateurs — deux clics entre un
@@ -11773,10 +11832,10 @@ async function renderAdministration(el) {
 
     <!-- Tabs -->
     <div class="adm-tabs">
-      <button class="adm-tab active" id="adm-tab-sci"      onclick="switchAdminTab('sci')">🏛️ Mes SCI</button>
-      <button class="adm-tab"        id="adm-tab-annuaire" onclick="switchAdminTab('annuaire')">👥 Annuaire</button>
-      <button class="adm-tab"        id="adm-tab-echeances"onclick="switchAdminTab('echeances')">📅 Échéances</button>
-      <button class="adm-tab"        id="adm-tab-bilans"   onclick="switchAdminTab('bilans')">📊 Bilans comptables</button>
+      <button class="adm-tab active" id="adm-tab-sci"      onclick="switchAdminTab('sci')">${sfAccIcon('colonne',15)} Mes SCI</button>
+      <button class="adm-tab"        id="adm-tab-annuaire" onclick="switchAdminTab('annuaire')">${sfAccIcon('gens',15)} Annuaire</button>
+      <button class="adm-tab"        id="adm-tab-echeances"onclick="switchAdminTab('echeances')">${sfAccIcon('agenda',15)} Échéances</button>
+      <button class="adm-tab"        id="adm-tab-bilans"   onclick="switchAdminTab('bilans')">${sfAccIcon('graph',15)} Bilans comptables</button>
     </div>
 
     <!-- Contenu onglets -->
@@ -11812,7 +11871,23 @@ async function loadAdminData() {
     const kEch = document.getElementById('adm-k-ech');
     if(kSci) kSci.textContent = allSCI.length;
     if(kCon) kCon.textContent = allContacts.length;
-    if(kEch) kEch.textContent = urg ? `${urg} ⚠️` : allEcheances.length;
+    /* ⚠️ LE SIGNAL D'URGENCE AVAIT DISPARU au premier jet de ce lot : le
+     compteur affichait `${urg} ⚠️`, et le remplacer par le seul total faisait
+     PERDRE l'information. Elle revient ici, et sans emoji : le nombre en
+     retard suivi du total, plus un titre qui le dit en toutes lettres.
+     ⚠️ La couleur ne porte pas seule — regle 4 de la planche de marque.
+     Le « N / M » se lit en noir et blanc, et le titre est accessible au
+     clavier comme au lecteur d'ecran. */
+  if(kEch) {
+    kEch.textContent = urg ? `${urg}/${allEcheances.length}` : allEcheances.length;
+    kEch.classList.toggle('adm-kpi-val--urgent', !!urg);
+    /* ⚠️ « EN RETARD » AURAIT ETE FAUX : `urg` compte tout ce qui tombe
+       dans les 30 jours (`j <= 30`), echeances a venir comprises. Le dire
+       autrement mettrait l'en-tete en contradiction avec la liste juste en
+       dessous, qui distingue « J−20 » de « 12 j de retard ». */
+    kEch.title = urg ? `${urg} échéance${urg > 1 ? 's' : ''} à traiter sous 30 jours, sur ${allEcheances.length}`
+                     : `${allEcheances.length} échéance${allEcheances.length > 1 ? 's' : ''}`;
+  }
     // Mettre à jour aussi la liste dans Paramètres
     renderSCIList();
   } catch(e) { console.error('loadAdminData', e); }
@@ -11838,7 +11913,7 @@ function renderAdmSCI(c) {
   if(!allSCI.length) {
     c.innerHTML = `
       <div class="adm-empty">
-        <div style="font-size:40px;margin-bottom:12px">🏛️</div>
+        <div class="adm-vide-ic">${sfAccIcon('colonne',40)}</div>
         <div style="font-size:16px;font-weight:700;margin-bottom:6px">Aucune SCI créée</div>
         <div style="font-size:13px;color:var(--c-muted);margin-bottom:18px">Créez votre première structure pour commencer</div>
         <button class="btn btn-primary" onclick="openSCIModal(null)">＋ Créer une SCI</button>
@@ -11877,7 +11952,7 @@ function renderAdmSCI(c) {
               <div class="sci-card-name">${esc(s.nom_sci)}</div>
               <div class="sci-card-sub">${s.siret ? `SIRET : ${esc(s.siret)}` : 'SIRET non renseigné'}</div>
             </div>
-            <button class="sci-card-edit" onclick="event.stopPropagation();openSCIModal('${s.id}')" title="Modifier">✏️</button>
+            <button class="sci-card-edit" onclick="event.stopPropagation();openSCIModal('${s.id}')" title="Modifier" aria-label="Modifier la SCI">${sfAccIcon('crayon',14)}</button>
           </div>
           <div class="sci-card-stats">
             <div class="sci-stat"><div class="sci-stat-val">${s.capital_social ? fmt(s.capital_social)+' €' : '—'}</div><div class="sci-stat-lab">Capital</div></div>
@@ -11903,9 +11978,14 @@ function openSCIDetail(id) {
 // ONGLET 2 — ANNUAIRE
 // ─────────────────────────────────────────────
 function renderAdmAnnuaire(c) {
+  /* ⚠️ DES CLES DE SF_ACC_ICONS, PLUS DES EMOJIS. Cette table associe un
+     ROLE METIER a un dessin : c'est de la donnee, pas de l'ornement. La
+     laisser en emojis aurait laisse l'annuaire en police systeme pendant que
+     le reste de l'ecran passait a la charte. */
   const roleIcons = {
-    'Notaire':'⚖️','Avocat':'👨‍⚖️','Expert-comptable':'📒','Banquier':'🏦',
-    'Agent immobilier':'🏠','Gestionnaire locatif':'🔑','Artisan':'🔨','Syndic':'🏢','Autre':'👤'
+    'Notaire':'balance', 'Avocat':'balance', 'Expert-comptable':'carnet',
+    'Banquier':'banque', 'Agent immobilier':'maison', 'Gestionnaire locatif':'cle',
+    'Artisan':'travaux', 'Syndic':'colonne', 'Autre':'user'
   };
   // Neuf teintes categorielles, remontees en luminosite pour le fond sombre.
   // Elles restent ecrites en HEXADECIMAL SIX CHIFFRES et non en var(--...) :
@@ -11931,7 +12011,7 @@ function renderAdmAnnuaire(c) {
     </div>
     ${!allContacts.length ? `
       <div class="adm-empty">
-        <div style="font-size:40px;margin-bottom:12px">👥</div>
+        <div class="adm-vide-ic">${sfAccIcon('gens',40)}</div>
         <div style="font-size:16px;font-weight:700;margin-bottom:6px">Aucun contact</div>
         <div style="font-size:13px;color:var(--c-muted);margin-bottom:18px">Ajoutez vos notaires, banquiers, avocats…</div>
         <button class="btn btn-primary" onclick="openContactModal(null)">＋ Ajouter un contact</button>
@@ -11939,7 +12019,7 @@ function renderAdmAnnuaire(c) {
     Object.entries(grouped).map(([role, cts]) => `
       <div class="adm-group">
         <div class="adm-group-title">
-          <span>${roleIcons[role]||'👤'} ${role}</span>
+          <span>${sfAccIcon(roleIcons[role] || 'user', 14)} ${esc(role)}</span>
           <span class="adm-group-count">${cts.length}</span>
         </div>
         <div class="contact-grid">
@@ -11951,8 +12031,8 @@ function renderAdmAnnuaire(c) {
               <div class="contact-info">
                 <div class="contact-name">${ct.prenom||''} ${ct.nom}</div>
                 ${ct.societe ? `<div class="contact-sub">${ct.societe}</div>` : ''}
-                ${ct.telephone ? `<div class="contact-sub">📞 ${ct.telephone}</div>` : ''}
-                ${ct.email ? `<div class="contact-sub">✉️ ${ct.email}</div>` : ''}
+                ${ct.telephone ? `<div class="contact-sub">${sfAccIcon('tel',13)} ${esc(ct.telephone)}</div>` : ''}
+                ${ct.email ? `<div class="contact-sub">${sfAccIcon('mail',13)} ${esc(ct.email)}</div>` : ''}
               </div>
             </div>`).join('')}
         </div>
@@ -11970,9 +12050,10 @@ function renderAdmEcheances(c) {
     joursRestants: Math.ceil((new Date(e.date_echeance) - now) / (1000*86400))
   })).sort((a,b) => a.joursRestants - b.joursRestants);
 
+  // Meme regle que `roleIcons` : des cles du jeu unique, pas des emojis.
   const typeIcons = {
-    'Assurance':'🛡️','Dépôt bilan':'📋','Renouvellement':'🔄',
-    'Fiscal':'💰','Administratif':'📁','Autre':'📌'
+    'Assurance':'bouclier', 'Dépôt bilan':'carnet', 'Renouvellement':'echange',
+    'Fiscal':'euro', 'Administratif':'dossier', 'Autre':'pin'
   };
 
   c.innerHTML = `
@@ -11982,7 +12063,7 @@ function renderAdmEcheances(c) {
     </div>
     ${!withDays.length ? `
       <div class="adm-empty">
-        <div style="font-size:40px;margin-bottom:12px">📅</div>
+        <div class="adm-vide-ic">${sfAccIcon('agenda',40)}</div>
         <div style="font-size:16px;font-weight:700;margin-bottom:6px">Aucune échéance</div>
         <div style="font-size:13px;color:var(--c-muted);margin-bottom:18px">Ajoutez vos rappels d'assurance, dépôts de bilan…</div>
         <button class="btn btn-primary" onclick="openEcheanceModal(null)">＋ Ajouter une échéance</button>
@@ -11991,21 +12072,21 @@ function renderAdmEcheances(c) {
       ${withDays.map(e => {
         const sciName = allSCI.find(s=>s.id===e.sci_id)?.nom_sci || 'Global';
         let badge='', badgeCls='';
-        if(e.est_faite){ badge='✓ Faite'; badgeCls='ech-done'; }
+        if(e.est_faite){ badge=sfAccIcon('check',12)+' Faite'; badgeCls='ech-done'; }
         else if(e.joursRestants < 0){ badge=`${Math.abs(e.joursRestants)}j de retard`; badgeCls='ech-late'; }
         else if(e.joursRestants <= 30){ badge=`J−${e.joursRestants}`; badgeCls='ech-urgent'; }
         else { badge=`J−${e.joursRestants}`; badgeCls='ech-ok'; }
         const dateStr = new Date(e.date_echeance).toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
         return `
         <div class="ech-item ${e.est_faite?'ech-item-done':''}" onclick="openEcheanceModal('${e.id}')">
-          <div class="ech-icon">${typeIcons[e.type_echeance]||'📌'}</div>
+          <div class="ech-icon">${sfAccIcon(typeIcons[e.type_echeance] || 'pin', 18)}</div>
           <div class="ech-body">
             <div class="ech-title">${e.titre}</div>
-            <div class="ech-meta">${sciName} · ${dateStr} ${e.recurrence&&e.recurrence!=='Aucune'?'· 🔄 '+e.recurrence:''}</div>
+            <div class="ech-meta">${sciName} · ${dateStr} ${e.recurrence&&e.recurrence!=='Aucune'?'· '+sfAccIcon('echange',12)+' '+esc(e.recurrence):''}</div>
           </div>
           <div class="ech-badge ${badgeCls}">${badge}</div>
           <button class="ech-check ${e.est_faite?'checked':''}" onclick="event.stopPropagation();toggleEcheance('${e.id}',${!e.est_faite})" title="${esc(e.est_faite?'Marquer non faite':'Marquer faite')}">
-            ${e.est_faite?'✓':'○'}
+            ${sfAccIcon(e.est_faite ? 'check' : 'cercle', 14)}
           </button>
         </div>`; }).join('')}
     </div>`}`;
@@ -12075,14 +12156,14 @@ function renderAdmBilans(c) {
 
     ${!allSCI.length ? `
       <div class="adm-empty">
-        <div style="font-size:40px;margin-bottom:12px">🏛️</div>
+        <div class="adm-vide-ic">${sfAccIcon('colonne',40)}</div>
         <div style="font-size:16px;font-weight:700;margin-bottom:6px">Aucune SCI créée</div>
         <div style="font-size:13px;color:var(--c-muted)">Créez d'abord une SCI pour générer un bilan</div>
       </div>` :
 
     !allBilans.length ? `
       <div class="adm-empty">
-        <div style="font-size:40px;margin-bottom:12px">📊</div>
+        <div class="adm-vide-ic">${sfAccIcon('graph',40)}</div>
         <div style="font-size:16px;font-weight:700;margin-bottom:6px">Aucun bilan créé</div>
         <div style="font-size:13px;color:var(--c-muted);margin-bottom:8px">La structure IR et IS est prête. Les données seront alimentées automatiquement par le module financier.</div>
         <div class="bilan-info-box">
@@ -12114,7 +12195,7 @@ function renderAdmBilans(c) {
             </div>
           </div>
           <div class="bilan-card-footer">
-            <span>📋 ${b.regime==='IR'?'Déclaration 2044':'Bilan PCG simplifié'}</span>
+            <span>${sfAccIcon('carnet',13)} ${b.regime==='IR'?'Déclaration 2044':'Bilan PCG simplifié'}</span>
             ${/* ⚠️ Cette ligne promettait « Export PDF · Excel · FEC » alors
                   qu'AUCUNE fonction ne produit ni PDF ni FEC — et « Excel »
                   désignait le CSV. Trois promesses affichées à l'utilisateur,
@@ -12246,7 +12327,7 @@ async function saveContact() {
       }
     }
 
-    showNotif(editingContactId?'Contact mis à jour ✓':'Contact ajouté ✓');
+    showNotif(editingContactId?'Contact mis à jour':'Contact ajouté');
     closeAdmModal(); await loadAdminData(); switchAdminTab('annuaire');
   } catch(e) { showNotif('Erreur : '+e.message, true); }
   finally { btn.disabled=false; btn.innerHTML=sfAccIcon("check",14)+' Enregistrer'; }
@@ -12325,7 +12406,7 @@ async function saveEcheance() {
     if(editingEcheanceId) res = await db.from('sci_echeances').update(payload).eq('id',editingEcheanceId);
     else res = await db.from('sci_echeances').insert(payload);
     if(res.error) throw res.error;
-    showNotif(editingEcheanceId?'Échéance mise à jour ✓':'Échéance ajoutée ✓');
+    showNotif(editingEcheanceId?'Échéance mise à jour':'Échéance ajoutée');
     closeAdmModal(); await loadAdminData(); switchAdminTab('echeances');
   } catch(e) { showNotif('Erreur : '+e.message, true); }
   finally { btn.disabled=false; btn.innerHTML=sfAccIcon("check",14)+' Enregistrer'; }
@@ -12373,7 +12454,7 @@ function openBilanModal(id) {
     }
     resumeHtml = `
       <div class="bilan-info-box" style="margin-bottom:16px">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--c-muted);margin-bottom:8px">📊 Données de l'exercice</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--c-muted);margin-bottom:8px">${sfAccIcon('graph',13)} Données de l'exercice</div>
         ${lignes}
         <div class="bilan-resume-row total"><span>Résultat net</span><span style="color:${resultat>=0?'var(--positive)':'var(--negative)'}">${resultat>=0?'+':''}${fmt(resultat)} €</span></div>
       </div>`;
@@ -12382,7 +12463,7 @@ function openBilanModal(id) {
     ${resumeHtml}
     <div class="bilan-info-box" style="margin-bottom:16px">
       <div style="font-size:12px;color:var(--c-muted);line-height:1.6">
-        💡 Les données comptables s'alimentent depuis <strong>Suivi financier › Performance</strong>
+        ${sfAccIcon('ampoule',13)} Les données comptables s'alimentent depuis <strong>Suivi financier › Performance</strong>
         (bouton « Alimenter le bilan SCI »), à partir des loyers encaissés et charges réelles de l'exercice.
       </div>
     </div>
@@ -12415,7 +12496,7 @@ function openBilanModal(id) {
     <div class="sci-form-group"><label class="sci-form-label">Notes</label>
       <textarea class="sci-form-input" id="bil-notes" rows="2" style="resize:vertical">${esc(b?.notes||'')}</textarea></div>
     <div style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:12px;font-size:12px;color:var(--c-muted)">
-      ⚖️ <em>Il est recommandé de faire valider ce bilan par un expert-comptable avant tout dépôt officiel.</em>
+      ${sfAccIcon('balance',13)} <em>Il est recommandé de faire valider ce bilan par un expert-comptable avant tout dépôt officiel.</em>
     </div>`;
   document.getElementById('adm-modal-overlay').classList.add('open');
 }
@@ -12436,7 +12517,7 @@ async function saveBilan() {
     if(bId) res = await db.from('bilans_comptables').update(payload).eq('id',bId);
     else res = await db.from('bilans_comptables').insert(payload);
     if(res.error) throw res.error;
-    showNotif(bId?'Bilan mis à jour ✓':'Bilan créé ✓');
+    showNotif(bId?'Bilan mis à jour':'Bilan créé');
     closeAdmModal(); await loadAdminData(); switchAdminTab('bilans');
   } catch(e) { showNotif('Erreur : '+(e.message.includes('unique')?'Un bilan existe déjà pour cette SCI et cet exercice.':e.message), true); }
   finally { btn.disabled=false; btn.innerHTML=sfAccIcon("check",14)+' Enregistrer'; }
@@ -12503,7 +12584,7 @@ function renderMarcheRecherche(el) {
         <div>
           <div class="marche-search-label" style="visibility:hidden">.</div>
           <button class="marche-search-btn" id="marche-search-btn" onclick="marcheSearch()">
-            🔍 Analyser
+            ${sfAccIcon('loupe',15)} Analyser
           </button>
         </div>
       </div>
@@ -12511,14 +12592,14 @@ function renderMarcheRecherche(el) {
 
     <div id="marche-results">
       <div class="marche-empty">
-        <div style="font-size:48px;margin-bottom:12px">🔍</div>
+        <div class="adm-vide-ic">${sfAccIcon('loupe',44)}</div>
         <div style="font-size:16px;font-weight:700;margin-bottom:6px;color:var(--c-text)">Recherchez une commune</div>
         <div style="font-size:13px">Tapez le nom d'une ville pour afficher les données du marché immobilier local</div>
       </div>
     </div>
 
     <div class="marche-source">
-      <span>📊 Source :</span>
+      <span>${sfAccIcon('graph',13)} Source :</span>
       <a href="https://www.data.gouv.fr/datasets/demandes-de-valeurs-foncieres-geolocalisees" target="_blank">
         Indicateurs DV3F (Cerema · open data) · Demandes de Valeurs Foncières — DGFiP / data.gouv.fr
       </a>
@@ -12663,7 +12744,7 @@ async function marcheSearch() {
 
   resultsEl.innerHTML = '<div class="marche-loading"><div class="marche-spinner"></div>Résolution de la commune…</div>';
   const btn = document.getElementById('marche-search-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Chargement…'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="sf-attente"></span>Chargement…'; }
 
   try {
     // ── 1. Géolocalisation INSEE ──────────────────────────────
@@ -12729,11 +12810,13 @@ async function marcheSearch() {
   } catch(e) {
     resultsEl.innerHTML = `
       <div class="marche-error">
-        <strong>❌ ${e.message}</strong>
+        <strong>${sfAccIcon('alerte',15)} ${esc(e.message)}</strong>
         <div style="margin-top:8px;font-size:12px;color:var(--c-muted)">Vérifiez le nom ou essayez une autre commune.</div>
       </div>`;
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '🔍 Analyser'; }
+    /* `innerHTML` et non `textContent` : le bouton porte une icone, et
+       `textContent` ecrirait le balisage en toutes lettres. */
+    if (btn) { btn.disabled = false; btn.innerHTML = sfAccIcon('loupe',15) + ' Analyser'; }
   }
 }
 
@@ -13073,14 +13156,14 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   // ── En-tête commune ──────────────────────────────────────────
   const header = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
-      <div style="width:48px;height:48px;border-radius:50%;background:var(--accent-g);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🏙️</div>
+      <div style="width:48px;height:48px;border-radius:50%;background:var(--accent-g);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff">${sfAccIcon('ville',22)}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:22px;font-weight:800;color:var(--c-text)">${commune}</div>
         <div style="font-size:12px;color:var(--c-muted)">${dept}${cp?' · '+cp:''} · Code INSEE : ${codeInsee}</div>
       </div>
       <button onclick="navigator.clipboard.writeText('${codeInsee}').then(()=>showNotif('Code INSEE copié'))"
         style="background:none;border:1px solid var(--c-border);border-radius:6px;padding:6px 12px;font-size:12px;color:var(--c-dim);cursor:pointer;flex-shrink:0">
-        📋 Copier INSEE
+        ${sfAccIcon('carnet',13)} Copier INSEE
       </button>
     </div>`;
 
@@ -13140,19 +13223,19 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   const bpe = m.bpe;
   const sec3 = bpe ? `
     <div class="marche-chart-card">
-      <div class="marche-chart-title">🏗️ Équipements de proximité — ${commune}</div>
+      <div class="marche-chart-title">${sfAccIcon('travaux',18)} Équipements de proximité — ${commune}</div>
       <div class="marche-chart-sub">Source : INSEE · Base Permanente des Équipements${m.annee_bpe ? ' · '+m.annee_bpe : ''}${bpe.total ? ' · '+fmtN(bpe.total)+' équipements au total' : ''}</div>
       <div class="bpe-grid" style="margin-top:14px">
-        ${bpe.commerces > 0  ? `<div class="bpe-card"><div class="bpe-icon">🛒</div><div class="bpe-val">${fmtN(bpe.commerces)}</div><div class="bpe-lab">Commerces</div></div>` : ''}
-        ${bpe.sante > 0      ? `<div class="bpe-card"><div class="bpe-icon">🏥</div><div class="bpe-val">${fmtN(bpe.sante)}</div><div class="bpe-lab">Santé</div></div>` : ''}
-        ${bpe.education > 0  ? `<div class="bpe-card"><div class="bpe-icon">🏫</div><div class="bpe-val">${fmtN(bpe.education)}</div><div class="bpe-lab">Établissements scolaires</div></div>` : ''}
-        ${bpe.services > 0   ? `<div class="bpe-card"><div class="bpe-icon">🏛️</div><div class="bpe-val">${fmtN(bpe.services)}</div><div class="bpe-lab">Services au public</div></div>` : ''}
-        ${bpe.sport > 0      ? `<div class="bpe-card"><div class="bpe-icon">⚽</div><div class="bpe-val">${fmtN(bpe.sport)}</div><div class="bpe-lab">Sport & culture</div></div>` : ''}
-        ${bpe.transports > 0 ? `<div class="bpe-card"><div class="bpe-icon">🚌</div><div class="bpe-val">${fmtN(bpe.transports)}</div><div class="bpe-lab">Transports</div></div>` : ''}
-        ${bpe.tourisme > 0   ? `<div class="bpe-card"><div class="bpe-icon">🧳</div><div class="bpe-val">${fmtN(bpe.tourisme)}</div><div class="bpe-lab">Tourisme</div></div>` : ''}
+        ${bpe.commerces > 0  ? `<div class="bpe-card"><div class="bpe-icon">${sfAccIcon('commerce',22)}</div><div class="bpe-val">${fmtN(bpe.commerces)}</div><div class="bpe-lab">Commerces</div></div>` : ''}
+        ${bpe.sante > 0      ? `<div class="bpe-card"><div class="bpe-icon">${sfAccIcon('sante',22)}</div><div class="bpe-val">${fmtN(bpe.sante)}</div><div class="bpe-lab">Santé</div></div>` : ''}
+        ${bpe.education > 0  ? `<div class="bpe-card"><div class="bpe-icon">${sfAccIcon('ecole',22)}</div><div class="bpe-val">${fmtN(bpe.education)}</div><div class="bpe-lab">Établissements scolaires</div></div>` : ''}
+        ${bpe.services > 0   ? `<div class="bpe-card"><div class="bpe-icon">${sfAccIcon('colonne',22)}</div><div class="bpe-val">${fmtN(bpe.services)}</div><div class="bpe-lab">Services au public</div></div>` : ''}
+        ${bpe.sport > 0      ? `<div class="bpe-card"><div class="bpe-icon">${sfAccIcon('sport',22)}</div><div class="bpe-val">${fmtN(bpe.sport)}</div><div class="bpe-lab">Sport & culture</div></div>` : ''}
+        ${bpe.transports > 0 ? `<div class="bpe-card"><div class="bpe-icon">${sfAccIcon('transport',22)}</div><div class="bpe-val">${fmtN(bpe.transports)}</div><div class="bpe-lab">Transports</div></div>` : ''}
+        ${bpe.tourisme > 0   ? `<div class="bpe-card"><div class="bpe-icon">${sfAccIcon('mallette',22)}</div><div class="bpe-val">${fmtN(bpe.tourisme)}</div><div class="bpe-lab">Tourisme</div></div>` : ''}
       </div>
       <div style="font-size:11px;color:var(--c-muted);margin-top:10px">
-        ℹ️ Nombre d'équipements distincts recensés dans la commune, par domaine BPE
+        ${sfAccIcon('info',13)} Nombre d'équipements distincts recensés dans la commune, par domaine BPE
       </div>
     </div>` : '';
 
@@ -13161,7 +13244,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   const dpeLabels = ['A','B','C','D','E','F','G'];
   const sec4 = ademe ? `
     <div class="marche-chart-card">
-      <div class="marche-chart-title">⚡ Performance énergétique (DPE) — ${commune}</div>
+      <div class="marche-chart-title">${sfAccIcon('eclair',18)} Performance énergétique (DPE) — ${commune}</div>
       <div class="marche-chart-sub">Source : ADEME · DPE v2 · ${ademe.total.toLocaleString('fr-FR')} diagnostics analysés</div>
       <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-top:14px">
         <div style="flex:1;min-width:200px">
@@ -13200,7 +13283,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
 
   const sec5 = hasPopEvo ? `
     <div class="marche-chart-card">
-      <div class="marche-chart-title">📈 Évolution de la population — ${commune}</div>
+      <div class="marche-chart-title">${sfAccIcon('graph',18)} Évolution de la population — ${commune}</div>
       <div class="marche-chart-sub">Source : INSEE · Recensement · ${m.popEvo[0].annee}–${m.popEvo[m.popEvo.length-1].annee}</div>
       <canvas id="chart-pop" height="80"></canvas>
     </div>` : '';
@@ -13220,19 +13303,19 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   //    cote, irreparable depuis Stonefolio.
   // Ne restent que les liens verifies comme aboutissant a du contenu lisible.
   const newsLinks = [
-    { label: '📰 Google News', url: `https://news.google.com/search?q=${encodeURIComponent(commune+' économie emploi')}&hl=fr&gl=FR`, desc: 'Actu économique locale' },
-    { label: '🔍 Google Immo', url: `https://news.google.com/search?q=${encodeURIComponent(commune+' immobilier logement')}&hl=fr&gl=FR`, desc: 'Actu immobilier local' },
+    { label: 'Google News', ic: 'actu', url: `https://news.google.com/search?q=${encodeURIComponent(commune+' économie emploi')}&hl=fr&gl=FR`, desc: 'Actu économique locale' },
+    { label: 'Google Immo', ic: 'loupe', url: `https://news.google.com/search?q=${encodeURIComponent(commune+' immobilier logement')}&hl=fr&gl=FR`, desc: 'Actu immobilier local' },
   ];
 
   if (news?.source === 'newsapi' && news.articles?.length) {
     sec6 = `
       <div class="marche-chart-card">
-        <div class="marche-chart-title">📰 Actualités économiques — ${commune}</div>
+        <div class="marche-chart-title">${sfAccIcon('actu',18)} Actualités économiques — ${commune}</div>
         <div class="marche-chart-sub">Source : NewsAPI · Presse nationale et locale · Économie · Emploi · Immobilier</div>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
           ${news.articles.map(a => `
             <a href="${safeUrl(a.url)}" target="_blank" rel="noopener" style="display:flex;gap:10px;text-decoration:none;background:var(--c-bg);border-radius:8px;padding:12px;transition:opacity .15s;align-items:flex-start" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
-              ${a.urlToImage ? `<img src="${a.urlToImage}" style="width:60px;height:45px;object-fit:cover;border-radius:4px;flex-shrink:0" onerror="this.style.display='none'">` : '<div style="width:60px;height:45px;background:var(--c-border);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px">📰</div>'}
+              ${a.urlToImage ? `<img src="${a.urlToImage}" style="width:60px;height:45px;object-fit:cover;border-radius:4px;flex-shrink:0" onerror="this.style.display='none'">` : '<div style="width:60px;height:45px;background:var(--c-border);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--c-muted)">' + sfAccIcon('actu',20) + '</div>'}
               <div style="min-width:0">
                 <div style="font-size:13px;font-weight:600;color:var(--c-text);margin-bottom:3px;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${(a.title||'').replace(/<[^>]+>/g,'')}</div>
                 <div style="font-size:11px;color:var(--c-muted)">${a.source?.name||''} · ${(a.publishedAt||'').substring(0,10)}</div>
@@ -13240,23 +13323,23 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
             </a>`).join('')}
         </div>
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--c-border);display:flex;gap:8px;flex-wrap:wrap">
-          ${newsLinks.map(l => `<a href="${safeUrl(l.url)}" target="_blank" rel="noopener" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--c-dim);text-decoration:none;transition:border-color .15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--c-border)'">${l.label}</a>`).join('')}
+          ${newsLinks.map(l => `<a href="${safeUrl(l.url)}" target="_blank" rel="noopener" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--c-dim);text-decoration:none;transition:border-color .15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--c-border)'">${sfAccIcon(l.ic || 'lien',12)} ${esc(l.label)}</a>`).join('')}
         </div>
       </div>`;
   } else {
     sec6 = `
       <div class="marche-chart-card">
-        <div class="marche-chart-title">📰 Actualités économiques — ${commune}</div>
+        <div class="marche-chart-title">${sfAccIcon('actu',18)} Actualités économiques — ${commune}</div>
         <div class="marche-chart-sub">Économie locale · Emploi · Entreprises · Immobilier</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:14px">
           ${newsLinks.map(l => `
             <a href="${safeUrl(l.url)}" target="_blank" rel="noopener" style="display:block;text-decoration:none;background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:14px;transition:border-color .15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--c-border)'">
-              <div style="font-size:13px;font-weight:700;color:var(--c-text);margin-bottom:4px">${l.label}</div>
+              <div style="font-size:13px;font-weight:700;color:var(--c-text);margin-bottom:4px">${sfAccIcon(l.ic || 'lien',14)} ${esc(l.label)}</div>
               <div style="font-size:11px;color:var(--c-muted)">${l.desc}</div>
             </a>`).join('')}
         </div>
         <div style="font-size:11px;color:var(--c-muted);margin-top:12px;padding-top:10px;border-top:1px solid var(--c-border)">
-          💡 Le fil d'actualités locales est momentanément indisponible. En attendant, ces liens ouvrent
+          ${sfAccIcon('ampoule',13)} Le fil d'actualités locales est momentanément indisponible. En attendant, ces liens ouvrent
           une recherche ciblée sur ${commune}.
         </div>
       </div>`;
@@ -13265,7 +13348,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   // ── DVF note ─────────────────────────────────────────────────
   const dvfNote = `
     <div style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:12px 16px;font-size:12px;color:var(--c-muted)">
-      ℹ️ Données DVF (prix/m²) indisponibles depuis le navigateur (CORS).
+      ${sfAccIcon('info',13)} Données DVF (prix/m²) indisponibles depuis le navigateur (CORS).
       Consultez <a href="https://dataviz.cerema.fr/dynmark/" target="_blank" style="color:var(--sf-info)">Dynmark (Cerema)</a> pour les prix au m².
     </div>`;
 
@@ -13279,7 +13362,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
     <div class="marche-ponts">
       <div class="marche-ponts-head">
         <div class="marche-ponts-title">${sfAccIcon('maison',18)} Votre pipeline à ${esc(commune)}</div>
-        <button class="bd-link" onclick="marcheCreerBien('${commune.replace(/'/g,"\\'")}','${cp||''}')">➕ Créer une fiche bien ici</button>
+        <button class="bd-link" onclick="marcheCreerBien('${commune.replace(/'/g,"\\'")}','${cp||''}')">${sfAccIcon('plus',14)} Créer une fiche bien ici</button>
       </div>
       ${biensIci.length ? `
       <div class="marche-ponts-list">
@@ -13345,22 +13428,22 @@ function renderMarcheCarte(el) {
     <div class="marche-page">
       <div class="marche-hero">
         <div class="marche-hero-left">
-          <div class="marche-hero-tag">🗺️ Bientôt disponible</div>
+          <div class="marche-hero-tag">${sfAccIcon('carte',14)} Bientôt disponible</div>
           <div class="marche-hero-title">Carte de France</div>
           <div class="marche-hero-sub">Heatmap des prix au m² et rendements locatifs par commune — Leaflet.js + DVF</div>
         </div>
       </div>
       <div class="marche-carte-placeholder">
-        <div style="font-size:64px;margin-bottom:16px">🗺️</div>
+        <div class="adm-vide-ic">${sfAccIcon('carte',60)}</div>
         <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:var(--c-text)">Carte interactive — Bientôt</div>
         <div style="font-size:13px;color:var(--c-muted);max-width:400px;margin:0 auto;line-height:1.7">
           La carte de France avec heatmap des prix au m² par département et commune sera disponible prochainement.
         </div>
         <div style="margin-top:24px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
-          <div style="background:var(--c-bg);border-radius:8px;padding:12px 18px;font-size:12px;color:var(--c-dim)">🌡️ Heatmap prix/m²</div>
-          <div style="background:var(--c-bg);border-radius:8px;padding:12px 18px;font-size:12px;color:var(--c-dim)">📊 Rendement locatif estimé</div>
-          <div style="background:var(--c-bg);border-radius:8px;padding:12px 18px;font-size:12px;color:var(--c-dim)">🏙️ +35 000 communes</div>
-          <div style="background:var(--c-bg);border-radius:8px;padding:12px 18px;font-size:12px;color:var(--c-dim)">📈 Évolution 10 ans</div>
+          <div style="background:var(--c-bg);border-radius:8px;padding:12px 18px;font-size:12px;color:var(--c-dim)">${sfAccIcon('thermo',13)} Heatmap prix/m²</div>
+          <div style="background:var(--c-bg);border-radius:8px;padding:12px 18px;font-size:12px;color:var(--c-dim)">${sfAccIcon('graph',13)} Rendement locatif estimé</div>
+          <div style="background:var(--c-bg);border-radius:8px;padding:12px 18px;font-size:12px;color:var(--c-dim)">${sfAccIcon('ville',13)} +35 000 communes</div>
+          <div style="background:var(--c-bg);border-radius:8px;padding:12px 18px;font-size:12px;color:var(--c-dim)">${sfAccIcon('graph',13)} Évolution 10 ans</div>
         </div>
       </div>
     </div>`;
@@ -13390,12 +13473,12 @@ function renderSCIDocsList() {
   const TYPES_DOC = ['Statuts','Kbis','PV','Contrat','Assurance','Autre'];
   c.innerHTML = sciDocsPending.map((d, i) => `
     <div class="sci-doc-item">
-      <span>${d.type.includes('pdf') ? '📄' : '🖼️'}</span>
+      <span>${sfAccIcon(d.type.includes('pdf') ? 'doc' : 'image', 15)}</span>
       <span class="sci-doc-name">${esc(d.nom)}</span>
       <select onchange="sciDocsPending[${i}].type_doc=this.value" style="font-size:11px;padding:3px 6px;border:1px solid var(--c-border);border-radius:5px;background:var(--c-card);color:var(--c-text)" title="Type de document">
         ${TYPES_DOC.map(t => `<option value="${t}" ${(d.type_doc||'Autre')===t?'selected':''}>${t}</option>`).join('')}
       </select>
-      <button class="sci-doc-remove" onclick="sciDocsPending.splice(${i},1);renderSCIDocsList()">✕</button>
+      <button class="sci-doc-remove" onclick="sciDocsPending.splice(${i},1);renderSCIDocsList()" aria-label="Retirer">${sfAccIcon('croix',13)}</button>
     </div>`).join('');
 }
 
@@ -13412,10 +13495,10 @@ async function loadSCIExistingDocs(sciId) {
   if (error || !data?.length) return;
   c.innerHTML = data.map(d => `
     <div class="sci-doc-item">
-      <span>📄</span>
+      <span>${sfAccIcon('doc',15)}</span>
       <span class="sci-doc-name" style="cursor:pointer" onclick="openSciDocument('${d.pdf_path || ''}')" title="Cliquer pour ouvrir">${esc(d.nom || 'Document')}</span>
       ${d.type_doc ? `<span style="font-size:10px;font-weight:700;letter-spacing:.4px;color:var(--accent);background:color-mix(in srgb, var(--accent) 12%, transparent);padding:2px 8px;border-radius:10px">${esc(d.type_doc)}</span>` : ''}
-      <button class="sci-doc-remove" onclick="deleteSciDocument('${d.id}','${d.pdf_path || ''}')" title="Supprimer">✕</button>
+      <button class="sci-doc-remove" onclick="deleteSciDocument('${d.id}','${d.pdf_path || ''}')" title="Supprimer" aria-label="Supprimer">${sfAccIcon('croix',13)}</button>
     </div>`).join('');
 }
 async function openSciDocument(path) {
@@ -13558,7 +13641,7 @@ async function purgeAllAdminData() {
 function renderPortails(el) {
   const groupes = [
     {
-      label:'🔍 Recherche & Annonces',
+      label:'Recherche & annonces', ic:'loupe',
       desc:'Les principaux portails pour trouver des biens à acheter ou à investir',
       items:[
         {name:'SeLoger',url:'https://www.seloger.com',desc:'Le plus grand portail d\'annonces immobilières en France.',tag:'general',icon:'seloger.com'},
@@ -13568,7 +13651,7 @@ function renderPortails(el) {
       ]
     },
     {
-      label:'⚡ Agrégateurs & Alertes',
+      label:'Agrégateurs & alertes', ic:'eclair',
       desc:'Outils qui regroupent plusieurs sources et envoient des alertes',
       items:[
         {name:"Bien'ici",url:'https://www.bienici.com',desc:'Multi-sources avec carte interactive et filtres puissants.',tag:'aggr',icon:'bienici.com'},
@@ -13576,7 +13659,7 @@ function renderPortails(el) {
       ]
     },
     {
-      label:'🛠️ Outils & Estimation',
+      label:'Outils & estimation', ic:'wrench',
       desc:'Pour évaluer, simuler et affiner votre stratégie d\'investissement',
       items:[
         {name:'MeilleurTaux',url:'https://www.meilleurtaux.com/credit-immobilier/simulation-de-pret-immobilier/calcul-des-mensualites.html',desc:'Simulateur de mensualités et comparateur de crédits.',tag:'general',icon:'meilleurtaux.com'},
@@ -13595,7 +13678,7 @@ function renderPortails(el) {
       <div>
         <div class="section-header" style="margin-bottom:6px">
           <div>
-            <div class="section-title">${g.label}</div>
+            <div class="section-title">${sfAccIcon(g.ic || 'lien', 16)} ${esc(g.label)}</div>
             <div style="font-size:11px;color:var(--c-muted);margin-top:1px">${g.desc}</div>
           </div>
         </div>
@@ -13626,7 +13709,7 @@ async function renderVisites(el) {
   const groups = {};
   (visites||[]).forEach(v => {
     const key = v.bien_id || '__general__';
-    const label = v.biens?.titre ? `${v.biens.titre}${v.biens.ville?' — '+v.biens.ville:''}` : '📁 Visites générales';
+    const label = v.biens?.titre ? `${v.biens.titre}${v.biens.ville?' — '+v.biens.ville:''}` : 'Comptes rendus généraux';
     if(!groups[key]) groups[key] = {label, visites:[]};
     groups[key].visites.push(v);
   });
@@ -13657,7 +13740,7 @@ async function renderVisites(el) {
       </div>
       <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
         ${parNature.map(x=>`<div style="text-align:center"><div style="font-size:20px;font-weight:800">${x.n}</div><div style="font-size:10px;opacity:0.7;margin-top:2px">${esc(sfCrLabel(x.k,'court'))}</div></div>`).join('')}
-        ${avgNote?`<div style="text-align:center"><div style="font-size:20px;font-weight:800">${avgNote} ⭐</div><div style="font-size:10px;opacity:0.7;margin-top:2px">Note moyenne</div></div>`:''}
+        ${avgNote?`<div style="text-align:center"><div style="font-size:20px;font-weight:800">${avgNote}</div><div style="font-size:10px;opacity:0.7;margin-top:2px">Note moyenne</div></div>`:''}
         <button class="btn" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3)" onclick="openNouvelleVisite()">＋ Nouveau compte rendu</button>
       </div>
     </div>
@@ -13671,7 +13754,7 @@ async function renderVisites(el) {
           <div style="margin-bottom:24px">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:0;cursor:pointer;padding:10px 14px;background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r);box-shadow:var(--c-shadow);user-select:none"
               onclick="toggleVisiteGroup('${groupId}',this)">
-              <span id="${groupId}-arrow" style="font-size:13px;transition:transform 0.2s;display:inline-block">▼</span>
+              <span id="${groupId}-arrow" style="transition:transform 0.2s;display:inline-flex">${sfAccIcon('chevron-bas',13)}</span>
               <div style="font-size:14px;font-weight:700;color:var(--c-text);flex:1">${g.label}</div>
               <div style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:999px;padding:2px 10px;font-size:11px;color:var(--c-dim)">${g.visites.length} visite${g.visites.length>1?'s':''}</div>
               ${isGeneral ? '<div style="font-size:11px;color:var(--c-muted);font-style:italic">Non rattachées</div>' : ''}
@@ -13689,7 +13772,7 @@ async function renderVisites(el) {
 
 function renderVisiteCard(v) {
   const note = v.note_sur_5||0;
-  const stars = Array.from({length:5},(_,i)=>`<span style="opacity:${i<note?1:0.2};font-size:12px">⭐</span>`).join('');
+  const stars = sfNotes(note, 12);
   const photosCount = (Array.isArray(v.photos_paths) && v.photos_paths.length) ? v.photos_paths.length : (Array.isArray(v.photos) ? v.photos.length : 0);
   const truncNotes = v.notes ? (v.notes.length>100?v.notes.substring(0,100)+'…':v.notes) : '';
   const dateStr = v.date_visite ? new Date(v.date_visite).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}) : '—';
@@ -13702,17 +13785,17 @@ function renderVisiteCard(v) {
       <div class="visite-card-left">
         <div class="visite-header">
           <div style="min-width:0">
-            <div class="visite-date">📅 ${wdStr ? wdStr.charAt(0).toUpperCase()+wdStr.slice(1)+' ' : ''}${dateStr}</div>
+            <div class="visite-date">${sfAccIcon('agenda',12)} ${wdStr ? wdStr.charAt(0).toUpperCase()+wdStr.slice(1)+' ' : ''}${dateStr}</div>
             <div class="visite-adresse" style="margin-top:4px">${v.adresse || v.biens?.titre || '—'}</div>
-            ${v.biens?.titre && v.adresse ? `<div class="visite-bien">🏠 ${v.biens.titre}</div>` : ''}
+            ${v.biens?.titre && v.adresse ? `<div class="visite-bien">${sfAccIcon('maison',12)} ${v.biens.titre}</div>` : ''}
           </div>
           <span class="visite-type ${v.type_visite}" style="margin-top:2px">${esc(sfCrLabel(v.type_visite,'court'))}</span>
         </div>
         ${truncNotes?`<div style="font-size:12px;color:var(--c-dim);line-height:1.55;margin-bottom:8px">${truncNotes}</div>`:'<div style="font-size:11px;color:var(--c-muted);font-style:italic;margin-bottom:8px">Aucune note rédigée</div>'}
         <div class="visite-footer">
           <div class="stars">${stars}</div>
-          ${wordCount>0?`<div class="visite-note-count">📝 ${wordCount} mot${wordCount>1?'s':''}</div>`:''}
-          ${photosCount>0?`<div class="visite-photo-count">📸 ${photosCount}</div>`:''}
+          ${wordCount>0?`<div class="visite-note-count">${sfAccIcon('crayon',11)} ${wordCount} mot${wordCount>1?'s':''}</div>`:''}
+          ${photosCount>0?`<div class="visite-photo-count">${sfAccIcon('image',11)} ${photosCount}</div>`:''}
         </div>
       </div>
       <!-- Colonne droite : score + méta -->
@@ -13784,19 +13867,21 @@ async function openReadVisite(id) {
   const {data:v, error} = await db.from('visites').select('*, biens(titre,ville)').eq('id',id).maybeSingle();
   if(error) { showNotif('Erreur : '+error.message, true); return; }
   if(!v) { showNotif('Cette visite n\'existe plus', true); return; }
-  const stars = Array.from({length:5},(_,i)=>`<span style="font-size:20px;opacity:${i<(v.note_sur_5||0)?1:0.2}">⭐</span>`).join('');
+  const stars = sfNotes(v.note_sur_5, 19);
   const photoItems = await tiResolveMedia(v.photos_paths, v.photos, 'visites-photos');
   const photos = photoItems.map(x=>x.url);
   const dateStr = v.date_visite ? new Date(v.date_visite+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',year:'numeric',month:'long',day:'numeric'}) : '—';
-  const typeLabel = (v.type_visite==='achat'?'🏠 ':sfCrEstEdl(v.type_visite)?'📋 ':'👤 ') + sfCrLabel(v.type_visite);
+  const typeLabel = sfAccIcon(v.type_visite==='achat' ? 'maison'
+                    : sfCrEstEdl(v.type_visite) ? 'carnet' : 'user', 14)
+                    + ' ' + sfCrLabel(v.type_visite);
 
   document.getElementById('detail-titre').textContent = v.adresse || v.biens?.titre || 'Visite';
   document.getElementById('detail-content').innerHTML = `
     <!-- Méta -->
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
       <span style="background:${v.type_visite==='achat'?'rgba(23,160,107,0.1)':'rgba(22,163,74,0.1)'};color:${v.type_visite==='achat'?'var(--accent)':'var(--positive-c)'};padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600">${typeLabel}</span>
-      <span style="font-size:12px;color:var(--c-dim)">📅 ${dateStr}</span>
-      ${v.biens?.titre?`<span style="font-size:12px;color:var(--c-dim)">🏘️ ${v.biens.titre}${v.biens.ville?' — '+v.biens.ville:''}</span>`:''}
+      <span style="font-size:12px;color:var(--c-dim)">${sfAccIcon('agenda',12)} ${dateStr}</span>
+      ${v.biens?.titre?`<span style="font-size:12px;color:var(--c-dim)">${sfAccIcon('maison',12)} ${v.biens.titre}${v.biens.ville?' — '+v.biens.ville:''}</span>`:''}
     </div>
 
     <!-- Note -->
@@ -13810,7 +13895,7 @@ async function openReadVisite(id) {
     <!-- Photos -->
     ${photos.length ? `
     <div style="margin-bottom:18px">
-      <div style="font-size:11px;font-weight:600;color:var(--c-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📸 Photos (${photos.length})</div>
+      <div style="font-size:11px;font-weight:600;color:var(--c-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${sfAccIcon('image',12)} Photos (${photos.length})</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${photos.map(p=>`<img src="${p}" style="width:120px;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--c-border);cursor:pointer" onclick="openLightbox('${p}')">`).join('')}
       </div>
@@ -13818,7 +13903,7 @@ async function openReadVisite(id) {
 
     <div class="modal-actions" style="margin-top:8px">
       <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Fermer</button>
-      <button class="btn btn-primary" onclick="openDetailVisite('${v.id}')">✏️ Modifier</button>
+      <button class="btn btn-primary" onclick="openDetailVisite('${v.id}')">${sfAccIcon('crayon',14)} Modifier</button>
     </div>
   `;
   openModal('modal-detail');
@@ -13878,7 +13963,8 @@ function visiteForm(v) {
     <div class="form-group" style="margin-bottom:14px">
       <label>Note globale</label>
       <div class="rating-input" id="rating-input">
-        ${[1,2,3,4,5].map(i=>`<button class="star-btn ${(v?.note_sur_5||0)>=i?'active':''}" onclick="setRating(${i})">⭐</button>`).join('')}
+        ${[1,2,3,4,5].map(i=>`<button class="star-btn ${(v?.note_sur_5||0)>=i?'active':''}" onclick="setRating(${i})" aria-label="${i} étoile${i>1?'s':''} sur 5"
+            >${sfAccIcon((v?.note_sur_5||0)>=i ? 'etoile-pleine' : 'etoile', 19)}</button>`).join('')}
       </div>
     </div>
     <div class="form-group" style="margin-bottom:14px">
@@ -13888,7 +13974,7 @@ function visiteForm(v) {
     <div class="form-group" style="margin-bottom:14px">
       <label>Photos</label>
       <div class="photo-upload-area" onclick="document.getElementById('photo-input').click()">
-        📸 Cliquez pour ajouter des photos
+        ${sfAccIcon('image',15)} Cliquez pour ajouter des photos
         <div style="font-size:11px;color:var(--c-muted);margin-top:4px">JPG, PNG — plusieurs fichiers acceptés</div>
       </div>
       <input type="file" id="photo-input" accept="image/*" multiple style="display:none" onchange="handlePhotos(event)">
@@ -13909,9 +13995,19 @@ function visiteForm(v) {
   `;
 }
 
+/* ⚠️ LE DESSIN DOIT CHANGER, PAS SEULEMENT LA COULEUR. Cette fonction ne
+   basculait que la classe `.active` : tant que l'etoile etait un emoji dont
+   l'opacite variait, ca suffisait. Depuis qu'elle est un trace, baisser une
+   note de 5 a 2 laissait CINQ etoiles pleines a l'ecran, en comptant sur la
+   seule couleur pour dire le reste — ce que la regle 4 de la planche de
+   marque interdit, et qu'un daltonien ne voit pas. On redessine. */
 function setRating(n) {
   visitRating = n;
-  document.querySelectorAll('.star-btn').forEach((b,i)=>b.classList.toggle('active',i<n));
+  document.querySelectorAll('.star-btn').forEach((b, i) => {
+    const pleine = i < n;
+    b.classList.toggle('active', pleine);
+    b.innerHTML = sfAccIcon(pleine ? 'etoile-pleine' : 'etoile', 19);
+  });
 }
 
 function handlePhotos(e) {
@@ -13934,7 +14030,7 @@ async function refreshPhotosPreview() {
   if(!el) return;
   const items = await Promise.all(visitPhotos.map(async (p,i)=>{
     let src = p.kind==='b64' ? p.data : await TI_STORAGE.signedUrl(p.bucket||'visites-photos', p.path);
-    return `<div class="preview-thumb-wrap"><img class="preview-thumb" src="${src||''}"><button class="preview-remove" onclick="removePhoto(${i})">✕</button></div>`;
+    return `<div class="preview-thumb-wrap"><img class="preview-thumb" src="${src||''}"><button class="preview-remove" onclick="removePhoto(${i})" aria-label="Retirer la photo">${sfAccIcon('croix',12)}</button></div>`;
   }));
   el.innerHTML = items.join('');
 }
@@ -14005,7 +14101,7 @@ async function saveVisite(id) {
         if(l) l.edl_sortie_conforme = conforme;
       }
     }
-    showNotif(`${id ? '✓ Compte rendu mis à jour' : '✓ Compte rendu enregistré'}${
+    showNotif(`${id ? 'Compte rendu mis à jour' : 'Compte rendu enregistré'}${
       reporte ? ` · délai de restitution du dépôt recalculé` : ''}`);
     closeModal('modal-detail');
     /* ⚠️ On ne redessine « Comptes rendus » QUE si l'on y est. Depuis l'acte de
@@ -14087,7 +14183,7 @@ async function renderSimulateur(el) {
       <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
         ${bestRate && bestRate < 99 ? `<div style="text-align:center"><div style="font-size:20px;font-weight:800">${bestRate}%</div><div style="font-size:10px;opacity:0.7;margin-top:2px">Meilleur taux</div></div>` : ''}
         ${avgMens ? `<div style="text-align:center"><div style="font-size:20px;font-weight:800">${fmt(avgMens)} €</div><div style="font-size:10px;opacity:0.7;margin-top:2px">Mensualité moy.</div></div>` : ''}
-        ${withPdf ? `<div style="text-align:center"><div style="font-size:20px;font-weight:800">${withPdf}</div><div style="font-size:10px;opacity:0.7;margin-top:2px">📄 PDF importé${withPdf>1?'s':''}</div></div>` : ''}
+        ${withPdf ? `<div style="text-align:center"><div style="font-size:20px;font-weight:800">${withPdf}</div><div style="font-size:10px;opacity:0.7;margin-top:2px">${sfAccIcon('doc',11)} PDF importé${withPdf>1?'s':''}</div></div>` : ''}
         <button class="btn" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3)" onclick="openNouvelleSimulation()">＋ Nouvelle simulation</button>
       </div>
     </div>
@@ -14111,7 +14207,7 @@ function toggleSimSelect(id, evt) {
   // Mettre à jour la checkbox
   const cb = document.querySelector(`.sim-checkbox[data-id="${id}"]`);
   const card = document.querySelector(`.sim-list-item[data-id="${id}"]`);
-  if(cb) { cb.classList.toggle('checked',simSelected.has(id)); cb.textContent=simSelected.has(id)?'✓':''; }
+  if(cb) { cb.classList.toggle('checked',simSelected.has(id)); cb.innerHTML=simSelected.has(id)?sfAccIcon('check',12):''; }
   if(card) card.classList.toggle('selected',simSelected.has(id));
   updateSimActionBar();
 }
@@ -14156,13 +14252,13 @@ async function simActionAttribuer() {
       <label class="form-label">Bien immobilier</label>
       <select class="form-select" id="attrib-bien-id" style="width:100%">
         <option value="">— Sélectionner un bien —</option>
-        <option value="null">🗂 Aucun (détacher)</option>
+        <option value="null">Aucun (détacher)</option>
         ${opts}
       </select>
     </div>
     <div class="modal-actions" style="margin-top:20px">
       <button class="btn btn-secondary" onclick="closeModal('modal-detail');simDeselectAll()">Annuler</button>
-      <button class="btn btn-primary" onclick="confirmAttribuer()">✅ Confirmer</button>
+      <button class="btn btn-primary" onclick="confirmAttribuer()">${sfAccIcon('check',14)} Confirmer</button>
     </div>
   `;
   openModal('modal-detail');
@@ -14197,7 +14293,7 @@ async function confirmAttribuer() {
           const patch = { mensualite_credit: m };
           if (simRes.data?.duree_ans) patch.duree_credit_ans = simRes.data.duree_ans;
           await db.from('biens').update(patch).eq('id', bienId).eq('user_id', currentUser.id);
-          showNotif('Mensualité du bien synchronisée ✓');
+          showNotif('Mensualité du bien synchronisée');
         }
       }
     } catch(e) { console.warn('sync mensualité:', e.message); }
@@ -14233,9 +14329,9 @@ function renderSimCard(s) {
     <div class="sim-checkbox" data-id="${s.id}" onclick="toggleSimSelect('${s.id}',event)" title="Sélectionner"></div>
     <div class="sim-list-content">
       <div class="sim-item-name">${esc(s.nom_simulation)}${s.date_document?' <span style="font-size:10px;color:var(--c-muted);font-weight:400">· '+new Date(s.date_document+'T12:00:00').toLocaleDateString('fr-FR')+'</span>':''}</div>
-      <div class="sim-item-detail">${s.biens?.titre?'🏠 '+s.biens.titre+' · ':''} ${fmt(s.montant_emprunte||0)} € sur ${s.duree_ans||20} ans · ${(s.taux_interet||0).toFixed(2)}%</div>
+      <div class="sim-item-detail">${s.biens?.titre?sfAccIcon('maison',12)+' '+s.biens.titre+' · ':''} ${fmt(s.montant_emprunte||0)} € sur ${s.duree_ans||20} ans · ${(s.taux_interet||0).toFixed(2)}%</div>
     </div>
-    ${(s.pdf_data||s.pdf_path)?`<button class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="event.stopPropagation();openPdfSim('${s.id}')">📄 PDF</button>`:''}
+    ${(s.pdf_data||s.pdf_path)?`<button class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="event.stopPropagation();openPdfSim('${s.id}')">${sfAccIcon('doc',12)} PDF</button>`:''}
     ${te?`<span class="sim-taux-badge">Endettement : ${te.toFixed(1)}%</span>`:''}
     <div class="sim-mensualite">${fmt(m)} €/mois</div>
   </div>`;
@@ -14280,7 +14376,7 @@ async function openReadSimulation(id) {
     <!-- Infos complémentaires -->
     <div class="detail-grid" style="margin-bottom:16px">
       ${dateStr?`<div class="detail-item"><div class="detail-label">Date d'émission</div><div class="detail-value">${dateStr}</div></div>`:''}
-      ${s.biens?.titre?`<div class="detail-item"><div class="detail-label">Bien rattaché</div><div class="detail-value">🏠 ${s.biens.titre}${s.biens.ville?' — '+s.biens.ville:''}</div></div>`:''}
+      ${s.biens?.titre?`<div class="detail-item"><div class="detail-label">Bien rattaché</div><div class="detail-value">${sfAccIcon('maison',13)} ${s.biens.titre}${s.biens.ville?' — '+s.biens.ville:''}</div></div>`:''}
       ${s.loyer_exige_banque?`<div class="detail-item"><div class="detail-label">Loyer exigé banque</div><div class="detail-value">${fmt(s.loyer_exige_banque)} €/mois</div></div>`:''}
       ${s.revenus_mensuels?`<div class="detail-item"><div class="detail-label">Revenus mensuels</div><div class="detail-value">${fmt(s.revenus_mensuels)} €/mois</div></div>`:''}
       <div class="detail-item"><div class="detail-label">Coût total du crédit</div><div class="detail-value">${fmt(Math.round((m*s.duree_ans*12)-(s.montant_emprunte||0)))} €</div></div>
@@ -14291,12 +14387,12 @@ async function openReadSimulation(id) {
     <!-- PDF viewer -->
     ${(s.pdf_data||s.pdf_path)?`
     <div style="margin-bottom:16px">
-      <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--c-muted);margin-bottom:8px">📄 Document importé</div>
+      <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--c-muted);margin-bottom:8px">${sfAccIcon('doc',12)} Document importé</div>
       <div style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="openPdfSim('${s.id}')">
-        <div style="width:40px;height:40px;background:rgba(23,160,107,0.1);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📄</div>
+        <div style="width:40px;height:40px;background:rgba(23,160,107,0.1);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent)">${sfAccIcon('doc',20)}</div>
         <div>
           <div style="font-size:13px;font-weight:600;color:var(--c-text)">${s.pdf_name||'Document PDF'}</div>
-          <div style="font-size:11px;color:var(--accent);margin-top:2px">Cliquer pour ouvrir le document →</div>
+          <div style="font-size:11px;color:var(--accent);margin-top:2px">Cliquer pour ouvrir le document</div>
         </div>
       </div>
     </div>`:
@@ -14304,7 +14400,7 @@ async function openReadSimulation(id) {
 
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Fermer</button>
-      <button class="btn btn-primary" onclick="openEditSimulation('${s.id}')">✏️ Modifier</button>
+      <button class="btn btn-primary" onclick="openEditSimulation('${s.id}')">${sfAccIcon('crayon',14)} Modifier</button>
     </div>
   `;
   openModal('modal-detail');
@@ -14327,7 +14423,7 @@ function showSimModal(s) {
   document.getElementById('detail-content').innerHTML = `
     <!-- Import PDF -->
     <div class="pdf-zone" id="pdf-zone" onclick="document.getElementById('pdf-input').click()">
-      <div class="pdf-zone-icon">📄</div>
+      <div class="pdf-zone-icon">${sfAccIcon('doc',26)}</div>
       <div class="pdf-zone-text">Importer une offre de prêt (PDF)</div>
       <div class="pdf-zone-sub">Claude extraira automatiquement les données de votre document bancaire</div>
     </div>
@@ -14345,7 +14441,7 @@ function showSimModal(s) {
       <div class="form-group"><label>Durée (ans)</label><input type="number" id="s-duree" value="${esc(s?.duree_ans||20)}" oninput="recalcSim()"></div>
       <div class="form-group"><label>Mensualité calculée</label>
         <div class="calc-field" id="s-mensualite-display">
-          <span class="calc-field-badge">🔒 Auto</span>
+          <span class="calc-field-badge">${sfAccIcon('lock',11)} Auto</span>
           <span id="s-mensualite-val">${s?.mensualite_calculee?fmt(s.mensualite_calculee)+' €/mois':'—'}</span>
         </div>
       </div>
@@ -14391,7 +14487,12 @@ function recalcSim() {
     const revenusEffectifs = revenus + loyerBanque * 0.7;
     const te = (mensualite / revenusEffectifs) * 100;
     const teClass = te<=33?'ok':te<=40?'warn':'danger';
-    const teLabel = te<=33?'✅ Excellent':te<=40?'⚠️ Limite':'🔴 Trop élevé';
+    /* ⚠️ LA COULEUR NE PORTE PAS SEULE — regle 4 de la planche de marque :
+     8 % des hommes sont daltoniens. L'icone double le mot, le mot double la
+     couleur. Les trois emojis d'avant faisaient le meme travail, mais en
+     police systeme et sans suivre la couleur du texte. */
+  const teCle   = te<=33 ? 'ok' : te<=40 ? 'alerte' : 'interdit';
+  const teLabel = sfAccIcon(teCle,14) + ' ' + (te<=33?'Excellent':te<=40?'Limite':'Trop élevé');
     endettHTML = `
       <div class="sim-endettement">
         <div style="display:flex;justify-content:space-between;align-items:center">
@@ -14424,7 +14525,7 @@ async function extractPDF(e) {
   const zone = document.getElementById('pdf-zone');
   const status = document.getElementById('pdf-status');
   zone.classList.add('loading');
-  zone.innerHTML = `<div class="pdf-zone-icon">⏳</div><div class="pdf-zone-text">Lecture du document PDF...</div><div class="pdf-zone-sub">Extraction des données en cours</div>`;
+  zone.innerHTML = `<div class="pdf-zone-icon"><span class="sf-attente"></span></div><div class="pdf-zone-text">Lecture du document PDF…</div><div class="pdf-zone-sub">Extraction des données en cours</div>`;
 
   try {
     // Configure PDF.js worker
@@ -14547,7 +14648,7 @@ async function extractPDF(e) {
 
     const fieldsFound = Object.values(extracted).filter(v=>v!=null&&!isNaN(v)).length;
     zone.classList.remove('loading');
-    zone.innerHTML = `<div class="pdf-zone-icon">✅</div><div class="pdf-zone-text">${file.name}</div>`;
+    zone.innerHTML = `<div class="pdf-zone-icon">${sfAccIcon('ok',26)}</div><div class="pdf-zone-text">${esc(file.name)}</div>`;
     // Store PDF for later saving
     window._currentPdfName = file.name;
     window._currentPdfData = await new Promise(res=>{const r=new FileReader();r.onload=()=>res(r.result);r.readAsDataURL(file);});
@@ -14559,14 +14660,14 @@ async function extractPDF(e) {
         extracted.duree_ans?`Durée: ${extracted.duree_ans} ans`:'',
         extracted.mensualite?`Mensualité: ${fmt(extracted.mensualite)} €`:'',
       ].filter(Boolean).join(' · ');
-      status.innerHTML = `<div class="pdf-extracted-badge">✅ ${fieldsFound} champ${fieldsFound>1?'s':''} extrait${fieldsFound>1?'s':''}</div><div style="font-size:11px;color:var(--c-dim);margin-top:6px">${details}</div>`;
+      status.innerHTML = `<div class="pdf-extracted-badge">${sfAccIcon('ok',13)} ${fieldsFound} champ${fieldsFound>1?'s':''} extrait${fieldsFound>1?'s':''}</div><div style="font-size:11px;color:var(--c-dim);margin-top:6px">${details}</div>`;
     } else {
-      status.innerHTML = `<div style="color:var(--warning);font-size:12px;padding:8px">⚠️ Aucune donnée reconnue automatiquement. Veuillez remplir les champs manuellement.</div>`;
+      status.innerHTML = `<div style="color:var(--warning);font-size:12px;padding:8px">${sfAccIcon('alerte',13)} Aucune donnée reconnue automatiquement. Veuillez remplir les champs manuellement.</div>`;
     }
 
   } catch(err) {
     zone.classList.remove('loading');
-    zone.innerHTML = `<div class="pdf-zone-icon">📄</div><div class="pdf-zone-text">Importer une offre de prêt (PDF)</div><div class="pdf-zone-sub">Claude extraira automatiquement les données</div>`;
+    zone.innerHTML = `<div class="pdf-zone-icon">${sfAccIcon('doc',26)}</div><div class="pdf-zone-text">Importer une offre de prêt (PDF)</div><div class="pdf-zone-sub">Claude extraira automatiquement les données</div>`;
     status.innerHTML = `<div style="color:var(--negative);font-size:12px">Erreur lecture PDF : ${err.message}</div>`;
     console.error(err);
   }
@@ -14622,7 +14723,7 @@ async function saveSim() {
       const {error:upErr} = await db.from('simulations_credit').update({pdf_path:up.path, pdf_data:null}).eq('id',simId);
       if(upErr) throw upErr;
     }
-    showNotif(simEditId?'✓ Simulation mise à jour':'✓ Simulation sauvegardée');
+    showNotif(simEditId?'Simulation mise à jour':'Simulation sauvegardée');
     closeModal('modal-detail');
     renderSimulateur(document.getElementById('content'));
   } catch(error) {
@@ -14846,7 +14947,7 @@ function renderSCIList() {
   const c = document.getElementById('sci-list-container');
   if (!c) return;
   if (!allSCI.length) {
-    c.innerHTML = '<div class="sci-empty" style="padding:8px 0;text-align:left;font-size:12px;color:var(--c-muted)">Aucune SCI. <a href="#" onclick="closeSettings();navigate(\'administration\')" style="color:var(--accent)">Créer →</a></div>';
+    c.innerHTML = '<div class="sci-empty" style="padding:8px 0;text-align:left;font-size:12px;color:var(--c-muted)">Aucune SCI. <a href="#" onclick="closeSettings();navigate(\'administration\')" style="color:var(--accent)">Créer une SCI</a></div>';
     return;
   }
   c.innerHTML = allSCI.map(s => {
@@ -14865,7 +14966,7 @@ function renderSCIList() {
         </div>
         <div class="sci-list-arrow">›</div>
       </div>`;
-  }).join('') + '<div style="padding:6px 0 2px;font-size:11px;text-align:center"><a href="#" onclick="closeSettings();navigate(\'administration\')" style="color:var(--accent)">Gérer mes SCI →</a></div>';
+  }).join('') + '<div style="padding:6px 0 2px;font-size:11px;text-align:center"><a href="#" onclick="closeSettings();navigate(\'administration\')" style="color:var(--accent)">Gérer mes SCI</a></div>';
 }
 
 // ── Ouvrir modal SCI (null = nouvelle, id = édition) ──
@@ -14882,7 +14983,7 @@ function openSCIModal(id) {
   if (id) {
     const sci = allSCI.find(s => s.id === id);
     if (!sci) return;
-    title.textContent = '✏️ Modifier la SCI';
+    title.textContent = 'Modifier la SCI';
     btnDel.style.display = 'flex';
     // Remplir les champs
     document.getElementById('sci-nom').value = sci.nom_sci || '';
@@ -14927,8 +15028,8 @@ function renderAssociesList() {
       <div class="assoc-card-header">
         <div class="assoc-num">${i + 1}</div>
         <div class="assoc-label">Associé ${i + 1}</div>
-        <button type="button" onclick="fillAssocieFromProfile(${i})" title="Reprendre mes informations du profil (évite les divergences d'orthographe)" style="background:none;border:1px solid var(--c-border);border-radius:6px;cursor:pointer;font-size:10.5px;color:var(--accent);padding:3px 8px;margin-right:6px">⤵ Mon profil</button>
-        <button class="assoc-remove" onclick="removeAssocie(${i})" title="Supprimer">✕</button>
+        <button type="button" onclick="fillAssocieFromProfile(${i})" title="Reprendre mes informations du profil (évite les divergences d'orthographe)" style="background:none;border:1px solid var(--c-border);border-radius:6px;cursor:pointer;font-size:10.5px;color:var(--accent);padding:3px 8px;margin-right:6px">${sfAccIcon('user',12)} Mon profil</button>
+        <button class="assoc-remove" onclick="removeAssocie(${i})" title="Supprimer" aria-label="Supprimer l'associé">${sfAccIcon('croix',13)}</button>
       </div>
       <div class="assoc-grid" style="margin-bottom:8px">
         <div>
@@ -15058,7 +15159,7 @@ async function saveSCI() {
       }
       sciDocsPending = [];
     }
-    showNotif(currentSCIId ? 'SCI mise à jour ✓' : 'SCI créée ✓');
+    showNotif(currentSCIId ? 'SCI mise à jour' : 'SCI créée');
     closeSCIModal();
     await loadAdminData();
     switchAdminTab('sci');

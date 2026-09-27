@@ -1304,8 +1304,17 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 
 /* Rating input */
 .rating-input{display:flex;gap:6px;}
-.star-btn{font-size:22px;cursor:pointer;opacity:0.3;transition:opacity 0.1s;background:none;border:none;padding:0;}
-.star-btn.active{opacity:1;}
+/* ⚠️ PLUS D'OPACITE, ET PLUS DE COULEUR HERITEE — 27/09/2026.
+   Deux defauts se cachaient dans ces deux lignes. L'opacite 0,3 rendait
+   l'etoile eteinte grise sur fond clair et quasi invisible sur fond sombre :
+   c'est le motif que ce lot retire partout ailleurs. Et un <button> N'HERITE
+   PAS `color` : l'icone en `currentColor` retombait sur le noir du
+   navigateur, donc des etoiles NOIRES sur le theme sombre, qui est le
+   defaut. L'etat se dit maintenant par le DESSIN — pleine ou vide — et la
+   couleur est posee explicitement. */
+.star-btn{cursor:pointer;background:none;border:none;padding:2px;line-height:0;
+  color:var(--sf-text-3);transition:color .1s;}
+.star-btn.active{color:var(--sf-alert);}
 
 /* Photo upload */
 .photo-upload-area{
@@ -1635,11 +1644,11 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
   border:3px solid transparent;transition:all 0.15s;
   position:relative;
 }
-.theme-swatch.active::after{
-  content:'✓';position:absolute;inset:0;
-  display:flex;align-items:center;justify-content:center;
-  color:white;font-size:12px;font-weight:700;
-}
+/* `.theme-swatch` a ete retiree de l'interface lors de l'arbitrage « DA
+   unique » du 01/08/2026 — le commentaire d'app.js:14819 le dit. Ses regles
+   sont restees, dont un `content:'✓'` qu'aucune recherche dans le JS ne
+   pouvait trouver : la garde anti-emoji lit maintenant les feuilles de style
+   aussi, et c'est elle qui l'a sorti. Code mort, supprime. */
 .theme-swatch:hover{transform:scale(1.1);}
 
 /* Toggles */
@@ -2321,7 +2330,10 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
   overflow:hidden; text-overflow:ellipsis; }
 .sff-row__a{ font-family:var(--sf-font-num); font-size:var(--sf-font-body);
   color:var(--sf-text); white-space:nowrap; font-variant-numeric:tabular-nums; }
-.sff-stars{ display:inline-flex; gap:1px; color:var(--sf-alert); flex-shrink:0; }
+/* `.sff-stars` a ete retiree le 27/09/2026 : la fiche bien etait le TROISIEME
+   endroit qui dessinait une note sur cinq a sa facon — et le seul qui affichait
+   N etoiles VIDES au lieu de N pleines sur cinq. Les trois passent desormais
+   par `sfNotes`, dont `.sf-notes` porte le style (components.css). */
 
 /* Galerie et documents de l'onglet « Le bien » */
 .sff-gal{ display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr));
