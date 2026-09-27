@@ -1,16 +1,16 @@
 <!--
   ══════════════════════════════════════════════════════════════════════════
-  STONEFOLIO — gabarit « invite-user »
+  STONEFOLIO — gabarit « reauthentication »
   Supabase Dashboard > Authentication > Emails
-  Objet : Vous êtes invité sur Stonefolio
+  Objet : Votre code de confirmation Stonefolio
   ══════════════════════════════════════════════════════════════════════════
 
   ⚠️ FICHIER GÉNÉRÉ. Ne pas le retoucher ici : il serait écrasé.
      La source est supabase/email-templates/ — layout.html pour la mise en
      page, generer.py pour le contenu. Puis `python3 generer.py`.
 
-  Déclenché par : auth.admin.inviteUserByEmail() — appelé par l'Edge Function admin-invite-user.
-  Variables Go  : {{ .ConfirmationURL }} · {{ .Data.first_name }}
+  Déclenché par : Réauthentification avant une opération sensible — NON UTILISÉ par l'application aujourd'hui.
+  Variables Go  : {{ .Token }}
 
   CONTRAINTES TENUES, ET POURQUOI :
   · TABLEAUX UNIQUEMENT — Outlook sur Windows rend avec le moteur de Word,
@@ -38,7 +38,7 @@
 <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
 <meta name="color-scheme" content="light dark" />
 <meta name="supported-color-schemes" content="light dark" />
-<title>Vous êtes invité sur Stonefolio</title>
+<title>Votre code de confirmation Stonefolio</title>
 <!--[if mso]>
 <xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml>
 <style>
@@ -80,7 +80,7 @@
 <body class="sf-body" style="margin:0; padding:0; background-color:#F5F8F6;">
 
 <div style="display:none; font-size:1px; color:#F5F8F6; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden; mso-hide:all;">
-  Activez votre accès à Stonefolio et commencez à piloter vos biens.
+  Votre code de confirmation à usage unique.
   &#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;
 </div>
 
@@ -130,37 +130,17 @@
     <!-- Corps -->
     <tr>
       <td bgcolor="#FFFFFF" class="sf-card sf-pad sf-pad-top" style="background-color:#FFFFFF; border-left:1px solid #D6E2DA; border-right:1px solid #D6E2DA; padding:40px 36px 8px 36px;">
-        <p class="sf-t2" style="margin:0 0 6px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size:14px; line-height:22px; color:#3D5145;">
-          Bonjour{{ if .Data }} {{ .Data.first_name }}{{ end }},
-        </p>
+
         <h1 class="sf-h1 sf-t1" style="margin:0 0 18px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size:26px; line-height:34px; color:#0C1710; font-weight:700; letter-spacing:-0.6px;">
-          Votre accès à Stonefolio est prêt
+          Votre code de confirmation
         </h1>
-        <p class="sf-t2" style="margin:0 0 16px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size:15px; line-height:25px; color:#3D5145;">
-          Stonefolio réunit au même endroit vos biens, vos locataires, vos loyers et vos charges — de la recherche d’un bien au suivi du cashflow réel, année après année.
-        </p>
         <p class="sf-t2" style="margin:0 0 28px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size:15px; line-height:25px; color:#3D5145;">
-          Il ne reste qu’à choisir votre mot de passe.
+          Saisissez ce code pour confirmer l’opération en cours.
         </p>
 
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" class="sf-cta">
-        <tr><td align="left">
-          <!--[if mso]>
-          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
-                       href="{{ .ConfirmationURL }}" style="height:48px; v-text-anchor:middle; width:280px;"
-                       arcsize="21%" strokecolor="#1E4630" fillcolor="#1E4630">
-            <w:anchorlock/>
-            <center style="color:#FFFFFF; font-family:'Segoe UI', Arial, sans-serif; font-size:15px; font-weight:600;">
-              Choisir mon mot de passe
-            </center>
-          </v:roundrect>
-          <![endif]-->
-          <!--[if !mso]><!-- -->
-          <a href="{{ .ConfirmationURL }}"
-             style="display:inline-block; background-color:#1E4630; color:#FFFFFF; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size:15px; font-weight:600; line-height:20px; text-decoration:none; padding:14px 30px; border-radius:10px; mso-hide:all;">
-            Choisir mon mot de passe
-          </a>
-          <!--<![endif]-->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" class="sf-note" bgcolor="#F5F8F6" style="background-color:#F5F8F6; border:1px solid #D6E2DA; border-radius:12px;">
+        <tr><td align="center" style="padding:22px 34px;">
+          <div class="sf-code sf-t1" style="font-family:ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace; font-size:32px; line-height:40px; font-weight:700; letter-spacing:9px; color:#0C1710;">{{ .Token }}</div>
         </td></tr>
         </table>
 
@@ -174,18 +154,8 @@
           <tr><td class="sf-rule" height="1" bgcolor="#D6E2DA" style="height:1px; background-color:#D6E2DA; font-size:0; line-height:0;">&nbsp;</td></tr>
         </table>
         <p class="sf-t2" style="margin:22px 0 14px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size:13px; line-height:21px; color:#3D5145;">
-          Ce lien est à usage unique et expire après un délai. S’il ne fonctionne plus, demandez-en un nouveau.
+          Ce code est à usage unique. Ne le partagez avec personne : aucun membre de Stonefolio ne vous le demandera.
         </p>
-
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="sf-note" bgcolor="#F5F8F6" style="background-color:#F5F8F6; border:1px solid #D6E2DA; border-radius:10px;">
-        <tr><td style="padding:14px 16px;">
-          <p class="sf-t2" style="margin:0 0 6px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size:12px; line-height:18px; color:#3D5145;">
-            Si le bouton ne réagit pas, copiez cette adresse dans votre navigateur :
-          </p>
-          <a href="{{ .ConfirmationURL }}" class="sf-link" style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size:12px; line-height:18px; color:#127A44; text-decoration:underline; word-break:break-all;">{{ .ConfirmationURL }}</a>
-        </td></tr>
-        </table>
-
       </td>
     </tr>
 
@@ -196,7 +166,7 @@
           Stonefolio
         </p>
         <p class="sf-t2" style="margin:0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size:12px; line-height:19px; color:#3D5145;">
-          Vous recevez ce message parce que votre adresse a été ajoutée comme utilisateur. Si vous n’attendiez pas cette invitation, ignorez-le : sans mot de passe choisi, aucun compte ne s’ouvre.
+          Vous recevez ce message parce qu’une opération sensible a été demandée sur votre compte. Ne communiquez ce code à personne.
         </p>
       </td>
     </tr>
