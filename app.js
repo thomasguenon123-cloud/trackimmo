@@ -787,7 +787,7 @@ function exportLoyersCSV(annee) {
   if (!lignesAn.length) { showNotif(`Aucun loyer saisi en ${annee}`, true); return; }
 
   const entetes = ['Bien', 'Ville', 'Année', 'Mois', 'Locataire', 'Loyer dû (€)',
-    'Charges dues (€)', 'Montant encaissé (€)', 'Statut', 'Date encaissement'];
+    'Charges dues (€)', 'Loyer encaissé (€)', 'Charges encaissées (€)', 'Statut', 'Date encaissement'];
 
   const lignes = lignesAn
     .sort((a, b) => a.mois - b.mois)
@@ -795,11 +795,16 @@ function exportLoyersCSV(annee) {
       const bien = allBiens.find(x => x.id === l.bien_id);
       const loc = allLocataires.find(x => x.id === l.locataire_id);
       const enc = parseFloat(l.montant_encaisse);
+      /* Une cellule VIDE, pas un zéro : `charges_encaissees` à NULL veut dire
+         « non suivi » sur les lignes d'avant le 27/09/2026. Écrire 0 ferait
+         lire « aucune charge encaissée » à un tableur. */
+      const encCh = parseFloat(l.charges_encaissees);
       return [
         bien?.titre || '', bien?.ville || '', l.annee, MOIS_LONGS[l.mois - 1] || l.mois,
         loc ? [loc.prenom, loc.nom].filter(Boolean).join(' ') : '',
         parseFloat(l.loyer_du) || 0, parseFloat(l.charges_dues) || 0,
         Number.isNaN(enc) ? '' : enc,
+        Number.isNaN(encCh) ? '' : encCh,
         l.statut || '', tiDateFr(l.date_encaissement),
       ];
     });
@@ -1908,6 +1913,30 @@ function sfLoyerPointe(ligne) {
 //   'ok'     payé              'part'   partiellement payé
 //   'ko'     échu, non soldé   'avenir' échéance pas encore arrivée
 //   'none'   rien en base
+/* ═══════════════════════════════════════════════════════════════════════════
+   CE QUI EST DÛ, CE QUI EST RENTRÉ — une seule lecture, partout.
+
+   ⚠️ `charges_encaissees IS NULL` NE VEUT PAS DIRE ZÉRO. Il veut dire « on ne
+   suivait pas ». Toutes les lignes antérieures au 27/09/2026 sont dans ce cas :
+   17 mois marqués « Payé » portent 8 380 € de provisions dont personne n'a
+   jamais dit si elles étaient rentrées. Les compter comme dues ferait
+   apparaître 8 380 € d'arriérés le matin de la mise en production, sur des
+   mois que le bailleur tient pour soldés depuis des semaines.
+
+   D'où la règle : LES CHARGES N'ENTRENT DANS L'ARITHMÉTIQUE QUE SUR UNE LIGNE
+   QUI LES SUIT. Une ligne d'avant garde exactement son comportement d'avant.  */
+function sfDuEtEncaisse(ligne) {
+  const nb = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+  const loyerDu = nb(ligne?.loyer_du);
+  const loyerEnc = nb(ligne?.montant_encaisse);
+  const suivies = ligne != null && ligne.charges_encaissees != null;
+  return {
+    du:       loyerDu  + (suivies ? nb(ligne.charges_dues) : 0),
+    encaisse: loyerEnc + (suivies ? nb(ligne.charges_encaissees) : 0),
+    chargesSuivies: suivies,
+  };
+}
+
 function sfLoyerEtat(ligne, mois, annee, locataire) {
   /* ⚠️ HORS BAIL — la garde passe AVANT tout le reste, et c'est ici qu'elle
      doit vivre : cette fonction est la source unique de l'état d'un loyer, et
@@ -2020,9 +2049,15 @@ async function sfPointerLoyer(bienId, mois, annee, boite) {
     const ligne = mfFindLoyer(bienId, mois, annee);
 
     if (ligne) {
+      /* ⚠️ UN POINTAGE RAPIDE SOLDE LE MOIS ENTIER, charges comprises. Dire
+         « Payé » puis ne solder que le loyer laisserait le reste dû en
+         silence — c'est exactement le défaut corrigé le 27/09/2026. Et
+         dépointer remet les DEUX à nul, sinon des charges encaissées
+         survivraient à l'annulation du loyer qui les portait. */
       const patch = sfLoyerPointe(ligne)
-        ? { statut: 'En attente', montant_encaisse: null, date_encaissement: null }
-        : { statut: 'Payé', montant_encaisse: ligne.loyer_du, date_encaissement: today };
+        ? { statut: 'En attente', montant_encaisse: null, charges_encaissees: null, date_encaissement: null }
+        : { statut: 'Payé', montant_encaisse: ligne.loyer_du, date_encaissement: today,
+            charges_encaissees: (parseFloat(ligne.charges_dues) || 0) > 0 ? ligne.charges_dues : null };
       const { data, error } = await db.from('loyers_mensuels')
         .update(patch).eq('id', ligne.id).eq('user_id', currentUser.id)
         .select().maybeSingle();
@@ -2042,6 +2077,7 @@ async function sfPointerLoyer(bienId, mois, annee, boite) {
         loyer_du: prorata.loyer,
         charges_dues: prorata.charges,
         statut: 'Payé', montant_encaisse: prorata.loyer, date_encaissement: today,
+        charges_encaissees: prorata.charges > 0 ? prorata.charges : null,
         notes: sfNoteProrata(prorata)
       }, { onConflict: 'user_id,bien_id,mois,annee' }).select().maybeSingle();
       if (error) throw error;
@@ -3776,22 +3812,48 @@ async function genTestData() {
   await loadBiens(); navigate(currentPage);
 }
 
+/* ⚠️ LE FILTRE `user_id` EST EXPLICITE, ET IL N'EST PAS REDONDANT.
+   Ces deux suppressions s'appuyaient sur la seule RLS — `.delete()` sans
+   condition de compte, `.neq('id', '000…')` pour viser « tout ». La policy
+   `biens_own_delete` les rattrape aujourd'hui, mais c'est exactement la
+   forme qui a rendu la purge base64 dangereuse : une fonction qui ne dit
+   pas de qui elle parle finit par etre appelee la ou la RLS ne s'applique
+   pas. On ecrit le compte, la RLS reste le filet. */
 async function purgeTestData() {
   const n=allBiens.filter(b=>b.is_test).length;
   if(!n){showNotif('Aucune fiche test à supprimer');return;}
-  if(!confirm(`Supprimer les ${n} fiche(s) test ?`))return;
-  const{error}=await db.from('biens').delete().eq('is_test',true);
-  if(error){showNotif('Erreur',true);return;}
-  showNotif(`${n} fiche(s) test supprimée(s)`);
+  if(!currentUser) return;
+  const ok = await sfConfirmer({
+    titre: 'Supprimer les fiches de test',
+    question: `Supprimer ${n} fiche${n>1?'s':''} de test ?`,
+    detail: 'Seules les fiches marquées « TEST » partent. Vos autres biens ne bougent pas.',
+    ok: 'Supprimer', danger: true });
+  if(!ok) return;
+  const{error}=await db.from('biens').delete().eq('is_test',true).eq('user_id',currentUser.id);
+  if(error){showNotif('Erreur : '+error.message,true);return;}
+  showNotif(`${n} fiche${n>1?'s':''} de test supprimée${n>1?'s':''}`);
   await loadBiens();navigate(currentPage);
 }
 
 async function purgeAllData() {
-  if(!confirm(`⚠️ ATTENTION : supprimer TOUTES les ${allBiens.length} fiches ? Cette action est irréversible.`))return;
-  if(!confirm('Dernière confirmation : supprimer définitivement toutes les fiches ?'))return;
-  const{error}=await db.from('biens').delete().neq('id','00000000-0000-0000-0000-000000000000');
-  if(error){showNotif('Erreur',true);return;}
-  showNotif('Toutes les fiches supprimées');
+  const n = allBiens.length;
+  if(!n){showNotif('Aucun bien à supprimer');return;}
+  if(!currentUser) return;
+  /* UNE SEULE fenetre, la ou il y en avait deux. Deux boites natives vagues
+     protegent moins qu'une fenetre qui DIT ce qui part et ce qui reste —
+     et la seconde, « Derniere confirmation », n'apprenait rien de neuf. */
+  const ok = await sfConfirmer({
+    titre: 'Supprimer tous vos biens',
+    question: `Supprimer définitivement vos ${n} fiche${n>1?'s':''} de bien ?`,
+    detail: 'Leurs <strong>loyers, charges et actions</strong> partent avec elles. '
+          + 'Vos <strong>locataires, comptes rendus et simulations sont conservés</strong>, '
+          + 'mais ils ne seront plus rattachés à aucun bien.<br><br>'
+          + 'Cette action est <strong>irréversible</strong>.',
+    ok: 'Tout supprimer', danger: true });
+  if(!ok) return;
+  const{error}=await db.from('biens').delete().eq('user_id',currentUser.id);
+  if(error){showNotif('Erreur : '+error.message,true);return;}
+  showNotif(`${n} fiche${n>1?'s':''} supprimée${n>1?'s':''}`);
   await loadBiens();navigate(currentPage);
 }
 
@@ -6247,24 +6309,36 @@ function paramsAproposHtml() {
     </div>`;
 }
 
+/* ⚠️ LES OUTILS DE DONNEES DE TEST NE SONT PLUS ICI — 27/09/2026.
+   « Generer des fiches tests (5) » et son pendant vivaient dans cette
+   section, dont la famille « Donnees & gestion » n'est PAS `adminOnly` :
+   tout utilisateur les voyait. Un testeur curieux cliquait, recuperait cinq
+   biens factices dont trois « Achete », et TOUS ses indicateurs devenaient
+   faux — `is_test` ne peint qu'un ruban, il n'exclut ces biens d'aucun
+   calcul. Ils sont desormais dans Parametres > Maintenance, section
+   reservee aux administrateurs.
+   Cette section ne garde que ce qu'un utilisateur vient y chercher : la
+   suppression de SES donnees, dans une zone qui s'annonce comme dangereuse. */
 function paramsDonneesHtml() {
   return `
     <div class="params-section-title">${sfIcon('data',20)} Données</div>
-    <div class="params-section-sub">Gérez vos données de test.</div>
-    <div class="params-card">
-      <div class="params-card-title">Fiches de test</div>
-      <div class="settings-action" onclick="genTestData()">${sfAccIcon('boite',15)} Générer des fiches tests (5)</div>
-      <div class="settings-action" onclick="purgeTestData()">${sfAccIcon('poubelle',15)} Supprimer les fiches tests</div>
-    </div>
+    <div class="params-section-sub">Exporter ou effacer vos données.</div>
     <div class="params-danger">
       <div class="params-danger-header">${sfAccIcon('alerte',15)} Zone de danger</div>
       <div class="params-danger-body">
         <div class="params-danger-row">
           <div>
-            <div class="pdr-label">Supprimer toutes les fiches</div>
-            <div class="pdr-sub">Efface définitivement tous vos biens. Action irréversible.</div>
+            <div class="pdr-label">Supprimer tous vos biens</div>
+            <div class="pdr-sub">Efface vos fiches de bien, et avec elles leurs loyers, charges et actions. Vos locataires, comptes rendus et simulations sont conservés, mais ils ne sont plus rattachés à aucun bien. Irréversible.</div>
           </div>
-          <button class="btn-danger-outline" onclick="purgeAllData()">Supprimer tout</button>
+          <button class="btn-danger-outline" onclick="purgeAllData()">Supprimer</button>
+        </div>
+        <div class="params-danger-row">
+          <div>
+            <div class="pdr-label">Supprimer vos données d'administration</div>
+            <div class="pdr-sub">Efface vos SCI, contacts, échéances et bilans. Vos biens sont conservés, mais ceux qui étaient détenus par une SCI repassent en « mode de détention à renseigner ». Irréversible.</div>
+          </div>
+          <button class="btn-danger-outline" onclick="purgeAllAdminData()">Supprimer</button>
         </div>
       </div>
     </div>`;
@@ -6295,6 +6369,19 @@ function paramsMaintenanceHtml() {
       </div>
       <button id="ti-migration-btn" class="btn btn-primary" style="width:100%;font-size:13px" onclick="tiMigrateToStorage()">🔄 Lancer la migration base64 → Storage</button>
       <div id="ti-migration-log" style="display:none;margin-top:10px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:10px;font-size:11px;font-family:monospace;max-height:200px;overflow-y:auto;line-height:1.6"></div>
+    </div>
+
+    <div class="params-card">
+      <div class="params-card-title">Données de démonstration</div>
+      <div style="font-size:12px;color:var(--c-muted);line-height:1.5;margin-bottom:10px">
+        Jeux de données factices, pour éprouver les écrans sans saisie. Elles
+        portent la mention « TEST » et n'existent que dans votre compte.
+        ⚠️ Elles entrent dans tous les calculs comme de vraies données.
+      </div>
+      <div class="settings-action" onclick="genTestData()">${sfAccIcon('boite',15)} Générer 5 fiches de bien</div>
+      <div class="settings-action" onclick="purgeTestData()">${sfAccIcon('poubelle',15)} Supprimer les fiches de test</div>
+      <div class="settings-action" onclick="genAdminTestData()">${sfAccIcon('boite',15)} Générer une SCI, des contacts et des échéances</div>
+      <div class="settings-action" onclick="purgeAdminTestData()">${sfAccIcon('poubelle',15)} Supprimer ces données d'administration de test</div>
     </div>`;
 }
 
@@ -6806,10 +6893,10 @@ function mfLoyersNonSoldes(annee, bienId) {
       const etat = sfLoyerEtat(l, m, annee, loc);
       const manquante = etat === 'none' && !!loc;     // échéance due, ligne jamais créée
       if (etat !== 'ko' && etat !== 'part' && !manquante) continue;
-      const du = l ? (parseFloat(l.loyer_du) || 0)
+      const du = l ? sfDuEtEncaisse(l).du
                    : mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, m, annee,
                                     loc.date_entree, loc.date_sortie).montant;
-      const enc = l ? (parseFloat(l.montant_encaisse) || 0) : 0;
+      const enc = l ? sfDuEtEncaisse(l).encaisse : 0;
       if (du <= enc) continue;
       out.push({ ligne: l || null, bien, locataire: loc, mois: m,
                  reste: du - enc, etat: manquante ? 'ko' : etat, sansLigne: !l });
@@ -8055,12 +8142,14 @@ async function mfQuickToggleLoyer(cellEl, loyerId) {
 
   let newPatch;
   if(l.statut === 'Payé') {
-    // Annule : remet en attente
-    newPatch = { statut: 'En attente', montant_encaisse: null, date_encaissement: null };
+    // Annule : remet en attente — les DEUX montants repartent, sinon des
+    // charges encaissées survivraient au loyer qui les portait.
+    newPatch = { statut: 'En attente', montant_encaisse: null, charges_encaissees: null, date_encaissement: null };
   } else if(l.statut === 'En attente') {
     // Marque payé intégralement (montant prévu)
     const today = new Date().toISOString().slice(0,10);
-    newPatch = { statut: 'Payé', montant_encaisse: l.loyer_du, date_encaissement: today };
+    newPatch = { statut: 'Payé', montant_encaisse: l.loyer_du, date_encaissement: today,
+                 charges_encaissees: (parseFloat(l.charges_dues) || 0) > 0 ? l.charges_dues : null };
   } else {
     // Partiel/Impayé/En retard : ouvre le popup pour gestion fine (pas de toggle direct)
     mfOpenEncaissementPopup({clientX: 0, clientY: 0, target: cellEl}, l.bien_id, l.mois, l.annee);
@@ -8171,10 +8260,23 @@ function mfOpenEncaissementPopup(event, bienId, mois, annee) {
   // Si pas de ligne loyer, on en crée une virtuelle (montant prorata)
   const prorata = loc ? mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, mois, annee, loc.date_entree, loc.date_sortie) : { montant: 0 };
   const montantDu = l ? parseFloat(l.loyer_du) : prorata.montant;
+  /* ⚠️ LES CHARGES SE SAISISSENT DEPUIS LE 27/09/2026, et c'est le correctif
+     du défaut le plus gênant de la plateforme. Avant, « Payé intégralement »
+     soldait le LOYER SEUL et « Partiel » refusait tout montant supérieur au
+     loyer : un locataire qui vire 850 € (700 de loyer, 150 de charges) ne
+     pouvait être saisi PAR AUCUN CHEMIN. L'application disait que la somme
+     était trop grande, puis en enregistrait une plus petite. */
+  const chargesDuesAff = l ? (parseFloat(l.charges_dues) || 0)
+                           : (loc ? (sfProrataBail(loc, mois, annee).charges || 0) : 0);
+  const totalDu = montantDu + chargesDuesAff;
   const statutActuel = l?.statut || 'En attente';
   const today = new Date().toISOString().slice(0,10);
   const dateEnc = l?.date_encaissement || today;
   const montantEnc = l?.montant_encaisse != null ? l.montant_encaisse : montantDu;
+  /* Pré-rempli avec ce qui est DÛ, jamais avec un zéro : le cas courant est
+     que le locataire a tout réglé. NULL sur une ligne d'avant veut dire
+     « non suivi » — on propose alors le montant dû, pas zéro. */
+  const chargesEnc = l?.charges_encaissees != null ? l.charges_encaissees : chargesDuesAff;
   const notesActuel = l?.notes || '';
 
   // Backdrop + popup
@@ -8202,8 +8304,8 @@ function mfOpenEncaissementPopup(event, bienId, mois, annee) {
   // classe `.opt` sont le CONTRAT de `mfPopupStatutChange` et de
   // `mfPopupConfirm`. Le style change, le contrat ne bouge pas.
   const opts = [
-    ['Payé',      `Payé intégralement — ${sfEur(montantDu)}`],
-    ['Partiel',   'Partiel — saisir le montant'],
+    ['Payé',      `Payé intégralement — ${sfEur(totalDu)}`],
+    ['Partiel',   'Partiel — saisir les montants reçus'],
     ['En retard', 'En retard — toujours dû'],
     ['Impayé',    'Impayé définitif'],
   ];
@@ -8217,6 +8319,7 @@ function mfOpenEncaissementPopup(event, bienId, mois, annee) {
       <p class="mfx-prorata">
         ${sfAccIcon('balance', 15)}
         <span>${esc(bien?.titre || 'Bien')} · loyer dû <b>${sfEur(montantDu)}</b>${
+          chargesDuesAff > 0 ? ` + charges <b>${sfEur(chargesDuesAff)}</b> = <b>${sfEur(totalDu)}</b>` : ''}${
           /* ⚠️ C'est LE moment où le mot se rencontre : le bailleur voit un
              montant qui n'est pas celui de son bail, et se demande pourquoi.
              L'explication doit être à portée de doigt, pas dans une page
@@ -8229,9 +8332,15 @@ function mfOpenEncaissementPopup(event, bienId, mois, annee) {
           <span class="mfx-opt__r"></span>${lab}
         </label>`).join('')}
       <div class="mfx-champ" id="enc-montant-row" style="${statutActuel === 'Partiel' ? '' : 'display:none'}">
-        <label for="enc-montant">Montant encaissé</label>
-        <input type="number" id="enc-montant" value="${esc(montantEnc)}" min="0" max="${esc(montantDu)}" step="1" inputmode="numeric">
+        <label for="enc-montant">Loyer encaissé</label>
+        <input type="number" id="enc-montant" value="${esc(montantEnc)}" min="0" step="1" inputmode="numeric" oninput="mfPopupTotalChange()">
       </div>
+      ${chargesDuesAff > 0 ? `
+      <div class="mfx-champ" id="enc-charges-row" style="${statutActuel === 'Partiel' ? '' : 'display:none'}">
+        <label for="enc-charges">Charges encaissées</label>
+        <input type="number" id="enc-charges" value="${esc(chargesEnc)}" min="0" step="1" inputmode="numeric" oninput="mfPopupTotalChange()">
+        <p class="mfx-champ__aide" id="enc-total-aide"></p>
+      </div>` : ''}
       <div class="mfx-champ" id="enc-date-row" style="${(statutActuel === 'Payé' || statutActuel === 'Partiel') ? '' : 'display:none'}">
         <label for="enc-date">Date d'encaissement</label>
         <input type="date" id="enc-date" value="${esc(dateEnc)}">
@@ -8279,9 +8388,22 @@ function mfPopupStatutChange(input) {
 
   const statut = input.value;
   const montantRow = document.getElementById('enc-montant-row');
+  const chargesRow = document.getElementById('enc-charges-row');
   const dateRow = document.getElementById('enc-date-row');
   montantRow.style.display = statut === 'Partiel' ? '' : 'none';
+  if(chargesRow) chargesRow.style.display = statut === 'Partiel' ? '' : 'none';
   dateRow.style.display = (statut === 'Payé' || statut === 'Partiel') ? '' : 'none';
+  if(statut === 'Partiel') mfPopupTotalChange();
+}
+
+/* Le total reçu se dit à mesure qu'on le saisit. Sans ça, le bailleur saisit
+   deux montants et doit les additionner de tête pour vérifier qu'il a bien
+   entré ce que sa banque lui montre. */
+function mfPopupTotalChange() {
+  const aide = document.getElementById('enc-total-aide');
+  if(!aide) return;
+  const nb = id => { const v = parseFloat(document.getElementById(id)?.value); return Number.isFinite(v) ? v : 0; };
+  aide.textContent = 'Total reçu : ' + sfEur(nb('enc-montant') + nb('enc-charges'));
 }
 
 function mfCloseEncaissementPopup() {
@@ -8323,13 +8445,29 @@ async function mfPopupConfirm() {
     if(l) { loyerDu = parseFloat(l.loyer_du) || 0; chargesDues = parseFloat(l.charges_dues) || 0; }
   }
 
-  let montantEnc = null;
-  if(statut === 'Payé') montantEnc = loyerDu;
+  /* ⚠️ « PAYÉ INTÉGRALEMENT » SOLDE LES DEUX LIGNES, loyer ET charges. C'est
+     le correctif du 27/09/2026 : jusque-là il ne soldait que le loyer, et
+     « Partiel » REFUSAIT tout montant supérieur au loyer seul — un virement
+     de 850 € sur 700 de loyer et 150 de charges n'était saisissable par aucun
+     chemin. Le champ « Charges encaissées » n'apparaît que s'il y a des
+     charges dues : sur un bail sans provisions, rien ne change à l'écran. */
+  let montantEnc = null, chargesEnc = null;
+  if(statut === 'Payé') { montantEnc = loyerDu; chargesEnc = chargesDues > 0 ? chargesDues : null; }
   else if(statut === 'Partiel') {
-    const v = parseFloat(document.getElementById('enc-montant')?.value);
-    if(!Number.isFinite(v) || v <= 0) { showNotif('Saisir un montant partiel valide', true); return; }
-    if(v >= loyerDu) { showNotif('Pour ce montant, utilisez "Payé intégralement"', true); return; }
-    montantEnc = v;
+    const lu = id => { const v = parseFloat(document.getElementById(id)?.value); return Number.isFinite(v) ? v : null; };
+    const vL = lu('enc-montant');
+    const vC = chargesDues > 0 ? lu('enc-charges') : null;
+    const total = (vL || 0) + (vC || 0);
+    if(total <= 0) { showNotif('Saisir un montant reçu', true); return; }
+    if((vL != null && vL < 0) || (vC != null && vC < 0)) { showNotif('Un montant reçu ne peut pas être négatif', true); return; }
+    /* ⚠️ ON NE REFUSE PLUS UN MONTANT « TROP GRAND ». Refuser était le défaut :
+       un rattrapage de charges, un loyer réglé avec un arriéré du mois
+       précédent, et le bailleur ne pouvait plus rien saisir. On l'oriente,
+       on ne le bloque pas. */
+    if(total >= loyerDu + chargesDues && loyerDu + chargesDues > 0)
+      showNotif('Ce montant solde le mois — « Payé intégralement » dit la même chose plus simplement');
+    montantEnc = vL != null ? vL : 0;
+    chargesEnc = chargesDues > 0 ? (vC != null ? vC : 0) : null;
   }
 
   try {
@@ -8342,6 +8480,7 @@ async function mfPopupConfirm() {
       charges_dues: chargesDues,
       statut,
       montant_encaisse: montantEnc,
+      charges_encaissees: chargesEnc,
       date_encaissement: dateEnc,
       notes,
     };
@@ -9386,15 +9525,15 @@ function sfResteAEncaisser(loc) {
        SOLDÉE : la lire autrement ferait annoncer une dette que l'alerte du
        dessus, elle, ne compte pas. */
     if (l && sfLoyerEtat(l, mm, an, loc) === 'ok') continue;
-    /* ⚠️ LE LOYER SEUL, PAS LES CHARGES — et ce n'est pas un oubli.
-       `montant_encaisse` solde `loyer_du` partout ailleurs : l'encaissement des
-       charges n'est suivi nulle part dans la plateforme. Les ajouter ici ferait
-       annoncer 490 € encore dus sur CHAQUE mois pourtant payé. Le suivi des
-       charges est un sujet à lui seul, au backlog avec leur prorata. */
-    const du  = l ? (parseFloat(l.loyer_du) || 0)
+    /* ⚠️ LES CHARGES ENTRENT ICI DEPUIS LE 27/09/2026 — mais seulement sur une
+       ligne qui les suit. Le commentaire précédent disait « le loyer seul, et
+       ce n'est pas un oubli » : c'était vrai tant que l'encaissement des
+       charges n'existait nulle part. Il existe. `sfDuEtEncaisse` porte la
+       nuance qui évite l'arriéré fantôme sur les lignes d'avant. */
+    const du  = l ? sfDuEtEncaisse(l).du
                   : mfLoyerProrata(parseFloat(loc.loyer_bail_hc) || 0, mm, an,
                                    loc.date_entree, loc.date_sortie).montant;
-    const enc = l ? (parseFloat(l.montant_encaisse) || 0) : 0;
+    const enc = l ? sfDuEtEncaisse(l).encaisse : 0;
     if (du > enc) reste += du - enc;
   }
   return reste;
@@ -10348,6 +10487,16 @@ async function mfOpenBilanFeedModal(focusAttach) {
 // Agrégats de l'exercice pour les biens d'une SCI (comptabilité de trésorerie :
 // loyers ENCAISSÉS, charges PAYÉES dans l'année, montants réels non lissés,
 // charges récupérables sur le locataire exclues)
+/* ⚠️ CETTE FONCTION NE COMPTE QUE LES LOYERS, ET C'EST DÉLIBÉRÉ — 27/09/2026.
+   L'encaissement des charges existe depuis cette date (`charges_encaissees`),
+   et la tentation est de l'ajouter ici. Ne pas le faire sans trancher la
+   question fiscale qui va avec : cette fonction forme un COUPLE COHÉRENT avec
+   l'exclusion des charges récupérables des déductions, quelques lignes plus
+   bas (`recuperablesExclues`). Faire entrer les provisions en recettes sans
+   cesser d'exclure les charges récupérables SURESTIMERAIT le revenu foncier
+   déclaré. C'est un arbitrage fiscal, il appartient au bailleur, et il n'est
+   pas tranché. Tant qu'il ne l'est pas, les chiffres de la 2044 ne bougent
+   pas d'un euro par rapport à ceux d'avant. */
 function mfBilanFeedCompute(biens, annee) {
   const ids = new Set(biens.map(b => b.id));
   let loyers = 0;
@@ -11483,11 +11632,13 @@ function sfLignesAGenerer(loc, annee, moisDebut, statutPasses) {
       loyer_du:      p.loyer,
       charges_dues:  p.charges,
       statut:        paye ? 'Payé' : 'En attente',
-      /* ⚠️ `montant_encaisse` NE SOLDE QUE LE LOYER, ici comme partout
-         ailleurs dans l'application. C'est une limite connue et documentée,
-         pas un oubli : l'encaissement des charges n'est suivi nulle part, et
-         c'est un arbitrage encore ouvert. */
-      montant_encaisse: paye ? p.loyer : null,
+      /* ⚠️ DEPUIS LE 27/09/2026, UN MOIS DÉCLARÉ PAYÉ SOLDE AUSSI SES CHARGES.
+         Le commentaire d'ici disait le contraire — « l'encaissement des charges
+         n'est suivi nulle part » — et c'était vrai jusqu'à cette date. Le
+         bailleur qui répond « ces loyers étaient payés » parle du virement
+         qu'il a reçu, provisions comprises ; c'est ce qu'on enregistre. */
+      montant_encaisse:   paye ? p.loyer : null,
+      charges_encaissees: paye && p.charges > 0 ? p.charges : null,
       /* ⚠️ ET LA DATE RESTE NULLE, DÉLIBÉRÉMENT. On sait que ces loyers ont
          été encaissés — le bailleur vient de le dire — mais pas QUAND. Écrire
          la date du jour serait un mensonge sur une date comptable ; écrire le
@@ -11606,11 +11757,17 @@ async function renderAdministration(el) {
           <div class="adm-kpi"><div class="adm-kpi-val" id="adm-k-contacts">—</div><div class="adm-kpi-lab">Contacts</div></div>
           <div class="adm-kpi"><div class="adm-kpi-val" id="adm-k-ech">—</div><div class="adm-kpi-lab">Échéances</div></div>
         </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-          <button onclick="genAdminTestData()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;">🧪 Générer tests</button>
-          <button onclick="purgeAdminTestData()" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.75);border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;">🧹 Supprimer tests</button>
-          <button onclick="purgeAllAdminData()" style="background:rgba(220,38,38,0.3);border:1px solid rgba(220,38,38,0.5);color:var(--sf-loss);border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;">🗑 Tout supprimer</button>
-        </div>
+        <!-- ⚠️ TROIS BOUTONS ONT QUITTE CET EN-TETE le 27/09/2026, et il ne faut
+             pas les y remettre. « Generer tests », « Supprimer tests » et
+             « Tout supprimer » etaient visibles de TOUT utilisateur, sans
+             garde de role, a cote des indicateurs — deux clics entre un
+             nouveau venu et la perte de ses SCI, contacts, echeances et
+             bilans. Meme famille que la purge base64 retiree le 05/09.
+             Les outils de donnees de test vivent desormais dans
+             Parametres > Maintenance, qui est reserve aux administrateurs ;
+             la suppression totale vit dans la Zone de danger de
+             Parametres > Donnees, ou l'utilisateur va quand il CHERCHE a
+             effacer, pas quand il consulte ses SCI. -->
       </div>
     </div>
 
@@ -13318,7 +13475,14 @@ async function genAdminTestData() {
 }
 
 async function purgeAdminTestData() {
-  if (!currentUser || !confirm('Supprimer les données de test du module Administration ?')) return;
+  if (!currentUser) return;
+  const ok = await sfConfirmer({
+    titre: 'Supprimer les données d\'administration de test',
+    question: 'Supprimer les SCI, contacts et échéances marqués « test » ?',
+    detail: 'Les biens rattachés à ces SCI sont conservés, mais leur mode de '
+          + 'détention repassera en « à renseigner ».',
+    ok: 'Supprimer', danger: true });
+  if (!ok) return;
   try {
     /* Les biens de ces SCI d'abord — voir `sciDetacherBiens`. On relit les SCI
        visées avec EXACTEMENT la condition de la suppression, plutôt que de se
@@ -13337,7 +13501,40 @@ async function purgeAdminTestData() {
 }
 
 async function purgeAllAdminData() {
-  if (!currentUser || !confirm('⚠️ Supprimer TOUTES les données d\'administration (SCI, contacts, échéances, bilans) ? Cette action est irréversible.')) return;
+  if (!currentUser) return;
+  /* ⚠️ ON COMPTE LES SCI EN BASE, PAS DANS `allSCI`. Ce cache n'est rempli
+     que par `loadAdminData()`, donc seulement si l'utilisateur est passé par
+     l'écran Administration. Depuis le 27/09 ce bouton vit aussi dans
+     Paramètres > Données, où l'on peut arriver sans y être passé : lire le
+     cache annoncerait « 0 SCI » à quelqu'un qui en a trois, juste avant de
+     les supprimer. Une fenêtre de confirmation qui ment sur ce qu'elle
+     s'apprête à effacer est pire que pas de fenêtre du tout. */
+  const compter = async (table) => {
+    try {
+      const { count } = await db.from(table)
+        .select('id', { count: 'exact', head: true }).eq('user_id', currentUser.id);
+      return typeof count === 'number' ? count : null;
+    } catch(e) { return null; }
+  };
+  const [nSci, nContacts, nEch, nBilans] =
+    await Promise.all(['sci','contacts','sci_echeances','bilans_comptables'].map(compter));
+  /* Le compte rendu « rien à supprimer » ne se prononce que si les QUATRE
+     comptes sont connus et nuls. Un `null` veut dire « je n'ai pas pu
+     compter » — et on ne conclut pas d'une lecture ratée qu'il n'y a rien. */
+  const tous = [nSci, nContacts, nEch, nBilans];
+  if (tous.every(n => n === 0)) { showNotif('Aucune donnée d\'administration à supprimer'); return; }
+  const rattaches = allBiens.filter(b => b.sci_id).length;
+  const ok = await sfConfirmer({
+    titre: 'Supprimer vos données d\'administration',
+    question: 'Supprimer définitivement vos SCI, contacts, échéances et bilans ?',
+    detail: (nSci ? `<strong>${nSci} SCI</strong> et tout ce qui s'y rattache — documents, échéances, bilans comptables.<br><br>`
+                  : 'Vos SCI et tout ce qui s\'y rattache — documents, échéances, bilans comptables.<br><br>')
+          + (rattaches ? `Vos <strong>${rattaches} bien${rattaches>1?'s':''}</strong> détenu${rattaches>1?'s':''} par une SCI `
+                       + `${rattaches>1?'sont conservés':'est conservé'}, mais ${rattaches>1?'repassent':'repasse'} en `
+                       + '« mode de détention à renseigner ».<br><br>' : '')
+          + 'Cette action est <strong>irréversible</strong>.',
+    ok: 'Tout supprimer', danger: true });
+  if (!ok) return;
   try {
     await Promise.all([
       db.from('bilans_comptables').delete().eq('user_id', currentUser.id),

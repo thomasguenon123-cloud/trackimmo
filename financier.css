@@ -728,3 +728,9 @@
   .sfx-fin__a{ width:100%; flex-direction:row; }
   .sfx-fin__a .sf-btn{ flex:1; justify-content:center; }
 }
+
+/* L'aide sous un champ de saisie — le total reçu qui s'affiche à mesure qu'on
+   saisit loyer et charges dans la fenêtre d'encaissement. Discrète : elle
+   confirme un calcul, elle ne réclame rien. */
+.mfx-champ__aide{ margin:var(--sf-space-3) 0 0; font-size:var(--sf-font-label);
+                  color:var(--sf-text-2); font-variant-numeric:tabular-nums; }
