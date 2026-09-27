@@ -243,6 +243,92 @@ def entete(nom, g):
 -->"""
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  VERSION COMPACTE — celle qu'on colle réellement dans Supabase
+#
+#  ⚠️ L'ÉDITEUR DE SUPABASE NE GARDE PAS UN DOCUMENT TROP LONG. Constaté le
+#  27/09/2026 sur `invite-user` : 211 lignes collées, l'éditeur s'arrête à 100.
+#  Un document tronqué au milieu d'un tableau ne peut évidemment plus
+#  s'afficher — c'est la meilleure explication de l'aperçu resté blanc.
+#
+#  D'où deux sorties par gabarit :
+#    · `<nom>.html`     — lisible, commenté, C'EST LA SOURCE. Elle vit au
+#                         dépôt et sert à comprendre et à modifier.
+#    · `<nom>.min.html` — la même page, sans un octet de documentation.
+#                         C'est CELLE-CI qu'on colle.
+#
+#  ⚠️ CE N'EST PAS UNE MINIFICATION AVEUGLE. Les commentaires conditionnels
+#  d'Outlook (`<!--[if mso]>`, `<!--[if !mso]><!-- -->`, `<!--<![endif]-->`)
+#  SONT DU CODE, pas des commentaires : les retirer casse le bouton VML et le
+#  cadre fantôme. Ils sont mis à l'abri avant le nettoyage, puis remis.
+#  Le piège est réel : le motif `<!--[if !mso]><!-- -->` contient un `<!--`
+#  interne qu'un nettoyeur naïf prend pour le début d'un vrai commentaire.
+
+GARDES = ['<!--[if !mso]><!-- -->', '<!--<![endif]-->']
+
+
+def compacter(html):
+    # 1. l'en-tête de documentation ne part pas dans Supabase : il vit au dépôt
+    html = html[html.find('<!DOCTYPE'):]
+
+    # 2. mettre les conditionnels à l'abri — les littéraux D'ABORD, sinon le
+    #    motif englobant avalerait tout jusqu'au `<![endif]-->` suivant
+    abri = []
+    for litteral in GARDES:
+        while litteral in html:
+            html = html.replace(litteral, '\x00%d\x00' % len(abri), 1)
+            abri.append(litteral)
+    def garder(m):
+        abri.append(m.group(0))
+        return '\x00%d\x00' % (len(abri) - 1)
+    html = re.sub(r'<!--\[if[\s\S]*?<!\[endif\]-->', garder, html)
+
+    # 3. les vrais commentaires partent
+    html = re.sub(r'<!--[\s\S]*?-->', '', html)
+
+    # 4. le CSS se resserre : les règles de base sur une ligne, puis une ligne
+    #    par requête média — ce sont les trois blocs qu'on relit vraiment.
+    def css(m):
+        corps = re.sub(r'/\*[\s\S]*?\*/', '', m.group(1))
+        corps = re.sub(r'\s+', ' ', corps).strip()
+        corps = re.sub(r'(@media[^{]*\{)', r'\n\1', corps)
+        corps = re.sub(r'\}\s*\}', '} }', corps)
+        return '<style type="text/css">\n' + corps.strip() + '\n</style>'
+    html = re.sub(r'<style type="text/css">([\s\S]*?)</style>', css, html)
+
+    # 5. une balise par ligne, sans indentation ni ligne vide. On ne touche
+    #    JAMAIS au texte entre deux balises : y coller les lignes changerait
+    #    les espaces que le lecteur verra.
+    html = re.sub(r'>\s*\n\s*<', '>\n<', html)
+    html = re.sub(r'\n[ \t]+', '\n', html)
+    html = re.sub(r'\n{2,}', '\n', html)
+
+    # 6. recoller les lignes voisines TANT QUE la précédente finit par `>` et
+    #    que la suivante commence par `<`. C'est la même garantie qu'à l'étape
+    #    5, appliquée plus loin : on ne touche jamais au texte, seulement à
+    #    l'espace entre deux balises, qui n'a aucun effet en HTML de tableau.
+    #    Le plafond de largeur garde des lignes qu'un humain peut encore
+    #    parcourir dans l'éditeur de Supabase.
+    LARGEUR = 260
+    sortie = []
+    for ligne in html.split('\n'):
+        if (sortie and sortie[-1].endswith('>') and ligne.startswith('<')
+                and len(sortie[-1]) + len(ligne) <= LARGEUR
+                and not sortie[-1].lstrip().startswith('@media')):
+            sortie[-1] += ligne
+        else:
+            sortie.append(ligne)
+    html = '\n'.join(sortie)
+
+    # 7. remettre les conditionnels, isolés sur leur ligne : ce sont les seuls
+    #    endroits où une erreur de collage ne se verrait pas à l'œil.
+    for i, bloc in enumerate(abri):
+        html = html.replace('\x00%d\x00' % i,
+                            '\n' + re.sub(r'\s*\n\s*', ' ', bloc) + '\n')
+    html = re.sub(r'\n{2,}', '\n', html)
+    return html.strip() + '\n'
+
+
 def construire():
     layout = io.open(os.path.join(RACINE, 'layout.html'), encoding='utf-8').read()
     faits = []
@@ -272,16 +358,38 @@ def construire():
         restants = re.findall(r'\[\[[A-Z_]+\]\]', page)
         assert not restants, f'{nom} : marqueurs non remplacés {restants}'
 
-        chemin = os.path.join(RACINE, nom + '.html')
-        io.open(chemin, 'w', encoding='utf-8').write(page)
-        faits.append((nom, len(page.encode()), g['objet']))
+        io.open(os.path.join(RACINE, nom + '.html'), 'w', encoding='utf-8').write(page)
+
+        mini = compacter(page)
+        io.open(os.path.join(RACINE, nom + '.min.html'), 'w', encoding='utf-8').write(mini)
+
+        # Les conditionnels d'Outlook doivent avoir survécu au nettoyage.
+        for garde in GARDES:
+            if garde in page:
+                assert garde in mini, f'{nom} : « {garde} » perdu à la compaction'
+        assert page.count('<!--[if mso]>') == mini.count('<!--[if mso]>'), \
+            f'{nom} : un bloc Outlook a disparu'
+        # Et la structure doit etre rigoureusement la meme, commentaires exclus
+        # des deux cotes — sinon on comparerait un fichier commente a un autre
+        # qui ne l'est plus.
+        nu = lambda t: re.sub(r'<!--[\s\S]*?-->', '', t)
+        for balise in ('<table', '</table>', '<tr', '</tr>', '<td', '</td>',
+                       '{{', '}}', '<a href', '<style'):
+            a, b = nu(page).count(balise), nu(mini).count(balise)
+            assert a == b, f'{nom} : « {balise} » {a} -> {b} a la compaction'
+
+        faits.append((nom, len(page.encode()), page.count(chr(10)) + 1,
+                      len(mini.encode()), mini.count(chr(10)) + 1, g['objet']))
     return faits
 
 
 if __name__ == '__main__':
-    print('%-22s %8s  %s' % ('GABARIT', 'OCTETS', 'OBJET'))
-    print('-' * 78)
-    for nom, taille, objet in construire():
-        print('%-22s %8d  %s' % (nom + '.html', taille, objet))
-    print('-' * 78)
-    print("Limite de rognage Gmail : 102 400 octets.")
+    print('%-20s %18s %20s   %s' % ('GABARIT', 'source (dépôt)', 'compact (à coller)', 'OBJET'))
+    print('-' * 108)
+    pire = 0
+    for nom, oS, lS, oM, lM, objet in construire():
+        pire = max(pire, lM)
+        print('%-20s %8d o %4d l %10d o %4d l   %s' % (nom, oS, lS, oM, lM, objet))
+    print('-' * 108)
+    print('Le plus long en compact : %d lignes.' % pire)
+    print("Coller les fichiers .min.html — l'éditeur de Supabase tronque au-delà de 100 lignes.")
