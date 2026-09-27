@@ -136,7 +136,39 @@ l'empêche d'être fait par réflexe.
 
 ---
 
-## Ce qu'il te reste à faire — dans cet ordre
+## Ce qu'il te reste à faire
+
+### ✅ 1️⃣ La migration SQL — **JOUÉE le 27/09, vérifiée en lecture**
+
+| Contrôle | Résultat |
+|---|---|
+| `charges_encaissees` | `numeric`, nullable ✓ |
+| `loyers_charges_encaissees_positives` | `CHECK (IS NULL OR >= 0)` ✓ |
+| Commentaire de colonne | posé ✓ |
+| Lignes modifiées | **0 sur 28** ✓ |
+
+La v=89 est en production (`e1dfe80`).
+
+### ✅ 2️⃣ `admin-invite-user` — **REDÉPLOYÉE le 27/09, version 6**
+
+Déployée depuis `supabase/functions/admin-invite-user/index.ts`, puis relue
+depuis le serveur : le seul `status:` du profil vaut `'active'`, `verify_jwt`
+reste à `true`, l'`import_map` est conservé. Le mot `pending` n'apparaît plus
+que dans le commentaire qui explique le défaut.
+
+Ton ami ne verra donc plus l'écran « en attente de validation » : il cliquera,
+choisira son mot de passe, et entrera directement.
+
+---
+
+### 3️⃣ Renommer les gabarits d'e-mails — **il te reste ça**
+
+*(Le détail est plus bas. C'est la dernière chose avant l'invitation.)*
+
+---
+
+<details>
+<summary>Les étapes détaillées, pour référence</summary>
 
 ### 1️⃣ Jouer la migration SQL *(3 minutes)*
 
@@ -167,7 +199,7 @@ dans les commentaires, et la ligne du profil doit être `status: 'active',`.
 *Si tu préfères, je peux le déployer moi-même — dis-le-moi, je ne le fais pas
 sans ton accord.*
 
-### 3️⃣ Renommer les gabarits d'e-mails *(10 minutes)*
+### 3️⃣ Renommer les gabarits d'e-mails *(10 minutes)* ← **à faire**
 
 Supabase → **Authentication** → **Emails** (ou *Email Templates*).
 
@@ -192,6 +224,8 @@ porter l'ancien nom.
   compromis (elle est désactivée, l'advisor Supabase la signale).
 - Rien d'autre : les 17 tables ont leur RLS, les sept buckets de données
   personnelles sont privés.
+
+</details>
 
 ---
 

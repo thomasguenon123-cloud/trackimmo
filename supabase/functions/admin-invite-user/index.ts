@@ -15,7 +15,7 @@
 // ⚠️ CE FICHIER EST LA SOURCE DE VÉRITÉ depuis le 27/09/2026. Les trois Edge
 //    Functions du projet vivaient uniquement dans la console Supabase : rien
 //    dans le dépôt, aucun historique, aucune revue possible. Toute
-//    modification se fait ici, puis se déploie.
+//    modification se fait dans supabase/functions/, puis se déploie.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
