@@ -3,6 +3,11 @@
 *Écrit le 05/09/2026, avant le test d'un bailleur extérieur. Tous les chiffres
 de ce document sont mesurés sur le code et la base du jour, jamais estimés.*
 
+*Tenu à jour depuis. Le constat du §1 reste écrit au présent de l'époque — c'est
+l'état d'avant le chantier, il ne faut pas le corriger sous peine de perdre la
+raison des décisions. Ce qui a changé depuis est signalé sur place par un
+**Depuis**, et le §7 dit l'état livré du jour.*
+
 ---
 
 ## 0. Ce qu'on cherche à obtenir
@@ -43,8 +48,17 @@ tout ». Un compte neuf lit donc :
 Et, plus bas : *« Tout est à jour — vous pouvez prospecter l'esprit tranquille. »*
 
 Deux phrases fausses, à l'endroit exact où devrait se trouver la seule utile :
-par quoi commencer. Le prénom lui-même est absent si le profil ne le porte pas —
-« Bonjour » tout court.
+par quoi commencer. Le prénom lui-même est absent : l'accueil dit « Bonjour »
+tout court.
+
+> **Depuis — v=88, 27/09/2026 : le diagnostic ci-dessus était juste sur le
+> symptôme et faux sur la cause.** Le prénom n'était pas absent du profil : il y
+> est, saisi à la création du compte, et les **deux** comptes de la base le
+> portent. Le code lisait `currentProfile.prenom` quand `get_my_profile()` rend
+> `row_to_json(p)`, donc les noms de colonnes : `first_name` / `last_name`.
+> **Trois lectures, à deux endroits** (le bandeau et l'accueil), valaient donc
+> `undefined` depuis toujours, en silence. Corrigé par un composeur unique,
+> `sfProfilNom`. Rien n'a été ajouté à la base.
 
 ### 1.3 Les autres écrans sont corrects, mais muets sur l'ordre des choses
 
@@ -67,6 +81,12 @@ le point d'entrée est « Ajouter un bien », dans un autre menu.
 Un seul point d'entrée dans toute l'application : un bouton « Relancer » dans
 À propos, dont le gestionnaire est `showNotif('Tutoriel : bientôt disponible')`.
 Une promesse tenue par une notification.
+
+> **Depuis — v=88, 27/09/2026 :** le bouton est retiré. Il n'y a plus de
+> tutoriel à relancer : le parcours de démarrage (§7, chantier 4) réapparaît
+> seul tant qu'un geste manque. La ligne d'À propos le dit et renvoie au tableau
+> de bord. L'aide elle-même n'est plus là : elle est dans le parcours et dans le
+> lexique au point d'usage (chantier 5).
 
 ---
 
@@ -216,19 +236,22 @@ d'abord — sinon il conduit poliment le testeur dans le mur :
 | 3 | La question des loyers passés | ✅ v=85 |
 | 4 | Le parcours de démarrage sur le tableau de bord | ✅ v=86 |
 | 5 | Le lexique au point d'usage | ✅ v=87 |
+| 6 | Le prénom à l'accueil + retrait du bouton « Relancer » | ✅ v=88 |
 
-Le socle de tests est passé de 100 à **156 cas**, toutes les gardes validées
+Le socle de tests est passé de 100 à **162 cas**, toutes les gardes validées
 par mutation.
 
-⚠️ **Deux points du périmètre initial n'ont PAS été faits**, et il faut le
-dire plutôt que de les laisser croire livrés :
+Les deux points restés en suspens au 19/09 — le prénom et le bouton
+« Relancer » — ont été soldés le 27/09 en v=88. **Le périmètre est clos.**
 
-- **le prénom** n'est toujours pas demandé — l'accueil dit « Bonjour » tout
-  court quand le profil ne le porte pas ;
-- **le bouton « Relancer »** d'À propos répond encore « Tutoriel : bientôt
-  disponible ». Le parcours de démarrage le rend d'ailleurs discutable : il
-  n'y a plus de tutoriel à relancer, il y a un parcours qui réapparaît seul.
-  Le bouton devrait sans doute partir.
+Il reste une chose à dire sur le prénom, parce qu'elle change la leçon : on a
+d'abord cru qu'il fallait le demander à l'utilisateur. Il était déjà en base.
+Le défaut était une lecture au mauvais nom de champ, invisible parce qu'elle
+rendait `undefined` sans jamais lever d'erreur, chaque lecture retombant sur
+son repli : « Bonjour » tout court à l'accueil, une initiale d'avatar au lieu de
+deux (« T », la première lettre de l'e-mail, au lieu de « TG »), et l'adresse
+e-mail à la place du nom dans le menu du compte. Aucun champ à ajouter, aucune
+question à poser : une source unique à écrire.
 
 **Hors périmètre**
 
@@ -282,8 +305,15 @@ déclenche un zoom que l'utilisateur doit défaire à la main.
 
 C'est le défaut qui rendra la saisie pénible sans que personne ne sache le
 nommer — on croira l'application « mal fichue sur tablette ». Correctif : porter
-les contrôles de saisie à `16px` sur pointeur grossier, via
-`@media (pointer: coarse)`, sans toucher au reste de la typographie.
+les contrôles de saisie à `16px` sur pointeur grossier, sans toucher au reste de
+la typographie.
+
+> **Depuis — v=83 :** livré dans `tactile.css` sous `@media (any-pointer:
+> coarse)`, et non `(pointer: coarse)` comme écrit ici d'abord. `any-pointer`
+> répond vrai dès qu'**un** moyen de pointage grossier existe, même si un autre
+> est fin — c'est exactement le cas de l'iPad Pro avec clavier et trackpad, où
+> `pointer: coarse` aurait pu rendre faux et laisser le zoom en place. Le seuil
+> plus large est délibéré.
 
 ### 9.2 Les actions révélées au survol
 
@@ -295,8 +325,13 @@ quotidien :
 - `.mfx-charge:hover .mfx-charge__a` — les actions d'une **charge**.
 
 **Il n'y a pas de survol au doigt.** Safari émule un premier survol au premier
-tap, ce qui transforme l'action en double-tap — quand ça marche. Correctif :
-sous `@media (hover: none)`, ces actions deviennent visibles en permanence.
+tap, ce qui transforme l'action en double-tap — quand ça marche. Correctif : ces
+actions deviennent visibles en permanence.
+
+> **Depuis — v=83 :** livré sous `@media (any-hover: none), (any-pointer:
+> coarse)`, pour la même raison qu'en §9.1 : sur un iPad avec trackpad, le
+> survol *existe*, et une règle en `hover: none` seule n'aurait jamais
+> déclenché.
 
 Le dépôt l'avait déjà compris ailleurs — la barre d'actions groupées porte le
 commentaire *« des actions qui ne se révèlent qu'au survol sont invisibles au
