@@ -1,11 +1,26 @@
 /* PLUS D'EMOJI DANS CE QUI S'AFFICHE — la garde qui empêche la troisième fois.
 
-   ⚠️ POURQUOI ELLE EXISTE. Le lot a été compté trois fois et mal compté deux
-   fois : « 209 dont 59 flèches » au backlog, « 228 » un matin, 198 en réalité.
-   Le premier chiffre comptait des flèches de commentaires ; le second comptait
-   les SÉLECTEURS DE VARIATION — ces caractères invisibles qui suivent un
-   emoji et qu'un scanner naïf additionne. Un inventaire faux sur un lot qu'on
-   veut traiter « d'un coup » se paie au moment de la reprise.
+   ⚠️ POURQUOI ELLE EXISTE — ET POURQUOI UN CHIFFRE NE VAUT QUE PAR SA MÉTHODE.
+   Ce lot a été compté quatre fois et mal compté trois fois : « 209 dont 59
+   flèches » au backlog, « 228 » un matin, « 198 » dans le message du commit
+   qui l'a livré. Aucun des trois n'était juste. Les causes, chacune
+   instructive : le premier comptait des flèches de COMMENTAIRES ; le deuxième
+   comptait les SÉLECTEURS DE VARIATION — ces caractères invisibles qui suivent
+   un emoji et qu'un scanner naïf additionne ; le troisième confondait le
+   nombre d'OCCURRENCES avec le nombre de LIGNES touchées.
+
+   LE SEUL CHIFFRE QUI COMPTE EST CELUI QUE CETTE GARDE PRODUIT, parce qu'elle
+   seule applique la plage, le masquage et les tolérances au même moment.
+   Mesuré ainsi sur la révision d'avant la conversion (7cfba3e) :
+     · 234 occurrences, sur 201 lignes, 77 caractères distincts ;
+     · répartis en app.js 220, index.html 12, 404.html 1, styles.css 1 ;
+     · les plus fréquents : ✓ 29×, ⚠ 17×, ✕ 13×, 📄 13×, ✅ 8×, ⏳ 8×.
+   Et sur la révision livrée : zéro. Le jeu d'icônes est passé de 50 à 68
+   dessins, et `sfAccIcon` de 190 à 319 appels.
+
+   La leçon tient en une phrase : un inventaire faux sur un lot qu'on veut
+   traiter « d'un coup » se paie au moment de la reprise — et un chiffre publié
+   sans le code qui le produit se paie une deuxième fois.
 
    Ce que la garde tient, et qu'aucune relecture ne tiendra :
      · un emoji tombe en POLICE SYSTÈME. Son dessin dépend de l'OS, pas de la
