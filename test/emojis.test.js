@@ -46,15 +46,28 @@ const PICTO = /[℀-⅏←-⇿⌀-⏿■-◿☀-➿⤀-⯿\u{1F000}-\u{1FAFF}]/u
 /* Masque les commentaires EN PRÉSERVANT les sauts de ligne — sinon les
    numéros de ligne de ce qui reste ne veulent plus rien dire.
 
-   ⚠️ CE N'EST PAS UNE AFFAIRE D'EXPRESSION RÉGULIÈRE, et le premier jet de ce
-   fichier l'a appris à ses dépens. Il cherchait le motif d'ouverture de
-   commentaire de bloc n'importe où — y compris à l'intérieur d'une CHAÎNE.
-   `accept="image/*"` en contient un. La garde considérait donc tout ce qui
-   suivait comme du commentaire : 3 396 lignes d'app.js, 22 % du fichier,
-   invisibles. Elle passait au vert avec des emojis dedans.
+   ⚠️ CE MASQUEUR EST FAIT D'EXPRESSIONS RÉGULIÈRES, et il faut savoir ce que
+   cela coûte. Il ne sait pas s'il est dans une chaîne : il cherche le motif
+   d'ouverture de commentaire de bloc n'importe où. `accept="image/*"` en
+   contient un, et le premier jet de ce fichier s'y est fait prendre — 3 396
+   lignes d'app.js, 22 % du fichier, masquées. Il passait au vert avec des
+   emojis dedans. Même faiblesse côté ligne : un ` //` à l'intérieur d'une
+   chaîne efface la fin de sa ligne.
 
-   Il faut donc un vrai balayage, qui sait s'il est dans une chaîne simple,
-   double, un gabarit, ou nulle part. Vingt lignes, et la garde voit tout. */
+   (Une version antérieure de ce commentaire décrivait un « vrai balayage »
+   qui suit les chaînes simples, doubles et les gabarits. Ce balayage n'a
+   jamais été écrit. Le commentaire mentait sur le code qu'il coiffait.)
+
+   Deux parades, et c'est le canari plus bas qui les rend sûres :
+     · LEURRES neutralise les séquences connues avant de masquer ;
+     · `zonesSuspectes` repère, dans les huit fichiers livrés, toute ouverture
+       qui n'a pas la tête d'un commentaire — c'est elle qui attrapera la
+       séquence que personne n'a encore vue. */
+const LEURRES = ['image/*', 'audio/*', 'video/*', '*/*'];
+const BLOC = /\/\*[\s\S]*?\*\//g;
+const LIGNE = /(?<=^|[\s;{}(),])\/\/[^\n]*/g;
+const sansLeurres = src => LEURRES.reduce((t, l) => t.split(l).join(l.replace('*', 'x')), src);
+
 function sansCommentaires(src) {
   /* ⚠️ UN LITTÉRAL PEUT CONTENIR CE QUI RESSEMBLE À UNE OUVERTURE DE
      COMMENTAIRE. `accept="image/*"` en est un, et le premier jet de cette
@@ -62,18 +75,47 @@ function sansCommentaires(src) {
      soit 3 396 lignes — 22 % d'app.js — invisibles. Elle passait au vert avec
      des emojis dedans. On neutralise donc ces séquences connues avant de
      masquer ; le CANARI plus bas vérifie qu'aucune autre n'est apparue. */
-  const LEURRES = ['image/*', 'audio/*', 'video/*', '*/*'];
-  let brut = src;
-  for (const l of LEURRES) brut = brut.split(l).join(l.replace('*', 'x'));
-
+  const brut = sansLeurres(src);
   const c = brut.split('');
   const blanchir = (a, b) => { for (let k = a; k < b; k++) if (c[k] !== '\n') c[k] = ' '; };
-  for (const m of brut.matchAll(/\/\*[\s\S]*?\*\//g)) blanchir(m.index, m.index + m[0].length);
+  for (const m of brut.matchAll(BLOC)) blanchir(m.index, m.index + m[0].length);
   let t = c.join('');
-  for (const m of t.matchAll(/(?<=^|[\s;{}(),])\/\/[^\n]*/g)) blanchir(m.index, m.index + m[0].length);
+  for (const m of t.matchAll(LIGNE)) blanchir(m.index, m.index + m[0].length);
   t = c.join('');
   for (const m of t.matchAll(/<!--[\s\S]*?-->/g)) blanchir(m.index, m.index + m[0].length);
   return c.join('');
+}
+
+/* Les zones que le masqueur s'apprête à effacer et qui n'ont PAS la tête d'un
+   commentaire. Deux signatures, mesurées à zéro sur les huit fichiers livrés
+   le 02/10/2026 — tout signalement est donc une nouveauté à regarder :
+     · une ouverture de bloc collée à une lettre, un chiffre, un guillemet, un
+       `*` ou un `/` : c'est un littéral (`text/*`, `application/*`, une URL),
+       pas un commentaire. C'est la forme exacte du défaut du 27/09 ;
+     · un `//` dont le début de ligne laisse une chaîne OUVERTE (nombre impair
+       de guillemets d'une même sorte) : il est dans la chaîne, pas après. */
+function zonesSuspectes(src) {
+  const brut = sansLeurres(src);
+  const ligneDe = i => brut.slice(0, i).split('\n').length;
+  const suspects = [];
+  for (const m of brut.matchAll(BLOC)) {
+    const avant = brut[m.index - 1] || '';
+    if (avant && !/[\s;{}(),=:>]/.test(avant)) {
+      suspects.push(`ligne ${ligneDe(m.index)} : « ${brut.slice(Math.max(0, m.index - 20), m.index + 4).replace(/\n/g, ' ')} »`);
+    }
+  }
+  const c = brut.split('');
+  for (const m of brut.matchAll(BLOC)) for (let k = m.index; k < m.index + m[0].length; k++) if (c[k] !== '\n') c[k] = ' ';
+  c.join('').split('\n').forEach((l, i) => {
+    LIGNE.lastIndex = 0;
+    const m = LIGNE.exec(l);
+    if (!m) return;
+    const debut = l.slice(0, m.index);
+    if (["'", '"', '`'].some(q => (debut.split(q).length - 1) % 2)) {
+      suspects.push(`ligne ${i + 1} : « ${l.trim().slice(0, 80)} »`);
+    }
+  });
+  return suspects;
 }
 
 /* ⚠️ LE CANARI. Un masqueur qui déraille ne se voit pas : il rend une garde
@@ -110,6 +152,31 @@ test('LE CANARI — le masquage des commentaires n\'efface pas de code', () => {
   const fn = t => (t.match(/\bfunction /g) || []).length;
   assert.equal(fn(sansCommentaires(SRC)), fn(SRC),
     'Le masquage a fait disparaître des déclarations de fonction.');
+});
+
+test('LE CANARI, dans les huit fichiers livrés — aucune zone masquée n\'est un littéral', () => {
+  /* Le canari précédent ne lit qu'app.js : il compte des appels d'icône, qui
+     n'existent pas dans une feuille de style. Or le masqueur passe sur les
+     huit fichiers, et un `accept="application/*"` dans index.html y aurait
+     rejoué le défaut du 27/09 sans que rien ne le voie. Celui-ci ne dépend
+     d'aucun contenu propre à un fichier : il lit la FORME des zones masquées. */
+  const fautifs = [];
+  for (const fichier of LIVRES) {
+    for (const z of zonesSuspectes(fs.readFileSync(path.join(RACINE, fichier), 'utf8'))) {
+      fautifs.push(`  ${fichier}, ${z}`);
+    }
+  }
+  assert.deepEqual(fautifs, [],
+    'Le masqueur va effacer une zone qui n\'a pas la tête d\'un commentaire :\n' +
+    fautifs.join('\n') + '\n\n  C\'est sans doute un littéral. Ajoutez la séquence à LEURRES.');
+
+  // Et le canari doit savoir aboyer : les deux formes connues du défaut.
+  assert.equal(zonesSuspectes('<input accept="application/*">\n<p>x</p>\n<!-- */ -->').length, 1,
+    'zonesSuspectes ne voit plus une ouverture de bloc dans un littéral.');
+  assert.equal(zonesSuspectes("const s = 'a // b';").length, 1,
+    'zonesSuspectes ne voit plus un // à l\'intérieur d\'une chaîne.');
+  assert.equal(zonesSuspectes('x(); /* vrai */\ny(); // vrai aussi').length, 0,
+    'zonesSuspectes accuse de vrais commentaires.');
 });
 
 test('aucun emoji ne subsiste dans ce qui part en production', () => {

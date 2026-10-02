@@ -1061,7 +1061,7 @@ async function renderAdmin(el) {
     if(error) throw error;
     users = data || [];
   } catch(e) {
-    el.innerHTML = `<div class="empty-state"><h3>Erreur de chargement</h3><p>${e.message}</p><p style="font-size:11px;color:var(--c-muted);margin-top:8px">Reconnectez-vous pour rafraîchir votre session.</p></div>`;
+    el.innerHTML = `<div class="empty-state"><h3>Erreur de chargement</h3><p>${esc(e.message)}</p><p style="font-size:11px;color:var(--c-muted);margin-top:8px">Reconnectez-vous pour rafraîchir votre session.</p></div>`;
     return;
   }
 
@@ -1468,6 +1468,17 @@ function sfNombreEnLettres(n, majuscule = false){
 function cfCls(cf){return cf>0?'positive':cf<0?'negative':'neutral';}
 // Échappement HTML global (réutilisable partout)
 function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+
+/* Chaîne destinée à un ARGUMENT JavaScript dans un attribut `onclick="…"`.
+   Deux langages sont imbriqués, il faut donc échapper deux fois — et dans cet
+   ordre : JSON.stringify en fait un littéral JS valide (guillemets, barres
+   obliques, sauts de ligne), puis esc() le rend inoffensif pour l'attribut.
+   Le navigateur défait la seconde couche avant d'exécuter, il reste la première.
+   ⚠️ `esc()` seul ne suffit pas ici : il change `'` en `&#39;`, que le
+   navigateur redécode en `'` AVANT d'exécuter le gestionnaire — la chaîne JS
+   se referme. Et `.replace(/'/g,"\\'")` seul laisse passer `"`, qui referme
+   l'attribut. S'écrit sans guillemets autour : onclick="f(${escJs(x)})". */
+function escJs(s){return esc(JSON.stringify(s==null?'':String(s)));}
 
 // URL destinee a un href. `esc()` ne suffit pas ici : il rend l'URL inoffensive
 // pour l'ANALYSE HTML, mais `javascript:alert(1)` reste une URL valide une fois
@@ -3381,7 +3392,7 @@ async function tiMigrateToStorage() {
             const up = await TI_STORAGE.uploadDataURL('biens-photos', b.id, b.photos[i], `photo-${i+1}.jpg`);
             paths.push({ path: up.path, name: up.name });
             totalMigrated++;
-          } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] photo ${i+1} bien ${b.id.slice(0,8)} : ${e.message}`); }
+          } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] photo ${i+1} bien ${b.id.slice(0,8)} : ${esc(e.message)}`); }
         }
         update.photos_paths = paths;
       }
@@ -3393,13 +3404,13 @@ async function tiMigrateToStorage() {
             const up = await TI_STORAGE.uploadDataURL('biens-documents', b.id, d.data || d, d.name || `doc-${i+1}.pdf`);
             paths.push({ path: up.path, name: up.name });
             totalMigrated++;
-          } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] doc ${i+1} bien ${b.id.slice(0,8)} : ${e.message}`); }
+          } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] doc ${i+1} bien ${b.id.slice(0,8)} : ${esc(e.message)}`); }
         }
         update.documents_paths = paths;
       }
       if (Object.keys(update).length) {
         const { error: uErr } = await db.from('biens').update(update).eq('id', b.id);
-        if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update bien ${b.id.slice(0,8)} : ${uErr.message}`); }
+        if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update bien ${b.id.slice(0,8)} : ${esc(uErr.message)}`); }
         else log(`&nbsp;&nbsp;[ok] Bien ${b.id.slice(0,8)} migré`);
       }
     }
@@ -3418,10 +3429,10 @@ async function tiMigrateToStorage() {
           const up = await TI_STORAGE.uploadDataURL('visites-photos', v.id, v.photos[i], `photo-${i+1}.jpg`);
           paths.push({ path: up.path, name: up.name });
           totalMigrated++;
-        } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] photo ${i+1} visite ${v.id.slice(0,8)} : ${e.message}`); }
+        } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] photo ${i+1} visite ${v.id.slice(0,8)} : ${esc(e.message)}`); }
       }
       const { error: uErr } = await db.from('visites').update({ photos_paths: paths }).eq('id', v.id);
-      if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update visite ${v.id.slice(0,8)} : ${uErr.message}`); }
+      if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update visite ${v.id.slice(0,8)} : ${esc(uErr.message)}`); }
       else log(`&nbsp;&nbsp;[ok] Visite ${v.id.slice(0,8)} migrée`);
     }
 
@@ -3436,9 +3447,9 @@ async function tiMigrateToStorage() {
       try {
         const up = await TI_STORAGE.uploadDataURL('simulations-pdf', sim.id, sim.pdf_data, sim.pdf_name || 'simulation.pdf');
         const { error: uErr } = await db.from('simulations_credit').update({ pdf_path: up.path }).eq('id', sim.id);
-        if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update sim ${sim.id.slice(0,8)} : ${uErr.message}`); }
+        if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update sim ${sim.id.slice(0,8)} : ${esc(uErr.message)}`); }
         else { totalMigrated++; log(`&nbsp;&nbsp;[ok] Simulation ${sim.id.slice(0,8)} migrée`); }
-      } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] PDF sim ${sim.id.slice(0,8)} : ${e.message}`); }
+      } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] PDF sim ${sim.id.slice(0,8)} : ${esc(e.message)}`); }
     }
 
     log(`<br><strong>Locataires — documents…</strong>`);
@@ -3458,12 +3469,12 @@ async function tiMigrateToStorage() {
             migrated.push({ name:doc.name, type:doc.type, mime:doc.mime, size:doc.size, uploaded_at:doc.uploaded_at, storage_path:up.path, data:null });
             needUpdate = true;
             totalMigrated++;
-          } catch(e) { totalErrors++; migrated.push(doc); log(`&nbsp;&nbsp;[erreur] doc locataire ${loc.id.slice(0,8)} : ${e.message}`); }
+          } catch(e) { totalErrors++; migrated.push(doc); log(`&nbsp;&nbsp;[erreur] doc locataire ${loc.id.slice(0,8)} : ${esc(e.message)}`); }
         } else { migrated.push(doc); }
       }
       if (needUpdate) {
         const { error: uErr } = await db.from('locataires').update({ documents: migrated }).eq('id', loc.id);
-        if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update locataire ${loc.id.slice(0,8)} : ${uErr.message}`); }
+        if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update locataire ${loc.id.slice(0,8)} : ${esc(uErr.message)}`); }
         else log(`&nbsp;&nbsp;[ok] Locataire ${loc.id.slice(0,8)} migré`);
       }
     }
@@ -4370,7 +4381,7 @@ async function renderBienDetail(el) {
           <p class="sff-sub">${[b.ville, b.code_postal, b.type_bien, b.surface_m2 ? b.surface_m2+' m²' : null].filter(Boolean).map(esc).join(' · ')}</p>
         </div>
         <div class="sff-acts">
-          ${b.ville ? `<button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdVoirMarche('${(b.ville||'').replace(/'/g,"\\'")}')">${sfAccIcon('pin',15)} Le marché à ${esc(b.ville)}</button>` : ''}
+          ${b.ville ? `<button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdVoirMarche(${escJs(b.ville)})">${sfAccIcon('pin',15)} Le marché à ${esc(b.ville)}</button>` : ''}
           <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="openDossierModal('${b.id}')">${sfAccIcon('doc',15)} Dossier banque</button>
           <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="editBien('${b.id}')">${sfAccIcon('crayon',15)} Modifier la fiche</button>
         </div>
@@ -6178,7 +6189,6 @@ function renderParamsSection() {
 function paramsCompteHtml() {
   const email = currentUser?.email || '—';
   const p = currentProfile || {};
-  const esc = (s) => (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   return `
     <div class="params-section-title">${sfIcon('user',20)} Compte</div>
     <div class="params-section-sub">Informations de votre compte et déconnexion.</div>
@@ -8609,7 +8619,7 @@ function mfOpenChargeModal(preset) {
           <label class="form-label">Bien associé *</label>
           <select class="form-select" id="charge-bien" required>
             <option value="">— Sélectionnez —</option>
-            ${biens.map(b => `<option value="${b.id}" ${(initial.bien_id===b.id)?'selected':''}>${(b.titre||'').replace(/</g,'&lt;')} — ${b.ville||''}</option>`).join('')}
+            ${biens.map(b => `<option value="${b.id}" ${(initial.bien_id===b.id)?'selected':''}>${esc(b.titre||'')} — ${esc(b.ville||'')}</option>`).join('')}
           </select>
         </div>
 
@@ -11289,7 +11299,7 @@ function refreshLocDocsView() {
     <div class="mf-doc-item">
       <span class="icon">${sfAccIcon(mfDocIcon(d.type), 15)}</span>
       <div class="body">
-        <div class="name">${d.name}<span class="mf-doc-type-badge">${mfDocLabel(d.type)}</span></div>
+        <div class="name">${esc(d.name)}<span class="mf-doc-type-badge">${mfDocLabel(d.type)}</span></div>
         <div class="meta">${mfFmtSize(d.size)} · ${d.uploaded_at ? new Date(d.uploaded_at).toLocaleDateString('fr-FR') : ''}</div>
       </div>
       <div class="actions">
@@ -12026,11 +12036,11 @@ function renderAdmAnnuaire(c) {
           ${cts.map(ct => `
             <div class="contact-card" onclick="openContactModal('${ct.id}')">
               <div class="contact-avatar" style="background:${roleColors[ct.role]||'#9BAEA4'}22;color:${roleColors[ct.role]||'#9BAEA4'}">
-                ${(ct.prenom||ct.nom||'?').charAt(0).toUpperCase()}
+                ${esc((ct.prenom||ct.nom||'?').charAt(0).toUpperCase())}
               </div>
               <div class="contact-info">
-                <div class="contact-name">${ct.prenom||''} ${ct.nom}</div>
-                ${ct.societe ? `<div class="contact-sub">${ct.societe}</div>` : ''}
+                <div class="contact-name">${esc([ct.prenom, ct.nom].filter(Boolean).join(' '))}</div>
+                ${ct.societe ? `<div class="contact-sub">${esc(ct.societe)}</div>` : ''}
                 ${ct.telephone ? `<div class="contact-sub">${sfAccIcon('tel',13)} ${esc(ct.telephone)}</div>` : ''}
                 ${ct.email ? `<div class="contact-sub">${sfAccIcon('mail',13)} ${esc(ct.email)}</div>` : ''}
               </div>
@@ -12081,8 +12091,8 @@ function renderAdmEcheances(c) {
         <div class="ech-item ${e.est_faite?'ech-item-done':''}" onclick="openEcheanceModal('${e.id}')">
           <div class="ech-icon">${sfAccIcon(typeIcons[e.type_echeance] || 'pin', 18)}</div>
           <div class="ech-body">
-            <div class="ech-title">${e.titre}</div>
-            <div class="ech-meta">${sciName} · ${dateStr} ${e.recurrence&&e.recurrence!=='Aucune'?'· '+sfAccIcon('echange',12)+' '+esc(e.recurrence):''}</div>
+            <div class="ech-title">${esc(e.titre)}</div>
+            <div class="ech-meta">${esc(sciName)} · ${dateStr} ${e.recurrence&&e.recurrence!=='Aucune'?'· '+sfAccIcon('echange',12)+' '+esc(e.recurrence):''}</div>
           </div>
           <div class="ech-badge ${badgeCls}">${badge}</div>
           <button class="ech-check ${e.est_faite?'checked':''}" onclick="event.stopPropagation();toggleEcheance('${e.id}',${!e.est_faite})" title="${esc(e.est_faite?'Marquer non faite':'Marquer faite')}">
@@ -12182,7 +12192,7 @@ function renderAdmBilans(c) {
         <div class="bilan-card" onclick="openBilanModal('${b.id}')">
           <div class="bilan-card-head">
             <div>
-              <div class="bilan-card-title">Bilan ${b.exercice} — ${b.sci?.nom_sci||'—'}</div>
+              <div class="bilan-card-title">Bilan ${b.exercice} — ${esc(b.sci?.nom_sci||'—')}</div>
               <div class="bilan-card-sub">Régime <span class="bilan-badge ${b.regime.toLowerCase()}">${b.regime}</span></div>
             </div>
             <div style="text-align:right">
@@ -12643,7 +12653,7 @@ async function marcheSuggest(val) {
       box.innerHTML = communes.map(c => {
         const cp = (c.codesPostaux||[])[0] || c.code;
         const depNom = c.departement?.nom || '';
-        return `<div class="marche-suggest-item" onclick="marcheSelectCommune('${c.nom.replace(/'/g,"\\'")}','${c.code}','${depNom.replace(/'/g,"\\'")}','${cp}')">
+        return `<div class="marche-suggest-item" onclick="marcheSelectCommune(${escJs(c.nom)},${escJs(c.code)},${escJs(depNom)},${escJs(cp)})">
           ${esc(c.nom)} <span class="suggest-dep">${esc(depNom)} · ${esc(cp)}</span>
         </div>`;
       }).join('');
@@ -13158,7 +13168,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
       <div style="width:48px;height:48px;border-radius:50%;background:var(--accent-g);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff">${sfAccIcon('ville',22)}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:22px;font-weight:800;color:var(--c-text)">${commune}</div>
+        <div style="font-size:22px;font-weight:800;color:var(--c-text)">${esc(commune)}</div>
         <div style="font-size:12px;color:var(--c-muted)">${dept}${cp?' · '+cp:''} · Code INSEE : ${codeInsee}</div>
       </div>
       <button onclick="navigator.clipboard.writeText('${codeInsee}').then(()=>showNotif('Code INSEE copié'))"
@@ -13186,7 +13196,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
 
   const sec1 = `
     <div class="marche-chart-card">
-      <div class="marche-chart-title">${sfAccIcon('graph',18)} Démographie & Revenus — ${commune}</div>
+      <div class="marche-chart-title">${sfAccIcon('graph',18)} Démographie & Revenus — ${esc(commune)}</div>
       <div class="marche-chart-sub">Source : INSEE Melodi · Recensement · Filosophi · geo.api.gouv.fr</div>
       <div class="marche-kpis" style="margin-top:14px;margin-bottom:0">
         ${kpis1.join('') || '<div style="font-size:12px;color:var(--c-muted);padding:8px">Données en cours de chargement…</div>'}
@@ -13202,7 +13212,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
 
   const sec2 = kpis2.length ? `
     <div class="marche-chart-card">
-      <div class="marche-chart-title">${sfAccIcon('ville',18)} Marché du travail & Économie — ${commune}</div>
+      <div class="marche-chart-title">${sfAccIcon('ville',18)} Marché du travail & Économie — ${esc(commune)}</div>
       <div class="marche-chart-sub">Source : INSEE Melodi · Recensement de la Population · SIDE</div>
       <div class="marche-kpis" style="margin-top:14px;margin-bottom:${m.entEvo?.length >= 2 ? '16px' : '0'}">
         ${kpis2.join('')}
@@ -13223,7 +13233,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   const bpe = m.bpe;
   const sec3 = bpe ? `
     <div class="marche-chart-card">
-      <div class="marche-chart-title">${sfAccIcon('travaux',18)} Équipements de proximité — ${commune}</div>
+      <div class="marche-chart-title">${sfAccIcon('travaux',18)} Équipements de proximité — ${esc(commune)}</div>
       <div class="marche-chart-sub">Source : INSEE · Base Permanente des Équipements${m.annee_bpe ? ' · '+m.annee_bpe : ''}${bpe.total ? ' · '+fmtN(bpe.total)+' équipements au total' : ''}</div>
       <div class="bpe-grid" style="margin-top:14px">
         ${bpe.commerces > 0  ? `<div class="bpe-card"><div class="bpe-icon">${sfAccIcon('commerce',22)}</div><div class="bpe-val">${fmtN(bpe.commerces)}</div><div class="bpe-lab">Commerces</div></div>` : ''}
@@ -13244,7 +13254,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   const dpeLabels = ['A','B','C','D','E','F','G'];
   const sec4 = ademe ? `
     <div class="marche-chart-card">
-      <div class="marche-chart-title">${sfAccIcon('eclair',18)} Performance énergétique (DPE) — ${commune}</div>
+      <div class="marche-chart-title">${sfAccIcon('eclair',18)} Performance énergétique (DPE) — ${esc(commune)}</div>
       <div class="marche-chart-sub">Source : ADEME · DPE v2 · ${ademe.total.toLocaleString('fr-FR')} diagnostics analysés</div>
       <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-top:14px">
         <div style="flex:1;min-width:200px">
@@ -13283,7 +13293,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
 
   const sec5 = hasPopEvo ? `
     <div class="marche-chart-card">
-      <div class="marche-chart-title">${sfAccIcon('graph',18)} Évolution de la population — ${commune}</div>
+      <div class="marche-chart-title">${sfAccIcon('graph',18)} Évolution de la population — ${esc(commune)}</div>
       <div class="marche-chart-sub">Source : INSEE · Recensement · ${m.popEvo[0].annee}–${m.popEvo[m.popEvo.length-1].annee}</div>
       <canvas id="chart-pop" height="80"></canvas>
     </div>` : '';
@@ -13310,15 +13320,15 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   if (news?.source === 'newsapi' && news.articles?.length) {
     sec6 = `
       <div class="marche-chart-card">
-        <div class="marche-chart-title">${sfAccIcon('actu',18)} Actualités économiques — ${commune}</div>
+        <div class="marche-chart-title">${sfAccIcon('actu',18)} Actualités économiques — ${esc(commune)}</div>
         <div class="marche-chart-sub">Source : NewsAPI · Presse nationale et locale · Économie · Emploi · Immobilier</div>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
           ${news.articles.map(a => `
             <a href="${safeUrl(a.url)}" target="_blank" rel="noopener" style="display:flex;gap:10px;text-decoration:none;background:var(--c-bg);border-radius:8px;padding:12px;transition:opacity .15s;align-items:flex-start" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
-              ${a.urlToImage ? `<img src="${a.urlToImage}" style="width:60px;height:45px;object-fit:cover;border-radius:4px;flex-shrink:0" onerror="this.style.display='none'">` : '<div style="width:60px;height:45px;background:var(--c-border);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--c-muted)">' + sfAccIcon('actu',20) + '</div>'}
+              ${a.urlToImage ? `<img src="${safeUrl(a.urlToImage)}" style="width:60px;height:45px;object-fit:cover;border-radius:4px;flex-shrink:0" onerror="this.style.display='none'">` : '<div style="width:60px;height:45px;background:var(--c-border);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--c-muted)">' + sfAccIcon('actu',20) + '</div>'}
               <div style="min-width:0">
-                <div style="font-size:13px;font-weight:600;color:var(--c-text);margin-bottom:3px;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${(a.title||'').replace(/<[^>]+>/g,'')}</div>
-                <div style="font-size:11px;color:var(--c-muted)">${a.source?.name||''} · ${(a.publishedAt||'').substring(0,10)}</div>
+                <div style="font-size:13px;font-weight:600;color:var(--c-text);margin-bottom:3px;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${esc((a.title||'').replace(/<[^>]+>/g,''))}</div>
+                <div style="font-size:11px;color:var(--c-muted)">${esc(a.source?.name||'')} · ${esc((a.publishedAt||'').substring(0,10))}</div>
               </div>
             </a>`).join('')}
         </div>
@@ -13329,7 +13339,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   } else {
     sec6 = `
       <div class="marche-chart-card">
-        <div class="marche-chart-title">${sfAccIcon('actu',18)} Actualités économiques — ${commune}</div>
+        <div class="marche-chart-title">${sfAccIcon('actu',18)} Actualités économiques — ${esc(commune)}</div>
         <div class="marche-chart-sub">Économie locale · Emploi · Entreprises · Immobilier</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:14px">
           ${newsLinks.map(l => `
@@ -13340,7 +13350,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
         </div>
         <div style="font-size:11px;color:var(--c-muted);margin-top:12px;padding-top:10px;border-top:1px solid var(--c-border)">
           ${sfAccIcon('ampoule',13)} Le fil d'actualités locales est momentanément indisponible. En attendant, ces liens ouvrent
-          une recherche ciblée sur ${commune}.
+          une recherche ciblée sur ${esc(commune)}.
         </div>
       </div>`;
   }
@@ -13362,7 +13372,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
     <div class="marche-ponts">
       <div class="marche-ponts-head">
         <div class="marche-ponts-title">${sfAccIcon('maison',18)} Votre pipeline à ${esc(commune)}</div>
-        <button class="bd-link" onclick="marcheCreerBien('${commune.replace(/'/g,"\\'")}','${cp||''}')">${sfAccIcon('plus',14)} Créer une fiche bien ici</button>
+        <button class="bd-link" onclick="marcheCreerBien(${escJs(commune)},${escJs(cp)})">${sfAccIcon('plus',14)} Créer une fiche bien ici</button>
       </div>
       ${biensIci.length ? `
       <div class="marche-ponts-list">
@@ -13685,9 +13695,9 @@ function renderPortails(el) {
         <div class="portails-grid" style="margin-bottom:8px">
           ${g.items.map(p=>`
             <a class="portail-card" href="${safeUrl(p.url)}" target="_blank" rel="noopener">
-              <img class="portail-favicon" src="https://www.google.com/s2/favicons?domain=${p.icon}&sz=64" alt="${p.name}" onerror="this.style.display='none'">
+              <img class="portail-favicon" src="https://www.google.com/s2/favicons?domain=${p.icon}&sz=64" alt="${esc(p.name)}" onerror="this.style.display='none'">
               <div>
-                <div class="portail-name">${p.name}</div>
+                <div class="portail-name">${esc(p.name)}</div>
                 <div class="portail-desc">${p.desc}</div>
               </div>
               <span class="portail-tag ${p.tag}">${tagLabels[p.tag]}</span>
@@ -13740,7 +13750,7 @@ async function renderVisites(el) {
       </div>
       <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
         ${parNature.map(x=>`<div style="text-align:center"><div style="font-size:20px;font-weight:800">${x.n}</div><div style="font-size:10px;opacity:0.7;margin-top:2px">${esc(sfCrLabel(x.k,'court'))}</div></div>`).join('')}
-        ${avgNote?`<div style="text-align:center"><div style="font-size:20px;font-weight:800">${avgNote}</div><div style="font-size:10px;opacity:0.7;margin-top:2px">Note moyenne</div></div>`:''}
+        ${avgNote?`<div style="text-align:center"><div style="font-size:20px;font-weight:800" aria-label="${avgNote.replace('.', ',')} sur 5">${avgNote.replace('.', ',')}<span style="font-size:13px;font-weight:600;opacity:0.7">/5</span></div><div style="font-size:10px;opacity:0.7;margin-top:2px">Note moyenne</div></div>`:''}
         <button class="btn" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3)" onclick="openNouvelleVisite()">＋ Nouveau compte rendu</button>
       </div>
     </div>
@@ -13755,7 +13765,7 @@ async function renderVisites(el) {
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:0;cursor:pointer;padding:10px 14px;background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r);box-shadow:var(--c-shadow);user-select:none"
               onclick="toggleVisiteGroup('${groupId}',this)">
               <span id="${groupId}-arrow" style="transition:transform 0.2s;display:inline-flex">${sfAccIcon('chevron-bas',13)}</span>
-              <div style="font-size:14px;font-weight:700;color:var(--c-text);flex:1">${g.label}</div>
+              <div style="font-size:14px;font-weight:700;color:var(--c-text);flex:1">${esc(g.label)}</div>
               <div style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:999px;padding:2px 10px;font-size:11px;color:var(--c-dim)">${g.visites.length} visite${g.visites.length>1?'s':''}</div>
               ${isGeneral ? '<div style="font-size:11px;color:var(--c-muted);font-style:italic">Non rattachées</div>' : ''}
             </div>
@@ -13786,8 +13796,8 @@ function renderVisiteCard(v) {
         <div class="visite-header">
           <div style="min-width:0">
             <div class="visite-date">${sfAccIcon('agenda',12)} ${wdStr ? wdStr.charAt(0).toUpperCase()+wdStr.slice(1)+' ' : ''}${dateStr}</div>
-            <div class="visite-adresse" style="margin-top:4px">${v.adresse || v.biens?.titre || '—'}</div>
-            ${v.biens?.titre && v.adresse ? `<div class="visite-bien">${sfAccIcon('maison',12)} ${v.biens.titre}</div>` : ''}
+            <div class="visite-adresse" style="margin-top:4px">${esc(v.adresse || v.biens?.titre || '—')}</div>
+            ${v.biens?.titre && v.adresse ? `<div class="visite-bien">${sfAccIcon('maison',12)} ${esc(v.biens.titre)}</div>` : ''}
           </div>
           <span class="visite-type ${v.type_visite}" style="margin-top:2px">${esc(sfCrLabel(v.type_visite,'court'))}</span>
         </div>
@@ -13881,7 +13891,7 @@ async function openReadVisite(id) {
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
       <span style="background:${v.type_visite==='achat'?'rgba(23,160,107,0.1)':'rgba(22,163,74,0.1)'};color:${v.type_visite==='achat'?'var(--accent)':'var(--positive-c)'};padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600">${typeLabel}</span>
       <span style="font-size:12px;color:var(--c-dim)">${sfAccIcon('agenda',12)} ${dateStr}</span>
-      ${v.biens?.titre?`<span style="font-size:12px;color:var(--c-dim)">${sfAccIcon('maison',12)} ${v.biens.titre}${v.biens.ville?' — '+v.biens.ville:''}</span>`:''}
+      ${v.biens?.titre?`<span style="font-size:12px;color:var(--c-dim)">${sfAccIcon('maison',12)} ${esc(v.biens.titre)}${v.biens.ville?' — '+esc(v.biens.ville):''}</span>`:''}
     </div>
 
     <!-- Note -->
@@ -14156,7 +14166,7 @@ async function renderSimulateur(el) {
         .select('*')
         .order('created_at', { ascending: false });
       if (error2) {
-        el.innerHTML = `<div class="empty-state"><h3>Erreur de chargement</h3><p>${error2.message}</p></div>`;
+        el.innerHTML = `<div class="empty-state"><h3>Erreur de chargement</h3><p>${esc(error2.message)}</p></div>`;
         return;
       }
       sims = data2 || [];
@@ -14329,7 +14339,7 @@ function renderSimCard(s) {
     <div class="sim-checkbox" data-id="${s.id}" onclick="toggleSimSelect('${s.id}',event)" title="Sélectionner"></div>
     <div class="sim-list-content">
       <div class="sim-item-name">${esc(s.nom_simulation)}${s.date_document?' <span style="font-size:10px;color:var(--c-muted);font-weight:400">· '+new Date(s.date_document+'T12:00:00').toLocaleDateString('fr-FR')+'</span>':''}</div>
-      <div class="sim-item-detail">${s.biens?.titre?sfAccIcon('maison',12)+' '+s.biens.titre+' · ':''} ${fmt(s.montant_emprunte||0)} € sur ${s.duree_ans||20} ans · ${(s.taux_interet||0).toFixed(2)}%</div>
+      <div class="sim-item-detail">${s.biens?.titre?sfAccIcon('maison',12)+' '+esc(s.biens.titre)+' · ':''} ${fmt(s.montant_emprunte||0)} € sur ${s.duree_ans||20} ans · ${(s.taux_interet||0).toFixed(2)}%</div>
     </div>
     ${(s.pdf_data||s.pdf_path)?`<button class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="event.stopPropagation();openPdfSim('${s.id}')">${sfAccIcon('doc',12)} PDF</button>`:''}
     ${te?`<span class="sim-taux-badge">Endettement : ${te.toFixed(1)}%</span>`:''}
@@ -14376,7 +14386,7 @@ async function openReadSimulation(id) {
     <!-- Infos complémentaires -->
     <div class="detail-grid" style="margin-bottom:16px">
       ${dateStr?`<div class="detail-item"><div class="detail-label">Date d'émission</div><div class="detail-value">${dateStr}</div></div>`:''}
-      ${s.biens?.titre?`<div class="detail-item"><div class="detail-label">Bien rattaché</div><div class="detail-value">${sfAccIcon('maison',13)} ${s.biens.titre}${s.biens.ville?' — '+s.biens.ville:''}</div></div>`:''}
+      ${s.biens?.titre?`<div class="detail-item"><div class="detail-label">Bien rattaché</div><div class="detail-value">${sfAccIcon('maison',13)} ${esc(s.biens.titre)}${s.biens.ville?' — '+esc(s.biens.ville):''}</div></div>`:''}
       ${s.loyer_exige_banque?`<div class="detail-item"><div class="detail-label">Loyer exigé banque</div><div class="detail-value">${fmt(s.loyer_exige_banque)} €/mois</div></div>`:''}
       ${s.revenus_mensuels?`<div class="detail-item"><div class="detail-label">Revenus mensuels</div><div class="detail-value">${fmt(s.revenus_mensuels)} €/mois</div></div>`:''}
       <div class="detail-item"><div class="detail-label">Coût total du crédit</div><div class="detail-value">${fmt(Math.round((m*s.duree_ans*12)-(s.montant_emprunte||0)))} €</div></div>
@@ -14391,7 +14401,7 @@ async function openReadSimulation(id) {
       <div style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="openPdfSim('${s.id}')">
         <div style="width:40px;height:40px;background:rgba(23,160,107,0.1);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent)">${sfAccIcon('doc',20)}</div>
         <div>
-          <div style="font-size:13px;font-weight:600;color:var(--c-text)">${s.pdf_name||'Document PDF'}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--c-text)">${esc(s.pdf_name||'Document PDF')}</div>
           <div style="font-size:11px;color:var(--accent);margin-top:2px">Cliquer pour ouvrir le document</div>
         </div>
       </div>
@@ -14668,7 +14678,7 @@ async function extractPDF(e) {
   } catch(err) {
     zone.classList.remove('loading');
     zone.innerHTML = `<div class="pdf-zone-icon">${sfAccIcon('doc',26)}</div><div class="pdf-zone-text">Importer une offre de prêt (PDF)</div><div class="pdf-zone-sub">Claude extraira automatiquement les données</div>`;
-    status.innerHTML = `<div style="color:var(--negative);font-size:12px">Erreur lecture PDF : ${err.message}</div>`;
+    status.innerHTML = `<div style="color:var(--negative);font-size:12px">Erreur lecture PDF : ${esc(err.message)}</div>`;
     console.error(err);
   }
 }
