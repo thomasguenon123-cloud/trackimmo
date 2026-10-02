@@ -959,21 +959,15 @@ function sfBuildParamsMenu() {
   const isAdmin = currentProfile?.role === 'admin' || currentUser?.email === ADMIN_EMAIL;
 
   p.innerHTML = PARAMS_SECTIONS
-    .filter(f => !f.adminOnly || isAdmin)
     .map(f => {
-      const items = f.items.filter(i => !i.adminOnly || isAdmin);
+      // Même filtre que la page Paramètres : sfParamPropose, source unique.
+      const items = f.items.filter(i => sfParamPropose(i, f, isAdmin));
       if(!items.length) return '';
-      return `<div class="sf-menu__group">${esc(f.family)}</div>` + items.map(i => {
-        const soon = i.status === 'soon';
-        // Une section « Bientot » reste visible mais inerte : la masquer
-        // priverait l'utilisateur de la carte du produit.
-        return `<button class="sf-menu__row" role="menuitem" type="button"
-          ${soon ? 'aria-disabled="true"' : `onclick="sfGoParam('${i.id}')"`}>
+      return `<div class="sf-menu__group">${esc(f.family)}</div>` + items.map(i => `
+        <button class="sf-menu__row" role="menuitem" type="button" onclick="sfGoParam('${i.id}')">
           <span class="ic" aria-hidden="true">${sfIcon(i.icon)}</span>
           <span class="lab">${esc(i.label)}</span>
-          ${soon ? '<span class="sf-menu__soon">Bientôt</span>' : ''}
-        </button>`;
-      }).join('');
+        </button>`).join('');
     }).join('');
 }
 
@@ -1236,7 +1230,8 @@ async function adminInviteUser() {
 // ── Renvoyer une invitation existante ──
 async function adminResendInvite(email, firstName, lastName, role) {
   if(!email) return;
-  if(!confirm('Renvoyer un email d\'invitation à ' + email + ' ?')) return;
+  if(!(await sfConfirmer({ titre: "Renvoyer l'invitation",
+    question: `Renvoyer un e-mail d'invitation à ${email} ?`, ok: 'Renvoyer' }))) return;
   try {
     const { data, error } = await db.functions.invoke('admin-invite-user', {
       body: { email, firstName, lastName, role: role || 'user' }
@@ -1251,7 +1246,8 @@ async function adminResendInvite(email, firstName, lastName, role) {
 // ── Envoyer un reset password depuis l'admin ──
 async function adminSendResetPwd(email) {
   if(!email) return;
-  if(!confirm('Envoyer un email de réinitialisation de mot de passe à ' + email + ' ?')) return;
+  if(!(await sfConfirmer({ titre: 'Réinitialiser le mot de passe',
+    question: `Envoyer un e-mail de réinitialisation du mot de passe à ${email} ?`, ok: 'Envoyer' }))) return;
   try {
     const redirectTo = window.location.href.split('#')[0];
     const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo });
@@ -1265,7 +1261,8 @@ async function adminSendResetPwd(email) {
 // ── Valider l'accès d'un user pending ──
 async function adminValidateUser(profileId, email) {
   if(!profileId) return;
-  if(!confirm('Activer l\'accès de ' + (email || 'cet utilisateur') + ' ?')) return;
+  if(!(await sfConfirmer({ titre: "Activer l'accès",
+    question: `Activer l'accès de ${email || 'cet utilisateur'} ?`, ok: 'Activer' }))) return;
   try {
     const { error } = await db.rpc('admin_set_user_status', { p_profile_id: profileId, p_status: 'active' });
     if(error) throw error;
@@ -1278,7 +1275,9 @@ async function adminValidateUser(profileId, email) {
 
 // ── Désactiver un user ──
 async function adminDisableUser(profileId) {
-  if(!confirm('Archiver cet utilisateur ? Il ne pourra plus se connecter.')) return;
+  if(!(await sfConfirmer({ titre: "Archiver l'utilisateur", question: 'Archiver cet utilisateur ?',
+    detail: 'Il ne pourra plus se connecter. Son compte reste réactivable depuis cette liste.',
+    ok: 'Archiver', danger: true }))) return;
   try {
     const { error } = await db.rpc('admin_disable_user', { p_profile_id: profileId });
     if(error) throw error;
@@ -2948,7 +2947,9 @@ async function sfBulkStatut() {
   if(!statut) { showNotif('Choisissez un statut', true); return; }
   const choisis = sfBiensSelectionnes();
   if(!choisis.length) { showNotif('Aucun bien sélectionné', true); return; }
-  if(!confirm(`Passer ${choisis.length} bien${choisis.length>1?'s':''} au statut « ${statut} » ?`)) return;
+  if(!(await sfConfirmer({ titre: 'Changer le statut',
+    question: `Passer ${choisis.length} bien${choisis.length>1?'s':''} au statut « ${statut} » ?`,
+    ok: 'Changer le statut' }))) return;
   try {
     const { error } = await db.from('biens').update({ statut })
       .in('id', choisis.map(b => b.id)).eq('user_id', currentUser.id);
@@ -3809,9 +3810,19 @@ async function saveBien() {
 }
 
 async function deleteBienPage(id) {
-  if(!confirm('Supprimer ce bien définitivement ?'))return;
-  // Nettoyer les fichiers Storage rattachés (best-effort, avant suppression DB)
   const b = allBiens.find(x=>x.id===id);
+  // Même phrase que « Supprimer tous vos biens », au singulier : ce qui part
+  // et ce qui reste a été vérifié sur les clés étrangères le 27/09/2026.
+  const ok = await sfConfirmer({
+    titre: 'Supprimer le bien',
+    question: `Supprimer « ${b?.titre || 'ce bien'} » définitivement ?`,
+    detail: 'Ses <strong>photos, documents, loyers, charges et actions</strong> partent avec lui. '
+          + 'Ses <strong>locataires, comptes rendus et simulations sont conservés</strong>, '
+          + 'mais ils ne seront plus rattachés à aucun bien.<br><br>'
+          + 'Cette action est <strong>irréversible</strong>.',
+    ok: 'Supprimer', danger: true });
+  if(!ok) return;
+  // Nettoyer les fichiers Storage rattachés (best-effort, avant suppression DB)
   if(b){
     const ph = (Array.isArray(b.photos_paths)?b.photos_paths:[]).map(p=>p.path).filter(Boolean);
     const dc = (Array.isArray(b.documents_paths)?b.documents_paths:[]).map(p=>p.path).filter(Boolean);
@@ -4923,8 +4934,19 @@ function bdEtapesGestion(b) {
    fenêtre qui trahit l'application. Signalé par Thomas le 15/08/2026.
 
    Rend une promesse : `if (await sfConfirmer({ … })) { … }`.
-   Réutilise le cadre `modal-detail` — elle ne s'empile donc jamais avec le
-   workflow d'acquisition, les deux ne coexistent pas.
+
+   ⚠️ ELLE A SA PROPRE FENÊTRE, `#sf-confirm`, POSÉE AU-DESSUS DE TOUT (v=92).
+   Elle empruntait `modal-detail`, au z-index 200. Or contacts, échéances,
+   bilans, actions, charges et locataires vivent dans `#adm-modal-overlay`
+   (2001), les SCI dans `#sci-modal-overlay` (2000) : une question posée
+   depuis l'une de ces fenêtres s'ouvrait DERRIÈRE, invisible — avec le focus
+   sur « Confirmer », si bien qu'une touche Entrée validait une suppression
+   que personne n'avait vue. Le piège avait été contourné UNE fois, en
+   refermant le formulaire locataire avant de demander ; migrer les 22
+   `confirm()` restants l'aurait recréé sept fois. On le règle donc à la
+   racine. Et ne plus emprunter `modal-detail` a un second effet : une
+   question posée PENDANT le workflow d'acquisition n'en écrase plus le
+   contenu.
 
    ⚠️ `question` est ÉCHAPPÉE (elle porte souvent un titre de bien saisi par
    l'utilisateur). `detail` ne l'est PAS : elle accepte du balisage pour mettre
@@ -4932,43 +4954,59 @@ function bdEtapesGestion(b) {
 function sfConfirmer({ titre, question, detail, ok = 'Confirmer',
                        annuler = 'Annuler', danger = false }) {
   return new Promise(resolve => {
-    const overlay = document.getElementById('modal-detail');
-    document.getElementById('detail-titre').textContent = titre || 'Confirmation';
-    document.getElementById('detail-content').innerHTML = `
-      <div class="bd-acq">
-        <div class="bd-acq__q">
-          <div class="bd-acq__qic${danger ? ' bd-acq__qic--danger' : ''}">${sfAccIcon(danger ? 'alerte' : 'info', 20)}</div>
-          <div>
-            <p class="bd-acq__qt">${esc(question)}</p>
-            ${detail ? `<p class="bd-acq__qx">${detail}</p>` : ''}
+    // Une seule question à la fois : une précédente encore ouverte est refusée.
+    document.getElementById('sf-confirm')?.__refuser?.();
+    const retour = document.activeElement;
+    const o = document.createElement('div');
+    o.id = 'sf-confirm';
+    o.className = 'modal-overlay modal-overlay--acq sf-confirm open';
+    o.setAttribute('role', 'alertdialog');
+    o.setAttribute('aria-modal', 'true');
+    o.setAttribute('aria-labelledby', 'sf-conf-titre');
+    o.innerHTML = `
+      <div class="modal">
+        <div class="modal-header"><div class="modal-title" id="sf-conf-titre">${esc(titre || 'Confirmation')}</div></div>
+        <div class="bd-acq">
+          <div class="bd-acq__q">
+            <div class="bd-acq__qic${danger ? ' bd-acq__qic--danger' : ''}">${sfAccIcon(danger ? 'alerte' : 'info', 20)}</div>
+            <div>
+              <p class="bd-acq__qt">${esc(question)}</p>
+              ${detail ? `<p class="bd-acq__qx">${detail}</p>` : ''}
+            </div>
+          </div>
+          <div class="bd-step-pied">
+            <button class="sf-btn sf-btn--ghost" type="button" data-rep="non">${esc(annuler)}</button>
+            <button class="sf-btn ${danger ? 'sf-btn--danger' : 'sf-btn--primary'}" type="button" data-rep="oui">${esc(ok)}</button>
           </div>
         </div>
-        <div class="bd-step-pied">
-          <button class="sf-btn sf-btn--ghost" id="sf-conf-non">${esc(annuler)}</button>
-          <button class="sf-btn ${danger ? 'sf-btn--danger' : 'sf-btn--primary'}" id="sf-conf-oui">${esc(ok)}</button>
-        </div>
       </div>`;
-    overlay.classList.add('modal-overlay--acq');
-    overlay.dataset.verrou = '1';
-    const croix = overlay.querySelector('.btn-close');
-    if(croix) croix.hidden = true;
-    openModal('modal-detail');
 
+    let fini = false;
     const repondre = (v) => {
-      delete overlay.dataset.verrou;
-      if(croix) croix.hidden = false;
-      overlay.classList.remove('modal-overlay--acq');
-      closeModal('modal-detail');
-      document.removeEventListener('keydown', surTouche);
+      if(fini) return;
+      fini = true;
+      document.removeEventListener('keydown', surTouche, true);
+      o.remove();
+      if(retour && typeof retour.focus === 'function' && document.contains(retour)) retour.focus();
       resolve(v);
     };
-    // Ici Échap est légitime : une question fermée se refuse, contrairement au
-    // workflow d'acquisition qui exige une réponse explicite.
-    const surTouche = e => { if(e.key === 'Escape') { e.preventDefault(); repondre(false); } };
-    document.getElementById('sf-conf-oui').onclick = () => repondre(true);
-    document.getElementById('sf-conf-non').onclick = () => repondre(false);
-    document.addEventListener('keydown', surTouche);
-    document.getElementById('sf-conf-oui').focus();
+    // Une question fermée se refuse : Échap et un appui sur le fond valent
+    // « non ». En CAPTURE, et sans propagation, pour qu'Échap ne referme pas
+    // AUSSI la fenêtre d'où vient la question.
+    const surTouche = e => {
+      if(e.key !== 'Escape') return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      repondre(false);
+    };
+    o.__refuser = () => repondre(false);
+    o.addEventListener('click', e => { if(e.target === o) repondre(false); });
+    o.querySelector('[data-rep="oui"]').onclick = () => repondre(true);
+    o.querySelector('[data-rep="non"]').onclick = () => repondre(false);
+    document.addEventListener('keydown', surTouche, true);
+    document.body.appendChild(o);
+    /* Le focus va au bouton SÛR quand l'acte est destructeur : une touche
+       Entrée réflexe ne doit pas supprimer. Sinon, à l'action proposée. */
+    o.querySelector(danger ? '[data-rep="non"]' : '[data-rep="oui"]').focus();
   });
 }
 
@@ -5251,7 +5289,9 @@ async function bdAcqConfirmer() {
   if(loc && loc.bien_id && loc.bien_id !== b.id) {
     const autre = allBiens.find(x => x.id === loc.bien_id);
     const nom = [loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Ce locataire';
-    if(!confirm(`${nom} est actuellement rattaché à « ${autre?.titre || 'un autre bien'} ».\n\nLe déplacer vers ce bien ?`)) return;
+    if(!(await sfConfirmer({ titre: 'Déplacer le locataire',
+      question: `${nom} est actuellement rattaché à « ${autre?.titre || 'un autre bien'} ». Le déplacer vers ce bien ?`,
+      ok: 'Déplacer' }))) return;
   }
 
   bdAcq.enCours = true;
@@ -5493,7 +5533,9 @@ async function saveAction() {
 }
 
 async function deleteAction() {
-  if(!editingActionId || !confirm('Supprimer cette action ? Cette opération est irréversible.')) return;
+  if(!editingActionId) return;
+  if(!(await sfConfirmer({ titre: "Supprimer l'action", question: 'Supprimer cette action ?',
+    detail: 'Cette opération est irréversible.', ok: 'Supprimer', danger: true }))) return;
   const { error } = await db.from('actions').delete().eq('id', editingActionId).eq('user_id', currentUser.id);
   if(error) { showNotif('Erreur : ' + error.message, true); return; }
   showNotif('Action supprimée');
@@ -6020,7 +6062,7 @@ async function bkdocGenerate(){
 
 let visitPhotos = [], visitRating = 0, simEditId = null;
 
-const PAGE_LABELS = {accueil:'Tableau de bord',biens:'Mes biens',nouveau:'Ajouter un bien','bien-detail':'Fiche bien',simulateur:'Simulateur crédit',visites:'Comptes rendus',portails:'Portails immo',administration:'Administration','module-financier':'Suivi financier','admin-users':'Gestion utilisateurs','marche-recherche':'Recherche par ville','marche-carte':'Carte de France',parametres:'Paramètres'};
+const PAGE_LABELS = {accueil:'Tableau de bord',biens:'Mes biens',nouveau:'Ajouter un bien','bien-detail':'Fiche bien',simulateur:'Simulateur crédit',visites:'Comptes rendus',portails:'Portails immo',administration:'Administration','module-financier':'Suivi financier','admin-users':'Gestion utilisateurs','marche-recherche':'Recherche par ville',parametres:'Paramètres'};
 // PAGE_SECTIONS supprime avec le fil d'Ariane du bandeau : il ne servait qu'a
 // le remplir. SF_MENU_PAGES porte desormais le rattachement page -> section,
 // pour surligner le bon menu.
@@ -6086,38 +6128,46 @@ function isParamsSectionAdminOnly(id) {
   return res;
 }
 
+/* Une section est-elle PROPOSÉE à cet utilisateur ? Source unique, lue par
+   la roue dentée, la navigation de la page et la résolution de l'URL.
+   ⚠️ UNE SECTION « soon » N'EST PLUS AFFICHÉE (v=92). On la montrait
+   inerte, avec un badge « Bientôt », pour donner « la carte du produit ».
+   Devant un premier utilisateur extérieur, c'était une impasse de plus : il
+   clique tout, et quatre entrées sur la plateforme répondaient « pas encore ».
+   Masquer coûte moins qu'un écran. L'entrée reste dans PARAMS_SECTIONS avec
+   son statut : elle réapparaît d'elle-même le jour où elle passe à 'ready'. */
+function sfParamPropose(item, famille, isAdmin) {
+  if(!item || item.status === 'soon') return false;
+  return isAdmin || !(item.adminOnly || famille?.adminOnly);
+}
+function sfParamAccessible(id, isAdmin) {
+  return PARAMS_SECTIONS.some(f => f.items.some(i => i.id === id && sfParamPropose(i, f, isAdmin)));
+}
+
 function renderParametres(el) {
   const isAdmin = currentProfile?.role === 'admin' || currentUser?.email === ADMIN_EMAIL;
   // Section demandée via hash ?
+  // Une URL directe vers une section non proposée — réservée aux admins, ou
+  // pas encore construite — retombe sur Compte, sans écran d'attente.
   const hashSection = (window.location.hash.match(/#parametres\/([a-z]+)/)||[])[1];
-  if (hashSection && PARAMS_SECTIONS.some(f=>f.items.some(i=>i.id===hashSection))) {
-    // Bloquer l'accès direct par URL à une section admin-only pour un non-admin
-    if (isParamsSectionAdminOnly(hashSection) && !isAdmin) {
-      currentParamsSection = 'compte';
-    } else {
-      currentParamsSection = hashSection;
-    }
-  } else if (!PARAMS_SECTIONS.some(f=>f.items.some(i=>i.id===currentParamsSection))) {
-    currentParamsSection = 'compte';
-  }
-  // Si la section courante est admin-only et l'utilisateur n'est pas admin, revenir à Compte
-  if (isParamsSectionAdminOnly(currentParamsSection) && !isAdmin) {
-    currentParamsSection = 'compte';
-  }
+  if (hashSection && sfParamAccessible(hashSection, isAdmin)) currentParamsSection = hashSection;
+  else if (!sfParamAccessible(currentParamsSection, isAdmin)) currentParamsSection = 'compte';
 
   // Construire la nav interne
-  const navHtml = PARAMS_SECTIONS.filter(f => !f.adminOnly || isAdmin).map(f => `
+  const navHtml = PARAMS_SECTIONS.map(f => {
+    const items = f.items.filter(i => sfParamPropose(i, f, isAdmin));
+    if(!items.length) return '';
+    return `
     <div class="params-nav-family">
       <div class="params-nav-family-label">${f.family}</div>
-      ${f.items.filter(i => !i.adminOnly || isAdmin).map(i => `
+      ${items.map(i => `
         <div class="params-nav-item ${i.id===currentParamsSection?'active':''}" onclick="selectParamsSection('${i.id}')">
           <span class="pni-icon">${sfIcon(i.icon)}</span>
           <span>${i.label}</span>
-          ${i.status==='soon'?'<span class="pni-soon">Bientôt</span>':''}
         </div>
       `).join('')}
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   el.innerHTML = `
     <div class="params-layout">
@@ -6158,16 +6208,11 @@ function renderParamsSection() {
   PARAMS_SECTIONS.forEach(f=>f.items.forEach(i=>{ if(i.id===sec) meta=i; }));
   if(!meta){ c.innerHTML=''; return; }
 
-  // Section "soon"
+  // Une section pas encore construite n'est plus proposée (sfParamPropose).
+  // Si un appel y mène quand même, on rend Compte — jamais un écran d'attente.
   if(meta.status==='soon'){
-    c.innerHTML = `
-      <div class="params-section-title">${sfIcon(meta.icon, 20)} ${meta.label}</div>
-      <div class="params-section-sub">Cette section sera disponible prochainement.</div>
-      <div class="params-soon-box">
-        <div class="psb-icon">${sfAccIcon('travaux', 26)}</div>
-        <div class="psb-title">Bientôt disponible</div>
-        <div>La section « ${meta.label} » est en cours de préparation.</div>
-      </div>`;
+    currentParamsSection = 'compte';
+    c.innerHTML = paramsCompteHtml();
     return;
   }
 
@@ -6477,7 +6522,7 @@ function paramsMaintenanceHtml() {
 
 // Quelle section contient quelle page — sert a surligner le bon menu.
 const SF_MENU_PAGES = {
-  marche:   ['marche-recherche','marche-carte'],
+  marche:   ['marche-recherche'],
   pipeline: ['accueil','biens','nouveau','bien-detail'],
   gestion:  ['module-financier','administration'],
   outils:   ['simulateur','visites','portails'],
@@ -6541,6 +6586,10 @@ function closeMobileSidebar() {
 }
 
 function navigate(page) {
+  // La Carte de France n'est plus proposée tant qu'elle n'est pas construite
+  // (v=92) : son entrée de menu ouvrait un écran d'attente. Une référence
+  // restée quelque part retombe sur la recherche par ville, pas sur du vide.
+  if(page === 'marche-carte') page = 'marche-recherche';
   currentPage = page;
   // Fermer la sidebar mobile à chaque navigation
   closeMobileSidebar();
@@ -6548,7 +6597,7 @@ function navigate(page) {
   if(page !== 'parametres' && window.location.hash.startsWith('#parametres')) {
     history.replaceState(null, '', window.location.pathname);
   }
-  ['accueil','biens','nouveau','simulateur','visites','portails','administration','module-financier','admin-users','marche-recherche','marche-carte','parametres'].forEach(p => {
+  ['accueil','biens','nouveau','simulateur','visites','portails','administration','module-financier','admin-users','marche-recherche','parametres'].forEach(p => {
     document.getElementById('nav-'+p)?.classList.toggle('active', p === page);
     document.getElementById('sub-'+p)?.classList.toggle('active', p === page);
   });
@@ -6584,7 +6633,6 @@ function navigate(page) {
   else if(page==='administration') renderAdministration(el);
   else if(page==='module-financier') renderModuleFinancier(el);
   else if(page==='marche-recherche') renderMarcheRecherche(el);
-  else if(page==='marche-carte') renderMarcheCarte(el);
   else if(page==='parametres') {
     if(!window.location.hash.startsWith('#parametres')) history.replaceState(null,'','#parametres/'+currentParamsSection);
     renderParametres(el);
@@ -8275,8 +8323,10 @@ async function mfCreateLoyerLine(bienId, locataireId, mois, annee) {
 
 // ── Génération massive des loyers manquants pour une année ──
 async function mfGenerateMissingLoyers(annee) {
-  if(!confirm(`Générer toutes les lignes loyer manquantes pour ${annee} ?\n\n` +
-    `Le prorata loi 1989 sera appliqué automatiquement pour les mois d'entrée et de sortie.`)) return;
+  if(!(await sfConfirmer({ titre: 'Générer les loyers manquants',
+    question: `Générer toutes les lignes de loyer manquantes pour ${annee} ?`,
+    detail: "Le prorata de la loi de 1989 s'applique aux mois d'entrée et de sortie.",
+    ok: 'Générer' }))) return;
 
   let created = 0, skipped = 0;
   const biens = allBiens.filter(b => b.statut === 'Acheté');
@@ -8766,7 +8816,8 @@ async function mfSaveCharge(chargeId) {
 }
 
 async function mfDeleteCharge(chargeId) {
-  if(!confirm('Supprimer cette charge ?')) return;
+  if(!(await sfConfirmer({ titre: 'Supprimer la charge', question: 'Supprimer cette charge ?',
+    detail: 'Cette action est irréversible.', ok: 'Supprimer', danger: true }))) return;
   try {
     const { error } = await db.from('charges_reelles').delete().eq('id', chargeId).eq('user_id', currentUser.id);
     if(error) throw error;
@@ -10757,7 +10808,9 @@ async function mfBilanFeedWrite() {
   const d = ctx.computed;
 
   if(bilan && bilanEstAlimente(bilan)) {
-    if(!confirm(`Le bilan ${annee} de cette SCI contient déjà des données. Les remplacer par les valeurs calculées ?`)) return;
+    if(!(await sfConfirmer({ titre: 'Remplacer le bilan',
+      question: `Le bilan ${annee} de cette SCI contient déjà des données. Les remplacer par les valeurs calculées ?`,
+      ok: 'Remplacer', danger: true }))) return;
   }
 
   const payload = { source_bien_ids: d.bienIds };
@@ -11461,11 +11514,17 @@ async function saveLocataire() {
          dernier mois. On le clot a la date prevue, et on ne fixe « aujourd'hui »
          que lorsqu'aucune date n'existe.
          La phrase suit le temps de la date : un depart passe ne « part » pas. */
-      const ok = confirm(!conflit.date_sortie
-        ? `Le bien sélectionné a déjà un locataire en place (${fullName}).\n\nVoulez-vous le marquer comme "Sorti" (date de sortie = aujourd'hui) pour pouvoir activer ce nouveau locataire ?`
-        : conflit.date_sortie > aujourdhui
-          ? `Le bien sélectionné est encore occupé par ${fullName}, qui part le ${enFr(conflit.date_sortie)}.\n\nLe marquer comme "Sorti" à cette date pour activer ce nouveau locataire ?`
-          : `${fullName} devait quitter ce bien le ${enFr(conflit.date_sortie)}, sans que sa sortie ait été enregistrée.\n\nLe marquer comme "Sorti" à cette date pour activer ce nouveau locataire ?`);
+      const ok = await sfConfirmer({
+        titre: 'Un locataire occupe déjà ce bien',
+        question: !conflit.date_sortie
+          ? `Marquer ${fullName} comme « Sorti » aujourd'hui, pour activer ce nouveau locataire ?`
+          : `Marquer ${fullName} comme « Sorti » le ${enFr(conflit.date_sortie)}, pour activer ce nouveau locataire ?`,
+        detail: !conflit.date_sortie
+          ? 'Ce locataire est encore en place sur le bien sélectionné, sans date de sortie.'
+          : conflit.date_sortie > aujourdhui
+            ? 'Ce locataire occupe encore le bien sélectionné, et part à cette date.'
+            : "Ce locataire devait quitter le bien à cette date, sans que sa sortie ait été enregistrée.",
+        ok: 'Marquer comme sorti' });
       if(!ok) return;
       const patchSortie = { statut: 'Sorti' };
       if(!conflit.date_sortie) patchSortie.date_sortie = aujourdhui;
@@ -11528,12 +11587,14 @@ async function saveLocataire() {
        — le lui interdire ici ne protegeait de rien et faisait manquer les
        derniers mois dus. */
     /* ⚠️ ON REFERME LE FORMULAIRE AVANT DE POSER LA MOINDRE QUESTION. La
-       fenêtre de confirmation vit dans `#modal-detail` (z-index 200), le
+       fenêtre de confirmation vivait dans `#modal-detail` (z-index 200), le
        formulaire locataire dans `#adm-modal-overlay` (z-index 2001) : posée
        avant, la question s'ouvrait DERRIÈRE, invisible et incliquable — et
        `sfConfirmer` plaçant le focus sur « Oui », une touche Entrée aurait
-       marqué huit mois comme encaissés sans que personne ne voie rien. Un
-       défaut pire que celui qu'on corrigeait. */
+       marqué huit mois comme encaissés sans que personne ne voie rien.
+       Depuis la v=92 `sfConfirmer` a sa propre fenêtre, au-dessus de tout :
+       la cause est réglée à la racine. L'ordre est gardé quand même — une
+       question posée sur un formulaire déjà enregistré se lit mieux seule. */
     closeAdmModal();
 
     if(sfEstOccupant(data) && data.bien_id && data.date_entree && savedId) {
@@ -11543,10 +11604,13 @@ async function saveLocataire() {
          arrivées : `sfCongeRevoquer` régénère un bail existant — le bailleur
          n'est pas en train de déclarer son parc, il annule un congé.
          Quant à `bdAcqConfirmer`, il vit DANS `modal-detail`, la fenêtre que
-         `sfConfirmer` réutilise : y ouvrir la question écraserait le workflow
-         d'acquisition en cours. Un bien acquis avec un locataire en place
-         garde donc ses loyers « En attente », et le tableau de bord les
-         signale — c'est une limite connue, pas un oubli. */
+         `sfConfirmer` réutilisait jusqu'à la v=92 : y ouvrir la question
+         aurait écrasé le workflow d'acquisition en cours. Un bien acquis avec
+         un locataire en place garde donc ses loyers « En attente », et le
+         tableau de bord les signale — c'est une limite connue, pas un oubli.
+         ⚠️ Elle n'est plus TECHNIQUE depuis la v=92 (`sfConfirmer` a sa
+         propre fenêtre) : poser la question ici aussi est devenu possible,
+         et reste à décider. */
       const statutPasses = await sfDemanderLoyersPasses(
         locSauve, new Date().getFullYear(), sfMoisDebutGeneration(locSauve));
       loyersGenes = await autoGenerateLoyers(locSauve, statutPasses);
@@ -11575,7 +11639,10 @@ async function saveLocataire() {
 
 async function deleteLocataire() {
   if(!editingLocataireId) return;
-  if(!confirm('Supprimer définitivement ce locataire ? Les loyers mensuels rattachés conserveront la trace mais perdront le lien locataire.')) return;
+  if(!(await sfConfirmer({ titre: 'Supprimer le locataire', question: 'Supprimer définitivement ce locataire ?',
+    detail: 'Ses documents partent avec lui. Ses <strong>loyers mensuels sont conservés</strong>, '
+          + 'mais ne lui seront plus rattachés.',
+    ok: 'Supprimer', danger: true }))) return;
   // Nettoyer les documents Storage rattachés (best-effort)
   const loc = allLocataires.find(x=>x.id===editingLocataireId);
   if(loc && Array.isArray(loc.documents)){
@@ -12344,7 +12411,10 @@ async function saveContact() {
 }
 
 async function deleteContact() {
-  if(!editingContactId || !confirm('Supprimer ce contact ?')) return;
+  if(!editingContactId) return;
+  if(!(await sfConfirmer({ titre: 'Supprimer le contact', question: 'Supprimer ce contact ?',
+    detail: 'Il est aussi retiré des SCI auxquelles il était rattaché.',
+    ok: 'Supprimer', danger: true }))) return;
   const {error} = await db.from('contacts').delete().eq('id',editingContactId);
   if(error) { showNotif('Erreur : '+error.message, true); return; }
   showNotif('Contact supprimé');
@@ -12423,7 +12493,9 @@ async function saveEcheance() {
 }
 
 async function deleteEcheance() {
-  if(!editingEcheanceId || !confirm('Supprimer cette échéance ?')) return;
+  if(!editingEcheanceId) return;
+  if(!(await sfConfirmer({ titre: "Supprimer l'échéance", question: 'Supprimer cette échéance ?',
+    ok: 'Supprimer', danger: true }))) return;
   const {error} = await db.from('sci_echeances').delete().eq('id',editingEcheanceId);
   if(error) { showNotif('Erreur : '+error.message, true); return; }
   showNotif('Échéance supprimée');
@@ -12534,7 +12606,9 @@ async function saveBilan() {
 }
 
 async function deleteBilan() {
-  if(!editingBilanId || !confirm('Supprimer ce bilan ?')) return;
+  if(!editingBilanId) return;
+  if(!(await sfConfirmer({ titre: 'Supprimer le bilan', question: 'Supprimer ce bilan ?',
+    detail: 'Cette action est irréversible.', ok: 'Supprimer', danger: true }))) return;
   const {error} = await db.from('bilans_comptables').delete().eq('id', editingBilanId);
   if(error) { showNotif('Erreur : ' + error.message, true); return; }
   showNotif('Bilan supprimé');
@@ -13432,32 +13506,6 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
 
 
 
-// ── Page Carte ───────────────────────────────────────────────
-function renderMarcheCarte(el) {
-  el.innerHTML = `
-    <div class="marche-page">
-      <div class="marche-hero">
-        <div class="marche-hero-left">
-          <div class="marche-hero-tag">${sfAccIcon('carte',14)} Bientôt disponible</div>
-          <div class="marche-hero-title">Carte de France</div>
-          <div class="marche-hero-sub">Heatmap des prix au m² et rendements locatifs par commune — Leaflet.js + DVF</div>
-        </div>
-      </div>
-      <div class="marche-carte-placeholder">
-        <div class="adm-vide-ic">${sfAccIcon('carte',60)}</div>
-        <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:var(--c-text)">Carte interactive — Bientôt</div>
-        <div style="font-size:13px;color:var(--c-muted);max-width:400px;margin:0 auto;line-height:1.7">
-          La carte de France avec heatmap des prix au m² par département et commune sera disponible prochainement.
-        </div>
-        <div style="margin-top:24px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
-          <div style="background:var(--c-bg);border-radius:8px;padding:12px 18px;font-size:12px;color:var(--c-dim)">${sfAccIcon('thermo',13)} Heatmap prix/m²</div>
-          <div style="background:var(--c-bg);border-radius:8px;padding:12px 18px;font-size:12px;color:var(--c-dim)">${sfAccIcon('graph',13)} Rendement locatif estimé</div>
-          <div style="background:var(--c-bg);border-radius:8px;padding:12px 18px;font-size:12px;color:var(--c-dim)">${sfAccIcon('ville',13)} +35 000 communes</div>
-          <div style="background:var(--c-bg);border-radius:8px;padding:12px 18px;font-size:12px;color:var(--c-dim)">${sfAccIcon('graph',13)} Évolution 10 ans</div>
-        </div>
-      </div>
-    </div>`;
-}
 
 
 // ══════════════════════════════════════════════════════════════
@@ -13517,7 +13565,8 @@ async function openSciDocument(path) {
   if (url) openDoc(url); else showNotif('Document introuvable.', true);
 }
 async function deleteSciDocument(docId, path) {
-  if (!confirm('Supprimer ce document ?')) return;
+  if (!(await sfConfirmer({ titre: 'Supprimer le document', question: 'Supprimer ce document ?',
+    ok: 'Supprimer', danger: true }))) return;
   await TI_STORAGE.remove('sci-documents', path);
   const { error } = await db.from('sci_documents').delete().eq('id', docId).eq('user_id', currentUser.id);
   if (error) { showNotif('Erreur : ' + error.message, true); return; }
@@ -14131,7 +14180,8 @@ async function saveVisite(id) {
 }
 
 async function deleteVisite(id) {
-  if(!confirm('Supprimer ce compte rendu ?'))return;
+  if(!(await sfConfirmer({ titre: 'Supprimer le compte rendu', question: 'Supprimer ce compte rendu ?',
+    detail: 'Ses photos partent avec lui.', ok: 'Supprimer', danger: true }))) return;
   // Nettoyer les photos Storage rattachées (best-effort)
   const {data:v} = await db.from('visites').select('photos_paths').eq('id',id).maybeSingle();
   if(v){
@@ -14234,7 +14284,9 @@ function updateSimActionBar() {
 async function simActionDelete() {
   if(!simSelected.size) return;
   const n = simSelected.size;
-  if(!confirm(`Supprimer ${n} simulation${n>1?'s':''} ? Cette action est irréversible.`)) return;
+  if(!(await sfConfirmer({ titre: 'Supprimer les simulations',
+    question: `Supprimer ${n} simulation${n>1?'s':''} ?`,
+    detail: 'Cette action est irréversible.', ok: 'Supprimer', danger: true }))) return;
   const ids = [...simSelected];
   // Nettoyer les PDF Storage rattachés (best-effort)
   const {data:simsToDel} = await db.from('simulations_credit').select('pdf_path').in('id', ids);
@@ -14298,8 +14350,13 @@ async function confirmAttribuer() {
       const m = Math.round(parseFloat(simRes.data?.mensualite_calculee) || 0);
       const bm = Math.round(parseFloat(bienRes.data?.mensualite_credit) || 0);
       if (m > 0 && m !== bm) {
-        const msg = `La mensualité de la simulation (${fmt(m)} €) diffère de celle du bien « ${bienRes.data?.titre || ''} » (${bm ? fmt(bm) + ' €' : 'non renseignée'}).\n\nMettre à jour la fiche du bien avec la mensualité de la simulation ?`;
-        if (confirm(msg)) {
+        const synchro = await sfConfirmer({
+          titre: 'Synchroniser la mensualité',
+          question: 'Mettre à jour la fiche du bien avec la mensualité de la simulation ?',
+          detail: `La simulation donne <strong>${sfEur(m)}</strong> par mois ; la fiche « ${esc(bienRes.data?.titre || 'du bien')} » `
+                + `porte ${bm ? `<strong>${sfEur(bm)}</strong>` : 'une mensualité non renseignée'}.`,
+          ok: 'Mettre à jour', annuler: 'Garder la fiche' });
+        if (synchro) {
           const patch = { mensualite_credit: m };
           if (simRes.data?.duree_ans) patch.duree_credit_ans = simRes.data.duree_ans;
           await db.from('biens').update(patch).eq('id', bienId).eq('user_id', currentUser.id);
@@ -14742,7 +14799,8 @@ async function saveSim() {
 }
 
 async function deleteSim(id) {
-  if(!confirm('Supprimer cette simulation ?'))return;
+  if(!(await sfConfirmer({ titre: 'Supprimer la simulation', question: 'Supprimer cette simulation ?',
+    detail: 'Cette action est irréversible.', ok: 'Supprimer', danger: true }))) return;
   const{error}=await db.from('simulations_credit').delete().eq('id',id);
   if(error){showNotif('Erreur',true);return;}
   showNotif('Simulation supprimée');closeModal('modal-detail');
@@ -15224,17 +15282,18 @@ async function deleteSCI() {
      version supprimait en silence et les biens disparaissaient de la
      déclaration fiscale sans un mot (défaut n°5 de la revue du 13/08/2026). */
   const detenus = allBiens.filter(b => b.sci_id === currentSCIId);
-  let question = `Supprimer la SCI « ${nom} » ? Cette action est irréversible.`;
+  // `detail` n'est pas échappée par sfConfirmer : les titres le sont ici.
+  let detail = 'Cette action est <strong>irréversible</strong>.';
   if (detenus.length) {
-    const liste = detenus.slice(0, 5).map(b => '  · ' + (b.titre || 'Bien sans titre')).join('\n');
-    const reste = detenus.length > 5 ? `\n  · … et ${detenus.length - 5} autre(s)` : '';
-    question =
-      `La SCI « ${nom} » détient ${detenus.length} bien${detenus.length > 1 ? 's' : ''} :\n${liste}${reste}\n\n`
-      + `Les biens sont conservés, mais leur mode de détention redeviendra « à renseigner » : `
-      + `vous devrez déclarer pour chacun s'il est détenu en propre ou via une autre SCI.\n\n`
-      + `Supprimer quand même ?`;
+    const liste = detenus.slice(0, 5).map(b => '· ' + esc(b.titre || 'Bien sans titre')).join('<br>');
+    const reste = detenus.length > 5 ? `<br>· … et ${detenus.length - 5} autre${detenus.length - 5 > 1 ? 's' : ''}` : '';
+    detail =
+      `Elle détient ${detenus.length} bien${detenus.length > 1 ? 's' : ''} :<br>${liste}${reste}<br><br>`
+      + `Les biens sont conservés, mais leur mode de détention redeviendra <strong>« à renseigner »</strong> : `
+      + `vous devrez déclarer pour chacun s'il est détenu en propre ou via une autre SCI.`;
   }
-  if (!confirm(question)) return;
+  if (!(await sfConfirmer({ titre: 'Supprimer la SCI', question: `Supprimer la SCI « ${nom} » ?`,
+                            detail, ok: 'Supprimer la SCI', danger: true }))) return;
 
   const btn = document.getElementById('sci-btn-delete');
   btn.disabled = true;

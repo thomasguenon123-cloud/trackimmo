@@ -109,8 +109,9 @@ test('RÉGRESSION — le prorata du mois d’entrée survit à la reprise', () =
 test('RÉGRESSION — seule la fiche locataire pose la question', () => {
   /* `sfCongeRevoquer` régénère un bail existant : le bailleur annule un congé,
      il ne déclare pas son parc. Et `bdAcqConfirmer` vit dans `modal-detail`,
-     la fenêtre que `sfConfirmer` réutilise — y ouvrir la question écraserait
-     le workflow d'acquisition en cours. */
+     la fenêtre que `sfConfirmer` réutilisait jusqu'à la v=92. Ce n'est plus
+     une contrainte technique ; l'étendre au workflow d'acquisition reste une
+     décision produit, et cette garde la signalera si on le fait. */
   const appels = APP_JS.match(/sfDemanderLoyersPasses\(/g) || [];
   assert.equal(appels.length, 2, 'un appel dans la définition, un seul sur un chemin');
 });
@@ -133,11 +134,13 @@ test('RÉGRESSION — aucune question si les lignes existent déjà', () => {
 });
 
 test('RÉGRESSION — le formulaire est refermé avant que la question s’ouvre', () => {
-  /* La confirmation vit dans `#modal-detail` (z-index 200), le formulaire
+  /* La confirmation vivait dans `#modal-detail` (z-index 200), le formulaire
      locataire dans `#adm-modal-overlay` (z-index 2001). Posée avant la
      fermeture, la question s'ouvrait DERRIÈRE : invisible, incliquable, et
      `sfConfirmer` plaçant le focus sur « Oui », une touche Entrée marquait
-     huit mois encaissés sans que personne ne voie rien.
+     huit mois encaissés sans que personne ne voie rien. La cause est réglée
+     à la racine en v=92 (fenêtre propre, au-dessus de tout — voir
+     cloisonnement.test.js) ; l'ordre reste vérifié, il ne coûte rien.
      On vérifie l'ordre dans la source : fermer, puis demander. */
   const bloc = APP_JS.slice(APP_JS.indexOf('async function saveLocataire'));
   const ferme  = bloc.indexOf('closeAdmModal();');

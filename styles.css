@@ -3121,7 +3121,6 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 /* orange couleur positive */
 .marche-kpi-val.orange{color:var(--sf-alert);}
 /* Carte placeholder */
-.marche-carte-placeholder{background:var(--c-surface);border:1px solid var(--c-border);border-radius:12px;padding:48px;text-align:center;}
 
 /* ═══ PAGE PARAMÈTRES ═══ */
 .params-layout{display:flex;gap:24px;align-items:flex-start;max-width:1400px;margin:0 auto;width:100%;}
@@ -3146,10 +3145,6 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
    mieux qu'un text-align pense pour les emojis d'avant. */
 .params-nav-item .pni-icon{width:20px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
 .params-nav-item .pni-icon svg{display:block;}
-.params-nav-item .pni-soon{
-  margin-left:auto;font-size:9px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;
-  background:var(--c-border);color:var(--c-dim);padding:2px 6px;border-radius:5px;
-}
 .params-content{flex:1;min-width:0;}
 .params-section-title{font-size:22px;font-weight:700;color:var(--c-text);margin-bottom:4px;
   display:flex;align-items:center;gap:10px;}
@@ -3177,7 +3172,6 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
   background:var(--c-surface);border:1px dashed var(--c-border);border-radius:12px;
   padding:40px;text-align:center;color:var(--c-muted);
 }
-.params-soon-box .psb-icon{font-size:32px;margin-bottom:10px;}
 .params-soon-box .psb-title{font-size:16px;font-weight:600;color:var(--c-text);margin-bottom:6px;}
 /* Zone de danger */
 .params-danger{

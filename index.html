@@ -23,9 +23,9 @@
      l'icône Apple l'ajout à l'écran d'accueil sur iPhone. Les trois portent
      `?v=` comme le reste : une favicon est mise en cache très agressivement,
      et sans la version le changement peut rester invisible des semaines. -->
-<link rel="icon" type="image/svg+xml" href="favicon.svg?v=91">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=91">
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=91">
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=92">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=92">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=92">
 <meta name="theme-color" content="#0A100C" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#F5F8F6" media="(prefers-color-scheme: light)">
 <!-- ⚠️ Le chargement de Google Fonts a été retiré le 13/08/2026 : « Inter » n'est
@@ -43,19 +43,19 @@
 <!-- Socle de jetons Stonefolio (phase 2). Ne declare que des variables : aucun
      effet visuel tant qu'aucun composant ne les consomme. Charge AVANT
      styles.css pour que la migration puisse s'appuyer dessus. -->
-<link rel="stylesheet" href="tokens.css?v=91">
-<link rel="stylesheet" href="components.css?v=91">
-<link rel="stylesheet" href="styles.css?v=91">
+<link rel="stylesheet" href="tokens.css?v=92">
+<link rel="stylesheet" href="components.css?v=92">
+<link rel="stylesheet" href="styles.css?v=92">
 <!-- Suivi financier : chargé APRÈS styles.css, c'est ce qui permet aux deux
      surcharges de géométrie (`.sff-line` à 2 colonnes au lieu de 5) de gagner
      dans le seul périmètre `.mf-page`, sans toucher à la fiche bien. -->
-<link rel="stylesheet" href="financier.css?v=91">
+<link rel="stylesheet" href="financier.css?v=92">
 <!-- Tactile : chargée EN DERNIER, et c'est ce qui la fait fonctionner. Elle ne
      contient que des surcharges sous requête média (`any-pointer: coarse`) qui
      doivent gagner contre les quatre feuilles précédentes ; à spécificité égale,
      c'est l'ordre de chargement qui tranche. Aucun effet sur un poste sans
      pointeur tactile. -->
-<link rel="stylesheet" href="tactile.css?v=91">
+<link rel="stylesheet" href="tactile.css?v=92">
 </head>
 <body>
 
@@ -88,10 +88,6 @@
           <a class="sf-menu__link" id="nav-marche-recherche" role="menuitem" href="#" onclick="navigate('marche-recherche');sfCloseMenus();return false;">
             <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
             <span><span class="sf-menu__t">Recherche par ville</span><span class="sf-menu__d">Population, revenus, emploi, équipements</span></span>
-          </a>
-          <a class="sf-menu__link" id="nav-marche-carte" role="menuitem" href="#" onclick="navigate('marche-carte');sfCloseMenus();return false;">
-            <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6.5v13L9 17l6 2.5 6-2.5v-13L15 7Z"/><path d="M9 4v13M15 7v12.5"/></svg></span>
-            <span><span class="sf-menu__t">Carte de France<span class="sf-menu__soon">Bientôt</span></span><span class="sf-menu__d">Prix au m² par commune</span></span>
           </a>
         </div>
       </div>
@@ -228,7 +224,7 @@
 
 <div class="notif" id="notif"></div>
 
-<script src="app.js?v=91"></script>
+<script src="app.js?v=92"></script>
 
 <!-- LIGHTBOX -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">

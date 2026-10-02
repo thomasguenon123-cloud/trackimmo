@@ -85,8 +85,12 @@
   vides complets (icône, titre, explication, action), jamais une ligne seule.
 - **Iconographie** : un seul jeu, `SF_ACC_ICONS` via `sfAccIcon(cle, taille)`.
   Plus aucun emoji dans ce qui part en production (garde `emojis.test.js`).
-- **Confirmation** : `sfConfirmer({...})`, jamais `confirm()` natif.
-  ⚠️ son `question` est échappé, son `detail` ne l'est PAS.
+- **Confirmation** : `sfConfirmer({...})`, jamais `confirm()` natif (garde
+  `impasses.test.js`). Elle a sa propre fenêtre, au-dessus de tout
+  (`--sf-z-confirm`). ⚠️ son `question` est échappé, son `detail` ne l'est PAS.
+  Sur un acte destructeur (`danger: true`), le focus va à « Annuler ».
+- **Pas d'entrée « Bientôt »** : une section non construite n'est pas affichée
+  (`sfParamPropose`) ; elle réapparaît quand son statut passe à `'ready'`.
 - **Ne jamais recopier une énumération en dur** : tout passe par `TI_BIENS`
   (statuts dérivés de `PHASE_MAP`).
 
@@ -129,6 +133,13 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
   réutiliser tel quel. Toujours `minmax(0,1fr)`, jamais `1fr` seul.
 - **Contraste** : `--sf-text-3` retombe sous AA dès qu'il quitte `--sf-bg` →
   `--sf-text-2`. Les `--sf-*-wash` sont en `rgba()` : compositer la pile de fonds.
+- **Ordre de chargement CSS** : `components.css` est chargé AVANT `styles.css`.
+  À spécificité égale, `styles.css` gagne — une règle `.sf-x` de components.css
+  peut perdre contre `.modal-overlay` de styles.css. Vérifier dans un vrai
+  navigateur, pas seulement que la règle existe.
+- **Plans de superposition** : les fenêtres d'ancienne charte sont à 2000-2001,
+  les popups jusqu'à 9999, `modal-detail` à 200. Rien d'interactif ne doit
+  s'ouvrir depuis l'une d'elles dans une couche plus basse.
 - **Vérifier qu'une classe n'existe pas avant de la créer.** Mesurer la MISE EN
   PAGE (ordonnées, pistes à 0 px), pas seulement le contenu du DOM.
 - Jamais de commentaire HTML `<!-- -->` contenant un accent grave dans un gabarit.

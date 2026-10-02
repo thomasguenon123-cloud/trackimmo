@@ -181,8 +181,6 @@ const TOLERES = new Map([
    'affecté à detail-titre.textContent à la ligne précédente : pas de HTML.'],
   ['const label = v.biens?.titre ?',
    'libellé de groupe composé en texte brut, échappé au rendu par ${esc(g.label)}.'],
-  ['diffère de celle du bien « ${bienRes.data?.titre',
-   'message passé à confirm(), qui affiche du texte et n\'interprète aucune balise.'],
 ]);
 
 test('aucun champ de texte libre n\'est interpolé nu dans du HTML', () => {

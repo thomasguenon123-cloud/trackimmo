@@ -157,6 +157,12 @@
   --sf-z-dropdown:300;
   --sf-z-modal:   400;
   --sf-z-toast:   500;
+  /* La question de confirmation passe au-dessus de TOUT, y compris des
+     fenêtres d'ancienne charte (`.adm-modal-overlay` 2001, `.sci-modal-overlay`
+     2000) et des popups de saisie (jusqu'à 9999), qui n'ont pas encore migré
+     sur cette échelle. Une question qu'on ne voit pas, c'est une suppression
+     validée à l'aveugle — voir sfConfirmer. */
+  --sf-z-confirm: 10000;
 }
 
 

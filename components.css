@@ -565,18 +565,6 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 .sf-menu__row.active{ background:var(--sf-brand-wash); color:var(--sf-brand-vivid); }
 .sf-menu__row .ic{ width:18px; text-align:center; flex-shrink:0; opacity:.9; }
 .sf-menu__row .lab{ flex:1; min-width:0; }
-/* Une section « Bientot » reste visible mais non cliquable : la masquer
-   priverait l'utilisateur de la carte du produit. */
-.sf-menu__row[aria-disabled="true"]{ opacity:.5; cursor:default; }
-.sf-menu__row[aria-disabled="true"]:hover{ background:none; }
-
-.sf-menu__soon{
-  font-size:var(--sf-font-label); text-transform:uppercase;
-  letter-spacing:var(--sf-track-caps); background:var(--sf-alert-wash);
-  color:var(--sf-alert); padding:1px var(--sf-space-3);
-  border-radius:var(--sf-radius-xs); margin-left:var(--sf-space-3);
-}
-
 /* Actions de droite — trois cibles icone, du moins au plus personnel :
    Utilisateurs (admin), Compte, Reglages. Un pictogramme seul se devine mal :
    chacune porte un title ET un aria-label explicites. */
@@ -1002,3 +990,15 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 .sf-notes{ display:inline-flex; gap:2px; vertical-align:-2px; flex-shrink:0; }
 .sf-notes__e{ display:inline-flex; color:var(--sf-text-3); }
 .sf-notes__e--pleine{ color:var(--sf-alert); }
+
+/* ── Confirmation — fenêtre propre de sfConfirmer (v=92) ─────────────────────
+   Créée à la demande, retirée à la réponse. Elle ne partage plus
+   `#modal-detail` : posée depuis une fenêtre d'ancienne charte, elle
+   s'ouvrait derrière. Plus étroite qu'une fiche — c'est une question.
+   ⚠️ DEUX CLASSES DANS LE SÉLECTEUR, ET C'EST TOUT LE SUJET. `styles.css`,
+   chargé APRÈS cette feuille, pose `.modal-overlay{z-index:200}`. Écrite
+   `.sf-confirm{…}`, à spécificité égale, la règle perdait la cascade : la
+   question restait sous la fenêtre d'origine. Vu dans un vrai navigateur,
+   pas par la garde statique — qui vérifie désormais la spécificité. */
+.modal-overlay.sf-confirm{ z-index:var(--sf-z-confirm); }
+.modal-overlay.sf-confirm .modal{ max-width:480px; }
