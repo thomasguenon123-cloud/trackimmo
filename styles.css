@@ -2069,6 +2069,8 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight);
   line-height:var(--sf-lh-tight); color:var(--sf-text); margin:0; }
 .sff-sub{ font-size:var(--sf-font-body); color:var(--sf-text-3); margin:var(--sf-space-3) 0 0; }
+/* Fiche de test hors des chiffres : la phrase dit où sont passés ses loyers. */
+.sff-sub--test{ color:var(--sf-text-2); font-size:var(--sf-font-caption); }
 .sff-acts{ display:flex; gap:var(--sf-space-4); flex-wrap:wrap; }
 
 /* ── Bandeau d'indicateurs ────────────────────────────────────────────────── */

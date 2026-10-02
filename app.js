@@ -490,6 +490,8 @@ async function doLogout() {
   await db.auth.signOut();
   currentUser = null;
   allBiens = [];
+  sfBiensCharges = false;
+  sfTestsChoix = null;
   // Reset UI
   showForm('login');
   clearAuthAlert();
@@ -828,8 +830,13 @@ function tiDateFr(d) {
 // les filtres et le tri courants. Exporter tout le portefeuille alors que
 // l'ecran en montre trois serait une mauvaise surprise.
 function exportBiensCSV(biensChoisis) {
-  const biens = biensChoisis || getFilteredBiens();
-  if (!biens.length) { showNotif('Aucun bien à exporter avec ces filtres', true); return; }
+  const vus = biensChoisis || getFilteredBiens();
+  // Les fiches de test ne sortent pas du compte (sfBienCompte).
+  const biens = vus.filter(sfBienCompte);
+  if (!biens.length) {
+    showNotif(vus.length ? 'Les fiches de test ne sont pas exportées' : 'Aucun bien à exporter avec ces filtres', true);
+    return;
+  }
 
   const champs = TI_BIENS.CHAMPS;
   const entetes = [
@@ -923,6 +930,13 @@ let currentProfile = null;
 let userPrefs = { notaire_pct: 7.0, duree_credit_ans: 20, assurance_mois: 33, seuil_rentabilite: 5.0 };
 const ADMIN_EMAIL = 'thomasguenon123@gmail.com';
 
+/* QUI EST ADMINISTRATEUR — une seule lecture, là où il y en avait cinq,
+   recopiées à l'identique. Côté client ce n'est qu'un confort d'affichage :
+   la vraie barrière est en base (RLS, et le rôle porté par le jeton). */
+function sfEstAdmin() {
+  return currentProfile?.role === 'admin' || currentUser?.email === ADMIN_EMAIL;
+}
+
 /* LE NOM DE L'UTILISATEUR — une lecture, aux clés que la base rend vraiment.
 
    ⚠️ LE DÉFAUT QUE CETTE FONCTION CORRIGE. Trois endroits lisaient les clés
@@ -978,7 +992,7 @@ async function loadProfile() {
 
 // Etat du bandeau qui depend du profil : acces Utilisateurs et initiales.
 function sfRefreshTopnav() {
-  const isAdmin = currentProfile?.role === 'admin' || currentUser?.email === ADMIN_EMAIL;
+  const isAdmin = sfEstAdmin();
 
   // « Utilisateurs » est sorti des Parametres en phase 4 : c'est une fonction
   // d'administration, pas un reglage. Le masquage DOM n'est qu'un confort —
@@ -988,6 +1002,10 @@ function sfRefreshTopnav() {
   const sep = document.getElementById('sf-sep-admin');
   if(btnUsers) btnUsers.style.display = isAdmin ? '' : 'none';
   if(sep) sep.style.display = isAdmin ? '' : 'none';
+  // Tant que les biens de test sont comptés, le bandeau le dit : un chiffre
+  // gonflé de données factices ne doit jamais passer pour un vrai.
+  const rappel = document.getElementById('sf-tests-inclus');
+  if(rappel) rappel.style.display = sfTestsInclus() ? '' : 'none';
 
   // Initiales : prenom + nom, a defaut la premiere lettre de l'e-mail.
   const av = document.getElementById('sf-avatar');
@@ -1026,7 +1044,7 @@ function sfGoParam(id) {
 function sfBuildParamsMenu() {
   const p = document.getElementById('panel-param');
   if(!p || typeof PARAMS_SECTIONS === 'undefined') return;
-  const isAdmin = currentProfile?.role === 'admin' || currentUser?.email === ADMIN_EMAIL;
+  const isAdmin = sfEstAdmin();
 
   p.innerHTML = PARAMS_SECTIONS
     .map(f => {
@@ -1111,7 +1129,7 @@ document.addEventListener('click', function(e) {
 
 // ── Page principale "Gestion utilisateurs" ──
 async function renderAdmin(el) {
-  const isAdmin = currentProfile?.role === 'admin' || currentUser?.email === ADMIN_EMAIL;
+  const isAdmin = sfEstAdmin();
   if(!isAdmin) {
     el.innerHTML = `<div class="empty-state"><h3>${sfAccIcon('lock',20)} Accès refusé</h3><p>Cette section est réservée aux administrateurs.</p></div>`;
     return;
@@ -1421,7 +1439,9 @@ async function init() {
 async function loadAndStart() {
   // P2 : loyers, charges et locataires chargés dès le démarrage — le cashflow
   // réel s'affiche dans tout le pipeline, plus seulement dans le Module financier
-  await Promise.all([loadBiens(), loadLocataires(), loadMfFinancialData()]);
+  // Les biens D'ABORD : loyers, charges et locataires se filtrent sur eux.
+  await loadBiens();
+  await Promise.all([loadLocataires(), loadMfFinancialData()]);
   // Routage hash au démarrage : #parametres ou #parametres/section
   if (window.location.hash.startsWith('#parametres')) {
     navigate('parametres');
@@ -1438,6 +1458,72 @@ window.addEventListener('hashchange', () => {
   }
 });
 
+/* ═══ LES BIENS DE TEST — UNE SEULE RÈGLE (v=94) ═══════════════════════════
+   ⚠️ LE DÉFAUT. `is_test` ne peignait qu'un ruban. Les fiches générées depuis
+   Paramètres › Maintenance entraient dans TOUS les chiffres : mesuré en base
+   le 02/10/2026, le compte administrateur portait cinq fiches de test (trois
+   « Acheté »), deux locataires, 28 loyers et une charge — 100 % de sa gestion
+   locative était factice. Ce compte devient celui d'un vrai investissement :
+   ses indicateurs auraient mêlé le vrai et le faux, sans le dire.
+
+   LA RÈGLE. Un bien de test reste sur le compte et dans la LISTE des biens,
+   marqué « Test » ; il sort de tout ce qui agrège, gère ou déclare — accueil,
+   indicateurs, gestion locative, locataires, échéances, administration,
+   déclaration, exports — avec ses loyers, ses charges et ses locataires.
+   Un administrateur l'y réintègre par « Inclure les biens de test »
+   (Paramètres › Maintenance) ; un rappel reste alors visible dans le bandeau.
+
+   ⚠️ Ces fonctions sont les SEULES à lire `is_test` (garde biens-test.test.js) :
+   une seconde lecture du drapeau serait une seconde règle, qui divergerait.
+   Le réglage ne vaut que pour un administrateur : un choix laissé dans ce
+   navigateur par une session admin ne change rien pour un autre compte. */
+const SF_CLE_TESTS = 'sf-inclure-tests';
+let sfTestsChoix = null;     // null : pas encore lu dans le navigateur
+let sfBiensCharges = false;  // allBiens reflète-t-il la base ? (voir sfLignesComptees)
+
+function sfBienDeTest(b) { return !!(b && b.is_test); }
+
+function sfTestsInclus() {
+  if (!sfEstAdmin()) return false;
+  if (sfTestsChoix === null) {
+    try { sfTestsChoix = localStorage.getItem(SF_CLE_TESTS) === '1'; }
+    catch (e) { sfTestsChoix = false; }
+  }
+  return sfTestsChoix;
+}
+
+function sfBienCompte(b) { return !sfBienDeTest(b) || sfTestsInclus(); }
+
+function sfBiensComptes() { return allBiens.filter(sfBienCompte); }
+
+/* Une ligne rattachée à un bien — loyer, charge, locataire — suit son bien.
+   Sans bien, elle compte : rien ne la désigne comme factice. */
+function sfLignesComptees(lignes) {
+  if (!Array.isArray(lignes) || sfTestsInclus()) return lignes || [];
+  const tests = new Set(allBiens.filter(sfBienDeTest).map(b => b.id));
+  return tests.size ? lignes.filter(l => !l.bien_id || !tests.has(l.bien_id)) : lignes;
+}
+
+/* Les loyers, charges et locataires sont filtrés AU CHARGEMENT, en un point
+   chacun : la centaine de lectures qui les agrègent n'a rien à savoir des biens
+   de test. Le filtre a besoin des biens : sans eux, il laisserait tout passer. */
+async function sfAssurerBiens() {
+  if (!sfBiensCharges && currentUser) await loadBiens();
+}
+
+async function sfInclureTests(oui) {
+  if (!sfEstAdmin()) return;
+  sfTestsChoix = !!oui;
+  // Le choix tient au moins le temps de la session, même si le navigateur
+  // refuse de le garder.
+  try { oui ? localStorage.setItem(SF_CLE_TESTS, '1') : localStorage.removeItem(SF_CLE_TESTS); }
+  catch (e) { /* choix gardé en mémoire seulement */ }
+  await Promise.all([loadLocataires(), loadMfFinancialData()]);
+  sfRefreshTopnav();
+  showNotif(oui ? 'Biens de test inclus dans les chiffres' : 'Biens de test retirés des chiffres');
+  navigate(currentPage);
+}
+
 async function loadBiens() {
   if(!currentUser) return;
   // Filtre user_id explicite côté client (défense en profondeur en plus du RLS)
@@ -1447,7 +1533,7 @@ async function loadBiens() {
     .order('created_at', { ascending: false });
   if (error) { showNotif('Erreur connexion : '+error.message, true); return; }
   allBiens = data || [];
-  // data-manager is now in settings panel
+  sfBiensCharges = true;
 }
 
 
@@ -1844,7 +1930,7 @@ function sfParcoursDemarrage(biens, loyers, locataires) {
   /* Les données sont des PARAMÈTRES, avec les globales pour défaut : sans
      cela la fonction ne se teste que sur l'état réel de l'application, et
      les quatre étapes d'un compte qui se remplit ne sont pas vérifiables. */
-  const tousBiens  = biens  || (typeof allBiens  !== 'undefined' ? allBiens  : []);
+  const tousBiens  = biens  || (typeof allBiens  !== 'undefined' ? sfBiensComptes() : []);
   const tousLoyers = loyers || (typeof allLoyers !== 'undefined' ? allLoyers : []);
   const acquis = tousBiens.filter(sfDetenu);
   return [
@@ -1904,8 +1990,9 @@ function sfParcoursAMontrer(parcours) {
 
 function sfPointsAttention() {
   const pts = [];
-  const acquis      = allBiens.filter(b => b.statut === 'Acheté');
-  const prospection = allBiens.filter(b => b.statut !== 'Acheté' && b.statut !== 'Abandonné');
+  const comptes     = sfBiensComptes();
+  const acquis      = comptes.filter(b => b.statut === 'Acheté');
+  const prospection = comptes.filter(b => b.statut !== 'Acheté' && b.statut !== 'Abandonné');
   const now = new Date(), annee = now.getFullYear(), moisCourant = now.getMonth() + 1;
   const pl = (n, s, p) => n > 1 ? p : s;
 
@@ -1992,7 +2079,7 @@ function sfPointsAttention() {
   //    Le detecteur s'appuie sur SF_ESSENTIELS, la meme liste que la page biens
   //    et la fiche — les trois ecrans ne peuvent donc pas etre en desaccord sur
   //    ce qu'est une fiche complete.
-  const incompletes = allBiens.filter(b => b.statut !== 'Abandonné' && !sfBienComplet(b));
+  const incompletes = comptes.filter(b => b.statut !== 'Abandonné' && !sfBienComplet(b));
   if (incompletes.length) {
     // On nomme le champ le plus souvent absent : « complétez vos fiches » ne dit
     // pas quoi faire, « il manque le loyer » si.
@@ -2229,8 +2316,9 @@ async function sfPointerLoyer(bienId, mois, annee, boite) {
 }
 
 function renderAccueil(el) {
-  const acquis      = allBiens.filter(b => b.statut === 'Acheté');
-  const prospection = allBiens.filter(b => b.statut !== 'Acheté' && b.statut !== 'Abandonné');
+  const comptes     = sfBiensComptes();
+  const acquis      = comptes.filter(b => b.statut === 'Acheté');
+  const prospection = comptes.filter(b => b.statut !== 'Acheté' && b.statut !== 'Abandonné');
 
   // ── Patrimoine reel, memes helpers que le Module financier ──
   let patCF = 0, patLoyers = 0;
@@ -2513,8 +2601,14 @@ function sfFraisCreationSci(bienId, mode, sciId) {
      SCI enregistrait 0 € de frais au lieu de 200. Le défaut était théorique
      tant que le champ s'appelait « SCI associée » et ne servait qu'aux biens
      acquis ; il devient atteignable depuis que la fiche porte « Détention ». */
+  /* ⚠️ Un bien de test ne compte que pour un bien de test. C'est une ÉCRITURE,
+     pas un affichage : elle ne dépend pas de l'interrupteur. Deux fiches de
+     test rattachées à la SCI faisaient enregistrer 0 € à sa première vraie
+     acquisition. */
+  const cible = allBiens.find(b => b.id === bienId);
   const dejaDetenus = allBiens.filter(b =>
-    b.id !== bienId && b.sci_id === sciId && b.mode_detention === 'sci' && sfDetenu(b));
+    b.id !== bienId && b.sci_id === sciId && b.mode_detention === 'sci' && sfDetenu(b)
+    && sfBienDeTest(b) === sfBienDeTest(cible));
   return dejaDetenus.length ? 0 : SF_FRAIS_CREATION_SCI;
 }
 const sfRendement = b => (b.prix_affiche && b.loyer_en_etat)
@@ -2621,8 +2715,9 @@ function renderBiensContent(biens) {
   if($('sfb-n-detenus'))  $('sfb-n-detenus').textContent  = detenus.length;
   if($('sfb-t-prospect')) $('sfb-t-prospect').setAttribute('aria-selected', String(bienOnglet==='prospect'));
   if($('sfb-t-detenus'))  $('sfb-t-detenus').setAttribute('aria-selected', String(bienOnglet==='detenus'));
-  if($('sfb-dot-prospect')) $('sfb-dot-prospect').style.display = prospect.every(sfBienComplet) ? 'none' : '';
-  if($('sfb-dot-detenus'))  $('sfb-dot-detenus').style.display  = detenus.every(sfBienComplet)  ? 'none' : '';
+  const complets = liste => liste.filter(sfBienCompte).every(sfBienComplet);
+  if($('sfb-dot-prospect')) $('sfb-dot-prospect').style.display = complets(prospect) ? 'none' : '';
+  if($('sfb-dot-detenus'))  $('sfb-dot-detenus').style.display  = complets(detenus)  ? 'none' : '';
   // Kanban et regroupement n'ont de sens que sur la prospection.
   if($('sfb-v-kanban')) $('sfb-v-kanban').style.display = bienOnglet==='detenus' ? 'none' : '';
   if($('sfb-group'))    $('sfb-group').style.display    = (bienOnglet==='prospect' && currentView==='kanban') ? '' : 'none';
@@ -2631,13 +2726,16 @@ function renderBiensContent(biens) {
   });
 
   // Les fiches incomplètes sont écartées de TOUS les indicateurs : additionner
-  // des charges sans le loyer en face exagère la perte.
-  const chiffres = l.filter(b => cfDisplayData(b).value != null);
-  const aFaire   = l.filter(b => !sfBienComplet(b));
+  // des charges sans le loyer en face exagère la perte. Les fiches de test
+  // restent dans la liste, hors des indicateurs (sfBienCompte).
+  const comptes  = l.filter(sfBienCompte);
+  const horsTest = l.length - comptes.length;
+  const chiffres = comptes.filter(b => cfDisplayData(b).value != null);
+  const aFaire   = comptes.filter(b => !sfBienComplet(b));
   const somme    = chiffres.reduce((s,b) => s + cfDisplayData(b).value, 0);
   const seuil    = parseFloat(userPrefs?.seuil_rentabilite) || 5;
   const auSeuil  = chiffres.filter(b => (sfRendement(b) ?? 0) >= seuil).length;
-  const capital  = l.reduce((s,b) => s + (parseFloat(b.prix_affiche) || 0), 0);
+  const capital  = comptes.reduce((s,b) => s + (parseFloat(b.prix_affiche) || 0), 0);
   const kpi = (lab,val,sub,cl) => `<div class="sfb-kpi"><span class="sfb-kpi__l">${lab}</span>
     <span class="sfb-kpi__v${cl?' '+cl:''}">${val}</span><span class="sfb-kpi__s">${sub}</span></div>`;
   const cfCl = chiffres.length ? (somme>=0 ? 'sfb-kpi__v--gain' : 'sfb-kpi__v--loss') : '';
@@ -2657,10 +2755,16 @@ function renderBiensContent(biens) {
       + kpi('Fiches à compléter', String(aFaire.length), 'Une information essentielle manque',
             aFaire.length ? 'sfb-kpi__v--alerte' : '');
 
-  if($('sfb-foot')) $('sfb-foot').innerHTML = aFaire.length
-    ? `<b>${aFaire.length} fiche${aFaire.length>1?'s':''}</b> ${aFaire.length>1?'sont exclues':'est exclue'} des indicateurs
-       ci-dessus, faute d'une information essentielle. ${aFaire.length>1?'Elles apparaissent':'Elle apparaît'}
-       aussi dans « À traiter » sur l'accueil.` : '';
+  if($('sfb-foot')) $('sfb-foot').innerHTML = [
+    aFaire.length
+      ? `<b>${aFaire.length} fiche${aFaire.length>1?'s':''}</b> ${aFaire.length>1?'sont exclues':'est exclue'} des indicateurs
+         ci-dessus, faute d'une information essentielle. ${aFaire.length>1?'Elles apparaissent':'Elle apparaît'}
+         aussi dans « À traiter » sur l'accueil.` : '',
+    horsTest
+      // Sans gras : le gras de ce pied est celui des alertes, et ceci n'en est pas une.
+      ? `${horsTest} fiche${horsTest>1?'s':''} de test ${horsTest>1?'figurent':'figure'} dans la liste
+         sans entrer dans les indicateurs.` : '',
+  ].filter(Boolean).join('<br>');
 
   if(!l.length) return `
     <div class="bd-empty-state">
@@ -2716,7 +2820,7 @@ function renderBiensTableau(l) {
           <input type="checkbox" ${bienSelection.has(b.id)?'checked':''}
                  onchange="sfBasculerSelection('${b.id}')"
                  aria-label="Sélectionner ${esc(b.titre || 'ce bien')}"></td>
-        <td><div class="sfb-t__b">${esc(b.titre || 'Sans titre')}</div>
+        <td><div class="sfb-t__b">${esc(b.titre || 'Sans titre')}${sfBienDeTest(b)?' <span class="sf-pill sf-pill--test">Test</span>':''}</div>
             <div class="sfb-t__s">${esc(b.type_bien || '—')}${b.surface_m2?' · '+esc(b.surface_m2)+' m²':''}${b.balise?' · '+esc(b.balise):''}</div></td>
         <td>${b.ville ? esc(b.ville) : '<span class="sfb-vide-val">—</span>'}
             <div class="sfb-t__s">${esc(b.code_postal || '')}</div></td>
@@ -2891,7 +2995,7 @@ function renderKanbanCard(b, draggable=true) {
     ? `draggable="true" ondragstart="kanbanDragStart(event,'${b.id}')" ondragend="kanbanDragEnd(event)"`
     : `style="cursor:pointer"`;
   return `<div class="kanban-card ${cfC}" ${dragAttrs} onclick="openDetail('${b.id}')">
-    ${b.is_test?'<div class="test-ribbon">TEST</div>':''}
+    ${sfBienDeTest(b)?'<div class="test-ribbon">TEST</div>':''}
     <div class="kc-top">
       <div class="kc-title">${esc(b.titre)}</div>
       <div class="kc-cf ${cfC}">${cfTxt}</div>
@@ -3109,7 +3213,7 @@ function renderCard(b) {
   const srcLbl = d.mode==='reel' ? 'Réel' : d.mode==='incomplet' ? 'À compléter'
                : d.attenteReel ? 'Attente' : 'Estimé';
   return `<article class="sfb-card ${d.mode==='incomplet'?'incomplet':''}" onclick="openDetail('${b.id}')">
-    ${b.is_test?'<div class="test-ribbon">TEST</div>':''}
+    ${sfBienDeTest(b)?'<div class="test-ribbon">TEST</div>':''}
     <div class="sfb-card__top">
       <div class="sfb-card__st">
         <span class="statut-pill phase-${(PHASE_MAP[b.statut]||'generic')}">${esc(b.statut || '—')}</span>
@@ -3919,7 +4023,12 @@ function closeLightbox() {
 }
 document.addEventListener('keydown', e => { if(e.key==='Escape') closeLightbox(); });
 
+/* ⚠️ RÉSERVÉ AUX ADMINISTRATEURS — à l'écran (Maintenance est `adminOnly`),
+   ici, et en base (déclencheur `biens_garde_is_test`, GARDE-BIENS-TEST.sql).
+   Une seule de ces barrières ne suffit pas : l'écran se contourne par la
+   console, et la base est la seule que l'on ne contourne pas. */
 async function genTestData() {
+  if (!sfEstAdmin()) { showNotif('Réservé aux administrateurs', true); return; }
   // 3 biens rentables + 2 négatifs, données réalistes
   const positifs = [
     {v:'Paris 18e',cp:'75018',t:'Immeuble',s:180,p:650000,loyer:4200,mens:2800,statut:'Vendeur contacté (1ère)',note:'Immeuble de rapport 4 lots. Fort potentiel locatif, emplacement prime.'},
@@ -3966,20 +4075,43 @@ async function genTestData() {
    forme qui a rendu la purge base64 dangereuse : une fonction qui ne dit
    pas de qui elle parle finit par etre appelee la ou la RLS ne s'applique
    pas. On ecrit le compte, la RLS reste le filet. */
+/* ⚠️ LES LOCATAIRES PARTENT AVEC LEURS FICHES. La clé `locataires.bien_id`
+   est en ON DELETE SET NULL : supprimer les biens laissait leurs locataires
+   factices sans bien — et un locataire sans bien COMPTE (sfLignesComptees).
+   La purge les aurait fait entrer dans les vrais chiffres. Les loyers et les
+   charges, eux, sont en CASCADE. On les lit en base, pas dans allLocataires,
+   que le filtre a justement vidé de ces locataires. */
 async function purgeTestData() {
-  const n=allBiens.filter(b=>b.is_test).length;
+  const tests = allBiens.filter(sfBienDeTest);
+  const n = tests.length;
   if(!n){showNotif('Aucune fiche test à supprimer');return;}
   if(!currentUser) return;
+  const ids = tests.map(b => b.id);
+  const { data: locs, error: errLocs } = await db.from('locataires')
+    .select('id,documents').eq('user_id', currentUser.id).in('bien_id', ids);
+  if(errLocs){showNotif('Erreur : '+errLocs.message,true);return;}
+  const nl = (locs || []).length;
   const ok = await sfConfirmer({
     titre: 'Supprimer les fiches de test',
     question: `Supprimer ${n} fiche${n>1?'s':''} de test ?`,
-    detail: 'Seules les fiches marquées « TEST » partent. Vos autres biens ne bougent pas.',
+    detail: 'Seules les fiches marquées « TEST » partent, avec leurs loyers et leurs charges'
+      + (nl ? ` et leur${nl>1?'s':''} ${nl} locataire${nl>1?'s':''}` : '')
+      + '. Vos autres biens ne bougent pas.',
     ok: 'Supprimer', danger: true });
   if(!ok) return;
+  if(nl) {
+    const paths = locs.flatMap(l => Array.isArray(l.documents) ? l.documents.map(d => d.storage_path) : []).filter(Boolean);
+    if(paths.length) await TI_STORAGE.remove('locataires-documents', paths);
+    const { error: errDel } = await db.from('locataires').delete()
+      .eq('user_id', currentUser.id).in('id', locs.map(l => l.id));
+    if(errDel){showNotif('Erreur : '+errDel.message,true);return;}
+  }
   const{error}=await db.from('biens').delete().eq('is_test',true).eq('user_id',currentUser.id);
   if(error){showNotif('Erreur : '+error.message,true);return;}
   showNotif(`${n} fiche${n>1?'s':''} de test supprimée${n>1?'s':''}`);
-  await loadBiens();navigate(currentPage);
+  await loadBiens();
+  await Promise.all([loadLocataires(), loadMfFinancialData()]);
+  navigate(currentPage);
 }
 
 async function purgeAllData() {
@@ -4458,8 +4590,9 @@ async function renderBienDetail(el) {
       </button>
       <div class="sff-titleline">
         <div class="sff-titleline__id">
-          <h1 class="sff-h1">${esc(b.titre || 'Sans titre')}</h1>
+          <h1 class="sff-h1">${esc(b.titre || 'Sans titre')}${sfBienDeTest(b)?' <span class="sf-pill sf-pill--test">Bien de test</span>':''}</h1>
           <p class="sff-sub">${[b.ville, b.code_postal, b.type_bien, b.surface_m2 ? b.surface_m2+' m²' : null].filter(Boolean).map(esc).join(' · ')}</p>
+          ${sfBienCompte(b) ? '' : `<p class="sff-sub sff-sub--test">Ses loyers, charges et locataires n'apparaissent qu'avec « Inclure les biens de test », dans Paramètres › Maintenance.</p>`}
         </div>
         <div class="sff-acts">
           ${b.ville ? `<button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdVoirMarche(${escJs(b.ville)})">${sfAccIcon('pin',15)} Le marché à ${esc(b.ville)}</button>` : ''}
@@ -6215,7 +6348,7 @@ function sfParamAccessible(id, isAdmin) {
 }
 
 function renderParametres(el) {
-  const isAdmin = currentProfile?.role === 'admin' || currentUser?.email === ADMIN_EMAIL;
+  const isAdmin = sfEstAdmin();
   // Section demandée via hash ?
   // Une URL directe vers une section non proposée — réservée aux admins, ou
   // pas encore construite — retombe sur Compte, sans écran d'attente.
@@ -6261,7 +6394,7 @@ function selectParamsSection(id) {
 function renderParamsSection() {
   const c = document.getElementById('params-content');
   if(!c) return;
-  const isAdmin = currentProfile?.role === 'admin' || currentUser?.email === ADMIN_EMAIL;
+  const isAdmin = sfEstAdmin();
   const sec = currentParamsSection;
 
   // Garde de sécurité : une section admin-only ne peut JAMAIS être rendue pour un non-admin,
@@ -6494,9 +6627,9 @@ function paramsAproposHtml() {
    section, dont la famille « Donnees & gestion » n'est PAS `adminOnly` :
    tout utilisateur les voyait. Un testeur curieux cliquait, recuperait cinq
    biens factices dont trois « Achete », et TOUS ses indicateurs devenaient
-   faux — `is_test` ne peint qu'un ruban, il n'exclut ces biens d'aucun
-   calcul. Ils sont desormais dans Parametres > Maintenance, section
-   reservee aux administrateurs.
+   faux — `is_test` ne peignait alors qu'un ruban. Ils sont desormais dans
+   Parametres > Maintenance, section reservee aux administrateurs, et depuis
+   la v=94 les biens de test sortent des chiffres (sfBienCompte).
    Cette section ne garde que ce qu'un utilisateur vient y chercher : la
    suppression de SES donnees, dans une zone qui s'annonce comme dangereuse. */
 function paramsDonneesHtml() {
@@ -6555,8 +6688,16 @@ function paramsMaintenanceHtml() {
       <div class="params-card-title">Données de démonstration</div>
       <div style="font-size:12px;color:var(--c-muted);line-height:1.5;margin-bottom:10px">
         Jeux de données factices, pour éprouver les écrans sans saisie. Elles
-        portent la mention « TEST » et n'existent que dans votre compte.
-        ${sfAccIcon('alerte',13)} Elles entrent dans tous les calculs comme de vraies données.
+        portent la mention « TEST » et n'existent que dans votre compte. Les
+        fiches restent dans la liste des biens, sans entrer dans aucun chiffre.
+      </div>
+      <div class="mfs-toggle-row" style="margin-bottom:10px">
+        <div>
+          <label for="sf-inclure-tests">Inclure les biens de test</label>
+          <div class="sub">Dans l'accueil, les indicateurs, la gestion locative, les déclarations et les exports.</div>
+        </div>
+        <input type="checkbox" id="sf-inclure-tests" ${sfTestsInclus() ? 'checked' : ''}
+               onchange="sfInclureTests(this.checked)">
       </div>
       <div class="settings-action" onclick="genTestData()">${sfAccIcon('boite',15)} Générer 5 fiches de bien</div>
       <div class="settings-action" onclick="purgeTestData()">${sfAccIcon('poubelle',15)} Supprimer les fiches de test</div>
@@ -7458,7 +7599,7 @@ function mfSetPerfBien(v) {
 // moins un bien y est détenu. Jamais une entrée vide : un déclarant sans bien
 // n'a rien à déclarer.
 function mfDeclarants() {
-  const acquis = allBiens.filter(b => b.statut === 'Acheté');
+  const acquis = sfBiensComptes().filter(b => b.statut === 'Acheté');
   const out = allSCI
     .map(s => ({ cle: s.id, nom: s.nom_sci, type: 'sci', sci: s,
                  biens: acquis.filter(b => b.sci_id === s.id) }))
@@ -7479,7 +7620,7 @@ function mfSetDeclarant(v) {
 
 function mfSectionDeclaration(annee) {
   const decls = mfDeclarants();
-  const acquis = allBiens.filter(b => b.statut === 'Acheté');
+  const acquis = sfBiensComptes().filter(b => b.statut === 'Acheté');
   /* ⚠️ ON LISTE LES BIENS SANS DÉCLARANT, PAS SEULEMENT CEUX SANS MODE.
      Défaut trouvé en revue : un bien marqué `mode_detention = 'sci'` dont la
      SCI a disparu — supprimée, ou simplement pas chargée — n'appartenait à
@@ -7958,7 +8099,7 @@ function mfLocataireForBienMonth(bienId, mois, annee) {
 function renderMfSuivi(c) {
   const annee = mfExercice;
   mfSuiviYear = annee;
-  const acquis = allBiens.filter(b => b.statut === 'Acheté');
+  const acquis = sfBiensComptes().filter(b => b.statut === 'Acheté');
 
   if (!acquis.length) {
     c.innerHTML = `
@@ -8399,7 +8540,7 @@ async function mfGenerateMissingLoyers(annee) {
     ok: 'Générer' }))) return;
 
   let created = 0, skipped = 0;
-  const biens = allBiens.filter(b => b.statut === 'Acheté');
+  const biens = sfBiensComptes().filter(b => b.statut === 'Acheté');
   for(const b of biens) {
     for(let m = 1; m <= 12; m++) {
       const loc = mfLocataireForBienMonth(b.id, m, annee);
@@ -8729,7 +8870,7 @@ function mfOpenChargeModal(preset) {
     initial = preset;
   }
 
-  const biens = allBiens.filter(b => b.statut === 'Acheté' || b.statut === 'Compromis signé');
+  const biens = sfBiensComptes().filter(b => b.statut === 'Acheté' || b.statut === 'Compromis signé');
   const today = initial.date_charge || new Date().toISOString().slice(0,10);
 
   const html = `
@@ -10712,7 +10853,7 @@ function mfBilanFeedRender() {
   const bilan = ctx.bilans.find(b => b.sci_id === ctx.sciId) || null;
   const regime = bilan ? bilan.regime : (ctx.regime || 'IR');
   ctx.regime = regime;
-  const biensSci = allBiens.filter(b => b.statut === 'Acheté' && b.sci_id === ctx.sciId);
+  const biensSci = sfBiensComptes().filter(b => b.statut === 'Acheté' && b.sci_id === ctx.sciId);
   const d = mfBilanFeedCompute(biensSci, annee);
   ctx.computed = d;
   const dotations = bilan ? bilanDotations(bilan) : { immeuble: 0, travaux: 0, mobilier: 0 };
@@ -10726,7 +10867,7 @@ function mfBilanFeedRender() {
     </div>`;
 
   // ── Rattachement rapide bien ↔ SCI (évite de passer par l'édition complète du bien) ──
-  const biensAcquis = allBiens.filter(b => b.statut === 'Acheté');
+  const biensAcquis = sfBiensComptes().filter(b => b.statut === 'Acheté');
   const attachOpen = ctx.showAttach || biensSci.length === 0;
   const attachHtml = `
     <div class="bf-attach">
@@ -10935,17 +11076,19 @@ async function mfBilanFeedWrite() {
 
 async function loadLocataires() {
   if(!currentUser) return;
+  await sfAssurerBiens();
   const { data, error } = await db.from('locataires')
     .select('*')
     .eq('user_id', currentUser.id)
     .order('created_at', { ascending: false });
   if (error) { showNotif('Erreur chargement locataires : '+error.message, true); return; }
-  allLocataires = data || [];
+  allLocataires = sfLignesComptees(data || []);
 }
 
 // ─── Chargement loyers + charges du user (pour Module Financier) ───
 async function loadMfFinancialData() {
   if(!currentUser) return;
+  await sfAssurerBiens();
   // Parallèle pour gagner du temps
   const [loyersRes, chargesRes] = await Promise.all([
     db.from('loyers_mensuels')
@@ -10960,8 +11103,8 @@ async function loadMfFinancialData() {
   ]);
   if(loyersRes.error)  showNotif('Erreur loyers : '+loyersRes.error.message, true);
   if(chargesRes.error) showNotif('Erreur charges : '+chargesRes.error.message, true);
-  allLoyers  = loyersRes.data  || [];
-  allCharges = chargesRes.data || [];
+  allLoyers  = sfLignesComptees(loyersRes.data  || []);
+  allCharges = sfLignesComptees(chargesRes.data || []);
 }
 
 // ─── Helpers calculs financiers Module Financier ───
@@ -11168,6 +11311,7 @@ function mfRendementNet(biens, annee) {
    35 600 € de crédit sur les biens vides. La vacance cesse d'être invisible. */
 function mfDansLePerimetre(bien, annee) {
   if (bien.statut !== 'Acheté') return false;
+  if (!sfBienCompte(bien)) return false;
   // ⚠️ « Loué » s'entend SUR L'EXERCICE, pas aujourd'hui : sur une année passée
   // dont le locataire est depuis parti, lire son statut actuel faisait passer
   // le bien pour vacant.
@@ -11274,7 +11418,7 @@ function openLocataireModal(id, presetBienId) {
   locataireDocsPending = l ? JSON.parse(JSON.stringify(l.documents || [])) : [];
 
   // Biens "Acheté" uniquement (périmètre Module Financier)
-  const biensAchetes = allBiens.filter(b => b.statut === 'Acheté');
+  const biensAchetes = sfBiensComptes().filter(b => b.statut === 'Acheté');
 
   document.getElementById('adm-modal-title').textContent = id ? 'Modifier le locataire' : 'Nouveau locataire';
   document.getElementById('adm-modal-del').style.display = id ? 'flex' : 'none';
@@ -11934,7 +12078,7 @@ async function autoGenerateLoyers(loc, statutPasses = 'En attente') {
      compteurs ne les voient qu'au prochain rechargement complet — un écran qui
      annonce « 3 loyers générés » et n'en montre aucun. */
   if(Array.isArray(data)) {
-    for(const l of data) if(!allLoyers.some(x => x.id === l.id)) allLoyers.push(l);
+    for(const l of sfLignesComptees(data)) if(!allLoyers.some(x => x.id === l.id)) allLoyers.push(l);
   }
   return Array.isArray(data) ? data.length : 0;
 }
@@ -12077,7 +12221,7 @@ function renderAdmSCI(c) {
       ${allSCI.map(s => {
         const initials = (s.nom_sci||'SC').substring(0,2).toUpperCase();
         const nbAssoc = (s.associes||[]).length;
-        const biensSCI = allBiens.filter(b => b.sci_id === s.id);
+        const biensSCI = sfBiensComptes().filter(b => b.sci_id === s.id);
         // ⚠️ FND-001 : cette somme passait par `computeCF()` seul — du
         // prévisionnel pur. C'est le défaut corrigé sur « Mes biens » le
         // 03/08/2026, resté ici. Un bien acquis dont les loyers sont encaissés
@@ -13649,6 +13793,7 @@ async function deleteSciDocument(docId, path) {
 // ══════════════════════════════════════════════════════════════
 async function genAdminTestData() {
   if (!currentUser) return;
+  if (!sfEstAdmin()) { showNotif('Réservé aux administrateurs', true); return; }
   try {
     // 1 SCI test
     const { data: sciData, error: sciErr } = await db.from('sci').insert({
@@ -14371,7 +14516,7 @@ async function simActionDelete() {
 
 async function simActionAttribuer() {
   if(!simSelected.size) return;
-  const biens = allBiens.filter(b=>!b.is_test);
+  const biens = sfBiensComptes();
   if(!biens.length) { showNotif('Aucun bien disponible à attribuer', true); return; }
   const opts = biens.map(b=>`<option value="${b.id}">${esc(b.titre)}${b.ville?' — '+esc(b.ville):''}</option>`).join('');
   // Afficher une modal de sélection propre

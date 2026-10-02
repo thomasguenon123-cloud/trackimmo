@@ -108,7 +108,9 @@ test('RÉGRESSION — un prospect ne détient pas encore une SCI', () => {
      détentrice, et la première acquisition réelle enregistre 0 € au lieu de
      200. Le champ « Détention » rend ce geste naturel. */
   assert.match(APP_JS,
-    /dejaDetenus = allBiens\.filter\(b =>\s*\n?\s*b\.id !== bienId[^;]*sfDetenu\(b\)\)/,
+    // (La v=94 ajoute une clause après sfDetenu : un bien de test ne compte que
+    // pour un bien de test — détail dans biens-test.test.js.)
+    /dejaDetenus = allBiens\.filter\(b =>\s*\n?\s*b\.id !== bienId[^;]*sfDetenu\(b\)[^;]*\);/,
     'sfFraisCreationSci compte de nouveau les prospects comme détenteurs d’une SCI');
 });
 

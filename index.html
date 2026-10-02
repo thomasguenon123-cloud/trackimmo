@@ -23,9 +23,9 @@
      l'icône Apple l'ajout à l'écran d'accueil sur iPhone. Les trois portent
      `?v=` comme le reste : une favicon est mise en cache très agressivement,
      et sans la version le changement peut rester invisible des semaines. -->
-<link rel="icon" type="image/svg+xml" href="favicon.svg?v=93">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=93">
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=93">
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=94">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=94">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=94">
 <meta name="theme-color" content="#0A100C" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#F5F8F6" media="(prefers-color-scheme: light)">
 <!-- ⚠️ Le chargement de Google Fonts a été retiré le 13/08/2026 : « Inter » n'est
@@ -43,19 +43,19 @@
 <!-- Socle de jetons Stonefolio (phase 2). Ne declare que des variables : aucun
      effet visuel tant qu'aucun composant ne les consomme. Charge AVANT
      styles.css pour que la migration puisse s'appuyer dessus. -->
-<link rel="stylesheet" href="tokens.css?v=93">
-<link rel="stylesheet" href="components.css?v=93">
-<link rel="stylesheet" href="styles.css?v=93">
+<link rel="stylesheet" href="tokens.css?v=94">
+<link rel="stylesheet" href="components.css?v=94">
+<link rel="stylesheet" href="styles.css?v=94">
 <!-- Suivi financier : chargé APRÈS styles.css, c'est ce qui permet aux deux
      surcharges de géométrie (`.sff-line` à 2 colonnes au lieu de 5) de gagner
      dans le seul périmètre `.mf-page`, sans toucher à la fiche bien. -->
-<link rel="stylesheet" href="financier.css?v=93">
+<link rel="stylesheet" href="financier.css?v=94">
 <!-- Tactile : chargée EN DERNIER, et c'est ce qui la fait fonctionner. Elle ne
      contient que des surcharges sous requête média (`any-pointer: coarse`) qui
      doivent gagner contre les quatre feuilles précédentes ; à spécificité égale,
      c'est l'ordre de chargement qui tranche. Aucun effet sur un poste sans
      pointeur tactile. -->
-<link rel="stylesheet" href="tactile.css?v=93">
+<link rel="stylesheet" href="tactile.css?v=94">
 </head>
 <body>
 
@@ -168,6 +168,17 @@
        réglage. La séparer visuellement rend ce cloisonnement lisible. -->
   <div class="sf-topnav__right">
 
+    <!-- Visible tant que les biens de test entrent dans les chiffres (admin seul,
+         app.js : sfRefreshTopnav). Le toucher les retire. -->
+    <button class="sf-topnav__tests" type="button" id="sf-tests-inclus" style="display:none"
+            onclick="sfInclureTests(false)">
+      <span>Biens de test inclus</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+        <path d="M6 6l12 12M18 6L6 18"/>
+      </svg>
+      <span class="sf-sr-only">: les retirer des chiffres</span>
+    </button>
+
     <button class="sf-topnav__act" type="button" id="nav-admin-users" style="display:none"
             title="Utilisateurs — comptes et invitations (administrateurs)"
             aria-label="Utilisateurs, comptes et invitations"
@@ -224,7 +235,7 @@
 
 <div class="notif" id="notif"></div>
 
-<script src="app.js?v=93"></script>
+<script src="app.js?v=94"></script>
 
 <!-- LIGHTBOX -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">

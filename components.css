@@ -595,6 +595,32 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 .sf-topnav__act svg{ transition:transform var(--sf-dur-slow) var(--sf-ease); }
 .sf-topnav__act--gear:hover svg{ transform:rotate(45deg); }
 
+/* Rappel « Biens de test inclus » (v=94, administrateur seul). Du TEXTE, pas
+   un pictogramme : un rappel qui se devine ne rappelle rien, et un `title` ne
+   s'affiche pas au doigt. Le toucher retire les biens de test des chiffres. */
+.sf-topnav__tests{
+  display:inline-flex; align-items:center; gap:var(--sf-space-2);
+  min-height:32px; padding:0 var(--sf-space-4); flex-shrink:0;
+  border:1px solid var(--sf-border-strong); border-radius:var(--sf-radius-full);
+  background:var(--sf-surface-2); color:var(--sf-text);
+  font-family:var(--sf-font-ui); font-size:var(--sf-font-caption);
+  font-weight:var(--sf-weight-semibold); white-space:nowrap; cursor:pointer;
+}
+.sf-topnav__tests:hover{ background:var(--sf-surface-3); }
+.sf-topnav__tests:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus);
+                                 outline-offset:var(--sf-focus-offset); }
+/* Sur un téléphone, le bandeau n'a pas la place (84 px de débord mesurés à
+   390 px) : le rappel se pose en bas d'écran, hors du flux, toujours lisible. */
+@media (max-width:600px){
+  .sf-topnav__tests{
+    position:fixed; left:var(--sf-space-6);
+    bottom:calc(var(--sf-space-6) + env(safe-area-inset-bottom, 0px));
+    min-height:40px; box-shadow:var(--sf-elev-3);
+  }
+}
+/* Le marquage d'une fiche de test, dans le tableau et sur la fiche. */
+.sf-pill--test{ vertical-align:middle; }
+
 /* Separateur : Utilisateurs releve de l'administration, pas du compte. */
 .sf-topnav__sep{
   width:1px; height:24px; flex-shrink:0;

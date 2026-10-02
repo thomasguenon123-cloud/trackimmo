@@ -85,6 +85,13 @@
   vides complets (icône, titre, explication, action), jamais une ligne seule.
 - **Iconographie** : un seul jeu, `SF_ACC_ICONS` via `sfAccIcon(cle, taille)`.
   Plus aucun emoji dans ce qui part en production (garde `emojis.test.js`).
+- **Biens de test** (v=94) : ils restent dans la LISTE des biens, marqués
+  « Test », et sortent de tout ce qui agrège, gère ou déclare — avec leurs
+  loyers, charges et locataires, filtrés au chargement. Seul un administrateur
+  les réintègre (« Inclure les biens de test », Maintenance) ; un rappel reste
+  alors dans le bandeau. Seul un administrateur en fabrique (écran, code, et
+  déclencheur `biens_garde_is_test` en base). Une écriture (frais de SCI) ne
+  dépend jamais de l'interrupteur. Garde : `biens-test.test.js`.
 - **Confirmation** : `sfConfirmer({...})`, jamais `confirm()` natif (garde
   `impasses.test.js`). Elle a sa propre fenêtre, au-dessus de tout
   (`--sf-z-confirm`). ⚠️ son `question` est échappé, son `detail` ne l'est PAS.
@@ -117,6 +124,8 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 | Échappement HTML | `esc()` · URL : `safeUrl()` · argument JS dans un `onclick` : `escJs()` |
 | Montant d'un champ éditable | `ieEur()` (jamais la valeur *affichée* dans un `<input>`) |
 | Couleur pour Chart.js | `sfToken()` (un canvas ne lit pas `var()`) |
+| Un bien compte-t-il dans les chiffres ? | `sfBienCompte()` / `sfBiensComptes()` — seules `sfBienDeTest()` et elles lisent `is_test` |
+| Rôle administrateur (côté client) | `sfEstAdmin()` |
 
 ## Pièges connus — chacun a coûté au moins une fois
 
@@ -193,6 +202,7 @@ garder le canari qui vérifie que le masquage n'efface pas de code.
 - Découper `app.js` suppose d'accepter une étape de build — non tranché.
 - L'arbitrage fiscal des provisions de charges dans la déclaration (une garde
   de test empêche de le faire par réflexe).
-- Les biens `is_test` : `is_test` n'exclut ces biens d'aucun calcul.
+- Les données d'ADMINISTRATION de test (SCI, contacts, échéances) n'ont pas
+  de drapeau en base : elles restent visibles dans Administration.
 - Vocabulaire Cerfa : `CERFA_MAPPING` suit la 2044 (personne physique), alors
   qu'une SCI à l'IR dépose une 2072 — à voir avec un comptable.
