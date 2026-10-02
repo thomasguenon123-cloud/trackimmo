@@ -89,6 +89,12 @@
   `impasses.test.js`). Elle a sa propre fenêtre, au-dessus de tout
   (`--sf-z-confirm`). ⚠️ son `question` est échappé, son `detail` ne l'est PAS.
   Sur un acte destructeur (`danger: true`), le focus va à « Annuler ».
+- **Écran tactile** : un `title` ne s'affiche jamais au doigt. Toucher un
+  élément NON interactif titré l'affiche dans une bulle (`sfBulleCible`) ; une
+  information indispensable doit rester visible, pas seulement titrée.
+- **Mots de passe** : vérifiés contre Have I Been Pwned (5 caractères de
+  l'empreinte, jamais le mot de passe) ; un service muet ne bloque personne.
+  Les erreurs disent la vraie raison du refus (`authErrorToFr`).
 - **Pas d'entrée « Bientôt »** : une section non construite n'est pas affichée
   (`sfParamPropose`) ; elle réapparaît quand son statut passe à `'ready'`.
 - **Ne jamais recopier une énumération en dur** : tout passe par `TI_BIENS`
@@ -119,6 +125,9 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
   Une date n'est pas un instant.
 - **Une action référentielle est un chemin d'écriture** : lire les
   `ON DELETE` / `ON UPDATE` des clés étrangères, pas seulement les `update`.
+- **Tout texte lu dans l'URL est hostile** (`error_description`, paramètres,
+  hash) : un lien piégé suffit. `showAuthAlert` écrit du HTML — tout ce qui
+  y entre passe par `esc()` (garde `authentification.test.js`).
 - **Échappement** : un `<textarea>` EST du HTML généré ; un filtre
   `replace(/<[^>]+>/g,'')` ne protège pas (balise non fermée) ; une donnée
   tierce (NewsAPI, API publiques) est la plus exposée. Garde : `echappement.test.js`.

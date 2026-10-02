@@ -1002,3 +1002,17 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
    pas par la garde statique — qui vérifie désormais la spécificité. */
 .modal-overlay.sf-confirm{ z-index:var(--sf-z-confirm); }
 .modal-overlay.sf-confirm .modal{ max-width:480px; }
+
+/* ── Bulle au toucher — le `title` rendu lisible sur un écran tactile (v=93) ─
+   Posée par sfBulleMontrer, au-dessus de tout, y compris de la confirmation :
+   elle peut naître d'une case de mois DANS une fenêtre. Texte seul. */
+.sf-bulle{
+  position:fixed; z-index:calc(var(--sf-z-confirm) + 1);
+  max-width:min(280px, calc(100vw - 16px));
+  padding:var(--sf-space-2) var(--sf-space-3);
+  background:var(--sf-surface-3); color:var(--sf-text);
+  border:1px solid var(--sf-border); border-radius:var(--sf-radius-sm);
+  box-shadow:var(--sf-elev-2);
+  font-size:var(--sf-font-caption); line-height:1.4;
+  pointer-events:none;
+}

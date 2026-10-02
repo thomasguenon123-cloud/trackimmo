@@ -176,15 +176,77 @@ function authErrorToFr(error) {
     return 'Email non confirmé. Vérifiez votre boîte mail.';
   if(msg.includes('user already registered') || msg.includes('already been registered'))
     return 'Un compte existe déjà avec cet email. Connectez-vous.';
-  if(msg.includes('password should be'))
-    return 'Le mot de passe doit contenir au moins 8 caractères.';
+  /* ⚠️ TOUTE ERREUR DE MOT DE PASSE SE LISAIT « au moins 8 caractères »,
+     même quand Supabase refusait pour une autre raison. Un mot de passe de 12
+     caractères refusé faute de chiffre aurait reçu un message faux — c'est ce
+     qui empêchait de durcir les exigences dans la console. On lit désormais
+     la RAISON : `reasons` (supabase-js, AuthWeakPasswordError), et à défaut
+     le texte du message. */
+  if(error?.code === 'weak_password' || msg.includes('password should') || msg.includes('password is known')) {
+    const raisons = Array.isArray(error?.reasons) ? error.reasons : [];
+    if(raisons.includes('pwned') || msg.includes('pwned') || msg.includes('known to be weak') || msg.includes('easy to guess'))
+      return SF_MDP_COMPROMIS;
+    if(raisons.includes('characters') || msg.includes('should contain'))
+      return 'Le mot de passe doit mêler plusieurs sortes de caractères : minuscules, majuscules, chiffres ou symboles.';
+    const n = (msg.match(/at least (\d+) character/) || [])[1];
+    return n ? `Le mot de passe doit contenir au moins ${n} caractères.`
+             : 'Ce mot de passe est trop faible. Choisissez-en un plus long.';
+  }
   if(msg.includes('rate limit'))
     return 'Trop de tentatives. Attendez quelques minutes avant de réessayer.';
   if(msg.includes('network') || msg.includes('fetch'))
     return 'Problème de connexion. Vérifiez votre accès internet.';
   if(msg.includes('user not found') || msg.includes('no user found'))
     return 'Aucun compte trouvé avec cet email.';
-  return error?.message || 'Une erreur est survenue. Réessayez.';
+  // Le texte brut du serveur part dans `showAuthAlert`, qui écrit du HTML.
+  return esc(error?.message || 'Une erreur est survenue. Réessayez.');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOT DE PASSE DÉJÀ FUITÉ ? — l'équivalent gratuit d'un réglage Supabase Pro
+
+   « Prevent use of leaked passwords » n'existe que sur le plan Pro. On fait la
+   même vérification dans le navigateur, au moment où un mot de passe est
+   CHOISI (inscription, invitation, réinitialisation), contre la base publique
+   Pwned Passwords de Have I Been Pwned.
+
+   ⚠️ LE MOT DE PASSE NE QUITTE JAMAIS LE NAVIGATEUR. Méthode dite
+   « k-anonymity » : on calcule son empreinte SHA-1, on n'envoie que ses CINQ
+   premiers caractères, le service renvoie toutes les empreintes connues qui
+   commencent ainsi — plusieurs centaines — et la comparaison se fait ici.
+   Le service ne peut pas savoir laquelle était la nôtre.
+   Ce qu'il voit, en revanche : l'adresse IP du visiteur, comme tout appel
+   direct. C'est le prix d'une vérification sans serveur ; un passage par une
+   Edge Function le supprimerait.
+
+   ⚠️ UN SERVICE QUI NE RÉPOND PAS NE BLOQUE PERSONNE. `null` = « on ne sait
+   pas », et l'on laisse passer : une vérification de confort ne doit jamais
+   empêcher quelqu'un de créer son compte. 4 secondes au plus. */
+const SF_MDP_COMPROMIS = 'Ce mot de passe figure dans des fuites de données connues : '
+  + 'il est parmi les premiers que l\'on essaie. Choisissez-en un autre.';
+
+// Pure : la réponse du service (lignes « SUFFIXE:NOMBRE ») contient-elle le suffixe ?
+function sfSuffixeCompromis(reponse, suffixe) {
+  const cible = String(suffixe).toUpperCase();
+  return String(reponse || '').split(/\r?\n/).some(l => {
+    const [suf, nb] = l.trim().split(':');
+    return suf === cible && parseInt(nb, 10) > 0;
+  });
+}
+
+async function sfMotDePasseCompromis(pwd) {
+  try {
+    if(!window.crypto?.subtle || typeof TextEncoder === 'undefined') return null;
+    const brut = await window.crypto.subtle.digest('SHA-1', new TextEncoder().encode(pwd));
+    const hex = Array.from(new Uint8Array(brut), o => o.toString(16).padStart(2, '0')).join('').toUpperCase();
+    const ctrl = new AbortController();
+    const minuteur = setTimeout(() => ctrl.abort(), 4000);
+    try {
+      const r = await fetch('https://api.pwnedpasswords.com/range/' + hex.slice(0, 5), { signal: ctrl.signal });
+      if(!r.ok) return null;
+      return sfSuffixeCompromis(await r.text(), hex.slice(5));
+    } finally { clearTimeout(minuteur); }
+  } catch(e) { return null; }
 }
 
 // ─────────────────────────────────────────
@@ -209,7 +271,7 @@ async function doLogin() {
     await onAuthSuccess(data.user);
   } catch(e) {
     console.error('[Stonefolio] Login error:', e);
-    showAuthAlert('Erreur technique : ' + (e?.message || 'connexion impossible. Rechargez la page et réessayez.'));
+    showAuthAlert('Erreur technique : ' + esc(e?.message || 'connexion impossible. Rechargez la page et réessayez.'));
   } finally {
     setBtnLoading('btn-login','btn-login-label',false,'Se connecter');
   }
@@ -309,7 +371,13 @@ function checkOAuthErrorInUrl() {
       'avec votre email et mot de passe, ou contactez un administrateur pour être invité.';
   if(err === 'access_denied')
     return 'Connexion Google annulée. Vous pouvez réessayer ou utiliser votre email et mot de passe.';
-  return 'Connexion Google impossible : ' + (d || err) + '. Réessayez ou utilisez votre email et mot de passe.';
+  /* ⚠️ `d` ET `err` VIENNENT DE L'URL, donc de n'importe qui (v=93). Le
+     message part dans `showAuthAlert`, qui écrit du HTML : un lien piégé
+     `…/trackimmo/?error=x&error_description=<img src=x onerror=…>` exécutait
+     du script sur la plateforme, là où vit la session Supabase. Faille par
+     lien, sans compte ni accès préalable : la plus sérieuse trouvée le
+     02/10/2026. Échappé, le texte reste du texte. */
+  return 'Connexion Google impossible : ' + esc(d || err) + '. Réessayez ou utilisez votre email et mot de passe.';
 }
 
 // ─────────────────────────────────────────
@@ -326,6 +394,7 @@ async function doSignup() {
 
   setBtnLoading('btn-signup','btn-signup-label',true,'');
   try {
+    if(await sfMotDePasseCompromis(pwd) === true) { showAuthAlert(SF_MDP_COMPROMIS); return; }
     // Lors du signup, on stocke le statut 'pending' dans user_metadata
     // pour que le trigger handle_new_user_profile puisse créer un profil pending.
     const { data, error } = await db.auth.signUp({
@@ -342,7 +411,7 @@ async function doSignup() {
     // Le user reçoit un mail "Confirmez votre inscription" qu'il doit cliquer.
     showAuthAlert(
       '<strong>Vérifiez vos e-mails</strong><br><br>' +
-      'Nous avons envoyé un lien de confirmation à <strong>' + email + '</strong>. ' +
+      'Nous avons envoyé un lien de confirmation à <strong>' + esc(email) + '</strong>. ' +
       'Cliquez dessus pour activer votre compte.<br><br>' +
       '<em style="font-size:11px;color:var(--sf-text-2)">Pensez à vérifier vos spams si vous ne le voyez pas.</em>',
       'info'
@@ -376,7 +445,7 @@ async function doReset() {
     if(error) { showAuthAlert(authErrorToFr(error)); return; }
     showAuthAlert(
       '<strong>E-mail envoyé</strong><br><br>' +
-      'Si un compte existe pour <strong>'+email+'</strong>, un lien de réinitialisation vient de partir. ' +
+      'Si un compte existe pour <strong>'+esc(email)+'</strong>, un lien de réinitialisation vient de partir. ' +
       'Cliquez sur le lien dans le mail pour définir un nouveau mot de passe.<br><br>' +
       '<em style="font-size:11px;color:var(--sf-text-2)">Pensez à vérifier vos spams. Le lien expire dans 1 heure.</em>',
       'success'
@@ -402,6 +471,7 @@ async function doSetNewPwd() {
 
   setBtnLoading('btn-newpwd','btn-newpwd-label',true,'');
   try {
+    if(await sfMotDePasseCompromis(pwd) === true) { showAuthAlert(SF_MDP_COMPROMIS); return; }
     const { data, error } = await db.auth.updateUser({ password: pwd });
     if(error) { showAuthAlert(authErrorToFr(error)); return; }
     showAuthAlert('Mot de passe mis à jour ! Connexion en cours...', 'success');
@@ -2466,11 +2536,11 @@ function renderBiens(el) {
     <div class="sfb-tabs" role="tablist">
       <button class="sfb-tab" role="tab" id="sfb-t-prospect" onclick="sfSetOnglet('prospect')">
         Ma prospection <span class="sfb-tab__n sf-num" id="sfb-n-prospect"></span>
-        <span class="sfb-tab__todo" id="sfb-dot-prospect" title="Des fiches sont à compléter"></span>
+        <span class="sfb-tab__todo" id="sfb-dot-prospect" role="img" title="Des fiches sont à compléter" aria-label="Des fiches sont à compléter"></span>
       </button>
       <button class="sfb-tab" role="tab" id="sfb-t-detenus" onclick="sfSetOnglet('detenus')">
         Mon patrimoine <span class="sfb-tab__n sf-num" id="sfb-n-detenus"></span>
-        <span class="sfb-tab__todo" id="sfb-dot-detenus" title="Des biens sont à compléter"></span>
+        <span class="sfb-tab__todo" id="sfb-dot-detenus" role="img" title="Des biens sont à compléter" aria-label="Des biens sont à compléter"></span>
       </button>
     </div>
 
@@ -4431,7 +4501,7 @@ async function renderBienDetail(el) {
            documents ne sont plus une liste tronquée dans 262 px de large. -->
       <aside class="sff-rail">
         ${photos.length ? `
-          <button class="sff-thumb sff-thumb--photo" onclick="bdOpenGallery()" style="background-image:url('${photos[0]}')" title="Voir les ${photos.length} photos">
+          <button class="sff-thumb sff-thumb--photo" onclick="bdOpenGallery()" style="background-image:url('${photos[0]}')" title="Voir les ${photos.length} photos" aria-label="Voir les ${photos.length} photos">
             <span class="sff-thumb__n">${sfAccIcon('image',13)} ${photos.length}</span>
           </button>` : ''}
 
@@ -4704,11 +4774,11 @@ async function renderBienDetail(el) {
                 <div class="sff-f"><div class="sff-f__l">Intermédiaire</div><div class="sff-f__v">${ie(b.id,'intermediaire',b.intermediaire,'text')}</div></div>
                 <div class="sff-f">
                   <div class="sff-f__l">Téléphone</div>
-                  <div class="sff-f__v sff-f__v--dual">${ie(b.id,'telephone',b.telephone,'tel')}${b.telephone ? `<a class="sff-link" href="tel:${esc(String(b.telephone).replace(/[^\d+]/g,''))}" title="Appeler">${sfAccIcon('tel',15)}</a>` : ''}</div>
+                  <div class="sff-f__v sff-f__v--dual">${ie(b.id,'telephone',b.telephone,'tel')}${b.telephone ? `<a class="sff-link" href="tel:${esc(String(b.telephone).replace(/[^\d+]/g,''))}" title="Appeler" aria-label="Appeler">${sfAccIcon('tel',15)}</a>` : ''}</div>
                 </div>
                 <div class="sff-f sff-f--wide">
                   <div class="sff-f__l">Adresse électronique</div>
-                  <div class="sff-f__v sff-f__v--dual">${ie(b.id,'mail',b.mail,'email')}${b.mail ? `<a class="sff-link" href="mailto:${esc(b.mail)}" title="Écrire">${sfAccIcon('mail',15)}</a>` : ''}</div>
+                  <div class="sff-f__v sff-f__v--dual">${ie(b.id,'mail',b.mail,'email')}${b.mail ? `<a class="sff-link" href="mailto:${esc(b.mail)}" title="Écrire" aria-label="Écrire un e-mail">${sfAccIcon('mail',15)}</a>` : ''}</div>
                 </div>
               </div>
             </div>
@@ -14393,7 +14463,7 @@ function renderSimCard(s) {
   const m = s.mensualite_calculee||0;
   const te = s.taux_endettement;
   return `<div class="sim-list-item" data-id="${s.id}" onclick="openReadSimulation('${s.id}')">
-    <div class="sim-checkbox" data-id="${s.id}" onclick="toggleSimSelect('${s.id}',event)" title="Sélectionner"></div>
+    <div class="sim-checkbox" data-id="${s.id}" onclick="toggleSimSelect('${s.id}',event)" title="Sélectionner" aria-label="Sélectionner cette simulation"></div>
     <div class="sim-list-content">
       <div class="sim-item-name">${esc(s.nom_simulation)}${s.date_document?' <span style="font-size:10px;color:var(--c-muted);font-weight:400">· '+new Date(s.date_document+'T12:00:00').toLocaleDateString('fr-FR')+'</span>':''}</div>
       <div class="sim-item-detail">${s.biens?.titre?sfAccIcon('maison',12)+' '+esc(s.biens.titre)+' · ':''} ${fmt(s.montant_emprunte||0)} € sur ${s.duree_ans||20} ans · ${(s.taux_interet||0).toFixed(2)}%</div>
@@ -15342,6 +15412,67 @@ async function deleteSCI() {
    Le panneau est posé dans <body> et positionné en `fixed` : sinon un parent
    en `overflow:hidden` (le tableau, une fenêtre modale) le tronquerait.
    ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   L'INFOBULLE AU DOIGT — ce que `title=` ne dit jamais sur un iPad (v=93)
+
+   Un attribut `title` ne s'affiche qu'au SURVOL. Sur un écran tactile il
+   n'existe pas : la valeur d'une barre de graphique, l'état d'une case de
+   mois, le sens d'une pastille « à compléter » étaient tout simplement
+   illisibles pour le testeur. 54 attributs mesurés le 02/10/2026.
+
+   Plutôt que de réécrire chacun, une règle : sur un appareil sans survol,
+   TOUCHER un élément non interactif qui porte un `title` en affiche le texte
+   dans une bulle. Un bouton, un lien, un champ gardent leur action — leur
+   `title` y double un libellé ou un `aria-label`, rien n'est perdu.
+
+   ⚠️ LA REQUÊTE MÉDIA EST CELLE DE tactile.css POUR LES ACTIONS RÉVÉLÉES AU
+   SURVOL : c'est la même question — « y a-t-il un survol ? » — et elle doit
+   recevoir la même réponse des deux côtés.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const SF_SANS_SURVOL = '(any-hover: none), (any-pointer: coarse)';
+const SF_INTERACTIF = 'a, button, input, select, textarea, label, summary, [onclick], [contenteditable], [role="button"]';
+let sfBulle = null, sfBulleMinuteur = 0;
+
+/* L'élément dont on affiche le `title`, ou null. On ne remonte que de la
+   cible touchée jusqu'à l'élément titré : un ancêtre cliquable plus haut
+   (une carte, le fond d'une fenêtre) n'empêche pas la bulle — mais un
+   interactif SUR ce chemin la remplace par son action. */
+function sfBulleCible(el) {
+  const cible = el && el.closest ? el.closest('[title]') : null;
+  if(!cible || !(cible.getAttribute('title') || '').trim()) return null;
+  for(let n = el; n; n = n.parentElement) {
+    if(n.matches(SF_INTERACTIF)) return null;
+    if(n === cible) break;
+  }
+  return cible;
+}
+function sfBulleFermer() {
+  clearTimeout(sfBulleMinuteur);
+  if(sfBulle) { sfBulle.remove(); sfBulle = null; }
+}
+function sfBulleMontrer(cible) {
+  sfBulleFermer();
+  const b = document.createElement('div');
+  b.className = 'sf-bulle';
+  b.setAttribute('role', 'status');
+  b.textContent = cible.getAttribute('title');   // texte, jamais du HTML
+  document.body.appendChild(b);
+  const r = cible.getBoundingClientRect();
+  const x = Math.max(8, Math.min(r.left + r.width / 2 - b.offsetWidth / 2, window.innerWidth - b.offsetWidth - 8));
+  const y = r.top - b.offsetHeight - 8 >= 8 ? r.top - b.offsetHeight - 8 : r.bottom + 8;
+  b.style.left = x + 'px';
+  b.style.top = y + 'px';
+  sfBulle = b;
+  sfBulleMinuteur = setTimeout(sfBulleFermer, 4000);
+}
+document.addEventListener('click', e => {
+  if(!window.matchMedia(SF_SANS_SURVOL).matches) return;
+  const cible = sfBulleCible(e.target);
+  if(cible) sfBulleMontrer(cible); else sfBulleFermer();
+}, true);
+// La bulle est posée en `fixed` : elle ne suit pas un défilement, on la retire.
+window.addEventListener('scroll', sfBulleFermer, true);
 
 /* ⚠️ CETTE CONDITION DOIT RESTER IDENTIQUE, AU CARACTÈRE PRÈS, À CELLE DU
    REPLI NATIF DANS components.css. Elles décrivent le même arbitrage vu de
