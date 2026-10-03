@@ -527,26 +527,6 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
   100%{background:transparent;}
 }
 
-/* ═══ Sticky save button (formulaire Ajouter/Modifier bien) ═══ */
-.form-sticky-save{
-  position:sticky;
-  top:-24px;                                        /* compense le padding-top du .content parent */
-  z-index:50;
-  /* Marges négatives sur tous les côtés pour neutraliser le padding du .content (24px) */
-  margin:-24px -24px 0;
-  padding:14px 24px;
-  /* Ancien #f0f3fa a 92 % : c'etait la seule barre restee en clair, et comme
-     elle est collante elle passait par-dessus tout le formulaire. */
-  background:rgba(10,16,12,0.92);
-  backdrop-filter:blur(10px);
-  -webkit-backdrop-filter:blur(10px);
-  border-bottom:1px solid var(--c-border);
-  display:flex;justify-content:space-between;align-items:center;gap:10px;
-}
-.form-sticky-save + div{margin-top:18px;}            /* espace après la sticky avant le titre */
-.form-sticky-save .info{font-size:11.5px;color:var(--c-dim);}
-.form-sticky-save .info strong{color:var(--c-text);}
-
 /* ═══ MF · SUIVI MENSUEL (étape 4) ═══ */
 .mfs-toolbar{
   display:flex;align-items:center;justify-content:space-between;
@@ -1018,60 +998,7 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 .pg-btn-sm{padding:0 9px;font-size:11px;}
 .pg-info{font-size:10px;color:var(--c-muted);padding:0 4px;white-space:nowrap;}
 
-/* ════ PAGE NOUVEAU ════ */
-.nouveau-wrap{display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start;}
-.nouveau-form-col{min-width:0;}
-.nouveau-sticky-col{position:sticky;top:20px;display:flex;flex-direction:column;gap:12px;}
-
-/* Synthèse panel */
-.synthese-card{background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r);padding:20px;box-shadow:var(--c-shadow);}
-.synthese-title{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--c-muted);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--c-border);}
-.synthese-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--c-border);}
-.synthese-row:last-child{border-bottom:none;}
-.synthese-label{font-size:11px;color:var(--c-dim);}
-.synthese-value{font-size:13px;font-weight:600;color:var(--c-text);}
-.synthese-value.positive{color:var(--positive-c);}
-.synthese-value.negative{color:var(--negative);}
-
-/* Checklist */
-.checklist-item{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;color:var(--c-dim);}
-.check-dot{width:8px;height:8px;border-radius:50%;border:2px solid var(--c-border);flex-shrink:0;transition:all 0.2s;}
-.check-dot.done{background:var(--positive-c);border-color:var(--positive-c);}
-
-/* Required field asterisk */
-.req::after{content:' *';color:var(--negative);font-weight:700;}
-
-/* Media upload zone in form */
-.media-grid{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
-.media-thumb-wrap{position:relative;}
-.media-thumb{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--c-border);}
-.media-thumb-doc{width:72px;height:72px;border-radius:8px;border:1px solid var(--c-border);background:var(--sf-surface-2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10px;color:var(--accent);font-weight:600;}
-.media-remove{position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;background:var(--negative);color:var(--accent-on);border:none;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-
-.cf-preview-big{
-  background:var(--accent-g);border-radius:var(--r);
-  padding:24px;text-align:center;margin-bottom:20px;
-  box-shadow:0 8px 24px rgba(23,160,107,0.25);
-}
-.cf-preview-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.7);margin-bottom:8px;}
-.cf-preview-value{font-size:40px;font-weight:800;letter-spacing:-2px;line-height:1;color:white;}
-.cf-preview-value.positive{color:var(--sf-gain);}
-.cf-preview-value.negative{color:var(--sf-loss);}
-
-.form-card{
-  background:var(--c-card);border:1px solid var(--c-border);
-  border-radius:var(--r);padding:22px;margin-bottom:14px;
-  box-shadow:var(--c-shadow);
-}
-.form-card-title{
-  font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
-  color:var(--accent);margin-bottom:16px;padding-bottom:12px;
-  border-bottom:1px solid var(--c-border);
-  display:flex;align-items:center;gap:8px;
-}
-
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
-.form-grid.cols3{grid-template-columns:1fr 1fr 1fr;}
 .form-full{grid-column:1/-1;}
 
 .form-group{display:flex;flex-direction:column;gap:4px;}
@@ -1100,8 +1027,7 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
   color:var(--positive-c);padding:2px 7px;border-radius:4px;
 }
 
-/* Toggle SCI */
-.sci-toggle{display:flex;gap:6px;margin-bottom:6px;}
+/* Boutons de la fenêtre SCI (index.html) */
 .sci-btn{
   padding:7px 18px;border-radius:var(--r-sm);border:1px solid var(--c-border);
   background:var(--c-input);color:var(--c-dim);
@@ -1109,7 +1035,6 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
   cursor:pointer;transition:all 0.15s;
 }
 .sci-btn.active{background:var(--accent);color:var(--accent-on);border-color:var(--accent);}
-.sci-amount{margin-top:6px;}
 
 /* Buttons */
 .btn{
@@ -1130,7 +1055,6 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 .btn-danger{background:var(--neg-bg);color:var(--negative);border:1px solid var(--sf-loss-wash);margin-right:auto;}
 .btn-danger:hover{background:var(--sf-loss-wash);}
 
-.form-actions{display:flex;align-items:center;gap:10px;justify-content:flex-end;padding-top:4px;}
 
 /* ════ MODAL ════ */
 .modal-overlay{
@@ -2378,6 +2302,152 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   NOUVELLE FICHE — `.sfn-*` (v=95)
+   Le formulaire de création et de modification d'un bien, à la charte de la
+   fiche : même bandeau de titre, mêmes cartes `.sff-block`, même rail. Seules
+   les sections repliables, la saisie des montants et la barre d'enregistrement
+   lui sont propres.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sfn-body{ display:grid; grid-template-columns:minmax(0,1fr) 280px;
+  gap:var(--sf-space-7); align-items:start; }
+.sfn-main{ grid-column:1; grid-row:1; min-width:0; display:flex; flex-direction:column; gap:var(--sf-space-5); }
+.sfn-main > .sff-block{ margin-bottom:0; }
+
+/* Le rail : ce que la saisie donne, au fil de la frappe. Il s'ancre SOUS le
+   bandeau de navigation, lui-même collant : à `top:12px` il glisserait dessous. */
+.sfn-rail{ grid-column:2; grid-row:1; position:sticky;
+  top:calc(var(--sf-nav-h) + var(--sf-space-5)); display:flex; flex-direction:column;
+  gap:1px; background:var(--sf-border); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-md); overflow:hidden; }
+.sfn-r{ gap:var(--sf-space-2); }
+.sfn-r__v{ font-family:var(--sf-font-display); font-size:clamp(22px,1.8vw,28px);
+  font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight);
+  line-height:var(--sf-lh-tight); color:var(--sf-text);
+  font-variant-numeric:tabular-nums; white-space:nowrap; }
+.sfn-r__v--gain{ color:var(--sf-gain); }
+.sfn-r__v--loss{ color:var(--sf-loss); }
+/* Une valeur absente se dit, en texte courant — elle ne se met pas en scène. */
+.sfn-r__v--none{ font-family:var(--sf-font-ui); font-size:var(--sf-font-lead);
+  font-weight:var(--sf-weight-regular); color:var(--sf-text-2); }
+.sfn-r .sff-rail__s{ color:var(--sf-text-2); }
+.sfn-ess{ list-style:none; margin:var(--sf-space-2) 0 var(--sf-space-3); padding:0;
+  display:flex; flex-wrap:wrap; gap:var(--sf-space-3); }
+.sfn-ess li{ display:inline-flex; align-items:center; gap:var(--sf-space-2);
+  font-size:var(--sf-font-caption); font-weight:var(--sf-weight-semibold);
+  padding:var(--sf-space-2) var(--sf-space-4) var(--sf-space-2) var(--sf-space-3);
+  border-radius:var(--sf-radius-full); background:var(--sf-surface-2);
+  border:var(--sf-border-width) solid var(--sf-border); color:var(--sf-text-2); }
+.sfn-ess li.ok{ background:var(--sf-gain-wash); border-color:transparent; color:var(--sf-gain); }
+.sfn-ess__ic{ width:14px; height:14px; border-radius:var(--sf-radius-full); display:inline-grid;
+  place-items:center; border:1.5px solid var(--sf-border-strong); flex-shrink:0; }
+.sfn-ess li.ok .sfn-ess__ic{ border:0; }
+
+/* Sections. « L'essentiel » est ouverte ; les autres sont des <details>, dont
+   l'en-tête reprend celui des cartes de la fiche et résume le contenu. */
+.sfn-sec__s{ display:block; list-style:none; cursor:pointer; user-select:none; }
+.sfn-sec__s::-webkit-details-marker{ display:none; }
+.sfn-sec__s:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus);
+  outline-offset:calc(-1 * var(--sf-focus-width)); }
+details.sfn-sec:not([open]) .sfn-sec__s .sff-block__h{ border-bottom-color:transparent; }
+.sfn-sec__s:hover .sff-block__t{ color:var(--sf-text-2); }
+.sfn-sec__resume{ margin-left:auto; min-width:0; font-size:var(--sf-font-caption);
+  color:var(--sf-text-2); text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sfn-sec__chev{ display:inline-flex; color:var(--sf-text-3); flex-shrink:0;
+  transition:transform var(--sf-dur) var(--sf-ease); }
+details.sfn-sec[open] .sfn-sec__chev{ transform:rotate(180deg); }
+
+.sfn-grid{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr));
+  gap:var(--sf-space-6) var(--sf-space-6); }
+.sfn-f{ min-width:0; }
+.sfn-f--large{ grid-column:1 / -1; }
+.sfn-f[hidden]{ display:none; }
+/* Sur ce fond, --sf-text-3 tombe sous le seuil AA : les étiquettes montent d'un cran. */
+.sfn .sf-label{ color:var(--sf-text-2); }
+.sfn .sf-hint{ color:var(--sf-text-2); }
+.sfn .sf-hint--error{ color:var(--sf-loss); }
+.sfn .sf-pick{ display:flex; width:100%; }
+.sfn .sf-pick:has(.sf-input--invalid) .sf-pick__btn{ border-color:var(--sf-loss); }
+.sfn select.sf-input{ font-size:var(--sf-font-body); }
+
+/* Montants : à droite, en chiffres tabulaires, l'unité dans le champ. */
+.sfn-saisie{ position:relative; }
+.sfn-saisie .sf-input{ text-align:right; font-variant-numeric:tabular-nums; padding-right:48px; }
+.sfn-saisie--euro_mois .sf-input{ padding-right:72px; }
+.sfn-unite{ position:absolute; right:var(--sf-space-5); top:50%; transform:translateY(-50%);
+  font-size:var(--sf-font-body-sm); color:var(--sf-text-2); pointer-events:none; }
+
+/* Valeur calculée : lisible comme un champ, sans se donner pour modifiable. */
+.sfn-calcule{ display:flex; align-items:center; justify-content:flex-end;
+  height:var(--sf-control-h); padding:0 var(--sf-space-5);
+  border:var(--sf-border-width) dashed var(--sf-border-strong); border-radius:var(--sf-radius-sm);
+  font-variant-numeric:tabular-nums; color:var(--sf-text); }
+
+/* Photos et documents */
+.sfn-fichiers{ display:flex; flex-direction:column; gap:var(--sf-space-7); }
+.sfn-fichiers__h{ display:flex; align-items:center; justify-content:space-between;
+  gap:var(--sf-space-5); margin-bottom:var(--sf-space-5); flex-wrap:wrap; }
+.sfn-vignettes{ display:grid; grid-template-columns:repeat(auto-fill, minmax(112px, 1fr)); gap:var(--sf-space-4); }
+.sfn-vignette{ position:relative; aspect-ratio:4/3; border-radius:var(--sf-radius-sm);
+  overflow:hidden; background:var(--sf-surface-2); border:var(--sf-border-width) solid var(--sf-border); }
+.sfn-vignette img{ width:100%; height:100%; object-fit:cover; display:block; }
+.sfn-docs{ display:flex; flex-direction:column; gap:var(--sf-space-3); }
+.sfn-doc{ display:flex; align-items:center; gap:var(--sf-space-4); min-width:0;
+  padding:var(--sf-space-3) var(--sf-space-3) var(--sf-space-3) var(--sf-space-5);
+  background:var(--sf-surface-2); border:var(--sf-border-width) solid var(--sf-border);
+  border-radius:var(--sf-radius-sm); color:var(--sf-text-2); }
+.sfn-doc__n{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:var(--sf-text); font-size:var(--sf-font-body-sm); }
+.sfn-retirer{ display:inline-grid; place-items:center; width:32px; height:32px; flex-shrink:0;
+  border:0; border-radius:var(--sf-radius-full); cursor:pointer;
+  background:rgba(10,16,12,.72); color:#EAF0EC; }
+.sfn-vignette .sfn-retirer{ position:absolute; top:var(--sf-space-3); right:var(--sf-space-3); }
+.sfn-doc .sfn-retirer{ background:transparent; color:var(--sf-text-2); }
+.sfn-retirer:hover{ background:var(--sf-loss); color:var(--sf-bg); }
+.sfn-retirer:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus); outline-offset:var(--sf-focus-offset); }
+.sfn-vide{ margin:0; font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
+
+.sfn-suppr{ display:flex; justify-content:flex-start; padding-top:var(--sf-space-3); }
+
+/* La barre d'enregistrement : UNE action principale, toujours à portée de
+   pouce, collée au bas de l'écran tant que la fiche défile. */
+.sfn-barre{ position:sticky; bottom:0; z-index:150;
+  display:flex; align-items:center; gap:var(--sf-space-6);
+  margin-top:var(--sf-space-7);
+  padding:var(--sf-space-5) 0 calc(var(--sf-space-5) + env(safe-area-inset-bottom, 0px));
+  background:var(--sf-bg); border-top:var(--sf-border-width) solid var(--sf-border); }
+.sfn-barre__acts{ display:flex; gap:var(--sf-space-4); margin-left:auto; }
+.sfn-barre__resume{ display:none; flex-direction:column; gap:2px; min-width:0; }
+.sfn-barre__l{ font-size:var(--sf-font-label); font-weight:var(--sf-weight-semibold);
+  letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-2); }
+.sfn-barre__v{ font-family:var(--sf-font-display); font-size:var(--sf-font-lead);
+  font-variant-numeric:tabular-nums; white-space:nowrap; color:var(--sf-text); }
+.sfn-barre__v--gain{ color:var(--sf-gain); }
+.sfn-barre__v--loss{ color:var(--sf-loss); }
+.sfn-barre__v--none{ font-family:var(--sf-font-ui); font-size:var(--sf-font-body);
+  font-weight:var(--sf-weight-regular); color:var(--sf-text-2); }
+/* Le rappel « Biens de test inclus » se pose en bas d'écran sur téléphone :
+   il remonte au-dessus de la barre plutôt que de la masquer. */
+body:has(.sfn-barre) .sf-topnav__tests{ bottom:calc(84px + env(safe-area-inset-bottom, 0px)); }
+
+/* Même seuil que la fiche : sous 1100 px, le rail repasse au-dessus du
+   contenu, en bandeau, et la barre reprend le cashflow pour la saisie. */
+@media(max-width:1100px){
+  .sfn-body{ grid-template-columns:minmax(0,1fr); }
+  .sfn-rail{ grid-column:1; grid-row:1; position:static; flex-direction:row; flex-wrap:wrap; }
+  .sfn-main{ grid-row:2; }
+  .sfn-rail > *{ flex:1 1 200px; }
+  .sfn-barre__resume{ display:flex; }
+}
+@media(max-width:560px){
+  .sfn-grid{ grid-template-columns:minmax(0,1fr); }
+  .sfn-rail > *{ flex-basis:150px; }
+  .sfn-r--ess{ flex-basis:100%; }
+  .sfn-barre{ gap:var(--sf-space-4); }
+  .sfn-barre__acts .sf-btn{ padding:0 var(--sf-space-5); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    REGLES `.bd-*` CONSERVEES — encore produites ailleurs, verifie :
      .bd-empty-state   → renderBiens (« Mes biens »)
      .bd-note/.bd-steps/.bd-step*/.bd-link → modal de mise en gestion, Marche
@@ -2600,9 +2670,6 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
   .modal-overlay--acq .modal{ height:100dvh; max-height:100dvh !important; }
 }
 
-/* Mention d'aide sous un champ de formulaire. */
-.form-aide{ font-size:var(--sf-font-body-sm); color:var(--sf-text-3);
-  line-height:1.5; margin:var(--sf-space-3) 0 0; }
 
 /* Action portée par le rail de la fiche bien, sous le statut. */
 .sff-rail__act{ margin-top:var(--sf-space-4); }
@@ -3232,7 +3299,7 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
   .content{padding:14px;gap:14px;}
 
   /* Grilles → 1 colonne */
-  .form-grid,.form-grid.cols3,.kpi-grid,.biens-kpi-grid,.mfb-grid,
+  .form-grid,.kpi-grid,.biens-kpi-grid,.mfb-grid,
   .invite-form-grid,.params-field-grid,.bilan-grid,.sci-grid,
   .detail-grid,.contact-grid,.assoc-grid,.assoc-grid-3,.mf-loc-grid,.bpe-grid{
     grid-template-columns:1fr !important;

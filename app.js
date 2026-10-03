@@ -3239,277 +3239,538 @@ function renderCard(b) {
   </article>`;
 }
 
-// ── NOUVEAU BIEN ──
-let bienPhotos = [], bienDocs = [];
+// ── NOUVELLE FICHE (v=95) ─────────────────────────────────────────────────────
+/* LA FICHE QU'ON REMPLIT — à la charte, l'essentiel d'abord.
 
-async function renderNouveau(el, bien) {
-  // Charger les SCI si pas encore fait (pour la picklist SCI associée)
+   ⚠️ CE QUE L'ANCIEN FORMULAIRE FAISAIT DE TRAVERS, relevé le 03/10/2026 :
+     · trente champs à plat, dans l'ordre du schéma : les quatre qui comptent
+       (SF_ESSENTIELS) étaient noyés parmi les autres ;
+     · un champ « Prix HA » enregistré NULLE PART. Il servait au calcul des
+       frais de notaire, puis revenait au prix affiché à l'ouverture suivante.
+       En base, une vraie fiche porte 14 000 € de frais pour un prix de
+       199 199 € : 7 % de 200 000, le prix d'une saisie précédente ;
+     · des montants en `type="number"`, qui refusent « 168 000 » tel que
+       l'annonce l'écrit, et dont la virgule dépend du navigateur ;
+     · « −33 €/mois » de cashflow affiché sur une fiche VIDE — l'assurance
+       préremplie, rien en face —, calculé par une copie de computeCF ;
+     · une liste de complétude qui n'était pas SF_ESSENTIELS : l'écran disait
+       « complète » une fiche que la page Mes biens écartait ;
+     · deux boutons « Ajouter », dont un seul se désactivait pendant l'envoi :
+       un double appui créait deux biens ;
+     · à la modification, des vignettes `src="[object Object]"` ;
+     · `editBien` dessinait la fiche VIDE, puis la fiche du bien 10 ms plus
+       tard : si les SCI arrivaient dans l'autre ordre, le formulaire vide
+       gagnait, et l'enregistrement créait un second bien.
+
+   LA RÈGLE DE CET ÉCRAN : il ne calcule rien lui-même. Sa synthèse passe par
+   les fonctions de la fiche — cfDisplayData, sfRendement, mfMontantAcquisition,
+   sfManquants —, ses libellés et ses types par TI_BIENS.CHAMPS. La fiche et
+   le formulaire ne peuvent donc pas se contredire.
+   Garde : test/nouvelle-fiche.test.js. */
+let bienPhotos = [], bienDocs = [];
+let sfnEnAttente = null;          // le bien à modifier, posé par editBien avant navigate('nouveau')
+let sfnRetour = { page: 'biens' };
+let sfnJeton = 0;                 // numéro du rendu courant
+let sfnModifie = false;           // une saisie est en cours : on confirme avant de la perdre
+let sfnEnvoi = false;             // un enregistrement est en cours : un second appui n'en lance pas un autre
+
+/* La mise en page : quelles colonnes, dans quel ordre, sous quel titre. Ni
+   libellé ni type ici — ils viennent de TI_BIENS.CHAMPS, comme sur la fiche et
+   dans l'export. `detention` n'est pas une colonne : il écrit le couple
+   mode_detention / sci_id (sfDetentionDepuisChamp). */
+const SFN_SECTIONS = [
+  { id: 'essentiel', titre: "L'essentiel", champs: [
+    { k: 'titre',         id: 'f-titre', large: true },
+    { k: 'ville',         id: 'f-ville' },
+    { k: 'code_postal',   id: 'f-cp' },
+    { k: 'type_bien',     id: 'f-type' },
+    { k: 'surface_m2',    id: 'f-surface' },
+    { k: 'prix_affiche',  id: 'f-prix' },
+    { k: 'loyer_en_etat', id: 'f-loyer', aide: 'Hors charges, tel qu’annoncé ou estimé.' },
+    { k: 'statut',        id: 'f-statut' },
+    { k: 'detention',     id: 'f-sci-id', aide: 'Obligatoire pour un bien acheté : elle décide de sa déclaration fiscale.' },
+  ]},
+  { id: 'credit', titre: 'Crédit et charges', champs: [
+    { k: 'mensualite_credit',  id: 'f-mensualite' },
+    { k: 'duree_credit_ans',   id: 'f-duree' },
+    { k: 'charge_copro',       id: 'f-copro' },
+    { k: 'assurance_logement', id: 'f-assurance' },
+    { k: 'taxe_fonciere',      id: 'f-taxe', aide: 'Le montant annuel divisé par douze.' },
+  ]},
+  { id: 'acquisition', titre: "Coûts d'acquisition", champs: [
+    { k: 'frais_notaire', id: 'f-notaire' },
+    { k: 'travaux',       id: 'f-travaux' },
+    { k: 'frais_agence',  id: 'f-agence' },
+    { k: 'creation_sci',  id: 'f-sci', aide: 'Portés par le premier bien de la SCI.' },
+  ]},
+  { id: 'revenus', titre: 'Revenus locatifs', champs: [
+    { k: 'charges_locataire_etat',    id: 'f-charges-loc', aide: 'Ce que le locataire rembourse chaque mois.' },
+    { k: 'loyer_apres_travaux',       id: 'f-loyer-travaux' },
+    { k: 'charges_locataire_travaux', id: 'f-charges-travaux' },
+  ]},
+  { id: 'annonce', titre: 'Annonce et contact', champs: [
+    { k: 'lien_annonce',  id: 'f-lien', large: true },
+    { k: 'source',        id: 'f-source' },
+    { k: 'balise',        id: 'f-balise' },
+    { k: 'intermediaire', id: 'f-inter' },
+    { k: 'telephone',     id: 'f-tel' },
+    { k: 'mail',          id: 'f-mail' },
+  ]},
+  { id: 'fichiers', titre: 'Photos et documents', champs: [] },
+  { id: 'notes', titre: 'Notes', champs: [ { k: 'notes', id: 'f-notes', large: true } ] },
+];
+
+const SFN_UNITES = { euro: '€', euro_mois: '€/mois', m2: 'm²', annees: 'ans' };
+const SFN_UNITES_LUES = { euro: 'en euros', euro_mois: 'en euros par mois', m2: 'en mètres carrés', annees: 'en années' };
+const SFN_TEXTE = {
+  titre:         { ph: 'ex. T2 Lyon Croix-Rousse' },
+  ville:         { ph: 'ex. Lyon', auto: 'address-level2' },
+  code_postal:   { ph: 'ex. 69004', auto: 'postal-code', mode: 'numeric' },
+  lien_annonce:  { ph: 'https://…', type: 'url', mode: 'url' },
+  intermediaire: { ph: 'Agence ou particulier' },
+  telephone:     { type: 'tel', auto: 'tel' },
+  mail:          { type: 'email', auto: 'email' },
+};
+
+/* UN MONTANT SE LIT COMME IL S'ÉCRIT. « 168 000 », « 168 000 € », « 1 200,50 »
+   et « 168.000 » sont des montants ; « 12 a » ne l'est pas, et le dire vaut
+   mieux que d'enregistrer 12 — ce que faisait `parseFloat`.
+   Rend `null` pour un champ vide, `NaN` pour une saisie illisible. Les espaces
+   fines et insécables sont celles que sfEur et le formatage du champ posent
+   eux-mêmes : on doit relire ce qu'on écrit. */
+function sfLireNombre(texte) {
+  if (texte === null || texte === undefined) return null;
+  let t = String(texte).replace(/[\s  €]/g, '');
+  if (t === '') return null;
+  // « 168.000 » : des groupes de trois chiffres derrière des points sont des
+  // milliers, pas des décimales — personne n'écrit un loyer au millième.
+  if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+  t = t.replace(',', '.');
+  if (!/^\d+(\.\d+)?$|^\.\d+$/.test(t)) return NaN;
+  return parseFloat(t);
+}
+
+// La valeur d'un champ numérique de la fiche, 0 quand il est vide ou illisible :
+// l'illisible est refusé à l'enregistrement (sfnValider), il ne s'invente pas.
+function sfnNombre(id) {
+  const n = sfLireNombre(document.getElementById(id)?.value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Un nombre tel qu'il s'affiche dans un champ : « 168 000 », « 1 200,5 ».
+// Zéro ou rien rendent un champ vide — une colonne à 0 par défaut en base
+// n'est pas une valeur saisie.
+function sfnFormaterNombre(n) {
+  const v = parseFloat(n);
+  if (!Number.isFinite(v) || v === 0) return '';
+  return v.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+}
+
+function sfnFormater(input) {
+  const n = sfLireNombre(input.value);
+  if (Number.isFinite(n)) input.value = sfnFormaterNombre(n);
+}
+
+/* LE RÉSUMÉ D'UN CASHFLOW — une seule rédaction, pour la fiche et ce
+   formulaire. Le libellé suit le mode affiché (réel ou prévisionnel), et une
+   valeur absente se dit « Non disponible », avec ce qui manque. */
+function sfResumeCashflow(d) {
+  const lab = d.mode === 'reel' ? sfLex('cashflow-reel') : sfLex('cashflow-previsionnel');
+  const nom = d.mode === 'reel' ? 'Cashflow réel' : 'Cashflow prévisionnel';
+  if (d.value == null) {
+    const sub = d.manque && d.manque.length
+      ? 'à compléter : ' + d.manque.map(c => c.lab.toLowerCase()).join(', ')
+      : 'loyer ou mensualité manquant';
+    return { lab, nom, val: 'Non disponible', cls: 'none', sub };
+  }
+  const val = (d.value >= 0 ? '+' : '−') + sfEur(Math.abs(d.value));
+  const sub = d.mode === 'reel' && d.hasPrev
+      ? `par mois · prévisionnel ${d.prev >= 0 ? '+' : '−'}${sfEur(Math.abs(d.prev))}`
+    : d.attenteReel ? 'réel dès la saisie des loyers'
+    : 'par mois, sur données estimées';
+  return { lab, nom, val, cls: d.value >= 0 ? 'gain' : 'loss', sub };
+}
+
+// Un champ de la fiche, rendu depuis sa définition dans TI_BIENS.CHAMPS.
+function sfnChamp(c, bien) {
+  const def = TI_BIENS.champ(c.k) || {};
+  const val = bien ? bien[c.k] : undefined;
+  const aideId = c.aide ? c.id + '-aide' : '';
+  const errId = c.id + '-err';
+  const decrit = `aria-describedby="${[aideId, errId].filter(Boolean).join(' ')}"`;
+  const requis = c.k === 'titre' || c.k === 'type_bien';
+  let lab = esc(def.lab || c.k), lu = '', saisie = '', etiquette = 'label';
+
+  if (c.k === 'detention') {
+    lab = sfLex('mode-detention', 'Détention');
+    saisie = `<select class="sf-input sf-select" id="${c.id}" ${decrit}>
+        <option value="">— Non renseignée —</option>
+        <option value="propre"${bien?.mode_detention === 'propre' ? ' selected' : ''}>En propre</option>
+        ${allSCI.map(s => `<option value="${esc(s.id)}"${bien?.sci_id === s.id ? ' selected' : ''}>Via ${esc(s.nom_sci)}</option>`).join('')}
+      </select>`;
+  } else if (c.k === 'statut') {
+    /* Bien acquis : le statut ne se change plus par une liste. Le select est
+       désactivé et porte la valeur réelle ; l'aller comme le retour passent
+       par les actions de la fiche. ⚠️ Un champ `disabled` n'est PAS lu par
+       getFormData — d'où le champ caché qui l'accompagne : sans lui, le bien
+       retomberait en « Renseignements Web » au premier enregistrement. */
+    saisie = sfDetenu(bien || {})
+      ? `<select class="sf-input sf-select" id="f-statut-affiche" disabled aria-describedby="f-statut-aide">
+           <option>${esc(bien.statut)}</option></select>
+         <input type="hidden" id="f-statut" value="${esc(bien.statut)}">
+         <p class="sf-hint" id="f-statut-aide">Bien acquis : pour le remettre en prospection, utilisez l'action prévue sur sa fiche.</p>`
+      : `<select id="f-statut" class="sf-input sf-select" ${decrit}>${TI_BIENS.options('STATUTS_FICHE', bien?.statut)}</select>`;
+  } else if (c.k === 'frais_notaire') {
+    etiquette = 'span';
+    saisie = `<div class="sfn-calcule" id="${c.id}" aria-labelledby="${c.id}-lab" aria-describedby="${c.id}-aide">
+        <span id="notaire-val">Non disponible</span></div>
+      <p class="sf-hint" id="${c.id}-aide">${esc(sfPctNum(notairePct() * 100, 1))} du prix affiché, un taux modifiable dans Paramètres › Préférences métier.</p>`;
+  } else if (def.type === 'enum') {
+    const vide = c.k === 'type_bien' ? (bien ? '' : '— Choisir —')
+               : c.k === 'source' ? '— Non renseignée —' : '— Sans balise —';
+    saisie = `<select class="sf-input sf-select" id="${c.id}" ${decrit}>${TI_BIENS.options(def.valeurs, val, vide)}</select>`;
+  } else if (def.type === 'notes') {
+    saisie = `<textarea class="sf-input" id="${c.id}" rows="5" ${decrit}
+      placeholder="Points d'attention, observations, négociation prévue…">${esc(val || '')}</textarea>`;
+  } else if (SFN_UNITES[def.type]) {
+    lu = `<span class="sf-sr-only"> ${SFN_UNITES_LUES[def.type]}</span>`;
+    const valeur = c.k === 'duree_credit_ans' ? (val || userPrefs.duree_credit_ans || 20)
+                 : c.k === 'assurance_logement' ? (bien ? val : userPrefs.assurance_mois || 33)
+                 : c.k === 'creation_sci' ? (sciOui ? val : '')
+                 : val;
+    saisie = `<div class="sfn-saisie sfn-saisie--${def.type}">
+        <input class="sf-input sfn-nombre" id="${c.id}" type="text"
+               inputmode="${def.type === 'annees' ? 'numeric' : 'decimal'}" autocomplete="off"
+               value="${esc(sfnFormaterNombre(valeur))}" onblur="sfnFormater(this)" ${decrit}>
+        <span class="sfn-unite" aria-hidden="true">${SFN_UNITES[def.type]}</span>
+      </div>`;
+  } else {
+    const t = SFN_TEXTE[c.k] || {};
+    saisie = `<input class="sf-input" id="${c.id}" type="${t.type || 'text'}" value="${esc(val || '')}"
+               ${t.ph ? `placeholder="${esc(t.ph)}"` : ''} ${t.auto ? `autocomplete="${t.auto}"` : ''}
+               ${t.mode ? `inputmode="${t.mode}"` : ''} ${requis ? 'aria-required="true"' : ''} ${decrit}>`;
+  }
+
+  const ouvre = etiquette === 'label' ? `<label class="sf-label" for="${c.id}">` : `<span class="sf-label" id="${c.id}-lab">`;
+  return `<div class="sf-field sfn-f${c.large ? ' sfn-f--large' : ''}" data-k="${c.k}"${c.k === 'creation_sci' ? ' id="sfn-f-sci" hidden' : ''}>
+      ${ouvre}${lab}${requis ? '<span class="sf-label__req" aria-hidden="true">*</span>' : ''}${lu}</${etiquette}>
+      ${saisie}
+      ${c.aide ? `<p class="sf-hint" id="${aideId}">${esc(c.aide)}</p>` : ''}
+      <p class="sf-hint sf-hint--error" id="${errId}" hidden></p>
+    </div>`;
+}
+
+function sfnFichiersHtml() {
+  return `<div class="sfn-fichiers">
+      <div class="sfn-fichiers__bloc">
+        <div class="sfn-fichiers__h">
+          <span class="sf-label">Photos</span>
+          <button type="button" class="sf-btn sf-btn--secondary sf-btn--sm" onclick="document.getElementById('bien-photo-input').click()">
+            ${sfAccIcon('image', 15)} Ajouter des photos</button>
+        </div>
+        <input type="file" id="bien-photo-input" accept="image/*" multiple style="display:none" onchange="handleBienPhotos(event)">
+        <div class="sfn-vignettes" id="bien-photos-grid"></div>
+      </div>
+      <div class="sfn-fichiers__bloc">
+        <div class="sfn-fichiers__h">
+          <span class="sf-label">Documents PDF</span>
+          <button type="button" class="sf-btn sf-btn--secondary sf-btn--sm" onclick="document.getElementById('bien-doc-input').click()">
+            ${sfAccIcon('doc', 15)} Ajouter des PDF</button>
+        </div>
+        <input type="file" id="bien-doc-input" accept="application/pdf" multiple style="display:none" onchange="handleBienDocs(event)">
+        <div class="sfn-docs" id="bien-docs-grid"></div>
+      </div>
+    </div>`;
+}
+
+function sfnSectionHtml(sec, bien) {
+  const corps = sec.id === 'fichiers' ? sfnFichiersHtml()
+    : `<div class="sfn-grid">${sec.champs.map(c => sfnChamp(c, bien)).join('')}</div>`;
+  // « L'essentiel » est toujours ouvert. Les autres se replient : leur
+  // en-tête dit ce qu'elles contiennent, sans avoir à les ouvrir.
+  if (sec.id === 'essentiel') return `
+    <section class="sff-block sfn-sec" data-sec="essentiel">
+      <div class="sff-block__h"><h2 class="sff-block__t">${esc(sec.titre)}</h2>
+        <span class="sfn-sec__resume"><span class="sf-label__req" aria-hidden="true">*</span> obligatoire</span></div>
+      <div class="sff-block__b">${corps}</div>
+    </section>`;
+  return `
+    <details class="sff-block sfn-sec" data-sec="${sec.id}">
+      ${/* ⚠️ Le flex est porté par un <span> intérieur, pas par <summary> :
+            Safari a longtemps ignoré `display:flex` sur cet élément. Et un
+            <summary> n'admet que du contenu phrasé — d'où des <span>, pas de <h2>. */''}
+      <summary class="sfn-sec__s"><span class="sff-block__h">
+        <span class="sff-block__t">${esc(sec.titre)}</span>
+        <span class="sfn-sec__resume" id="sfn-resume-${sec.id}"></span>
+        <span class="sfn-sec__chev" aria-hidden="true">${sfAccIcon('chevron-bas', 16)}</span>
+      </span></summary>
+      <div class="sff-block__b">${corps}</div>
+    </details>`;
+}
+
+async function renderNouveau(el, bien, precedente) {
+  const jeton = ++sfnJeton;
+  // Charger les SCI si pas encore fait (pour la liste « Détention »)
   if (!allSCI.length && currentUser) await loadSCIList();
+  // ⚠️ Un rendu périmé n'écrit pas : une autre navigation, ou un second rendu
+  // de cet écran, est arrivée pendant le chargement des SCI.
+  if (jeton !== sfnJeton || currentPage !== 'nouveau') return;
   editingId = bien ? bien.id : null;
-  sciOui = bien ? (parseFloat(bien.creation_sci)||0) > 0 : false;
-  // Modèle hybride : on normalise photos/docs en objets {kind, path?, bucket?, data?, name?}
-  // Storage d'abord (photos_paths), fallback base64 (photos) pour compat transition.
+  sciOui = bien ? (parseFloat(bien.creation_sci) || 0) > 0 : false;
+  sfnModifie = false;
+  sfnEnvoi = false;
+  const ailleurs = precedente && precedente !== 'nouveau' && precedente !== 'bien-detail';
+  sfnRetour = bien ? { page: 'bien-detail', id: bien.id } : { page: ailleurs ? precedente : 'biens' };
+  // Ouverte depuis une liste, la modification ramène à la fiche, dont le
+  // retour mène à cette liste.
+  if (bien && ailleurs) bienDetailBack = precedente;
+  // Modèle hybride : photos/docs normalisés en {kind, path?, bucket?, data?, name?}.
   bienPhotos = tiNormalizePhotos(bien?.photos_paths, bien?.photos, 'biens-photos');
   bienDocs = tiNormalizeDocs(bien?.documents_paths, bien?.documents, 'biens-documents');
+  const retourLib = bien ? 'Fiche du bien' : (PAGE_LABELS[sfnRetour.page] || 'Mes biens');
 
   el.innerHTML = `
-    <div class="form-sticky-save">
-      <div class="info">${bien?'<strong>Modifier le bien :</strong> '+(bien.titre||'').replace(/</g,'&lt;'):'<strong>Ajouter un nouveau bien</strong>'}</div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-secondary" onclick="navigate('biens')" style="padding:7px 14px;font-size:12px">Annuler</button>
-        <button class="btn btn-primary" id="btn-save-top" onclick="saveBien()" style="padding:7px 16px;font-size:12px">${bien?sfAccIcon('check',14)+' Enregistrer':'＋ Ajouter le bien'}</button>
-      </div>
-    </div>
-    <div>
-      <div class="page-title">${bien?'Modifier le bien':'Ajouter un bien'}</div>
-      <div class="page-sub">${bien?'Mettez à jour les informations':'Renseignez les informations du bien prospecté'} <span style="color:var(--negative);font-weight:600">* champ obligatoire</span></div>
-    </div>
-
-    <div class="nouveau-wrap" style="margin-top:18px">
-      <!-- COLONNE FORMULAIRE -->
-      <div class="nouveau-form-col">
-
-        <!-- Bien -->
-        <div class="form-card">
-          <div class="form-card-title">${sfAccIcon('pin',16)} Informations du bien</div>
-          <div class="form-grid">
-            <div class="form-group form-full"><label class="req">Titre de l'annonce</label><input type="text" id="f-titre" value="${esc(bien?.titre||'')}" oninput="updatePrev()" placeholder="ex: T3 Paris Montmartre 65m²" style="border-color:${!bien?.titre?'rgba(220,38,38,0.3)':''}"></div>
-            <div class="form-group"><label class="req">Ville</label><input type="text" id="f-ville" value="${esc(bien?.ville||'')}" placeholder="Paris"></div>
-            <div class="form-group"><label>Code postal</label><input type="text" id="f-cp" value="${esc(bien?.code_postal||'')}" placeholder="75018"></div>
-            <div class="form-group"><label>Type de bien</label>
-              <select id="f-type">${TI_BIENS.options('TYPES', bien?.type_bien)}</select>
-            </div>
-            <div class="form-group"><label>Surface (m²)</label><input type="number" id="f-surface" value="${esc(bien?.surface_m2||'')}" placeholder="45"></div>
-            <div class="form-group"><label>Prix affiché (€)</label><input type="number" id="f-prix" value="${esc(bien?.prix_affiche||'')}" oninput="updatePrev()" placeholder="300 000"></div>
-            <div class="form-group"><label>Statut</label>
-              ${/* Bien acquis : le statut ne se change plus par une liste. Le
-                    select est desactive et porte la valeur reelle ; l'aller
-                    comme le retour passent par les actions dediees de la fiche.
-                    ⚠️ Un champ `disabled` n'est PAS soumis — d'ou le champ
-                    cache qui l'accompagne : sans lui `getFormData()` lirait une
-                    chaine vide et retrograderait le bien a « Renseignements
-                    Web » au premier enregistrement.
-                    ⚠️ Commentaire en JS et non en HTML : un accent grave dans
-                    un commentaire HTML REFERME le litteral (piege du 14/08). */''}
-              ${sfDetenu(bien || {}) ? `
-                <select id="f-statut-affiche" disabled aria-describedby="f-statut-aide">
-                  <option>${esc(bien.statut)}</option>
-                </select>
-                <input type="hidden" id="f-statut" value="${esc(bien.statut)}">
-                <p class="form-aide" id="f-statut-aide">Bien acquis. Pour le remettre en prospection, utilisez l'action prévue sur sa fiche.</p>`
-              : `<select id="f-statut">${TI_BIENS.options('STATUTS_FICHE', bien?.statut)}</select>`}
-            </div>
-            <div class="form-group form-full"><label>Lien de l'annonce</label><input type="url" id="f-lien" value="${esc(bien?.lien_annonce||'')}" placeholder="https://www.seloger.com/..."></div>
-            <div class="form-group"><label>Source</label>
-              <select id="f-source">${TI_BIENS.options('SOURCES', bien?.source, '—')}</select>
-            </div>
-            <div class="form-group"><label>Balise</label>
-              <select id="f-balise">${TI_BIENS.options('BALISES', bien?.balise, '— Sans balise —')}</select>
-            </div>
-            <!-- ATTENTION : un seul controle pour deux colonnes, et c'est
-                 delibere. mode_detention et sci_id sont lies par un invariant en
-                 base (biens_mode_detention_coherent : 'sci' EXIGE une SCI,
-                 'propre' en INTERDIT une). Deux champs separes permettent de
-                 composer une paire incoherente, que Postgres refuse alors en
-                 bloc — perdant au passage toutes les autres modifications de la
-                 fiche. Une seule liste rend le cas impossible a saisir.
-                 Le champ s'appelait « SCI associee » et n'offrait aucun moyen de
-                 dire « en propre » : un bien acquis sans SCI restait donc sans
-                 mode, et le tableau de bord le signalait a juste titre. -->
-            <div class="form-group"><label>${sfLex('mode-detention', 'Détention')}</label>
-              <select id="f-sci-id" aria-describedby="f-detention-aide">
-                <option value="">— Non renseigné —</option>
-                <option value="propre" ${bien?.mode_detention==='propre'?'selected':''}>En propre</option>
-                ${allSCI.map(s=>`<option value="${s.id}" ${bien?.sci_id===s.id?'selected':''}>Via ${esc(s.nom_sci)}</option>`).join('')}
-              </select>
-              <p class="form-aide" id="f-detention-aide">Obligatoire dès qu'un bien est acquis : sans elle, ni les loyers ni les charges n'entrent dans une déclaration fiscale.</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Acquisition -->
-        <div class="form-card">
-          <div class="form-card-title">${sfAccIcon('euro',16)} Coûts d'acquisition</div>
-          <div class="form-grid cols3">
-            <div class="form-group"><label>Prix HA (€)</label><input type="number" id="f-ha" value="${esc(bien?.prix_affiche||'')}" oninput="updateNotaire();updatePrev()" placeholder="300 000"></div>
-            <div class="form-group">
-              <label>Frais de notaire <span style="color:var(--positive-c);font-weight:600">(${+(notairePct()*100).toFixed(1)}% auto)</span></label>
-              <div class="calc-field" id="f-notaire-display">
-                <span class="calc-field-badge">${sfAccIcon('lock',11)} Auto</span>
-                <span id="notaire-val">${bien?.prix_affiche?fmt(Math.round((bien.prix_affiche||0)*notairePct()))+' €':'—'}</span>
-              </div>
-            </div>
-            <div class="form-group"><label>Travaux (€)</label><input type="number" id="f-travaux" value="${esc(bien?.travaux||'')}" oninput="updatePrev()" placeholder="0"></div>
-            <div class="form-group"><label>Frais d'agence (€)</label><input type="number" id="f-agence" value="${esc(bien?.frais_agence||'')}" oninput="updatePrev()" placeholder="0"></div>
-            <div class="form-group">
-              <label>Création SCI</label>
-              <div class="sci-toggle">
-                <button class="sci-btn ${!sciOui?'active':''}" onclick="setSCI(false)">Non — 0 €</button>
-                <button class="sci-btn ${sciOui?'active':''}" onclick="setSCI(true)">Oui</button>
-              </div>
-              <div class="sci-amount" id="sci-amount-wrap" style="display:${sciOui?'block':'none'}">
-                <input type="number" id="f-sci" value="${esc(bien?.creation_sci&&parseFloat(bien.creation_sci)>0?bien.creation_sci:'')}" placeholder="Montant SCI (€)" oninput="updatePrev()">
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Crédit -->
-        <div class="form-card">
-          <div class="form-card-title">${sfAccIcon('banque',16)} Crédit bancaire</div>
-          <div class="form-grid">
-            <div class="form-group"><label>Mensualité (€/mois)</label><input type="number" id="f-mensualite" value="${esc(bien?.mensualite_credit||'')}" oninput="updatePrev()" placeholder="1 200"></div>
-            <div class="form-group"><label>Durée (ans)</label><input type="number" id="f-duree" value="${esc(bien?.duree_credit_ans||userPrefs.duree_credit_ans||20)}"></div>
-          </div>
-        </div>
-
-        <!-- Charges -->
-        <div class="form-card">
-          <div class="form-card-title">${sfAccIcon('doc',16)} Charges mensuelles</div>
-          <div class="form-grid cols3">
-            <div class="form-group"><label>Charges copro (€/mois)</label><input type="number" id="f-copro" value="${esc(bien?.charge_copro||'')}" oninput="updatePrev()" placeholder="0"></div>
-            <div class="form-group"><label>Assurance (€/mois)</label><input type="number" id="f-assurance" value="${esc(bien?.assurance_logement||userPrefs.assurance_mois||33)}" oninput="updatePrev()"></div>
-            <div class="form-group"><label>Taxe foncière (€/mois)</label><input type="number" id="f-taxe" value="${esc(bien?.taxe_fonciere||'')}" oninput="updatePrev()" placeholder="0"></div>
-          </div>
-        </div>
-
-        <!-- Loyers -->
-        <div class="form-card">
-          <div class="form-card-title">${sfAccIcon('maison',16)} Revenus locatifs (en état)</div>
-          <div class="form-grid">
-            <div class="form-group"><label>Loyer hors charges (€/mois)</label><input type="number" id="f-loyer" value="${esc(bien?.loyer_en_etat||'')}" oninput="updatePrev()" placeholder="1 500"></div>
-            <div class="form-group"><label>Charges locataire (€/mois)</label><input type="number" id="f-charges-loc" value="${esc(bien?.charges_locataire_etat||'')}" oninput="updatePrev()" placeholder="0"></div>
-          </div>
-        </div>
-
-        <!-- Loyers après travaux -->
-        <div class="form-card">
-          <div class="form-card-title">${sfAccIcon('wrench',16)} Revenus locatifs (après travaux)</div>
-          <div class="form-grid">
-            <div class="form-group"><label>Loyer après travaux (€/mois)</label><input type="number" id="f-loyer-travaux" value="${esc(bien?.loyer_apres_travaux||'')}" placeholder="1 800"></div>
-            <div class="form-group"><label>Charges locataire après travaux (€/mois)</label><input type="number" id="f-charges-travaux" value="${esc(bien?.charges_locataire_travaux||'')}" placeholder="0"></div>
-          </div>
-        </div>
-
-        <!-- Contact -->
-        <div class="form-card">
-          <div class="form-card-title">${sfAccIcon('user',16)} Contact</div>
-          <div class="form-grid cols3">
-            <div class="form-group"><label>Intermédiaire</label><input type="text" id="f-inter" value="${esc(bien?.intermediaire||'')}" placeholder="Agence / Particulier"></div>
-            <div class="form-group"><label>Téléphone</label><input type="text" id="f-tel" value="${esc(bien?.telephone||'')}"></div>
-            <div class="form-group"><label>Mail</label><input type="email" id="f-mail" value="${esc(bien?.mail||'')}"></div>
-          </div>
-        </div>
-
-        <!-- Médias -->
-        <div class="form-card">
-          <div class="form-card-title">${sfAccIcon('trombone',16)} Photos & documents</div>
-          <div class="form-group" style="margin-bottom:12px">
-            <label>Photos du bien</label>
-            <div class="photo-upload-area" onclick="document.getElementById('bien-photo-input').click()" style="padding:14px">
-              ${sfAccIcon('image',15)} Ajouter des photos (JPG, PNG)
-            </div>
-            <input type="file" id="bien-photo-input" accept="image/*" multiple style="display:none" onchange="handleBienPhotos(event)">
-            <div class="media-grid" id="bien-photos-grid">
-              ${bienPhotos.map((p,i)=>`<div class="media-thumb-wrap"><img class="media-thumb" src="${p}"><button class="media-remove" onclick="removeBienPhoto(${i})" aria-label="Retirer la photo">${sfAccIcon('croix',12)}</button></div>`).join('')}
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Documents (PDF)</label>
-            <div class="photo-upload-area" onclick="document.getElementById('bien-doc-input').click()" style="padding:14px">
-              ${sfAccIcon('doc',15)} Ajouter des PDF (offre, compromis, devis…)
-            </div>
-            <input type="file" id="bien-doc-input" accept="application/pdf" multiple style="display:none" onchange="handleBienDocs(event)">
-            <div class="media-grid" id="bien-docs-grid">
-              ${bienDocs.map((d,i)=>`<div class="media-thumb-wrap"><div class="media-thumb-doc">${sfAccIcon('doc',18)}<span>${esc(d.name||'PDF')}</span></div><button class="media-remove" onclick="removeBienDoc(${i})" aria-label="Retirer le document">${sfAccIcon('croix',12)}</button></div>`).join('')}
-            </div>
-          </div>
-        </div>
-
-        <!-- Notes -->
-        <div class="form-card">
-          <div class="form-card-title">${sfAccIcon('crayon',16)} Notes & commentaires</div>
-          <div class="form-group"><textarea id="f-notes" placeholder="Points d'attention, observations, négociation prévue...">${esc(bien?.notes||'')}</textarea></div>
-        </div>
-
-        <div class="form-actions">
-          ${bien?`<button class="btn btn-danger" onclick="deleteBienPage('${bien.id}')">${sfAccIcon('poubelle',14)} Supprimer</button>`:''}
-          <button class="btn btn-secondary" onclick="navigate('biens')">Annuler</button>
-          <button class="btn btn-primary" id="btn-save" onclick="saveBien()">${bien?sfAccIcon('check',14)+' Enregistrer':'＋ Ajouter le bien'}</button>
+  <div class="sff-page sfn">
+    <div class="sff-top">
+      <button type="button" class="sff-back" onclick="sfnQuitter()">${sfAccIcon('retour', 14)} ${esc(retourLib)}</button>
+      <div class="sff-titleline">
+        <div class="sff-titleline__id">
+          <h1 class="sff-h1">${bien ? 'Modifier la fiche' : 'Nouvelle fiche'}</h1>
+          <p class="sff-sub">${bien ? esc(bien.titre || 'Sans titre')
+            : 'Le titre, la ville, le prix et le loyer suffisent pour chiffrer le bien. Le reste se complète quand vous l’avez.'}</p>
         </div>
       </div>
+    </div>
 
-      <!-- COLONNE SYNTHÈSE (droite sticky) -->
-      <div class="nouveau-sticky-col">
-
-        <!-- Cashflow -->
-        <div class="cf-preview-big" style="margin-bottom:0">
-          <div class="cf-preview-label">Cashflow mensuel estimé</div>
-          <div class="cf-preview-value" id="cf-preview">— €/mois</div>
+    <div class="sfn-body">
+      <aside class="sfn-rail" aria-label="Synthèse de la fiche">
+        <div class="sff-rail__b sfn-r">
+          <span class="sff-rail__l" id="sfn-cf-lab"></span>
+          <span class="sfn-r__v" id="sfn-cf-val"></span>
+          <span class="sff-rail__s" id="sfn-cf-sub"></span>
         </div>
-
-        <!-- Synthèse financière -->
-        <div class="synthese-card">
-          <div class="synthese-title">${sfAccIcon('graph',16)} Synthèse financière</div>
-          <div class="synthese-row">
-            <span class="synthese-label">Prix affiché</span>
-            <span class="synthese-value" id="syn-prix">—</span>
-          </div>
-          <div class="synthese-row">
-            <span class="synthese-label">Montant à emprunter</span>
-            <span class="synthese-value" id="syn-emprunt">—</span>
-          </div>
-          <div class="synthese-row">
-            <span class="synthese-label">Frais notaire (${+(notairePct()*100).toFixed(1)}%)</span>
-            <span class="synthese-value" id="syn-notaire">—</span>
-          </div>
-          <div class="synthese-row">
-            <span class="synthese-label">Loyer estimé</span>
-            <span class="synthese-value" id="syn-loyer">—</span>
-          </div>
-          <div class="synthese-row">
-            <span class="synthese-label">Charges totales/mois</span>
-            <span class="synthese-value" id="syn-charges">—</span>
-          </div>
-          <div class="synthese-row">
-            <span class="synthese-label">Rendement brut</span>
-            <span class="synthese-value" id="syn-rendement">—</span>
-          </div>
+        <div class="sff-rail__b sfn-r">
+          <span class="sff-rail__l">Rendement brut</span>
+          <span class="sfn-r__v" id="sfn-rdt-val"></span>
+          <span class="sff-rail__s" id="sfn-rdt-sub"></span>
         </div>
-
-        <!-- Checklist de complétion -->
-        <div class="synthese-card">
-          <div class="synthese-title">${sfAccIcon('ok',16)} Complétion de la fiche</div>
-          <div class="checklist-item"><div class="check-dot" id="chk-titre"></div>Titre de l'annonce</div>
-          <div class="checklist-item"><div class="check-dot" id="chk-ville"></div>Ville</div>
-          <div class="checklist-item"><div class="check-dot" id="chk-prix"></div>Prix affiché</div>
-          <div class="checklist-item"><div class="check-dot" id="chk-loyer"></div>Loyer estimé</div>
-          <div class="checklist-item"><div class="check-dot" id="chk-mensualite"></div>Mensualité crédit</div>
-          <div class="checklist-item"><div class="check-dot" id="chk-lien"></div>Lien de l'annonce</div>
-          <div class="checklist-item"><div class="check-dot" id="chk-contact"></div>Contact renseigné</div>
-          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--c-border)">
-            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--c-dim);margin-bottom:5px">
-              <span>Complétion</span><span id="chk-pct" style="font-weight:700">0%</span>
-            </div>
-            <div style="height:6px;background:var(--c-bg);border-radius:3px;overflow:hidden">
-              <div id="chk-bar" style="height:100%;border-radius:3px;background:var(--accent);transition:width 0.4s;width:0%"></div>
-            </div>
-          </div>
+        <div class="sff-rail__b sfn-r">
+          <span class="sff-rail__l">Coût total de l'opération</span>
+          <span class="sfn-r__v" id="sfn-cout-val"></span>
+          <span class="sff-rail__s">frais et travaux compris</span>
         </div>
+        <div class="sff-rail__b sfn-r sfn-r--ess">
+          <span class="sff-rail__l">Pour chiffrer ce bien</span>
+          <ul class="sfn-ess" id="sfn-ess">${SF_ESSENTIELS.map(c => `
+            <li data-k="${c.k}"><span class="sfn-ess__ic"></span>${esc(c.lab)}</li>`).join('')}
+          </ul>
+          <div class="sff-prog"><div class="sff-prog__f" id="sfn-prog"></div></div>
+          <span class="sff-rail__s" id="sfn-ess-txt"></span>
+        </div>
+      </aside>
 
+      <div class="sfn-main">
+        ${SFN_SECTIONS.map(sec => sfnSectionHtml(sec, bien)).join('')}
+        ${bien ? `
+        <div class="sfn-suppr">
+          <button type="button" class="sf-btn sf-btn--danger sf-btn--sm" onclick="deleteBienPage(${escJs(bien.id)})">${sfAccIcon('poubelle', 14)} Supprimer ce bien</button>
+        </div>` : ''}
       </div>
     </div>
-  `;
-  // P5 : arrivée depuis « Créer une fiche bien ici » (section Marché)
-  if(!bien && nouveauPrefill) {
-    const v = document.getElementById('f-ville'), c = document.getElementById('f-cp');
-    if(v) v.value = nouveauPrefill.ville || '';
-    if(c) c.value = nouveauPrefill.code_postal || '';
+
+    <div class="sfn-barre">
+      <div class="sfn-barre__resume">
+        <span class="sfn-barre__l" id="sfn-barre-lab">Cashflow prévisionnel</span>
+        <b class="sfn-barre__v" id="sfn-barre-cf"></b>
+      </div>
+      <div class="sfn-barre__acts">
+        <button type="button" class="sf-btn sf-btn--secondary" onclick="sfnQuitter()">Annuler</button>
+        <button type="button" class="sf-btn sf-btn--primary" id="btn-save" onclick="saveBien()">${bien ? 'Enregistrer' : 'Ajouter le bien'}</button>
+      </div>
+    </div>
+  </div>`;
+
+  // Arrivée depuis « Créer une fiche bien ici » (Marché)
+  if (!bien && nouveauPrefill) {
+    const v = document.getElementById('f-ville'), cp = document.getElementById('f-cp');
+    if (v) v.value = nouveauPrefill.ville || '';
+    if (cp) cp.value = nouveauPrefill.code_postal || '';
     showNotif(`${nouveauPrefill.ville} pré-rempli depuis l'analyse de marché`);
     nouveauPrefill = null;
     document.getElementById('f-titre')?.focus();
   }
-  updatePrev();
+  // Les vignettes se dessinent ICI, par les mêmes fonctions qu'après un ajout :
+  // une photo déjà enregistrée n'a pas d'adresse lisible avant son URL signée.
+  refreshBienPhotos();
+  refreshBienDocs();
+  const page = el.querySelector('.sfn');
+  page.addEventListener('input', sfnSaisie);
+  page.addEventListener('change', sfnSaisie);
+  sfnMaj();
+}
+
+// Toute saisie : la fiche est modifiée, son erreur éventuelle s'efface, la
+// synthèse suit.
+function sfnSaisie(e) {
+  const cible = e.target;
+  if (!cible || !cible.id || cible.type === 'file') return;
+  sfnModifie = true;
+  // Toucher aux frais de SCI, c'est répondre à la question : la valeur saisie
+  // gagne sur le calcul (voir getFormData).
+  if (cible.id === 'f-sci') sciOui = true;
+  sfnErreur(cible.id, '');
+  sfnMaj();
+}
+
+/* La synthèse d'un brouillon : la fiche en cours de saisie, passée par les
+   fonctions de la fiche — jamais par une formule recopiée. */
+function sfnSynthese() {
+  const data = { ...getFormData(), id: editingId || undefined };
+  return {
+    data,
+    cf: sfResumeCashflow(cfDisplayData(data)),
+    rendement: sfRendement(data),
+    seuil: parseFloat(userPrefs?.seuil_rentabilite) || 5,
+    total: mfMontantAcquisition(data),
+    manque: sfManquants(data),
+  };
+}
+
+function sfnMaj() {
+  const $ = id => document.getElementById(id);
+  // Les frais de SCI n'existent que pour un bien détenu par une SCI. Tant
+  // qu'on n'y a pas touché, le champ montre ce que la règle du premier bien
+  // propose (sfFraisCreationSci).
+  const det = sfDetentionDepuisChamp($('f-sci-id')?.value);
+  const champSci = $('sfn-f-sci');
+  if (champSci) champSci.hidden = det.mode_detention !== 'sci';
+  if (det.mode_detention === 'sci' && !sciOui && $('f-sci')) {
+    $('f-sci').value = sfnFormaterNombre(sfFraisCreationSci(editingId, 'sci', det.sci_id));
+  }
+
+  const s = sfnSynthese();
+  const pose = (id, texte, cls) => {
+    const e = $(id); if (!e) return;
+    e.textContent = texte;
+    if (cls !== undefined) e.className = 'sfn-r__v sfn-r__v--' + cls;
+  };
+  if ($('notaire-val')) $('notaire-val').textContent = s.data.prix_affiche ? sfEur(s.data.frais_notaire) : 'Non disponible';
+
+  const lab = $('sfn-cf-lab');
+  if (lab && lab.dataset.nom !== s.cf.nom) { lab.innerHTML = s.cf.lab; lab.dataset.nom = s.cf.nom; }
+  pose('sfn-cf-val', s.cf.val, s.cf.cls);
+  pose('sfn-cf-sub', s.cf.sub);
+  const r = s.rendement;
+  pose('sfn-rdt-val', r == null ? 'Non disponible' : sfPctNum(r, 1), r == null ? 'none' : r >= s.seuil ? 'gain' : 'loss');
+  pose('sfn-rdt-sub', r == null ? 'prix et loyer à renseigner'
+    : `${r >= s.seuil ? 'au-dessus de' : 'en dessous de'} votre seuil de ${sfPctNum(s.seuil, 1)}`);
+  pose('sfn-cout-val', s.total > 0 ? sfEur(s.total) : 'Non disponible', s.total > 0 ? 'neutre' : 'none');
+
+  const manque = new Set(s.manque.map(c => c.k));
+  document.querySelectorAll('#sfn-ess li').forEach(li => {
+    const ok = !manque.has(li.dataset.k);
+    li.classList.toggle('ok', ok);
+    li.querySelector('.sfn-ess__ic').innerHTML = ok ? sfAccIcon('check', 12) : '';
+  });
+  const faits = SF_ESSENTIELS.length - manque.size;
+  if ($('sfn-prog')) {
+    $('sfn-prog').style.width = Math.round(faits / SF_ESSENTIELS.length * 100) + '%';
+    $('sfn-prog').className = 'sff-prog__f' + (manque.size ? ' warn' : '');
+  }
+  pose('sfn-ess-txt', manque.size
+    ? 'Il manque : ' + s.manque.map(c => c.lab.toLowerCase()).join(', ') + '.'
+    : 'Fiche complète.');
+
+  if ($('sfn-barre-lab')) $('sfn-barre-lab').textContent = s.cf.nom;
+  const bv = $('sfn-barre-cf');
+  if (bv) { bv.textContent = s.cf.val; bv.className = 'sfn-barre__v sfn-barre__v--' + s.cf.cls; }
+  sfnResumes(s.data);
+}
+
+// L'en-tête d'une section repliée dit ce qu'elle contient.
+function sfnResumes(d) {
+  const pose = (id, parties, vide) => {
+    const e = document.getElementById('sfn-resume-' + id);
+    if (e) e.textContent = parties.filter(Boolean).join(' · ') || vide;
+  };
+  const charges = (d.charge_copro || 0) + (d.assurance_logement || 0) + (d.taxe_fonciere || 0);
+  pose('credit', [
+    d.mensualite_credit ? `crédit ${sfEur(d.mensualite_credit)}/mois` : '',
+    d.mensualite_credit && d.duree_credit_ans ? `${d.duree_credit_ans} ans` : '',
+    charges ? `charges ${sfEur(charges)}/mois` : '',
+  ], 'Aucune donnée');
+  const frais = (d.frais_notaire || 0) + (d.travaux || 0) + (d.frais_agence || 0) + (d.creation_sci || 0);
+  pose('acquisition', [frais ? `${sfEur(frais)} de frais et travaux` : ''], 'Aucune donnée');
+  pose('revenus', [
+    d.charges_locataire_etat ? `charges locataire ${sfEur(d.charges_locataire_etat)}/mois` : '',
+    d.loyer_apres_travaux ? `après travaux ${sfEur(d.loyer_apres_travaux)}/mois` : '',
+  ], 'Aucune donnée');
+  pose('annonce', [d.source, d.intermediaire, d.lien_annonce ? 'lien enregistré' : ''], 'Aucune donnée');
+  const np = bienPhotos.length, nd = bienDocs.length;
+  pose('fichiers', [
+    np ? `${np} photo${np > 1 ? 's' : ''}` : '',
+    nd ? `${nd} document${nd > 1 ? 's' : ''}` : '',
+  ], 'Aucun fichier');
+  const n = (d.notes || '').trim();
+  pose('notes', [n.length > 48 ? n.slice(0, 47) + '…' : n], 'Aucune note');
+}
+
+// Une erreur se dit sous son champ, avec sa vraie raison ; '' l'efface.
+function sfnErreur(id, message) {
+  const champ = document.getElementById(id);
+  const err = document.getElementById(id + '-err');
+  if (err) { err.textContent = message; err.hidden = !message; }
+  if (champ) {
+    champ.classList.toggle('sf-input--invalid', !!message);
+    if (message) champ.setAttribute('aria-invalid', 'true'); else champ.removeAttribute('aria-invalid');
+  }
+}
+
+/* Ce qui empêche d'enregistrer. Un montant illisible n'est pas un zéro : il
+   est refusé, avec ce qui a été saisi — `parseFloat('12 a')` aurait écrit 12. */
+function sfnValider() {
+  const erreurs = [];
+  const val = id => (document.getElementById(id)?.value || '').trim();
+  if (!val('f-titre')) erreurs.push(['f-titre', 'Donnez un titre à la fiche, par exemple « T2 Lyon Croix-Rousse ».']);
+  if (!val('f-type')) erreurs.push(['f-type', 'Choisissez le type de bien.']);
+  document.querySelectorAll('.sfn .sfn-nombre').forEach(i => {
+    if (Number.isNaN(sfLireNombre(i.value))) erreurs.push([i.id, `« ${i.value.trim()} » n'est pas un nombre.`]);
+  });
+  return erreurs;
+}
+
+function sfnMontrerErreurs(erreurs) {
+  erreurs.forEach(([id, m]) => sfnErreur(id, m));
+  const premier = document.getElementById(erreurs[0][0]);
+  if (!premier) return;
+  // Une erreur dans une section repliée doit se voir : on l'ouvre.
+  const sec = premier.closest('details');
+  if (sec) sec.open = true;
+  // Un select habillé ne prend plus le focus : c'est son bouton qui le porte.
+  const cible = premier.closest('.sf-pick')?.querySelector('.sf-pick__btn') || premier;
+  cible.focus();
+  cible.scrollIntoView({ block: 'center' });
+}
+
+async function sfnQuitter() {
+  if (sfnModifie && !(await sfConfirmer({
+    titre: 'Quitter la fiche',
+    question: 'Quitter sans enregistrer ?',
+    detail: 'Ce que vous avez saisi depuis l’ouverture de la fiche sera perdu.',
+    ok: 'Quitter sans enregistrer', danger: true }))) return;
+  sfnModifie = false;
+  sfnAller(sfnRetour);
+}
+
+// Après « Annuler » ou un enregistrement : retour à la fiche du bien quand il
+// existe, sinon à l'écran d'où l'on venait.
+function sfnAller(r) {
+  if (r.page === 'bien-detail' && r.id && allBiens.find(b => b.id === r.id)) {
+    currentBienId = r.id;
+    navigate('bien-detail');
+  } else {
+    navigate(r.page === 'bien-detail' ? 'biens' : (r.page || 'biens'));
+  }
 }
 
 // ── Normalisation hybride Storage / base64 ──
@@ -3720,114 +3981,57 @@ async function tiResolveDocs(paths, legacyB64, bucket) {
 }
 
 function handleBienPhotos(e) {
-  Array.from(e.target.files).forEach(f=>{
-    if(!f.type.startsWith('image/')) return;
-    const r=new FileReader();
-    r.onload=ev=>{bienPhotos.push({kind:'b64', data:ev.target.result, name:f.name, _file:f});refreshBienPhotos();};
+  Array.from(e.target.files).forEach(f => {
+    if (!f.type.startsWith('image/')) return;
+    const r = new FileReader();
+    r.onload = ev => {
+      bienPhotos.push({ kind: 'b64', data: ev.target.result, name: f.name, _file: f });
+      sfnModifie = true;
+      refreshBienPhotos();
+    };
     r.readAsDataURL(f);
   });
+  e.target.value = '';   // la même photo peut être reprise après l'avoir retirée
 }
 
-function removeBienPhoto(i){bienPhotos.splice(i,1);refreshBienPhotos();}
+function removeBienPhoto(i) { bienPhotos.splice(i, 1); sfnModifie = true; refreshBienPhotos(); }
 
-async function refreshBienPhotos(){
-  const el=document.getElementById('bien-photos-grid');
-  if(!el) return;
-  // Affichage : b64 direct, storage via URL signée (async)
-  const items = await Promise.all(bienPhotos.map(async (p,i)=>{
-    let src = p.kind==='b64' ? p.data : await TI_STORAGE.signedUrl(p.bucket||'biens-photos', p.path);
-    return `<div class="media-thumb-wrap"><img class="media-thumb" src="${src||''}"><button class="media-remove" onclick="removeBienPhoto(${i})" aria-label="Retirer la photo">${sfAccIcon('croix',12)}</button></div>`;
+async function refreshBienPhotos() {
+  const el = document.getElementById('bien-photos-grid');
+  if (!el) return;
+  // Affichage : base64 direct, Storage par URL signée (asynchrone)
+  const items = await Promise.all(bienPhotos.map(async (p, i) => {
+    const src = p.kind === 'b64' ? p.data : await TI_STORAGE.signedUrl(p.bucket || 'biens-photos', p.path);
+    return `<div class="sfn-vignette"><img src="${esc(src || '')}" alt="${esc(p.name || 'Photo du bien')}">
+      <button type="button" class="sfn-retirer" onclick="removeBienPhoto(${i})" aria-label="Retirer la photo ${i + 1}">${sfAccIcon('croix', 14)}</button></div>`;
   }));
-  el.innerHTML = items.join('');
+  el.innerHTML = items.join('') || '<p class="sfn-vide">Aucune photo pour l’instant.</p>';
+  if (document.getElementById('sfn-resume-fichiers')) sfnMaj();
 }
 
-function handleBienDocs(e){
-  Array.from(e.target.files).forEach(f=>{
-    const r=new FileReader();
-    r.onload=ev=>{bienDocs.push({kind:'b64', data:ev.target.result, name:f.name, _file:f});refreshBienDocs();};
+function handleBienDocs(e) {
+  Array.from(e.target.files).forEach(f => {
+    const r = new FileReader();
+    r.onload = ev => {
+      bienDocs.push({ kind: 'b64', data: ev.target.result, name: f.name, _file: f });
+      sfnModifie = true;
+      refreshBienDocs();
+    };
     r.readAsDataURL(f);
   });
+  e.target.value = '';
 }
 
-function removeBienDoc(i){bienDocs.splice(i,1);refreshBienDocs();}
+function removeBienDoc(i) { bienDocs.splice(i, 1); sfnModifie = true; refreshBienDocs(); }
 
-function refreshBienDocs(){
-  const el=document.getElementById('bien-docs-grid');
-  if(el)el.innerHTML=bienDocs.map((d,i)=>`<div class="media-thumb-wrap"><div class="media-thumb-doc">${sfAccIcon('doc',18)}<span style="font-size:9px;text-align:center;padding:2px">${esc((d.name||'').substring(0,10))}</span></div><button class="media-remove" onclick="removeBienDoc(${i})" aria-label="Retirer le document">${sfAccIcon('croix',12)}</button></div>`).join('');
-}
-
-function setSCI(oui) {
-  sciOui = oui;
-  document.querySelectorAll('.sci-btn').forEach((b,i)=>b.classList.toggle('active',i===(oui?1:0)));
-  document.getElementById('sci-amount-wrap').style.display = oui ? 'block' : 'none';
-  if (!oui) { const el=document.getElementById('f-sci'); if(el)el.value=''; }
-  updatePrev();
-}
-
-function updateNotaire() {
-  const ha = parseFloat(document.getElementById('f-ha')?.value)||0;
-  const el = document.getElementById('notaire-val');
-  if (el) el.textContent = ha > 0 ? fmt(Math.round(ha*notairePct()))+' €' : '—';
-}
-
-function updatePrev() {
-  const v = id => parseFloat(document.getElementById(id)?.value)||0;
-  const s = id => document.getElementById(id)?.value||'';
-  const ha = v('f-ha')||v('f-prix');
-  const prix = v('f-prix');
-  const notaire = Math.round(ha*notairePct());
-  const travaux = v('f-travaux');
-  const agence = v('f-agence');
-  const sciVal = sciOui ? v('f-sci') : 0;
-  const emprunt = ha + notaire + travaux + agence + sciVal;
-  const loyer = v('f-loyer') + v('f-charges-loc');
-  const ch = v('f-mensualite') + v('f-copro') + v('f-assurance') + v('f-taxe');
-  const cf = loyer - ch;
-  const rendement = prix && v('f-loyer') ? ((v('f-loyer')*12/prix)*100).toFixed(1)+'%' : '—';
-
-  // Cashflow preview
-  const cfEl = document.getElementById('cf-preview');
-  if (cfEl) {
-    if (!loyer && !ch) { cfEl.textContent='— €/mois'; cfEl.className='cf-preview-value'; }
-    else { cfEl.textContent=fmt(cf)+' €/mois'; cfEl.className='cf-preview-value '+(cf>=0?'positive':'negative'); }
-  }
-
-  // Synthèse panel
-  const set = (id, val) => { const el=document.getElementById(id); if(el) el.textContent=val; };
-  set('syn-prix', prix?fmt(prix)+' €':'—');
-  set('syn-emprunt', emprunt>0?fmt(emprunt)+' €':'—');
-  set('syn-notaire', ha?fmt(notaire)+' €':'—');
-  set('syn-loyer', v('f-loyer')?fmt(v('f-loyer'))+' €/mois':'—');
-  set('syn-charges', ch?fmt(ch)+' €/mois':'—');
-  set('syn-rendement', rendement);
-
-  // Apply color to cashflow synthèse
-  const cfSyn = document.getElementById('cf-preview');
-  if(cfSyn && (loyer||ch)) cfSyn.className='cf-preview-value '+(cf>=0?'positive':'negative');
-
-  // Checklist
-  const checks = [
-    ['chk-titre', !!s('f-titre')],
-    ['chk-ville', !!s('f-ville')],
-    ['chk-prix', !!v('f-prix')],
-    ['chk-loyer', !!v('f-loyer')],
-    ['chk-mensualite', !!v('f-mensualite')],
-    ['chk-lien', !!s('f-lien')],
-    ['chk-contact', !!(s('f-inter')||s('f-tel')||s('f-mail'))],
-  ];
-  let done = 0;
-  checks.forEach(([id, ok]) => {
-    const dot = document.getElementById(id);
-    if(dot) dot.className = 'check-dot'+(ok?' done':'');
-    if(ok) done++;
-  });
-  const pct = Math.round(done/checks.length*100);
-  const pctEl = document.getElementById('chk-pct');
-  const barEl = document.getElementById('chk-bar');
-  if(pctEl) pctEl.textContent = pct+'%';
-  if(barEl) { barEl.style.width=pct+'%'; barEl.style.background=pct===100?'var(--positive-c)':pct>=50?'var(--accent)':'var(--warning)'; }
-
-  updateNotaire();
+function refreshBienDocs() {
+  const el = document.getElementById('bien-docs-grid');
+  if (!el) return;
+  el.innerHTML = bienDocs.map((d, i) => `<div class="sfn-doc">${sfAccIcon('doc', 16)}
+      <span class="sfn-doc__n">${esc(d.name || 'Document PDF')}</span>
+      <button type="button" class="sfn-retirer" onclick="removeBienDoc(${i})" aria-label="Retirer ${esc(d.name || 'le document')}">${sfAccIcon('croix', 14)}</button></div>`).join('')
+    || '<p class="sfn-vide">Aucun document pour l’instant.</p>';
+  if (document.getElementById('sfn-resume-fichiers')) sfnMaj();
 }
 
 /* LA DÉTENTION D'UN BIEN — une saisie, deux colonnes.
@@ -3847,17 +4051,23 @@ function sfDetentionDepuisChamp(valeur) {
 }
 
 function getFormData() {
-  const v = id => parseFloat(document.getElementById(id)?.value)||0;
+  // Un montant se lit comme il s'écrit (« 168 000 », « 1 200,50 ») : parseFloat
+  // lisait 168 et 1. Voir sfLireNombre.
+  const v = id => sfnNombre(id);
   const s = id => document.getElementById(id)?.value||null;
-  const ha = v('f-ha')||v('f-prix');
+  const t = id => (s(id) || '').trim() || null;
   const sciVal = sciOui ? (v('f-sci')||0) : 0;
   return {
-    titre:s('f-titre'),ville:s('f-ville'),code_postal:s('f-cp'),type_bien:s('f-type'),
-    surface_m2:v('f-surface')||null,prix_affiche:v('f-prix')||null,lien_annonce:s('f-lien'),
+    titre:t('f-titre'),ville:t('f-ville'),code_postal:t('f-cp'),type_bien:s('f-type'),
+    surface_m2:v('f-surface')||null,prix_affiche:v('f-prix')||null,lien_annonce:t('f-lien'),
     source:s('f-source'),
     statut:s('f-statut')||'Renseignements Web',
     balise:s('f-balise')||null,
-    frais_notaire: Math.round(ha*notairePct()),
+    /* ⚠️ Sur le PRIX AFFICHÉ, comme l'édition en ligne de la fiche. Le champ
+       « Prix HA » qui servait ici n'était enregistré nulle part : il revenait
+       au prix affiché à l'ouverture suivante, et les frais suivaient une
+       saisie oubliée (14 000 € de frais en base pour un prix de 199 199 €). */
+    frais_notaire: Math.round(v('f-prix')*notairePct()),
     travaux:v('f-travaux'),frais_agence:v('f-agence'),
     /* ⚠️ DES FRAIS DE CONSTITUTION DE SCI SUR UN BIEN DÉTENU EN PROPRE N'ONT
        AUCUN SENS, et la colonne vaut 200 € PAR DÉFAUT en base : basculer une
@@ -3876,8 +4086,11 @@ function getFormData() {
       ? (sciOui ? sciVal
                 : sfFraisCreationSci(editingId, 'sci', sfDetentionDepuisChamp(s('f-sci-id')).sci_id))
       : 0,
-    mensualite_credit:v('f-mensualite'),duree_credit_ans:parseInt(s('f-duree'))||20,
-    charge_copro:v('f-copro'),assurance_logement:v('f-assurance')||33,taxe_fonciere:v('f-taxe'),
+    mensualite_credit:v('f-mensualite'),duree_credit_ans:Math.round(v('f-duree'))||20,
+    /* L'assurance se préremplit avec la préférence du compte, mais un champ
+       VIDÉ est une réponse : « ||33 » réécrivait 33 € sur une assurance qu'on
+       venait d'effacer. */
+    charge_copro:v('f-copro'),assurance_logement:v('f-assurance'),taxe_fonciere:v('f-taxe'),
     loyer_en_etat:v('f-loyer'),charges_locataire_etat:v('f-charges-loc'),
     loyer_apres_travaux:v('f-loyer-travaux')||null,
     charges_locataire_travaux:v('f-charges-travaux')||null,
@@ -3904,9 +4117,13 @@ function getFormData() {
 }
 
 async function saveBien() {
+  // ⚠️ Un second appui pendant l'envoi ne crée pas un second bien.
+  if(sfnEnvoi) return;
+  document.querySelectorAll('.sfn .sf-hint--error:not([hidden])').forEach(e => sfnErreur(e.id.replace(/-err$/, ''), ''));
+  const erreurs = sfnValider();
+  if(erreurs.length){ sfnMontrerErreurs(erreurs); return; }
   const btn=document.getElementById('btn-save');
   const data=getFormData();
-  if(!data.titre){showNotif('Le titre est requis',true);return;}
 
   /* ⚠️ « ACHETÉ » EXIGE UN MODE DE DÉTENTION, ET C'EST CE CONTRÔLE QUI REMPLACE
      LE GARDE-FOU RETIRÉ. Le statut n'était pas saisissable pour une raison :
@@ -3924,14 +4141,11 @@ async function saveBien() {
      l'a déjà. */
   const avantSave = editingId ? allBiens.find(b => b.id === editingId) : null;
   if(data.statut === 'Acheté' && !data.mode_detention && !sfDetenu(avantSave || {})){
-    showNotif('Un bien acquis se détient en propre ou via une SCI : renseignez « Détention »', true);
-    document.getElementById('f-sci-id')?.focus();
-    /* ⚠️ On ne touche PAS au bouton : il n'est pas encore désactivé à ce stade,
-       et son libellé varie (« ＋ Ajouter le bien » à la création, une icône
-       suivie d'« Enregistrer » à la modification). Le remettre à une chaîne
-       fixe l'aurait écrasé, icône comprise. */
+    sfnMontrerErreurs([['f-sci-id', 'Un bien acheté se détient en propre ou via une SCI : choisissez sa détention.']]);
     return;
   }
+  const creation = !editingId;
+  sfnEnvoi = true;
   btn.disabled=true;btn.innerHTML='<span class="sf-attente"></span>Enregistrement…';
   try {
     // 1. Insert/update du bien SANS les fichiers → on récupère l'id
@@ -3943,6 +4157,9 @@ async function saveBien() {
       const {data:inserted, error} = await db.from('biens').insert(data).select('id').single();
       if(error) throw error;
       bienId = inserted.id;
+      // ⚠️ Le bien existe désormais : si l'envoi des fichiers échoue ensuite,
+      // un nouvel appui doit le METTRE À JOUR, pas en créer un second.
+      editingId = bienId;
     }
 
     // 2. Upload des NOUVEAUX fichiers (kind:'b64') vers Storage
@@ -3973,29 +4190,52 @@ async function saveBien() {
     }).eq('id', bienId);
     if(upErr) throw upErr;
 
-    showNotif(editingId?'Bien mis à jour':'Bien ajouté');
-    await loadBiens();navigate('biens');
+    sfnModifie = false;
+    showNotif(creation ? 'Bien ajouté' : 'Fiche enregistrée');
+    await loadBiens();
+    // Enregistrée, la fiche s'ouvre : on y voit ce qu'on vient de saisir.
+    // Une création revient ensuite, par « ← », à l'écran d'où elle partait.
+    if(creation){ bienDetailBack = sfnRetour.page; bienDetailTab = 'bien'; }
+    sfnAller({ page: 'bien-detail', id: bienId });
   } catch(error) {
     showNotif('Erreur : '+error.message,true);
-    btn.innerHTML=editingId?sfAccIcon('check',14)+' Enregistrer':'＋ Ajouter le bien';
   } finally {
-    btn.disabled=false;
+    sfnEnvoi = false;
+    if(btn.isConnected){ btn.disabled=false; btn.textContent = editingId ? 'Enregistrer' : 'Ajouter le bien'; }
   }
 }
 
 async function deleteBienPage(id) {
   const b = allBiens.find(x=>x.id===id);
+  /* ⚠️ UN BIEN DE TEST EMPORTE SES LOCATAIRES. La clé est en ON DELETE SET
+     NULL : un locataire factice resterait sans bien — et un locataire sans
+     bien compte dans les vrais chiffres (sfLignesComptees). Même règle que
+     la purge des fiches de test. Un vrai bien, lui, garde ses locataires. */
+  const deTest = sfBienDeTest(b);
+  let locsTest = [];
+  if(deTest){
+    const { locs, error } = await sfLocatairesDe([id]);
+    if(error){showNotif('Erreur : '+error.message,true);return;}
+    locsTest = locs;
+  }
   // Même phrase que « Supprimer tous vos biens », au singulier : ce qui part
   // et ce qui reste a été vérifié sur les clés étrangères le 27/09/2026.
   const ok = await sfConfirmer({
     titre: 'Supprimer le bien',
     question: `Supprimer « ${b?.titre || 'ce bien'} » définitivement ?`,
-    detail: 'Ses <strong>photos, documents, loyers, charges et actions</strong> partent avec lui. '
-          + 'Ses <strong>locataires, comptes rendus et simulations sont conservés</strong>, '
+    detail: (locsTest.length
+              ? 'Ses <strong>photos, documents, loyers, charges, actions et locataires</strong> partent avec lui : '
+                + 'c\u2019est un bien de test. Ses <strong>comptes rendus et simulations sont conservés</strong>, '
+              : 'Ses <strong>photos, documents, loyers, charges et actions</strong> partent avec lui. '
+                + 'Ses <strong>locataires, comptes rendus et simulations sont conservés</strong>, ')
           + 'mais ils ne seront plus rattachés à aucun bien.<br><br>'
           + 'Cette action est <strong>irréversible</strong>.',
     ok: 'Supprimer', danger: true });
   if(!ok) return;
+  if(locsTest.length){
+    const errLoc = await sfSupprimerLocataires(locsTest);
+    if(errLoc){showNotif('Erreur : '+errLoc.message,true);return;}
+  }
   // Nettoyer les fichiers Storage rattachés (best-effort, avant suppression DB)
   if(b){
     const ph = (Array.isArray(b.photos_paths)?b.photos_paths:[]).map(p=>p.path).filter(Boolean);
@@ -4005,7 +4245,10 @@ async function deleteBienPage(id) {
   }
   const{error}=await db.from('biens').delete().eq('id',id);
   if(error){showNotif('Erreur',true);return;}
-  showNotif('Bien supprimé');await loadBiens();navigate('biens');
+  sfnModifie = false;
+  showNotif('Bien supprimé');await loadBiens();
+  if(deTest) await loadLocataires();
+  navigate('biens');
 }
 
 // ── DETAIL ──
@@ -4075,6 +4318,24 @@ async function genTestData() {
    forme qui a rendu la purge base64 dangereuse : une fonction qui ne dit
    pas de qui elle parle finit par etre appelee la ou la RLS ne s'applique
    pas. On ecrit le compte, la RLS reste le filet. */
+/* Les locataires rattachés à des biens — lus EN BASE : allLocataires a
+   justement été vidé de ceux des biens de test (sfLignesComptees). */
+async function sfLocatairesDe(ids) {
+  const { data, error } = await db.from('locataires')
+    .select('id,documents').eq('user_id', currentUser.id).in('bien_id', ids);
+  return { locs: data || [], error };
+}
+
+// Supprime ces locataires et leurs documents, sur ce compte seulement.
+async function sfSupprimerLocataires(locs) {
+  if(!locs.length) return null;
+  const paths = locs.flatMap(l => Array.isArray(l.documents) ? l.documents.map(d => d.storage_path) : []).filter(Boolean);
+  if(paths.length) await TI_STORAGE.remove('locataires-documents', paths);
+  const { error } = await db.from('locataires').delete()
+    .eq('user_id', currentUser.id).in('id', locs.map(l => l.id));
+  return error || null;
+}
+
 /* ⚠️ LES LOCATAIRES PARTENT AVEC LEURS FICHES. La clé `locataires.bien_id`
    est en ON DELETE SET NULL : supprimer les biens laissait leurs locataires
    factices sans bien — et un locataire sans bien COMPTE (sfLignesComptees).
@@ -4087,10 +4348,9 @@ async function purgeTestData() {
   if(!n){showNotif('Aucune fiche test à supprimer');return;}
   if(!currentUser) return;
   const ids = tests.map(b => b.id);
-  const { data: locs, error: errLocs } = await db.from('locataires')
-    .select('id,documents').eq('user_id', currentUser.id).in('bien_id', ids);
+  const { locs, error: errLocs } = await sfLocatairesDe(ids);
   if(errLocs){showNotif('Erreur : '+errLocs.message,true);return;}
-  const nl = (locs || []).length;
+  const nl = locs.length;
   const ok = await sfConfirmer({
     titre: 'Supprimer les fiches de test',
     question: `Supprimer ${n} fiche${n>1?'s':''} de test ?`,
@@ -4099,13 +4359,8 @@ async function purgeTestData() {
       + '. Vos autres biens ne bougent pas.',
     ok: 'Supprimer', danger: true });
   if(!ok) return;
-  if(nl) {
-    const paths = locs.flatMap(l => Array.isArray(l.documents) ? l.documents.map(d => d.storage_path) : []).filter(Boolean);
-    if(paths.length) await TI_STORAGE.remove('locataires-documents', paths);
-    const { error: errDel } = await db.from('locataires').delete()
-      .eq('user_id', currentUser.id).in('id', locs.map(l => l.id));
-    if(errDel){showNotif('Erreur : '+errDel.message,true);return;}
-  }
+  const errDel = await sfSupprimerLocataires(locs);
+  if(errDel){showNotif('Erreur : '+errDel.message,true);return;}
   const{error}=await db.from('biens').delete().eq('is_test',true).eq('user_id',currentUser.id);
   if(error){showNotif('Erreur : '+error.message,true);return;}
   showNotif(`${n} fiche${n>1?'s':''} de test supprimée${n>1?'s':''}`);
@@ -4484,12 +4739,9 @@ async function renderBienDetail(el) {
   /* ⚠️ L'EXPLICATION SUIT LE MODE AFFICHÉ. C'est ici que la distinction se
      joue pour un nouveau venu : le même emplacement montre tantôt l'un,
      tantôt l'autre, et rien ne disait pourquoi le chiffre changeait. */
-  const cfLab = dHero.mode === 'reel'
-    ? sfLex('cashflow-reel') : sfLex('cashflow-previsionnel');
-  const cfVal = dHero.value != null ? (dHero.value>=0?'+':'−')+sfEur(Math.abs(dHero.value)) : 'Non calculé';
-  const cfSub = dHero.mode === 'reel' && dHero.hasPrev ? `par mois · prévisionnel ${dHero.prev>=0?'+':'−'}${sfEur(Math.abs(dHero.prev))}`
-              : dHero.attenteReel ? 'réel dès la saisie des loyers'
-              : dHero.hasPrev ? 'par mois, sur données estimées' : 'loyer ou mensualité manquant';
+  // Même rédaction que le formulaire : sfResumeCashflow. Une fiche
+  // incomplète disait « par mois, sur données estimées » sous « Non calculé ».
+  const { lab: cfLab, val: cfVal, sub: cfSub } = sfResumeCashflow(dHero);
 
   // SIX onglets et non sept. « Finances » et « Financement » n'en font plus
   // qu'un : ils affichaient les MEMES cinq postes d'acquisition — modifiables
@@ -5635,11 +5887,16 @@ function openDoc(dataUrl) {
   }
 }
 
+/* ⚠️ UN SEUL RENDU. editBien dessinait la fiche VIDE (navigate), puis celle
+   du bien 10 ms plus tard. Les deux attendaient les SCI : si les réponses
+   arrivaient dans l'autre ordre, le formulaire vide gagnait — et enregistrer
+   créait un second bien. Le bien est désormais remis à navigate, qui ne
+   dessine qu'une fois ; renderNouveau ignore de toute façon un rendu périmé. */
 function editBien(id) {
   const b=allBiens.find(x=>x.id===id);
   if(!b)return;
+  sfnEnAttente = b;
   navigate('nouveau');
-  setTimeout(()=>renderNouveau(document.getElementById('content'),b),10);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -6801,6 +7058,7 @@ function navigate(page) {
   // (v=92) : son entrée de menu ouvrait un écran d'attente. Une référence
   // restée quelque part retombe sur la recherche par ville, pas sur du vide.
   if(page === 'marche-carte') page = 'marche-recherche';
+  const precedente = currentPage;
   currentPage = page;
   // Fermer la sidebar mobile à chaque navigation
   closeMobileSidebar();
@@ -6835,7 +7093,7 @@ function navigate(page) {
   if(page==='accueil') renderAccueil(el);
   else if(page==='biens') renderBiens(el);
   else if(page==='bien-detail') renderBienDetail(el);
-  else if(page==='nouveau') renderNouveau(el,null); // async - pas besoin d'await ici
+  else if(page==='nouveau') { const b = sfnEnAttente; sfnEnAttente = null; renderNouveau(el, b, precedente); }
   else if(page==='simulateur') renderSimulateur(el);
   else if(page==='admin') renderAdmin(el);
   else if(page==='admin-users') renderAdmin(el);

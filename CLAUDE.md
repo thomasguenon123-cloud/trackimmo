@@ -92,6 +92,12 @@
   alors dans le bandeau. Seul un administrateur en fabrique (écran, code, et
   déclencheur `biens_garde_is_test` en base). Une écriture (frais de SCI) ne
   dépend jamais de l'interrupteur. Garde : `biens-test.test.js`.
+- **Formulaire d'un bien** (v=95) : l'essentiel d'abord (titre, ville, type,
+  surface, prix, loyer, statut, détention), le reste en sections repliables
+  qui résument leur contenu. Il ne calcule rien lui-même : sa synthèse passe
+  par les fonctions de la fiche. Montants en champ texte au clavier numérique,
+  alignés à droite, unité dans le champ. Une seule action principale, en barre
+  collante ; quitter une saisie se confirme. Garde : `nouvelle-fiche.test.js`.
 - **Confirmation** : `sfConfirmer({...})`, jamais `confirm()` natif (garde
   `impasses.test.js`). Elle a sa propre fenêtre, au-dessus de tout
   (`--sf-z-confirm`). ⚠️ son `question` est échappé, son `detail` ne l'est PAS.
@@ -126,6 +132,9 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 | Couleur pour Chart.js | `sfToken()` (un canvas ne lit pas `var()`) |
 | Un bien compte-t-il dans les chiffres ? | `sfBienCompte()` / `sfBiensComptes()` — seules `sfBienDeTest()` et elles lisent `is_test` |
 | Rôle administrateur (côté client) | `sfEstAdmin()` |
+| Montant saisi dans un champ (« 168 000 », « 1 200,50 ») | `sfLireNombre()` — jamais `parseFloat` sur une saisie |
+| Rédaction d'un cashflow (libellé, valeur, sous-titre) | `sfResumeCashflow()` — fiche et formulaire |
+| Champs de la fiche bien (ordre, sections) | `SFN_SECTIONS` ; libellés et types : `TI_BIENS.CHAMPS` |
 
 ## Pièges connus — chacun a coûté au moins une fois
 
@@ -161,6 +170,11 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 - **Vérifier qu'une classe n'existe pas avant de la créer.** Mesurer la MISE EN
   PAGE (ordonnées, pistes à 0 px), pas seulement le contenu du DOM.
 - Jamais de commentaire HTML `<!-- -->` contenant un accent grave dans un gabarit.
+- **`type="number"`** refuse « 168 000 » tel qu'une annonce l'écrit et fait
+  dépendre la virgule du navigateur ; `parseFloat('168 000')` vaut 168. Champ
+  texte + `inputmode="decimal"` + `sfLireNombre()`.
+- **`<summary>`** : Safari a longtemps ignoré `display:flex` dessus, et il
+  n'admet que du contenu phrasé. Le flex va sur un `<span>` intérieur.
 - `node --check` ne voit pas une variable hors portée.
 - Une couleur qui « ne prend pas » : chercher qui l'écrit en JS (style en ligne).
 - Quand un affichage diffère selon l'écran : chercher un second mapping.

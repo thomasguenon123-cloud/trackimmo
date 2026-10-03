@@ -73,7 +73,8 @@ test('la fiche peut poser « Acheté », la saisie en masse non', () => {
     'la fiche ne propose plus tous les statuts : le bailleur repasse par la prospection');
   assert.match(APP_JS, /get STATUTS_SAISISSABLES\(\) \{ return this\.STATUTS\.filter\(v => v !== 'Acheté'\); \}/,
     '« Acheté » est revenu dans la saisie en masse — elle n’a nulle part où demander le mode');
-  assert.match(APP_JS, /<select id="f-statut">\$\{TI_BIENS\.options\('STATUTS_FICHE'/,
+  // (Depuis la v=95 le select porte aussi ses classes de la charte.)
+  assert.match(APP_JS, /<select id="f-statut"[^>]*>\$\{TI_BIENS\.options\('STATUTS_FICHE'/,
     'le select de la fiche ne consomme plus STATUTS_FICHE');
 });
 
