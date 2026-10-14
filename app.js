@@ -5125,23 +5125,19 @@ async function renderBienDetail(el) {
           <div class="sff-block">
             <div class="sff-block__h">
               <p class="sff-block__t">Comptes rendus de visite</p>
-              ${visites.length ? `<div class="sff-block__a"><button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="openNouvelleVisite('${b.id}')">${sfAccIcon('plus',15)} Nouveau compte rendu</button></div>` : ''}
+              ${visites.length ? `<div class="sff-block__a"><button type="button" class="sf-btn sf-btn--secondary sf-btn--sm" onclick="openNouvelleVisite(${escJs(b.id)})">${sfAccIcon('plus',15)} Nouveau compte rendu</button></div>` : ''}
             </div>
             <div class="sff-block__b${visites.length ? '' : ' sff-block__b--flush'}">
+              ${/* La même ligne que la liste des comptes rendus (sfcLigneHtml) :
+                    elle ouvre le compte rendu en LECTURE — on le relit plus
+                    souvent qu'on ne le corrige. */''}
               ${visites.length
-                ? `<div class="sff-list">${visites.map(v=>`
-                    <div class="sff-row" onclick="openDetailVisite('${v.id}')">
-                      <div class="sff-row__d">${fmtActionDate(v.date_visite)}</div>
-                      <div class="sff-row__m">${esc(sfCrLabel(v.type_visite))}${v.adresse?` — ${esc(v.adresse)}`:''}
-                        ${v.notes?`<div class="sff-row__s">${esc(v.notes.slice(0,110))}${v.notes.length>110?'…':''}</div>`:''}
-                      </div>
-                      ${v.note_sur_5 ? sfNotes(v.note_sur_5, 13) : ''}
-                    </div>`).join('')}</div>`
+                ? `<div class="sff-list">${visites.map(sfcLigneHtml).join('')}</div>`
                 : `<div class="sff-empty">
                      <div class="sff-empty__ic">${sfAccIcon('carnet',34)}</div>
-                     <div class="sff-empty__t">Aucune visite enregistrée</div>
-                     <div class="sff-empty__x">Consignez chaque visite : impression générale, points de vigilance, travaux à prévoir, photos. Les comptes rendus se retrouvent ici et dans la section Outils.</div>
-                     <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="openNouvelleVisite('${b.id}')">Rédiger le premier compte rendu</button>
+                     <div class="sff-empty__t">Aucun compte rendu</div>
+                     <div class="sff-empty__x">Après chaque visite, notez l'état du bien, la copropriété, le quartier et ce que vous comptez faire, photos à l'appui. Les comptes rendus se retrouvent ici et dans Outils, Comptes rendus.</div>
+                     <button type="button" class="sf-btn sf-btn--primary sf-btn--sm" onclick="openNouvelleVisite(${escJs(b.id)})">Rédiger le premier compte rendu</button>
                    </div>`}
             </div>
           </div>
@@ -6522,7 +6518,7 @@ async function bkdocGenerate(){
 
 let visitPhotos = [], visitRating = 0, simEditId = null;
 
-const PAGE_LABELS = {accueil:'Tableau de bord',biens:'Mes biens',nouveau:'Ajouter un bien','bien-detail':'Fiche bien',simulateur:'Simulateur crédit',visites:'Comptes rendus',portails:'Portails immo',administration:'Administration','module-financier':'Suivi financier','admin-users':'Gestion utilisateurs','marche-recherche':'Recherche par ville',parametres:'Paramètres'};
+const PAGE_LABELS = {accueil:'Tableau de bord',biens:'Mes biens',nouveau:'Ajouter un bien','bien-detail':'Fiche bien',simulateur:'Simulateur crédit',visites:'Comptes rendus','compte-rendu':'Compte rendu',portails:'Portails immo',administration:'Administration','module-financier':'Suivi financier','admin-users':'Gestion utilisateurs','marche-recherche':'Recherche par ville',parametres:'Paramètres'};
 // PAGE_SECTIONS supprime avec le fil d'Ariane du bandeau : il ne servait qu'a
 // le remplir. SF_MENU_PAGES porte desormais le rattachement page -> section,
 // pour surligner le bon menu.
@@ -6993,7 +6989,7 @@ const SF_MENU_PAGES = {
   marche:   ['marche-recherche'],
   pipeline: ['accueil','biens','nouveau','bien-detail'],
   gestion:  ['module-financier','administration'],
-  outils:   ['simulateur','visites','portails'],
+  outils:   ['simulateur','visites','compte-rendu','portails'],
   // Ni « parametres » ni « admin-users » ne figurent ici : ce ne sont plus des
   // menus deroulants mais des icones directes du bandeau, que navigate()
   // surligne deja via #nav-parametres et #nav-admin-users.
@@ -7072,6 +7068,8 @@ function navigate(page) {
   });
   // La fiche bien n'a pas d'entrée de menu : on garde « Mes biens » surligné
   if(page === 'bien-detail') document.getElementById('nav-biens')?.classList.add('active');
+  // Un compte rendu ouvert garde « Comptes rendus » surligné, de même.
+  if(page === 'compte-rendu') document.getElementById('nav-visites')?.classList.add('active');
   // Le bandeau surligne aussi la SECTION qui contient la page courante, pour
   // qu'on sache où l'on est même quand le menu est refermé.
   Object.entries(SF_MENU_PAGES).forEach(([cle, pages]) => {
@@ -7098,6 +7096,7 @@ function navigate(page) {
   else if(page==='admin') renderAdmin(el);
   else if(page==='admin-users') renderAdmin(el);
   else if(page==='visites') renderVisites(el);
+  else if(page==='compte-rendu') renderCompteRendu(el);
   else if(page==='portails') renderPortails(el);
   else if(page==='administration') renderAdministration(el);
   else if(page==='module-financier') renderModuleFinancier(el);
@@ -14231,440 +14230,791 @@ function renderPortails(el) {
   `;
 }
 
-// ── VISITES ──
-async function renderVisites(el) {
-  el.innerHTML = `<div class="loading"><div class="spinner"></div>Chargement des visites...</div>`;
-  const {data:visites,error} = await db.from('visites').select('*, biens(titre, ville)').order('date_visite',{ascending:false});
-  if(error){el.innerHTML='<p style="color:var(--negative)">Erreur chargement</p>';return;}
+// ── COMPTES RENDUS DE VISITE (v=96) ───────────────────────────────────────────
+/* LES COMPTES RENDUS — à la charte, avec la grille de visite.
 
-  // Grouper par bien
-  const groups = {};
-  (visites||[]).forEach(v => {
-    const key = v.bien_id || '__general__';
-    const label = v.biens?.titre ? `${v.biens.titre}${v.biens.ville?' — '+v.biens.ville:''}` : 'Comptes rendus généraux';
-    if(!groups[key]) groups[key] = {label, visites:[]};
-    groups[key].visites.push(v);
-  });
+   ⚠️ CE QUI CHANGE, et pourquoi :
+     · la liste vivait sous un bandeau VERT plein (`--accent-g`) : un seul vert
+       lumineux est permis, celui des valeurs positives ;
+     · saisie et lecture vivaient dans `modal-detail`, une fenêtre d'ancienne
+       charte au plan 200, trop étroite pour une grille remplie sur place, au
+       téléphone. Elles deviennent une PAGE, comme la fiche (v=95) ;
+     · une visite d'achat ne se résumait qu'à une note et un texte libre. La
+       GRILLE (validée par Thomas le 14/10) structure ce qu'on vient vérifier :
+       le bien, la copropriété, le quartier, et un verdict.
 
-  // Mettre les visites générales en dernier
-  const sortedKeys = Object.keys(groups).sort(a => a === '__general__' ? 1 : -1);
+   ⚠️ LA GRILLE VIT DANS `visites.grille` (jsonb), une colonne ajoutée par
+   MIGRATION-VISITES-GRILLE.sql. Tant qu'elle n'existe pas, la grille ne
+   s'affiche PAS — ni promesse, ni case inerte (règle « pas d'entrée Bientôt »),
+   et le reste du compte rendu fonctionne. `sfcGrilleDispo` le sait.
 
-  /* Stats rapides — comptees PAR NATURE, depuis `SF_CR_TYPES` et non deux
-     compteurs ecrits a la main : depuis le 23/08/2026 il y a quatre natures,
-     et un etat des lieux n'apparaissait dans aucune des deux.
-     ⚠️ La note moyenne ne porte QUE sur ce qui est note. Un etat des lieux n'a
-     pas de note sur cinq — l'inclure a zero tirait la moyenne vers le bas et
-     annoncait « 2,7 » sur des visites toutes notees 4. */
-  const parNature = Object.keys(SF_CR_TYPES)
-    .map(k => ({ k, n: (visites||[]).filter(v => v.type_visite === k).length }))
-    .filter(x => x.n);
-  const notes = (visites||[]).filter(v => (v.note_sur_5||0) > 0);
-  const avgNote = notes.length
-    ? (notes.reduce((a,v)=>a+v.note_sur_5,0)/notes.length).toFixed(1) : null;
+   Garde : test/comptes-rendus.test.js. */
 
-  el.innerHTML = `
-    <!-- Hero section -->
-    <div style="background:var(--accent-g);border-radius:var(--r);padding:24px 28px;margin-bottom:20px;color:white;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
-      <div>
-        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;opacity:0.7;margin-bottom:4px">Vos visites</div>
-        <div style="font-size:26px;font-weight:800;letter-spacing:-0.5px">${visites?.length||0} compte${(visites?.length||0)>1?'s':''} rendu${(visites?.length||0)>1?'s':''}</div>
-        <div style="font-size:13px;opacity:0.75;margin-top:4px">Visites d'achat, visites locataires et états des lieux</div>
-      </div>
-      <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
-        ${parNature.map(x=>`<div style="text-align:center"><div style="font-size:20px;font-weight:800">${x.n}</div><div style="font-size:10px;opacity:0.7;margin-top:2px">${esc(sfCrLabel(x.k,'court'))}</div></div>`).join('')}
-        ${avgNote?`<div style="text-align:center"><div style="font-size:20px;font-weight:800" aria-label="${avgNote.replace('.', ',')} sur 5">${avgNote.replace('.', ',')}<span style="font-size:13px;font-weight:600;opacity:0.7">/5</span></div><div style="font-size:10px;opacity:0.7;margin-top:2px">Note moyenne</div></div>`:''}
-        <button class="btn" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3)" onclick="openNouvelleVisite()">＋ Nouveau compte rendu</button>
-      </div>
-    </div>
+const SF_CR_PROXIMITE = (f) => [['eloigne', f ? 'Éloignées' : 'Éloignés'], ['correct', f ? 'Correctes' : 'Corrects'], ['proche', 'Proches']];
 
-    ${!visites?.length ? '<div class="empty-state"><h3>Aucun compte rendu</h3><p>Visite d’achat, visite locataire ou état des lieux : tout se consigne ici.</p></div>' :
-      sortedKeys.map((key,idx) => {
-        const g = groups[key];
-        const isGeneral = key === '__general__';
-        const groupId = `vgroup-${idx}`;
-        return `
-          <div style="margin-bottom:24px">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:0;cursor:pointer;padding:10px 14px;background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r);box-shadow:var(--c-shadow);user-select:none"
-              onclick="toggleVisiteGroup('${groupId}',this)">
-              <span id="${groupId}-arrow" style="transition:transform 0.2s;display:inline-flex">${sfAccIcon('chevron-bas',13)}</span>
-              <div style="font-size:14px;font-weight:700;color:var(--c-text);flex:1">${esc(g.label)}</div>
-              <div style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:999px;padding:2px 10px;font-size:11px;color:var(--c-dim)">${g.visites.length} visite${g.visites.length>1?'s':''}</div>
-              ${isGeneral ? '<div style="font-size:11px;color:var(--c-muted);font-style:italic">Non rattachées</div>' : ''}
-            </div>
-            <div id="${groupId}" style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
-              ${g.visites.map(v => renderVisiteCard(v)).join('')}
-            </div>
-          </div>
-        `;
-      }).join('')}
-  `;
-  // Charger les miniatures Storage (placeholders data-thumb-path) en arrière-plan
-  tiFillThumbs(el);
+/* LA GRILLE DE VISITE — une seule définition, lue par la saisie, la lecture,
+   la liste et la normalisation. Ajouter un critère, c'est ajouter UNE ligne ici. */
+const SF_GRILLE = [
+  { id: 'bien', titre: 'Le bien', champs: [
+    { k: 'etat',       lab: 'État général', choix: [['bon', 'Bon état'], ['rafraichir', 'À rafraîchir'], ['travaux', 'Gros travaux']] },
+    { k: 'dpe',        lab: 'DPE', lettres: true, choix: 'ABCDEFG'.split('').map(l => [l, l]) },
+    { k: 'luminosite', lab: 'Luminosité', choix: [['sombre', 'Sombre'], ['correcte', 'Correcte'], ['lumineux', 'Lumineux']] },
+    { k: 'bruit',      lab: 'Bruit', choix: [['calme', 'Calme'], ['modere', 'Modéré'], ['bruyant', 'Bruyant']] },
+    { k: 'travaux',    lab: 'Travaux à prévoir', type: 'euro' },
+  ]},
+  { id: 'copro', titre: 'Copropriété', champs: [
+    { k: 'charges_annuelles', lab: 'Charges annuelles', type: 'euro' },
+    { k: 'parties_communes',  lab: 'Parties communes', choix: [['bon', 'Bon état'], ['correctes', 'Correctes'], ['degradees', 'Dégradées']] },
+    { k: 'procedures',        lab: 'Procédures en cours', choix: [['aucune', 'Aucune'], ['en_cours', 'En cours'], ['inconnu', 'Non vérifié']] },
+    { k: 'travaux_votes',     lab: 'Travaux votés ou à venir', type: 'texte' },
+  ]},
+  { id: 'quartier', titre: 'Quartier', champs: [
+    { k: 'transports', lab: 'Transports', choix: SF_CR_PROXIMITE(false) },
+    { k: 'commerces',  lab: 'Commerces', choix: SF_CR_PROXIMITE(false) },
+    { k: 'ecoles',     lab: 'Écoles', choix: SF_CR_PROXIMITE(true) },
+    { k: 'securite',   lab: 'Sécurité ressentie', choix: [['preoccupante', 'Préoccupante'], ['correcte', 'Correcte'], ['rassurante', 'Rassurante']] },
+  ]},
+  { id: 'verdict', titre: 'Verdict', champs: [
+    { k: 'suite',          lab: 'Suite à donner', choix: [['offre', 'Faire une offre'], ['revisiter', 'Revisiter'], ['attendre', 'Attendre'], ['abandonner', 'Abandonner']] },
+    { k: 'points_forts',   lab: 'Points forts', type: 'long' },
+    { k: 'points_faibles', lab: 'Points faibles', type: 'long' },
+  ]},
+];
+const SF_GRILLE_CHAMPS = SF_GRILLE.flatMap(s => s.champs);
+const SF_GRILLE_TEXTE_MAX = 2000;
+
+/* Ce qui entre en base : les seuls critères connus, les seules valeurs
+   permises, des montants relus par sfLireNombre, des textes bornés. Une grille
+   vide vaut `null` — « non remplie », pas un objet vide qui ferait croire à
+   une visite notée. Toute donnée lue d'ailleurs passe par ici. */
+function sfGrilleNormaliser(brut) {
+  if (!brut || typeof brut !== 'object' || Array.isArray(brut)) return null;
+  const out = {};
+  for (const c of SF_GRILLE_CHAMPS) {
+    const v = brut[c.k];
+    if (v === null || v === undefined || v === '') continue;
+    if (c.choix) {
+      if (c.choix.some(([val]) => val === v)) out[c.k] = v;
+    } else if (c.type === 'euro') {
+      const n = typeof v === 'number' ? v : sfLireNombre(v);
+      if (Number.isFinite(n) && n >= 0) out[c.k] = Math.round(n);
+    } else {
+      const t = String(v).trim().slice(0, SF_GRILLE_TEXTE_MAX);
+      if (t) out[c.k] = t;
+    }
+  }
+  return Object.keys(out).length ? out : null;
 }
 
-function renderVisiteCard(v) {
-  const note = v.note_sur_5||0;
-  const stars = sfNotes(note, 12);
-  const photosCount = (Array.isArray(v.photos_paths) && v.photos_paths.length) ? v.photos_paths.length : (Array.isArray(v.photos) ? v.photos.length : 0);
-  const truncNotes = v.notes ? (v.notes.length>100?v.notes.substring(0,100)+'…':v.notes) : '';
-  const dateStr = v.date_visite ? new Date(v.date_visite).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}) : '—';
-  const wdStr = v.date_visite ? new Date(v.date_visite).toLocaleDateString('fr-FR',{weekday:'long'}) : '';
-  const wordCount = v.notes ? v.notes.split(/\s+/).filter(Boolean).length : 0;
-  const scoreCls = note>=4?'score-high':note>=3?'score-mid':note>0?'score-low':'';
-  return `<div class="visite-card" onclick="openReadVisite('${v.id}')">
-    <div class="visite-card-inner">
-      <!-- Colonne gauche : infos principales -->
-      <div class="visite-card-left">
-        <div class="visite-header">
-          <div style="min-width:0">
-            <div class="visite-date">${sfAccIcon('agenda',12)} ${wdStr ? wdStr.charAt(0).toUpperCase()+wdStr.slice(1)+' ' : ''}${dateStr}</div>
-            <div class="visite-adresse" style="margin-top:4px">${esc(v.adresse || v.biens?.titre || '—')}</div>
-            ${v.biens?.titre && v.adresse ? `<div class="visite-bien">${sfAccIcon('maison',12)} ${esc(v.biens.titre)}</div>` : ''}
-          </div>
-          <span class="visite-type ${v.type_visite}" style="margin-top:2px">${esc(sfCrLabel(v.type_visite,'court'))}</span>
+// Combien de critères sont renseignés, sur combien.
+function sfGrilleCompte(g) {
+  const n = sfGrilleNormaliser(g);
+  return { remplis: n ? Object.keys(n).length : 0, total: SF_GRILLE_CHAMPS.length };
+}
+
+// La valeur d'un critère telle qu'elle se lit : un libellé, un montant, un texte.
+function sfGrilleValeur(c, v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (c.choix) return (c.choix.find(([val]) => val === v) || [null, null])[1];
+  if (c.type === 'euro') return sfEur(v);
+  return String(v);
+}
+
+// Une ligne de résumé pour les listes : la suite à donner d'abord, puis ce
+// qui pèse sur la décision.
+function sfGrilleResume(g) {
+  const n = sfGrilleNormaliser(g);
+  if (!n) return '';
+  const champ = k => SF_GRILLE_CHAMPS.find(c => c.k === k);
+  return [
+    n.suite ? sfGrilleValeur(champ('suite'), n.suite) : '',
+    n.dpe ? 'DPE ' + n.dpe : '',
+    n.travaux ? sfEur(n.travaux) + ' de travaux' : '',
+    n.etat ? sfGrilleValeur(champ('etat'), n.etat) : '',
+  ].filter(Boolean).join(' · ');
+}
+
+/* LA COLONNE EXISTE-T-ELLE ? Demandé une fois par session, au premier
+   compte rendu ouvert. `null` : on ne sait pas encore. */
+let sfcGrilleDispo = null;
+async function sfcVerifierGrille() {
+  if (sfcGrilleDispo !== null) return sfcGrilleDispo;
+  try {
+    const { error } = await db.from('visites').select('grille').limit(1);
+    sfcGrilleDispo = !error;
+  } catch (e) { sfcGrilleDispo = false; }
+  return sfcGrilleDispo;
+}
+
+// Un compte rendu compte-t-il dans les chiffres de la page ? Celui d'un bien
+// de test non (sfBienCompte, v=94) ; celui qui n'est rattaché à rien, oui.
+function sfCrCompte(v) {
+  return !v.bien_id || sfBienCompte(allBiens.find(b => b.id === v.bien_id));
+}
+
+/* Les chiffres de la page — par nature, depuis `SF_CR_TYPES` et non des
+   compteurs écrits à la main. ⚠️ La note moyenne ne porte QUE sur ce qui est
+   noté : un état des lieux n'a pas de note sur cinq, l'inclure à zéro tirait
+   la moyenne vers le bas (« 2,7 » annoncé sur des visites toutes notées 4). */
+function sfCrIndicateurs(visites) {
+  const comptes = (visites || []).filter(sfCrCompte);
+  const notes = comptes.filter(v => (v.note_sur_5 || 0) > 0);
+  return {
+    total: comptes.length,
+    parNature: Object.keys(SF_CR_TYPES).map(k => ({ k, n: comptes.filter(v => v.type_visite === k).length })),
+    moyenne: notes.length ? notes.reduce((s, v) => s + v.note_sur_5, 0) / notes.length : null,
+  };
+}
+
+// ─── La liste ──────────────────────────────────────────────────────────────
+
+async function renderVisites(el) {
+  el.innerHTML = `<div class="loading"><div class="spinner"></div>Chargement des comptes rendus…</div>`;
+  await sfAssurerBiens();
+  const { data: visites, error } = await db.from('visites').select('*, biens(titre, ville)').order('date_visite', { ascending: false });
+  if (currentPage !== 'visites') return;
+  if (error) {
+    el.innerHTML = `<div class="sff-page"><div class="sff-block"><div class="sff-empty">
+      <div class="sff-empty__ic">${sfAccIcon('alerte', 34)}</div>
+      <div class="sff-empty__t">Les comptes rendus n'ont pas pu être chargés</div>
+      <div class="sff-empty__x">${esc(error.message)}</div>
+      <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="navigate('visites')">Réessayer</button>
+    </div></div></div>`;
+    return;
+  }
+  const liste = visites || [];
+  const ind = sfCrIndicateurs(liste);
+
+  // Un groupe par bien, ceux qui ne sont rattachés à rien en dernier.
+  const groupes = [];
+  for (const v of liste) {
+    const cle = v.bien_id || '';
+    let g = groupes.find(x => x.cle === cle);
+    if (!g) groupes.push(g = { cle, bien: v.biens || null, visites: [] });
+    g.visites.push(v);
+  }
+  groupes.sort((a, b) => (a.cle === '') - (b.cle === ''));
+
+  const kpi = (lab, val, sous, none) => `<div class="sff-kpi">
+      <span class="sff-kpi__l">${lab}</span>
+      <span class="sff-kpi__v${none ? ' sff-kpi__v--none' : ''}">${val}</span>
+      <span class="sff-kpi__s">${sous}</span></div>`;
+  const nbEdl = ind.parNature.filter(x => sfCrEstEdl(x.k)).reduce((s, x) => s + x.n, 0);
+  const nb = k => ind.parNature.find(x => x.k === k)?.n || 0;
+  // « 4 », « 3,5 » : une décimale nulle n'apporte rien (même règle que sfPctNum).
+  const moyenne = ind.moyenne == null ? null
+    : ind.moyenne.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+
+  el.innerHTML = `
+  <div class="sff-page sfc sfc-liste">
+    <div class="sff-top">
+      <div class="sff-titleline">
+        <div class="sff-titleline__id">
+          <h1 class="sff-h1">Comptes rendus</h1>
+          <p class="sff-sub">Visites d'achat, visites locataires et états des lieux.</p>
         </div>
-        ${truncNotes?`<div style="font-size:12px;color:var(--c-dim);line-height:1.55;margin-bottom:8px">${truncNotes}</div>`:'<div style="font-size:11px;color:var(--c-muted);font-style:italic;margin-bottom:8px">Aucune note rédigée</div>'}
-        <div class="visite-footer">
-          <div class="stars">${stars}</div>
-          ${wordCount>0?`<div class="visite-note-count">${sfAccIcon('crayon',11)} ${wordCount} mot${wordCount>1?'s':''}</div>`:''}
-          ${photosCount>0?`<div class="visite-photo-count">${sfAccIcon('image',11)} ${photosCount}</div>`:''}
+        <div class="sff-acts">
+          <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="openNouvelleVisite()">${sfAccIcon('plus', 15)} Nouveau compte rendu</button>
         </div>
-      </div>
-      <!-- Colonne droite : score + méta -->
-      <div class="visite-card-right">
-        <div class="visite-score-circle ${scoreCls}">
-          ${note>0?note:'—'}
-          ${note>0?`<div style="font-size:8px;opacity:0.6">/5</div>`:''}
-        </div>
-        <div class="visite-score-label">Note</div>
-        ${(() => {
-          // Miniatures : base64 legacy (data URL directe) ou Storage (placeholder rempli par tiFillThumbs)
-          const storagePhotos = Array.isArray(v.photos_paths) ? v.photos_paths : [];
-          const b64Photos = Array.isArray(v.photos) ? v.photos : [];
-          const totalThumbs = storagePhotos.length || b64Photos.length;
-          if (totalThumbs === 0) {
-            return '<div class="visite-right-meta" style="color:var(--c-muted)">Pas de<br>photos</div>';
-          }
-          let thumbs = '';
-          if (storagePhotos.length) {
-            // Storage : placeholders remplis en arrière-plan par tiFillThumbs()
-            thumbs = storagePhotos.slice(0,2).map(p =>
-              `<div data-thumb-bucket="visites-photos" data-thumb-path="${p.path}" style="width:38px;height:38px;border-radius:6px;border:1px solid var(--c-border);background-size:cover;background-position:center;background-color:var(--c-border)"></div>`
-            ).join('');
-          } else {
-            // Base64 legacy : data URLs directes
-            thumbs = b64Photos.slice(0,2).map(p =>
-              `<img src="${p}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid var(--c-border)">`
-            ).join('');
-          }
-          const extra = totalThumbs>2 ? `<div style="width:38px;height:38px;border-radius:6px;background:var(--c-border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--c-dim)">+${totalThumbs-2}</div>` : '';
-          return `<div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:center;max-width:120px">${thumbs}${extra}</div>`;
-        })()}
       </div>
     </div>
+    ${liste.length ? `
+    <div class="sff-kpis">
+      ${kpi('Comptes rendus', String(ind.total), 'tous types confondus')}
+      ${kpi('Visites d\'achat', String(nb('achat')), 'avant une acquisition')}
+      ${kpi('Visites locataires', String(nb('locataire')), 'candidats ou occupants')}
+      ${kpi('États des lieux', String(nbEdl), 'entrées et sorties')}
+      ${kpi('Note moyenne', moyenne == null ? 'Non disponible' : esc(moyenne) + '<span class="sfc-sur5">/5</span>',
+            moyenne == null ? 'aucune visite notée' : 'sur les visites notées', moyenne == null)}
+    </div>
+    ${groupes.map(g => sfcGroupeHtml(g)).join('')}` : `
+    <div class="sff-block"><div class="sff-empty">
+      <div class="sff-empty__ic">${sfAccIcon('carnet', 34)}</div>
+      <div class="sff-empty__t">Aucun compte rendu</div>
+      <div class="sff-empty__x">Après chaque visite, notez ce que vous avez vu : l'état du bien, la copropriété, le quartier, et ce que vous comptez faire. Les états des lieux d'entrée et de sortie se consignent ici aussi.</div>
+      <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="openNouvelleVisite()">Rédiger un compte rendu</button>
+    </div></div>`}
   </div>`;
+}
+
+function sfcGroupeHtml(g) {
+  const bien = g.cle ? allBiens.find(b => b.id === g.cle) : null;
+  const titre = g.cle ? (g.bien?.titre || bien?.titre || 'Bien supprimé') : 'Sans bien rattaché';
+  const lieu = g.cle ? (g.bien?.ville || bien?.ville || '') : '';
+  return `
+    <section class="sff-block sfc-groupe">
+      <div class="sff-block__h">
+        <h2 class="sff-block__t sfc-groupe__t">${esc(titre)}${lieu ? ` <span class="sfc-groupe__l">· ${esc(lieu)}</span>` : ''}${bien && sfBienDeTest(bien) ? ' <span class="sf-pill sf-pill--test">Test</span>' : ''}</h2>
+        <span class="sff-block__n">${g.visites.length} compte${g.visites.length > 1 ? 's' : ''} rendu${g.visites.length > 1 ? 's' : ''}</span>
+        ${bien ? `<button class="sf-btn sf-btn--ghost sf-btn--sm" type="button" onclick="openDetail(${escJs(bien.id)})">Voir la fiche</button>` : ''}
+      </div>
+      <div class="sff-block__b"><div class="sff-list">${g.visites.map(sfcLigneHtml).join('')}</div></div>
+    </section>`;
+}
+
+// Une ligne de compte rendu : la même dans la liste et sur la fiche du bien.
+function sfcLigneHtml(v) {
+  const resume = v.type_visite === 'achat' ? sfGrilleResume(v.grille) : '';
+  const texte = v.notes || sfGrilleNormaliser(v.grille)?.points_forts || '';
+  const extrait = texte.length > 110 ? texte.slice(0, 109) + '…' : texte;
+  const nbPhotos = (Array.isArray(v.photos_paths) && v.photos_paths.length) ? v.photos_paths.length : (Array.isArray(v.photos) ? v.photos.length : 0);
+  return `
+    <button type="button" class="sff-row sfc-row" onclick="openReadVisite(${escJs(v.id)})">
+      <span class="sff-row__d">${esc(fmtActionDate(v.date_visite))}</span>
+      <span class="sff-row__m">
+        <span class="sfc-row__t">${esc(sfCrLabel(v.type_visite))}${v.adresse ? ` — ${esc(v.adresse)}` : ''}</span>
+        ${resume ? `<span class="sff-row__s sfc-row__r">${esc(resume)}</span>` : ''}
+        ${extrait ? `<span class="sff-row__s">${esc(extrait)}</span>` : ''}
+      </span>
+      <span class="sfc-row__a">
+        ${nbPhotos ? `<span class="sfc-row__ph">${sfAccIcon('image', 13)} ${nbPhotos}</span>` : ''}
+        ${v.note_sur_5 ? sfNotes(v.note_sur_5, 13) : ''}
+      </span>
+    </button>`;
+}
+
+// ─── La page d'un compte rendu : lecture ou saisie ─────────────────────────
+
+let sfcEtat = { id: null, mode: 'lecture', bienId: null, preset: null, retour: { page: 'visites' } };
+let sfcJeton = 0;
+let sfcModifie = false;
+let sfcEnvoi = false;
+let sfcVisite = null;      // le compte rendu chargé (lecture ou saisie)
+
+// D'où l'on vient décide où l'on revient : la fiche du bien (onglet Visites),
+// le Suivi financier (état des lieux depuis l'acte de sortie), ou la liste.
+// Depuis la fiche, on garde aussi SON retour, pour le lui rendre.
+function sfcRetourDepuis(page) {
+  if (page === 'bien-detail' && currentBienId) return { page: 'bien-detail', id: currentBienId, back: bienDetailBack };
+  if (page === 'module-financier') return { page: 'module-financier' };
+  if (page === 'compte-rendu') return sfcEtat.retour;
+  return { page: 'visites' };
+}
+
+function sfcOuvrir(etat) {
+  sfcEtat = { id: null, bienId: null, preset: null, ...etat, retour: etat.retour || sfcRetourDepuis(currentPage) };
+  visitPhotos = []; visitRating = 0;
+  navigate('compte-rendu');
 }
 
 /* `preset` : { type, locataireId, date, conforme } — le pré-remplissage venu
    de l'acte de sortie. Un état des lieux n'est pas saisi de zéro : on sait
    déjà de quel bien, de qui, de quand et de quel constat il parle. */
-function openNouvelleVisite(bienId, preset) {
-  visitPhotos=[]; visitRating=0;
-  const brouillon = preset ? { type_visite: preset.type, locataire_id: preset.locataireId,
-                               date_visite: preset.date, conforme: preset.conforme ?? null,
-                               bien_id: bienId || null } : null;
-  document.getElementById('detail-titre').textContent =
-    preset ? sfCrLabel(preset.type) : 'Nouveau compte rendu';
-  document.getElementById('detail-content').innerHTML = visiteForm(brouillon);
-  // Pré-sélection quand on arrive depuis la fiche d'un bien
-  if(bienId) { const s = document.getElementById('v-bien'); if(s) s.value = bienId; }
-  refreshPhotosPreview();
-  openModal('modal-detail');
+function openNouvelleVisite(bienId, preset) { sfcOuvrir({ mode: 'saisie', id: null, bienId: bienId || null, preset: preset || null }); }
+function openReadVisite(id) { sfcOuvrir({ mode: 'lecture', id }); }
+function openDetailVisite(id) { sfcOuvrir({ mode: 'saisie', id }); }
+
+async function renderCompteRendu(el) {
+  const jeton = ++sfcJeton;
+  const etat = sfcEtat;
+  el.innerHTML = `<div class="loading"><div class="spinner"></div>Chargement…</div>`;
+  const [grilleDispo, , lecture] = await Promise.all([
+    sfcVerifierGrille(),
+    sfAssurerBiens(),
+    etat.id ? db.from('visites').select('*, biens(titre, ville)').eq('id', etat.id).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  // ⚠️ Un rendu périmé n'écrit pas : une autre navigation est arrivée pendant
+  // le chargement (même garde que la fiche, v=95).
+  if (jeton !== sfcJeton || currentPage !== 'compte-rendu') return;
+  if (lecture.error || (etat.id && !lecture.data)) {
+    showNotif(lecture.error ? 'Erreur : ' + lecture.error.message : 'Ce compte rendu n\'existe plus', true);
+    sfcAller(etat.retour);
+    return;
+  }
+  const v = lecture.data || (etat.preset
+    ? { type_visite: etat.preset.type, locataire_id: etat.preset.locataireId, date_visite: etat.preset.date,
+        conforme: etat.preset.conforme ?? null, bien_id: etat.bienId }
+    : { type_visite: 'achat', bien_id: etat.bienId });
+  sfcVisite = v;
+  if (etat.mode === 'lecture') await sfcRenderLecture(el, v, grilleDispo, jeton);
+  else sfcRenderSaisie(el, v, grilleDispo);
 }
 
-/* Le formulaire est rendu une fois : changer le type doit donc révéler ou
-   cacher le verdict de conformité sans tout redessiner — sinon la saisie en
-   cours serait perdue. */
-function sfCrMajType() {
+function sfcRetourLib(r) {
+  if (r.page === 'bien-detail') return 'Fiche du bien';
+  return PAGE_LABELS[r.page] || 'Comptes rendus';
+}
+
+function sfcDateLongue(d) {
+  if (!d) return 'Date non renseignée';
+  const dt = new Date(d + 'T12:00:00');
+  return isNaN(dt) ? d : dt.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+/* Une URL posée dans `url('…')`. esc() la protège dans l'attribut, mais le
+   navigateur décode `&#39;` AVANT de lire le CSS : une apostrophe refermerait
+   la chaîne. Les caractères qui structurent le CSS sont donc encodés. */
+function sfcUrlCss(u) {
+  return String(u || '').replace(/['"()\\\s]/g, c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0').toUpperCase());
+}
+
+async function sfcRenderLecture(el, v, grilleDispo, jeton) {
+  const photos = (await tiResolveMedia(v.photos_paths, v.photos, 'visites-photos')).map(x => x.url).filter(Boolean);
+  if (jeton !== sfcJeton || currentPage !== 'compte-rendu') return;
+  const g = sfGrilleNormaliser(v.grille);
+  const achat = v.type_visite === 'achat';
+  const loc = v.locataire_id ? allLocataires.find(l => l.id === v.locataire_id) : null;
+  const nomLoc = loc ? [loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Locataire sans nom' : null;
+  const champ = k => SF_GRILLE_CHAMPS.find(c => c.k === k);
+  const valeur = k => (g && g[k] !== undefined) ? sfGrilleValeur(champ(k), g[k]) : null;
+  // `texte` : une valeur en toutes lettres (un nom, une décision) se lit à la
+  // taille du texte courant, et passe à la ligne plutôt que d'être coupée.
+  const kpi = (lab, val, sous, texte) => `<div class="sff-kpi"><span class="sff-kpi__l">${lab}</span>
+      <span class="sff-kpi__v${val ? (texte ? ' sfc-kpi__texte' : '') : ' sff-kpi__v--none'}">${val || 'Non renseigné'}</span><span class="sff-kpi__s">${sous}</span></div>`;
+  // Les indicateurs suivent la nature : une note pour une visite, un locataire
+  // pour ce qui le concerne, un constat pour une sortie, la grille pour un achat.
+  const kpis = [];
+  if (!sfCrEstEdl(v.type_visite)) kpis.push(kpi('Note', v.note_sur_5 ? sfNotes(v.note_sur_5, 18) : '', v.note_sur_5 ? v.note_sur_5 + ' sur 5' : 'pas de note'));
+  if (!achat) kpis.push(kpi('Locataire', nomLoc ? esc(nomLoc) : '', sfCrEstEdl(v.type_visite) ? 'concerné par l\'état des lieux' : 'candidat ou occupant', true));
+  if (v.type_visite === 'edl_sortie') kpis.push(kpi('Constat', v.conforme == null ? '' : v.conforme ? 'Conforme' : 'Non conforme',
+    v.conforme == null ? 'pas encore constaté' : 'à l\'état des lieux d\'entrée', true));
+  if (achat && grilleDispo) {
+    kpis.push(kpi('Suite à donner', valeur('suite') ? esc(valeur('suite')) : '', 'décision après la visite', true));
+    kpis.push(kpi('DPE', g?.dpe ? esc(g.dpe) : '', 'relevé pendant la visite'));
+    kpis.push(kpi('Travaux à prévoir', g?.travaux ? esc(sfEur(g.travaux)) : '', 'estimation sur place'));
+  }
+  const bloc = sec => `
+    <section class="sff-block">
+      <div class="sff-block__h"><h2 class="sff-block__t">${esc(sec.titre)}</h2></div>
+      <div class="sff-block__b"><div class="sff-fields">
+        ${sec.champs.map(c => `<div class="sff-f${c.type === 'long' || c.type === 'texte' ? ' sff-f--wide' : ''}">
+          <div class="sff-f__l">${esc(c.lab)}</div>
+          <div class="sff-f__v${valeur(c.k) ? '' : ' sfc-vide'}${c.type === 'long' || c.type === 'texte' ? ' sfc-texte' : ''}">${esc(valeur(c.k) || 'Non renseigné')}</div>
+        </div>`).join('')}
+      </div></div>
+    </section>`;
+
+  el.innerHTML = `
+  <div class="sff-page sfc">
+    <div class="sff-top">
+      <button type="button" class="sff-back" onclick="sfcAller(sfcEtat.retour)">${sfAccIcon('retour', 14)} ${esc(sfcRetourLib(sfcEtat.retour))}</button>
+      <div class="sff-titleline">
+        <div class="sff-titleline__id">
+          <h1 class="sff-h1">${esc(sfCrLabel(v.type_visite))}</h1>
+          <p class="sff-sub">${esc(sfcDateLongue(v.date_visite))}${v.biens?.titre ? ` · ${esc(v.biens.titre)}${v.biens.ville ? ', ' + esc(v.biens.ville) : ''}` : ''}${v.adresse ? ` · ${esc(v.adresse)}` : ''}</p>
+        </div>
+        <div class="sff-acts">
+          ${/* Venu de la fiche de ce bien, « ← » y ramène déjà : pas de second chemin. */''}
+          ${v.bien_id && allBiens.find(b => b.id === v.bien_id) && !(sfcEtat.retour.page === 'bien-detail' && sfcEtat.retour.id === v.bien_id)
+            ? `<button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="openDetail(${escJs(v.bien_id)})">${sfAccIcon('maison', 15)} Voir la fiche</button>` : ''}
+          <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="openDetailVisite(${escJs(v.id)})">${sfAccIcon('crayon', 15)} Modifier</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sff-kpis">${kpis.join('')}</div>
+
+    ${achat && grilleDispo ? SF_GRILLE.map(bloc).join('') : ''}
+
+    <section class="sff-block">
+      <div class="sff-block__h"><h2 class="sff-block__t">Notes</h2></div>
+      <div class="sff-block__b">${v.notes
+        ? `<p class="sfc-notes">${esc(v.notes)}</p>`
+        : `<p class="sfc-vide">Aucune note rédigée.</p>`}</div>
+    </section>
+
+    <section class="sff-block">
+      <div class="sff-block__h"><h2 class="sff-block__t">Photos</h2>${photos.length ? `<span class="sff-block__n">${photos.length}</span>` : ''}</div>
+      <div class="sff-block__b">${photos.length
+        ? `<div class="sff-gal">${photos.map((u, i) => `<button type="button" class="sff-gal__i" style="background-image:url('${esc(sfcUrlCss(u))}')" onclick="openLightbox(${escJs(u)})" aria-label="Agrandir la photo ${i + 1}"></button>`).join('')}</div>`
+        : `<p class="sfc-vide">Aucune photo.</p>`}</div>
+    </section>
+  </div>`;
+}
+
+// Un choix segmenté : des boutons à bascule. Toucher le choix retenu le retire.
+function sfcChoixHtml(c, valeur) {
+  return `<div class="sf-choix${c.lettres ? ' sf-choix--lettres' : ''}" role="group" aria-labelledby="g-${c.k}-lab" data-grille="${c.k}">
+    ${c.choix.map(([val, lab]) => `<button type="button" class="sf-choix__o" data-v="${esc(val)}" aria-pressed="${valeur === val}" onclick="sfcChoix(this)">${esc(lab)}</button>`).join('')}
+  </div>`;
+}
+
+function sfcChoix(btn) {
+  const groupe = btn.closest('.sf-choix');
+  const deja = btn.getAttribute('aria-pressed') === 'true';
+  groupe.querySelectorAll('.sf-choix__o').forEach(b => b.setAttribute('aria-pressed', 'false'));
+  if (!deja) btn.setAttribute('aria-pressed', 'true');
+  sfcModifie = true;
+}
+
+function sfcChampGrilleHtml(c, g) {
+  const v = g ? g[c.k] : undefined;
+  const id = 'g-' + c.k;
+  let saisie;
+  if (c.choix) saisie = sfcChoixHtml(c, v);
+  else if (c.type === 'euro') saisie = `<div class="sfn-saisie sfn-saisie--euro">
+      <input class="sf-input sfn-nombre" id="${id}" type="text" inputmode="decimal" autocomplete="off"
+             value="${esc(sfnFormaterNombre(v))}" onblur="sfnFormater(this)" aria-describedby="${id}-err">
+      <span class="sfn-unite" aria-hidden="true">€</span></div>`;
+  else if (c.type === 'long') saisie = `<textarea class="sf-input" id="${id}" rows="3" maxlength="${SF_GRILLE_TEXTE_MAX}">${esc(v || '')}</textarea>`;
+  else saisie = `<input class="sf-input" id="${id}" type="text" maxlength="${SF_GRILLE_TEXTE_MAX}" value="${esc(v || '')}">`;
+  const etiquette = c.choix ? `<span class="sf-label" id="${id}-lab">` : `<label class="sf-label" for="${id}">`;
+  return `<div class="sf-field sfn-f${c.choix && c.choix.length > 3 || c.type === 'long' || c.type === 'texte' ? ' sfn-f--large' : ''}">
+      ${etiquette}${esc(c.lab)}${c.type === 'euro' ? '<span class="sf-sr-only"> en euros</span>' : ''}${c.choix ? '</span>' : '</label>'}
+      ${saisie}
+      <p class="sf-hint sf-hint--error" id="${id}-err" hidden></p>
+    </div>`;
+}
+
+// La grille telle qu'elle est saisie à l'écran, avant normalisation.
+function sfcLireGrille() {
+  const brut = {};
+  for (const c of SF_GRILLE_CHAMPS) {
+    if (c.choix) {
+      brut[c.k] = document.querySelector(`.sf-choix[data-grille="${c.k}"] .sf-choix__o[aria-pressed="true"]`)?.dataset.v || null;
+    } else {
+      brut[c.k] = document.getElementById('g-' + c.k)?.value ?? null;
+    }
+  }
+  return brut;
+}
+
+function sfcRenderSaisie(el, v, grilleDispo) {
+  visitPhotos = tiNormalizePhotos(v.photos_paths, v.photos, 'visites-photos');
+  visitRating = v.note_sur_5 || 0;
+  sfcModifie = false;
+  sfcEnvoi = false;
+  const g = sfGrilleNormaliser(v.grille);
+  const creation = !v.id;
+  const edl = sfCrEstEdl(v.type_visite);
+  const bienOptions = sfcBiensProposes().map(b => `<option value="${esc(b.id)}"${v.bien_id === b.id ? ' selected' : ''}>${esc(b.titre)}${b.ville ? ' — ' + esc(b.ville) : ''}</option>`).join('');
+
+  el.innerHTML = `
+  <div class="sff-page sfn sfc">
+    <div class="sff-top">
+      <button type="button" class="sff-back" onclick="sfcQuitter()">${sfAccIcon('retour', 14)} ${creation ? esc(sfcRetourLib(sfcEtat.retour)) : 'Compte rendu'}</button>
+      <div class="sff-titleline">
+        <div class="sff-titleline__id">
+          <h1 class="sff-h1">${creation ? 'Nouveau compte rendu' : 'Modifier le compte rendu'}</h1>
+          <p class="sff-sub">${creation ? 'Remplissez-le pendant ou juste après la visite : tout se modifie ensuite.' : esc(sfCrLabel(v.type_visite)) + ' · ' + esc(sfcDateLongue(v.date_visite))}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sfn-main">
+      <section class="sff-block">
+        <div class="sff-block__h"><h2 class="sff-block__t">La visite</h2>
+          <span class="sfn-sec__resume"><span class="sf-label__req" aria-hidden="true">*</span> obligatoire</span></div>
+        <div class="sff-block__b"><div class="sfn-grid">
+          <div class="sf-field sfn-f">
+            <label class="sf-label" for="v-type">Nature</label>
+            <select class="sf-input sf-select" id="v-type">
+              ${Object.keys(SF_CR_TYPES).map(k => `<option value="${k}"${v.type_visite === k ? ' selected' : ''}>${esc(sfCrLabel(k))}</option>`).join('')}
+            </select>
+          </div>
+          <div class="sf-field sfn-f">
+            <label class="sf-label" for="v-date">Date<span class="sf-label__req" aria-hidden="true">*</span></label>
+            <input class="sf-input" type="date" id="v-date" value="${esc(v.date_visite || sfAujourdhuiIso())}" aria-required="true" aria-describedby="v-date-err">
+            <p class="sf-hint sf-hint--error" id="v-date-err" hidden></p>
+          </div>
+          <div class="sf-field sfn-f">
+            <label class="sf-label" for="v-bien">Bien</label>
+            <select class="sf-input sf-select" id="v-bien"><option value="">— Aucun bien rattaché —</option>${bienOptions}</select>
+          </div>
+          <div class="sf-field sfn-f">
+            <label class="sf-label" for="v-adresse">Adresse</label>
+            <input class="sf-input" type="text" id="v-adresse" value="${esc(v.adresse || '')}" placeholder="ex. 12 rue de la République, Lyon">
+          </div>
+          ${/* ⚠️ `locataire_id` EXISTAIT DEPUIS L'ORIGINE et n'était ni écrit ni lu :
+                une visite locataire savait qu'elle en était une, pas DE QUI. Un
+                état des lieux ne veut rien dire sans la personne concernée. */''}
+          <div class="sf-field sfn-f" id="v-loc-bloc"${v.type_visite === 'achat' ? ' hidden' : ''}>
+            <label class="sf-label" for="v-locataire">Locataire concerné<span class="sf-label__req" id="v-loc-req" aria-hidden="true"${edl ? '' : ' hidden'}>*</span></label>
+            <select class="sf-input sf-select" id="v-locataire"${edl ? ' aria-required="true"' : ''} aria-describedby="v-locataire-err">
+              <option value="">— Aucun locataire —</option>
+              ${allLocataires.map(l => {
+                const nom = [l.prenom, l.nom].filter(Boolean).join(' ') || 'Sans nom';
+                return `<option value="${esc(l.id)}"${v.locataire_id === l.id ? ' selected' : ''}>${esc(nom)} · ${esc(l.statut || '')}</option>`;
+              }).join('')}
+            </select>
+            <p class="sf-hint sf-hint--error" id="v-locataire-err" hidden></p>
+          </div>
+          <div class="sf-field sfn-f" id="v-conforme-bloc"${v.type_visite === 'edl_sortie' ? '' : ' hidden'}>
+            <label class="sf-label" for="v-conforme">Conforme à l'état des lieux d'entrée ?</label>
+            <select class="sf-input sf-select" id="v-conforme">
+              <option value=""${v.conforme == null ? ' selected' : ''}>— Pas encore constaté —</option>
+              <option value="oui"${v.conforme === true ? ' selected' : ''}>Oui, conforme · dépôt à rendre sous un mois</option>
+              <option value="non"${v.conforme === false ? ' selected' : ''}>Non conforme · deux mois pour rendre le dépôt</option>
+            </select>
+          </div>
+          <div class="sf-field sfn-f sfn-f--large" id="v-note-bloc"${edl ? ' hidden' : ''}>
+            <span class="sf-label" id="v-note-lab">Note globale</span>
+            <div class="sfc-etoiles" role="group" aria-labelledby="v-note-lab">
+              ${[1, 2, 3, 4, 5].map(i => `<button type="button" class="star-btn sfc-etoile${visitRating >= i ? ' active' : ''}" onclick="setRating(${i})"
+                  aria-pressed="${visitRating >= i}" aria-label="${i} étoile${i > 1 ? 's' : ''} sur 5">${sfAccIcon(visitRating >= i ? 'etoile-pleine' : 'etoile', 22)}</button>`).join('')}
+            </div>
+          </div>
+        </div></div>
+      </section>
+
+      ${grilleDispo ? SF_GRILLE.map(sec => `
+      <section class="sff-block sfc-grille" data-sec="${sec.id}"${v.type_visite === 'achat' ? '' : ' hidden'}>
+        <div class="sff-block__h"><h2 class="sff-block__t">${esc(sec.titre)}</h2></div>
+        <div class="sff-block__b"><div class="sfn-grid">${sec.champs.map(c => sfcChampGrilleHtml(c, g)).join('')}</div></div>
+      </section>`).join('') : ''}
+
+      <section class="sff-block">
+        <div class="sff-block__h"><h2 class="sff-block__t">Notes et photos</h2></div>
+        <div class="sff-block__b"><div class="sfn-grid">
+          <div class="sf-field sfn-f sfn-f--large">
+            <label class="sf-label" for="v-notes">Notes</label>
+            <textarea class="sf-input" id="v-notes" rows="5" placeholder="Impression générale, ce qui reste à vérifier, questions pour l'agent…">${esc(v.notes || '')}</textarea>
+          </div>
+          <div class="sf-field sfn-f sfn-f--large">
+            <div class="sfn-fichiers__h">
+              <span class="sf-label">Photos</span>
+              <button type="button" class="sf-btn sf-btn--secondary sf-btn--sm" onclick="document.getElementById('photo-input').click()">${sfAccIcon('image', 15)} Ajouter des photos</button>
+            </div>
+            <input type="file" id="photo-input" accept="image/*" multiple style="display:none" onchange="handlePhotos(event)">
+            <div class="sfn-vignettes" id="photos-preview"></div>
+          </div>
+        </div></div>
+      </section>
+
+      ${creation ? '' : `
+      <div class="sfn-suppr">
+        <button type="button" class="sf-btn sf-btn--danger sf-btn--sm" onclick="deleteVisite(${escJs(v.id)})">${sfAccIcon('poubelle', 14)} Supprimer ce compte rendu</button>
+      </div>`}
+    </div>
+
+    <div class="sfn-barre">
+      <div class="sfn-barre__acts">
+        <button type="button" class="sf-btn sf-btn--secondary" onclick="sfcQuitter()">Annuler</button>
+        <button type="button" class="sf-btn sf-btn--primary" id="v-enregistrer" onclick="saveVisite()">${creation ? 'Enregistrer le compte rendu' : 'Enregistrer'}</button>
+      </div>
+    </div>
+  </div>`;
+
+  refreshPhotosPreview();
+  const page = el.querySelector('.sfc');
+  page.addEventListener('input', sfcSaisie);
+  page.addEventListener('change', sfcSaisie);
+}
+
+// Les biens proposés au rattachement : la liste de vos fiches, comme partout
+// ailleurs dans la prospection (les fiches de test y restent, marquées).
+function sfcBiensProposes() {
+  return allBiens.map(b => ({ id: b.id, titre: (b.titre || 'Sans titre') + (sfBienDeTest(b) ? ' (test)' : ''), ville: b.ville || '' }));
+}
+
+function sfAujourdhuiIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Toute saisie : le compte rendu est modifié ; changer la nature révèle ou
+// cache ce qui en dépend, sans redessiner — la saisie en cours resterait perdue.
+function sfcSaisie(e) {
+  const cible = e.target;
+  if (!cible || cible.type === 'file') return;
+  sfcModifie = true;
+  if (cible.id) sfnErreur(cible.id, '');
+  if (cible.id === 'v-type') sfcMajType();
+}
+
+function sfcMajType() {
   const t = document.getElementById('v-type')?.value;
-  const bloc = document.getElementById('v-conforme-bloc');
-  if(bloc) bloc.hidden = t !== 'edl_sortie';
-  // Le locataire devient obligatoire sur un état des lieux : l'étoile le dit,
-  // et `saveVisite` le vérifie.
+  const montre = (id, oui) => { const e = document.getElementById(id); if (e) e.hidden = !oui; };
+  montre('v-loc-bloc', t !== 'achat');
+  montre('v-conforme-bloc', t === 'edl_sortie');
+  montre('v-note-bloc', !sfCrEstEdl(t));
   const etoile = document.getElementById('v-loc-req');
-  if(etoile) etoile.hidden = !sfCrEstEdl(t);
+  if (etoile) etoile.hidden = !sfCrEstEdl(t);
+  const loc = document.getElementById('v-locataire');
+  if (loc) { if (sfCrEstEdl(t)) loc.setAttribute('aria-required', 'true'); else loc.removeAttribute('aria-required'); }
+  document.querySelectorAll('.sfc-grille').forEach(s => { s.hidden = t !== 'achat'; });
 }
 
-async function openReadVisite(id) {
-  const {data:v, error} = await db.from('visites').select('*, biens(titre,ville)').eq('id',id).maybeSingle();
-  if(error) { showNotif('Erreur : '+error.message, true); return; }
-  if(!v) { showNotif('Cette visite n\'existe plus', true); return; }
-  const stars = sfNotes(v.note_sur_5, 19);
-  const photoItems = await tiResolveMedia(v.photos_paths, v.photos, 'visites-photos');
-  const photos = photoItems.map(x=>x.url);
-  const dateStr = v.date_visite ? new Date(v.date_visite+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',year:'numeric',month:'long',day:'numeric'}) : '—';
-  const typeLabel = sfAccIcon(v.type_visite==='achat' ? 'maison'
-                    : sfCrEstEdl(v.type_visite) ? 'carnet' : 'user', 14)
-                    + ' ' + sfCrLabel(v.type_visite);
-
-  document.getElementById('detail-titre').textContent = v.adresse || v.biens?.titre || 'Visite';
-  document.getElementById('detail-content').innerHTML = `
-    <!-- Méta -->
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
-      <span style="background:${v.type_visite==='achat'?'rgba(23,160,107,0.1)':'rgba(22,163,74,0.1)'};color:${v.type_visite==='achat'?'var(--accent)':'var(--positive-c)'};padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600">${typeLabel}</span>
-      <span style="font-size:12px;color:var(--c-dim)">${sfAccIcon('agenda',12)} ${dateStr}</span>
-      ${v.biens?.titre?`<span style="font-size:12px;color:var(--c-dim)">${sfAccIcon('maison',12)} ${esc(v.biens.titre)}${v.biens.ville?' — '+esc(v.biens.ville):''}</span>`:''}
-    </div>
-
-    <!-- Note -->
-    <div style="margin-bottom:18px">${stars}</div>
-
-    <!-- Notes texte -->
-    ${v.notes ? `
-    <div style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r);padding:16px;margin-bottom:18px;font-size:14px;color:var(--c-text);line-height:1.7;white-space:pre-wrap">${esc(v.notes)}</div>
-    ` : `<div style="color:var(--c-muted);font-size:13px;margin-bottom:18px;font-style:italic">Aucune note rédigée.</div>`}
-
-    <!-- Photos -->
-    ${photos.length ? `
-    <div style="margin-bottom:18px">
-      <div style="font-size:11px;font-weight:600;color:var(--c-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${sfAccIcon('image',12)} Photos (${photos.length})</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        ${photos.map(p=>`<img src="${p}" style="width:120px;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--c-border);cursor:pointer" onclick="openLightbox('${p}')">`).join('')}
-      </div>
-    </div>` : ''}
-
-    <div class="modal-actions" style="margin-top:8px">
-      <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Fermer</button>
-      <button class="btn btn-primary" onclick="openDetailVisite('${v.id}')">${sfAccIcon('crayon',14)} Modifier</button>
-    </div>
-  `;
-  openModal('modal-detail');
-}
-
-async function openDetailVisite(id) {
-  const {data:v, error} = await db.from('visites').select('*, biens(titre)').eq('id',id).maybeSingle();
-  if(error) { showNotif('Erreur : '+error.message, true); return; }
-  if(!v) { showNotif('Cette visite n\'existe plus', true); return; }
-  visitPhotos = tiNormalizePhotos(v.photos_paths, v.photos, 'visites-photos'); visitRating = v.note_sur_5||0;
-  document.getElementById('detail-titre').textContent = 'Modifier la visite';
-  document.getElementById('detail-content').innerHTML = visiteForm(v);
-  refreshPhotosPreview();
-  // don't call openModal again if already open
-  const overlay = document.getElementById('modal-detail');
-  if(!overlay.classList.contains('open')) openModal('modal-detail');
-}
-
-function visiteForm(v) {
-  const bienOptions = allBiens.map(b=>`<option value="${b.id}" ${v?.bien_id===b.id?'selected':''}>${esc(b.titre)} — ${esc(b.ville||'')}</option>`).join('');
-  // visitPhotos est déjà normalisé (objets hybrides) par openDetailVisite
-  return `
-    <div class="form-grid" style="margin-bottom:14px">
-      <div class="form-group"><label>Date de la visite *</label><input type="date" id="v-date" value="${esc(v?.date_visite||new Date().toISOString().split('T')[0])}"></div>
-      <div class="form-group"><label>Nature du compte rendu</label>
-        <select id="v-type" onchange="sfCrMajType()">
-          ${Object.keys(SF_CR_TYPES).map(k =>
-            `<option value="${k}" ${v?.type_visite===k?'selected':''}>${esc(sfCrLabel(k))}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group form-full"><label>Adresse (libre)</label><input type="text" id="v-adresse" value="${esc(v?.adresse||'')}" placeholder="ex: 12 rue de la Paix, Paris 75001"></div>
-      <div class="form-group form-full"><label>Rattacher à un bien (optionnel)</label>
-        <select id="v-bien"><option value="">— Aucun bien rattaché —</option>${bienOptions}</select>
-      </div>
-      ${/* ⚠️ `locataire_id` EXISTAIT DEPUIS L'ORIGINE, avec sa clé étrangère, et
-            n'a jamais été ni écrite ni lue : une « visite locataire » savait
-            qu'elle en était une, mais pas DE QUI. Un état des lieux, lui, ne
-            veut rien dire sans la personne dont on constate le logement. */''}
-      <div class="form-group form-full" id="v-loc-bloc"><label>Locataire concerné<span id="v-loc-req" ${sfCrEstEdl(v?.type_visite)?'':'hidden'}> *</span></label>
-        <select id="v-locataire">
-          <option value="">— Aucun locataire —</option>
-          ${allLocataires.map(l => {
-            const nom = [l.prenom, l.nom].filter(Boolean).join(' ') || 'Sans nom';
-            return `<option value="${l.id}" ${v?.locataire_id===l.id?'selected':''}>${esc(nom)} · ${esc(l.statut||'')}</option>`;
-          }).join('')}
-        </select>
-      </div>
-      <div class="form-group form-full" id="v-conforme-bloc" ${sfCrEstEdl(v?.type_visite) && v?.type_visite==='edl_sortie' ? '' : 'hidden'}>
-        <label>Conforme à l'état des lieux d'entrée ?</label>
-        <select id="v-conforme">
-          <option value="" ${v?.conforme==null?'selected':''}>— Pas encore constaté —</option>
-          <option value="oui" ${v?.conforme===true?'selected':''}>Oui, conforme · dépôt à rendre sous un mois</option>
-          <option value="non" ${v?.conforme===false?'selected':''}>Non conforme · deux mois pour rendre le dépôt</option>
-        </select>
-      </div>
-    </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Note globale</label>
-      <div class="rating-input" id="rating-input">
-        ${[1,2,3,4,5].map(i=>`<button class="star-btn ${(v?.note_sur_5||0)>=i?'active':''}" onclick="setRating(${i})" aria-label="${i} étoile${i>1?'s':''} sur 5"
-            >${sfAccIcon((v?.note_sur_5||0)>=i ? 'etoile-pleine' : 'etoile', 19)}</button>`).join('')}
-      </div>
-    </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Notes & observations</label>
-      <textarea id="v-notes" style="min-height:140px" placeholder="Points positifs, négatifs, travaux à prévoir, impression générale...">${esc(v?.notes||'')}</textarea>
-    </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Photos</label>
-      <div class="photo-upload-area" onclick="document.getElementById('photo-input').click()">
-        ${sfAccIcon('image',15)} Cliquez pour ajouter des photos
-        <div style="font-size:11px;color:var(--c-muted);margin-top:4px">JPG, PNG — plusieurs fichiers acceptés</div>
-      </div>
-      <input type="file" id="photo-input" accept="image/*" multiple style="display:none" onchange="handlePhotos(event)">
-      <div class="photos-preview-grid" id="photos-preview"></div>
-    </div>
-    <div class="modal-actions">
-      ${/* ⚠️ LE PIED SE DÉCIDE SUR L'IDENTIFIANT, PAS SUR L'OBJET. Depuis que
-            l'acte de sortie pré-remplit le formulaire, `v` peut être un
-            BROUILLON — un objet vrai, mais sans `id`. Le pied y voyait un
-            compte rendu existant : il proposait « Supprimer » sur une fiche
-            qui n'existe pas, et enregistrait via `saveVisite('undefined')`,
-            que Postgres rejetait en « invalid input syntax for type uuid ».
-            Trouvé au premier état des lieux réel, le 23/08/2026. */''}
-      ${v?.id?`<button class="btn btn-danger" onclick="deleteVisite('${v.id}')">${sfAccIcon('poubelle',14)} Supprimer</button>`:''}
-      <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Annuler</button>
-      <button class="btn btn-primary" onclick="saveVisite(${v?.id?`'${v.id}'`:'null'})">${v?.id?sfAccIcon('check',14)+' Enregistrer':'＋ Créer le compte rendu'}</button>
-    </div>
-  `;
-}
-
-/* ⚠️ LE DESSIN DOIT CHANGER, PAS SEULEMENT LA COULEUR. Cette fonction ne
-   basculait que la classe `.active` : tant que l'etoile etait un emoji dont
-   l'opacite variait, ca suffisait. Depuis qu'elle est un trace, baisser une
-   note de 5 a 2 laissait CINQ etoiles pleines a l'ecran, en comptant sur la
-   seule couleur pour dire le reste — ce que la regle 4 de la planche de
-   marque interdit, et qu'un daltonien ne voit pas. On redessine. */
+/* ⚠️ LE DESSIN DOIT CHANGER, PAS SEULEMENT LA COULEUR : baisser une note de 5
+   à 2 laissait cinq étoiles pleines, la seule couleur disant le reste — ce que
+   la règle 4 de la planche de marque interdit. On redessine, et on dit l'état. */
 function setRating(n) {
-  visitRating = n;
+  visitRating = visitRating === n ? 0 : n;   // toucher la note retenue la retire
   document.querySelectorAll('.star-btn').forEach((b, i) => {
-    const pleine = i < n;
+    const pleine = i < visitRating;
     b.classList.toggle('active', pleine);
-    b.innerHTML = sfAccIcon(pleine ? 'etoile-pleine' : 'etoile', 19);
+    b.setAttribute('aria-pressed', String(pleine));
+    b.innerHTML = sfAccIcon(pleine ? 'etoile-pleine' : 'etoile', 22);
   });
+  sfcModifie = true;
 }
 
 function handlePhotos(e) {
-  const files = Array.from(e.target.files);
-  files.forEach(f=>{
-    if(!f.type.startsWith('image/')) return;
+  Array.from(e.target.files).forEach(f => {
+    if (!f.type.startsWith('image/')) return;
     const reader = new FileReader();
     reader.onload = ev => {
-      visitPhotos.push({kind:'b64', data:ev.target.result, name:f.name, _file:f});
+      visitPhotos.push({ kind: 'b64', data: ev.target.result, name: f.name, _file: f });
+      sfcModifie = true;
       refreshPhotosPreview();
     };
     reader.readAsDataURL(f);
   });
+  e.target.value = '';
 }
 
-function removePhoto(i) { visitPhotos.splice(i,1); refreshPhotosPreview(); }
+function removePhoto(i) { visitPhotos.splice(i, 1); sfcModifie = true; refreshPhotosPreview(); }
 
 async function refreshPhotosPreview() {
   const el = document.getElementById('photos-preview');
-  if(!el) return;
-  const items = await Promise.all(visitPhotos.map(async (p,i)=>{
-    let src = p.kind==='b64' ? p.data : await TI_STORAGE.signedUrl(p.bucket||'visites-photos', p.path);
-    return `<div class="preview-thumb-wrap"><img class="preview-thumb" src="${src||''}"><button class="preview-remove" onclick="removePhoto(${i})" aria-label="Retirer la photo">${sfAccIcon('croix',12)}</button></div>`;
+  if (!el) return;
+  const items = await Promise.all(visitPhotos.map(async (p, i) => {
+    const src = p.kind === 'b64' ? p.data : await TI_STORAGE.signedUrl(p.bucket || 'visites-photos', p.path);
+    return `<div class="sfn-vignette"><img src="${esc(src || '')}" alt="${esc(p.name || 'Photo de la visite')}">
+      <button type="button" class="sfn-retirer" onclick="removePhoto(${i})" aria-label="Retirer la photo ${i + 1}">${sfAccIcon('croix', 14)}</button></div>`;
   }));
-  el.innerHTML = items.join('');
+  el.innerHTML = items.join('') || '<p class="sfn-vide">Aucune photo pour l’instant.</p>';
 }
 
-async function saveVisite(id) {
-  const date = document.getElementById('v-date')?.value;
-  const type = document.getElementById('v-type')?.value;
-  const adresse = document.getElementById('v-adresse')?.value||null;
-  const bienId = document.getElementById('v-bien')?.value||null;
-  const notes = document.getElementById('v-notes')?.value||null;
-  if(!date){showNotif('La date est requise',true);return;}
+/* Le compte rendu tel qu'il partira en base. Pure : elle lit l'écran, ne
+   l'écrit pas, et rend aussi les erreurs qui empêchent d'enregistrer. */
+function sfcCompteRenduDepuisEcran(grilleDispo) {
+  const val = id => document.getElementById(id)?.value || '';
+  const type = val('v-type') || 'achat';
+  const erreurs = [];
+  const date = val('v-date');
+  if (!date) erreurs.push(['v-date', 'Indiquez la date de la visite.']);
+  const locId = val('v-locataire') || null;
   // ⚠️ Un état des lieux sans locataire ne veut rien dire — et l'invariant
-  // `visites_edl_a_un_locataire` (partie C de la migration) le refusera.
-  if(sfCrEstEdl(type) && !document.getElementById('v-locataire')?.value){
-    showNotif('Un état des lieux porte sur un locataire : indiquez lequel', true);
-    document.getElementById('v-locataire')?.focus(); return;
+  // `visites_edl_a_un_locataire` le refuse en base.
+  if (sfCrEstEdl(type) && !locId) erreurs.push(['v-locataire', 'Un état des lieux porte sur un locataire : indiquez lequel.']);
+  const grilleBrute = grilleDispo && type === 'achat' ? sfcLireGrille() : null;
+  if (grilleBrute) {
+    for (const c of SF_GRILLE_CHAMPS) {
+      if (c.type === 'euro' && Number.isNaN(sfLireNombre(grilleBrute[c.k]))) {
+        erreurs.push(['g-' + c.k, `« ${String(grilleBrute[c.k]).trim()} » n'est pas un montant.`]);
+      }
+    }
   }
+  /* ⚠️ `conforme` n'a de sens que sur un état des lieux DE SORTIE : ailleurs il
+     reste NULL (invariant `visites_conforme_sur_sortie`). */
+  const conformeBrut = val('v-conforme');
+  const payload = {
+    date_visite: date, type_visite: type, adresse: val('v-adresse').trim() || null,
+    bien_id: val('v-bien') || null,
+    // Une visite d'achat ne concerne aucun locataire : le champ est caché, sa
+    // valeur ne doit pas partir pour autant.
+    locataire_id: type === 'achat' ? null : locId,
+    conforme: type === 'edl_sortie' && conformeBrut ? conformeBrut === 'oui' : null,
+    note_sur_5: visitRating || null,
+    notes: val('v-notes').trim() || null,
+    user_id: currentUser?.id,
+  };
+  // La grille ne part que si la colonne existe ; hors visite d'achat, elle
+  // est vidée plutôt que de garder la grille d'une nature abandonnée.
+  if (grilleDispo) payload.grille = type === 'achat' ? sfGrilleNormaliser(grilleBrute) : null;
+  return { payload, erreurs };
+}
+
+async function saveVisite() {
+  /* ⚠️ Un second appui pendant l'envoi ne crée pas un second compte rendu. La
+     garde se pose AVANT le premier `await` : posée après la vérification de la
+     grille, deux appuis rapprochés passaient tous les deux — le banc d'essai
+     a compté deux mises à jour pour un seul enregistrement. */
+  if (sfcEnvoi) return;
+  sfcEnvoi = true;
+  // Le compte rendu de CET enregistrement : une navigation pendant l'envoi
+  // en ouvrirait un autre, qu'on ne doit pas toucher.
+  const etat = sfcEtat;
+  const btn = document.getElementById('v-enregistrer');
   try {
-    // 1. Insert/update sans les photos → récupérer l'id
-    /* ⚠️ `conforme` n'a de sens que sur un état des lieux DE SORTIE : ailleurs
-       il reste NULL, sans quoi on écrirait un verdict sur une visite d'achat.
-       C'est l'invariant tenu ici, en attendant qu'il passe en base (partie C
-       de MIGRATION-PREAVIS.sql). */
-    const locId = document.getElementById('v-locataire')?.value || null;
-    const conformeBrut = document.getElementById('v-conforme')?.value || '';
-    const conforme = type === 'edl_sortie' && conformeBrut
-      ? conformeBrut === 'oui' : null;
-    const payload = {date_visite:date,type_visite:type,adresse,bien_id:bienId||null,
-                     locataire_id:locId, conforme,
-                     note_sur_5:visitRating||null,notes,user_id:currentUser?.id};
-    let visiteId = id;
-    if(id){
-      const {error} = await db.from('visites').update(payload).eq('id',id);
-      if(error) throw error;
+    document.querySelectorAll('.sfc .sf-hint--error:not([hidden])').forEach(e => sfnErreur(e.id.replace(/-err$/, ''), ''));
+    const grilleDispo = await sfcVerifierGrille();
+    const { payload, erreurs } = sfcCompteRenduDepuisEcran(grilleDispo);
+    if (erreurs.length) { sfnMontrerErreurs(erreurs); return; }
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="sf-attente"></span>Enregistrement…'; }
+    const creation = !etat.id;
+    let visiteId = etat.id;
+    if (visiteId) {
+      const { error } = await db.from('visites').update(payload).eq('id', visiteId);
+      if (error) throw error;
     } else {
-      const {data:inserted, error} = await db.from('visites').insert(payload).select('id').single();
-      if(error) throw error;
+      const { data: inserted, error } = await db.from('visites').insert(payload).select('id').single();
+      if (error) throw error;
       visiteId = inserted.id;
+      // ⚠️ Le compte rendu existe : si l'envoi des photos échoue ensuite, un
+      // nouvel appui le METTRA À JOUR au lieu d'en créer un second.
+      etat.id = visiteId;
     }
-    // 2. Upload des nouvelles photos b64 vers Storage
+    // Les nouvelles photos partent dans Storage, les anciennes restent.
     const photosPaths = [];
-    for(const p of visitPhotos){
-      if(p.kind==='storage'){ photosPaths.push({path:p.path, name:p.name}); }
-      else if(p.kind==='b64'){
+    for (const p of visitPhotos) {
+      if (p.kind === 'storage') photosPaths.push({ path: p.path, name: p.name });
+      else if (p.kind === 'b64') {
         const up = await TI_STORAGE.upload('visites-photos', visiteId, p._file || TI_STORAGE._dataURLtoBlob(p.data), p.name);
-        photosPaths.push({path:up.path, name:up.name});
+        photosPaths.push({ path: up.path, name: up.name });
       }
     }
-    // 3. Update paths + vider legacy
-    const {error:upErr} = await db.from('visites').update({photos_paths:photosPaths, photos:[]}).eq('id',visiteId);
-    if(upErr) throw upErr;
+    const { error: upErr } = await db.from('visites').update({ photos_paths: photosPaths, photos: [] }).eq('id', visiteId);
+    if (upErr) throw upErr;
     /* ⚠️ LE CONSTAT MET À JOUR LA CONCLUSION. `visites.conforme` porte ce qui a
-       été OBSERVÉ ; `locataires.edl_sortie_conforme` porte ce que le bailleur
-       en CONCLUT, et c'est cette conclusion qui fixe le délai de restitution du
-       dépôt — un ou deux mois. Les laisser vivre chacune de leur côté, c'était
-       promettre dans la fenêtre de sortie « le délai sera recalculé » sans que
-       rien ne le recalcule jamais. Enregistrer l'état des lieux de sortie
-       reporte donc le verdict sur le bail.
-       ⚠️ Un seul sens : du constat vers le bail. L'inverse écraserait une
-       observation datée par une case cochée ailleurs. */
+       été OBSERVÉ ; `locataires.edl_sortie_conforme`, ce que le bailleur en
+       CONCLUT — et c'est elle qui fixe le délai de restitution du dépôt. Un
+       seul sens : du constat vers le bail. */
     let reporte = false;
-    if(type === 'edl_sortie' && locId && conforme !== null) {
+    if (payload.type_visite === 'edl_sortie' && payload.locataire_id && payload.conforme !== null) {
       const { error: eMaj } = await db.from('locataires')
-        .update({ edl_sortie_conforme: conforme }).eq('id', locId);
-      if(!eMaj) {
+        .update({ edl_sortie_conforme: payload.conforme }).eq('id', payload.locataire_id);
+      if (!eMaj) {
         reporte = true;
-        const l = allLocataires.find(x => x.id === locId);
-        if(l) l.edl_sortie_conforme = conforme;
+        const l = allLocataires.find(x => x.id === payload.locataire_id);
+        if (l) l.edl_sortie_conforme = payload.conforme;
       }
     }
-    showNotif(`${id ? 'Compte rendu mis à jour' : 'Compte rendu enregistré'}${
-      reporte ? ` · délai de restitution du dépôt recalculé` : ''}`);
-    closeModal('modal-detail');
-    /* ⚠️ On ne redessine « Comptes rendus » QUE si l'on y est. Depuis l'acte de
-       sortie, l'état des lieux se rédige DEPUIS le Suivi financier : y écraser
-       la page par la liste des visites laissait la navigation sur un onglet et
-       le contenu sur un autre. */
-    if(currentPage === 'visites') renderVisites(document.getElementById('content'));
-    else {
-      await loadLocataires();
-      const c = document.getElementById('mf-content');
-      if(c && mfTab === 'locataires') renderMfLocataires(c);
-      if(currentPage === 'bien-detail') bdRefresh();
-    }
-  } catch(error) {
-    showNotif('Erreur : '+error.message,true);
+    sfcModifie = false;
+    showNotif(`${creation ? 'Compte rendu enregistré' : 'Compte rendu mis à jour'}${reporte ? ' · délai de restitution du dépôt recalculé' : ''}`);
+    // Enregistré, il s'ouvre en lecture ; « ← » ramène d'où l'on venait.
+    // Sauf si l'on est parti entre-temps : on ne ramène personne de force.
+    etat.mode = 'lecture';
+    if (currentPage === 'compte-rendu' && sfcEtat === etat) navigate('compte-rendu');
+  } catch (error) {
+    showNotif('Erreur : ' + error.message, true);
+  } finally {
+    sfcEnvoi = false;
+    if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = etat.id ? 'Enregistrer' : 'Enregistrer le compte rendu'; }
+  }
+}
+
+async function sfcQuitter() {
+  if (sfcModifie && !(await sfConfirmer({
+    titre: 'Quitter le compte rendu',
+    question: 'Quitter sans enregistrer ?',
+    detail: 'Ce que vous avez saisi depuis l’ouverture du compte rendu sera perdu.',
+    ok: 'Quitter sans enregistrer', danger: true }))) return;
+  sfcModifie = false;
+  // Une modification annulée revient à la lecture ; une création, d'où elle partait.
+  if (sfcEtat.id) { sfcEtat.mode = 'lecture'; navigate('compte-rendu'); }
+  else sfcAller(sfcEtat.retour);
+}
+
+function sfcAller(r) {
+  if (r.page === 'bien-detail' && r.id && allBiens.find(b => b.id === r.id)) {
+    currentBienId = r.id;
+    bienDetailTab = 'visites';
+    /* ⚠️ La fiche retrouve SON retour. Ouverte depuis un compte rendu, elle
+       renvoyait vers lui, qui renvoyait vers elle : une boucle sans sortie.
+       Dans ce cas, elle revient à la liste des comptes rendus. */
+    bienDetailBack = r.back && r.back !== 'compte-rendu' ? r.back : 'visites';
+    navigate('bien-detail');
+  } else {
+    navigate(r.page === 'bien-detail' || r.page === 'compte-rendu' ? 'visites' : (r.page || 'visites'));
   }
 }
 
 async function deleteVisite(id) {
-  if(!(await sfConfirmer({ titre: 'Supprimer le compte rendu', question: 'Supprimer ce compte rendu ?',
+  if (!(await sfConfirmer({ titre: 'Supprimer le compte rendu', question: 'Supprimer ce compte rendu ?',
     detail: 'Ses photos partent avec lui.', ok: 'Supprimer', danger: true }))) return;
-  // Nettoyer les photos Storage rattachées (best-effort)
-  const {data:v} = await db.from('visites').select('photos_paths').eq('id',id).maybeSingle();
-  if(v){
-    const ph = (Array.isArray(v.photos_paths)?v.photos_paths:[]).map(p=>p.path).filter(Boolean);
-    if(ph.length) await TI_STORAGE.remove('visites-photos', ph);
+  // Les photos Storage rattachées partent d'abord (au mieux).
+  const { data: v } = await db.from('visites').select('photos_paths').eq('id', id).maybeSingle();
+  if (v) {
+    const ph = (Array.isArray(v.photos_paths) ? v.photos_paths : []).map(p => p.path).filter(Boolean);
+    if (ph.length) await TI_STORAGE.remove('visites-photos', ph);
   }
-  const{error}=await db.from('visites').delete().eq('id',id);
-  if(error){showNotif('Erreur',true);return;}
-  showNotif('Visite supprimée');closeModal('modal-detail');
-  renderVisites(document.getElementById('content'));
+  const { error } = await db.from('visites').delete().eq('id', id).eq('user_id', currentUser.id);
+  if (error) { showNotif('Erreur : ' + error.message, true); return; }
+  sfcModifie = false;
+  showNotif('Compte rendu supprimé');
+  sfcAller(sfcEtat.retour);
 }
 
 // ── SIMULATEUR CRÉDIT ──
@@ -15278,15 +15628,6 @@ async function deleteSim(id) {
   if(error){showNotif('Erreur',true);return;}
   showNotif('Simulation supprimée');closeModal('modal-detail');
   renderSimulateur(document.getElementById('content'));
-}
-
-function toggleVisiteGroup(groupId, header) {
-  const content = document.getElementById(groupId);
-  const arrow = document.getElementById(groupId+'-arrow');
-  if(!content) return;
-  const isOpen = content.style.display !== 'none';
-  content.style.display = isOpen ? 'none' : 'flex';
-  if(arrow) arrow.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
 }
 
 function openModal(id){document.getElementById(id).classList.add('open');}

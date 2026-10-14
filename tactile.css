@@ -140,6 +140,9 @@
      qu'on vise le plus souvent, et la plus petite. */
   .sfb-view  { height: 44px; }
   .btn-close { width: 44px; height: 44px; }
+  /* Retirer une photo ou un document de la fiche et du compte rendu (v=96) :
+     32 px à la souris, la plus petite cible de ces deux formulaires au doigt. */
+  .sfn-retirer { width: 44px; height: 44px; }
 }
 
 

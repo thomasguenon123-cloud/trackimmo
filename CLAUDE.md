@@ -98,6 +98,19 @@
   par les fonctions de la fiche. Montants en champ texte au clavier numérique,
   alignés à droite, unité dans le champ. Une seule action principale, en barre
   collante ; quitter une saisie se confirme. Garde : `nouvelle-fiche.test.js`.
+- **Comptes rendus de visite** (v=96) : liste, lecture et saisie en PAGES
+  (route `compte-rendu`), plus dans `modal-detail`. Une visite d'achat se
+  remplit avec la grille validée le 14/10 (le bien, la copropriété, le
+  quartier, le verdict), rangée dans `visites.grille` (jsonb) et vidée hors
+  visite d'achat. Tant que la colonne n'existe pas (`sfcGrilleDispo`), la
+  grille ne s'affiche pas et rien n'est envoyé pour elle. Les comptes rendus
+  des biens de test sortent des chiffres ; la note moyenne ne porte que sur les
+  visites notées. Un enregistrement ouvre la lecture, « ← » ramène d'où l'on
+  venait (fiche sur l'onglet Visites, Suivi financier, liste).
+  Garde : `comptes-rendus.test.js`.
+- **Choix segmenté** : `.sf-choix` (components.css) — des boutons
+  `aria-pressed` pour quelques valeurs visibles ; toucher le choix retenu le
+  retire. Le choix retenu se dit par la bordure, le fond ET une pastille.
 - **Confirmation** : `sfConfirmer({...})`, jamais `confirm()` natif (garde
   `impasses.test.js`). Elle a sa propre fenêtre, au-dessus de tout
   (`--sf-z-confirm`). ⚠️ son `question` est échappé, son `detail` ne l'est PAS.
@@ -135,12 +148,19 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 | Montant saisi dans un champ (« 168 000 », « 1 200,50 ») | `sfLireNombre()` — jamais `parseFloat` sur une saisie |
 | Rédaction d'un cashflow (libellé, valeur, sous-titre) | `sfResumeCashflow()` — fiche et formulaire |
 | Champs de la fiche bien (ordre, sections) | `SFN_SECTIONS` ; libellés et types : `TI_BIENS.CHAMPS` |
+| Critères de la grille de visite | `SF_GRILLE` ; ce qui entre en base : `sfGrilleNormaliser()` |
+| Ligne d'un compte rendu (liste et onglet Visites de la fiche) | `sfcLigneHtml()` |
 
 ## Pièges connus — chacun a coûté au moins une fois
 
 - **Ne jamais compter des jours en millisecondes** (heure d'été : 830 € écrits
   803 €). Une borne de fin de mois va jusqu'à 23:59:59.999 (`finDeJournee`).
-  Une date n'est pas un instant.
+  Une date n'est pas un instant : la date du jour se lit en heure locale
+  (`sfAujourdhuiIso`) — `toISOString().slice(0,10)` donne la veille entre
+  minuit et 2 h l'été.
+- **Une garde contre le double envoi se pose AVANT le premier `await`** :
+  posée après, deux appuis rapprochés passent tous les deux (v=96, trouvé au
+  banc d'essai).
 - **Une action référentielle est un chemin d'écriture** : lire les
   `ON DELETE` / `ON UPDATE` des clés étrangères, pas seulement les `update`.
 - **Tout texte lu dans l'URL est hostile** (`error_description`, paramètres,
@@ -175,6 +195,10 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
   texte + `inputmode="decimal"` + `sfLireNombre()`.
 - **`<summary>`** : Safari a longtemps ignoré `display:flex` dessus, et il
   n'admet que du contenu phrasé. Le flex va sur un `<span>` intérieur.
+- **`hidden` perd contre une classe qui pose `display`** (`.sff-block`,
+  `.form-group`, `.sfn-f`…) : ajouter la règle `[hidden]{display:none}`.
+- **Banc Playwright** : une capture `fullPage` coupe l'émulation tactile ;
+  mesurer les cibles AVANT toute capture, une page neuve par vue.
 - `node --check` ne voit pas une variable hors portée.
 - Une couleur qui « ne prend pas » : chercher qui l'écrit en JS (style en ligne).
 - Quand un affichage diffère selon l'écran : chercher un second mapping.

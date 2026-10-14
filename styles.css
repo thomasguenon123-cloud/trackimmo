@@ -1166,68 +1166,17 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 .portail-tag.luxe{background:rgba(217,119,6,0.1);color:var(--warning);}
 .portail-tag.part{background:rgba(59,130,246,0.1);color:var(--sf-info);}
 
-/* ════ VISITES ════ */
-.visites-layout{display:flex;gap:18px;}
-.visites-list{flex:1;min-width:0;}
-.visite-card{
-  background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r);
-  padding:0;box-shadow:var(--c-shadow);margin-bottom:10px;
-  cursor:pointer;transition:border-color 0.18s,box-shadow 0.18s,transform 0.18s;
-  overflow:hidden;
-}
-.visite-card:hover{border-color:var(--accent);box-shadow:var(--c-shadow-lg);transform:translateY(-2px);}
-/* Layout 2 colonnes */
-.visite-card-inner{display:flex;min-height:110px;}
-.visite-card-left{flex:1;padding:16px 18px;border-right:1px solid var(--c-border);min-width:0;}
-.visite-card-right{
-  width:140px;flex-shrink:0;padding:16px 14px;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
-  background:var(--c-bg);
-}
-.visite-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:7px;gap:8px;}
-.visite-date{font-size:10.5px;font-weight:600;color:var(--c-dim);}
-.visite-type{font-size:10px;font-weight:700;padding:2px 9px;border-radius:4px;flex-shrink:0;}
-.visite-type.achat{background:rgba(23,160,107,0.1);color:var(--accent);}
-.visite-type.locataire{background:rgba(22,163,74,0.1);color:var(--positive-c);}
-/* Les états des lieux : un CONSTAT, pas une impression. Une teinte neutre les
-   distingue des deux visites, qui sont des appréciations. */
-.visite-type.edl_entree,
-.visite-type.edl_sortie{background:var(--sf-surface-2,rgba(148,163,184,0.12));color:var(--c-text);}
+/* ════ VISITES ════
+   La liste, la lecture et la saisie des comptes rendus sont passées à la
+   charte en v=96 (`.sfc-*`, plus bas) : les cartes `.visite-*`, la vignette
+   `.preview-*` et la zone `.photo-upload-area` ne sont plus produites.
+   Restent les étoiles de la note, que `setRating` redessine. */
 
 /* ⚠️ `.form-group` est en `display:flex` : l'attribut `hidden` du navigateur,
    qui vaut `display:none`, est donc ÉCRASÉ par cette règle plus spécifique.
-   Sans cette ligne, le bloc de conformité s'affiche sur tous les comptes
-   rendus et le masquage de `sfCrMajType` ne fait rien. Même correctif que
-   `.sff-pane[hidden]` et `.mfx-pane[hidden]`. */
+   Même correctif que `.sff-pane[hidden]` et `.mfx-pane[hidden]`. */
 .form-group[hidden]{display:none;}
-.visite-adresse{font-size:14px;font-weight:700;color:var(--c-text);margin-bottom:3px;}
-.visite-bien{font-size:11px;color:var(--c-dim);}
-.visite-footer{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:9px;border-top:1px solid var(--c-border);}
-.stars{display:flex;gap:1px;font-size:13px;}
-.visite-note-count{font-size:10px;color:var(--c-muted);}
-.visite-photos-preview{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;}
-.visite-thumb{width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--c-border);}
-.visite-thumb-more{width:40px;height:40px;border-radius:6px;background:var(--c-bg);border:1px solid var(--c-border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--c-dim);}
-/* Score côté droit */
-.visite-score-circle{
-  width:52px;height:52px;border-radius:50%;border:3px solid var(--c-border);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  font-size:18px;font-weight:800;color:var(--c-text);line-height:1;
-  background:var(--sf-surface);
-}
-.visite-score-circle.score-high{border-color:var(--positive);color:var(--positive);}
-.visite-score-circle.score-mid{border-color:var(--warning);color:var(--warning);}
-.visite-score-circle.score-low{border-color:var(--negative);color:var(--negative);}
-.visite-score-label{font-size:9px;font-weight:600;color:var(--c-muted);text-transform:uppercase;letter-spacing:0.8px;}
-.visite-right-meta{font-size:10px;color:var(--c-dim);text-align:center;line-height:1.4;}
-.visite-photo-count{
-  display:flex;align-items:center;gap:4px;font-size:10px;font-weight:600;
-  color:var(--c-dim);background:var(--c-card);border:1px solid var(--c-border);
-  padding:3px 8px;border-radius:6px;
-}
 
-/* Rating input */
-.rating-input{display:flex;gap:6px;}
 /* ⚠️ PLUS D'OPACITE, ET PLUS DE COULEUR HERITEE — 27/09/2026.
    Deux defauts se cachaient dans ces deux lignes. L'opacite 0,3 rendait
    l'etoile eteinte grise sur fond clair et quasi invisible sur fond sombre :
@@ -1239,18 +1188,6 @@ body{background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-siz
 .star-btn{cursor:pointer;background:none;border:none;padding:2px;line-height:0;
   color:var(--sf-text-3);transition:color .1s;}
 .star-btn.active{color:var(--sf-alert);}
-
-/* Photo upload */
-.photo-upload-area{
-  border:2px dashed var(--c-border2);border-radius:var(--r-sm);
-  padding:20px;text-align:center;cursor:pointer;
-  transition:border-color 0.15s,background 0.15s;color:var(--c-dim);font-size:13px;
-}
-.photo-upload-area:hover{border-color:var(--accent);background:rgba(23,160,107,0.04);}
-.photos-preview-grid{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
-.preview-thumb-wrap{position:relative;}
-.preview-thumb{width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid var(--c-border);}
-.preview-remove{position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;background:var(--negative);color:var(--accent-on);border:none;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
 
 /* ════ SIMULATEUR ════ */
 .simulateur-layout{display:grid;grid-template-columns:1fr 340px;gap:18px;align-items:start;}
@@ -2445,6 +2382,78 @@ body:has(.sfn-barre) .sf-topnav__tests{ bottom:calc(84px + env(safe-area-inset-b
   .sfn-r--ess{ flex-basis:100%; }
   .sfn-barre{ gap:var(--sf-space-4); }
   .sfn-barre__acts .sf-btn{ padding:0 var(--sf-space-5); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMPTES RENDUS — `.sfc-*` (v=96)
+   La liste, la lecture et la saisie d'un compte rendu, au gabarit de la fiche
+   (`.sff-*`) et de son formulaire (`.sfn-*`). Seuls la ligne cliquable, les
+   étoiles et la lecture des textes libres leur sont propres.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ⚠️ `.sff-block` est en `display:flex` : l'attribut `hidden` (le
+   `display:none` du navigateur) perd contre lui. Sans cette ligne, la grille
+   d'une visite d'achat resterait affichée sur un état des lieux. */
+.sfc .sff-block[hidden]{ display:none; }
+
+/* Un groupe par bien : son titre est une donnée, il s'écrit en casse normale,
+   pas en étiquette de section. */
+.sfc-groupe .sff-block__h{ flex-wrap:wrap; row-gap:var(--sf-space-2);
+  padding-top:var(--sf-space-4); padding-bottom:var(--sf-space-4); }
+.sfc-groupe__t{ flex:1 1 220px; min-width:0; overflow-wrap:anywhere;
+  font-family:var(--sf-font-display); font-size:var(--sf-font-lead);
+  font-weight:var(--sf-weight-semibold); letter-spacing:normal; text-transform:none;
+  color:var(--sf-text); }
+.sfc-groupe__l{ font-family:var(--sf-font-ui); font-size:var(--sf-font-body);
+  font-weight:var(--sf-weight-regular); color:var(--sf-text-2); }
+.sfc-groupe .sff-block__n{ margin-left:0; }
+
+/* La ligne d'un compte rendu est un BOUTON — elle s'ouvre au clavier comme au
+   doigt — habillé en `.sff-row`. Un bouton n'hérite ni la police ni la
+   couleur, et porte une bordure sur ses quatre côtés. */
+.sfc-row{ font:inherit; color:inherit; text-align:left; background:none;
+  border:0; border-bottom:var(--sf-border-width) solid var(--sf-border); }
+.sfc-row:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus); outline-offset:-2px; }
+/* La date en police à chasse fixe : 13 caractères couvrent « 20 sept. 2026 »,
+   et les titres de toutes les lignes partent du même bord. */
+.sfc-row .sff-row__d{ min-width:13ch; }
+.sfc-row__t{ display:block; overflow-wrap:anywhere; }
+.sfc-row .sff-row__s{ display:block; overflow-wrap:anywhere; }
+.sfc-row__r{ color:var(--sf-text-2); }
+.sfc-row__a{ display:inline-flex; align-items:center; gap:var(--sf-space-5); flex-shrink:0; }
+.sfc-row__ph{ display:inline-flex; align-items:center; gap:var(--sf-space-2);
+  font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
+  font-variant-numeric:tabular-nums; color:var(--sf-text-2); }
+
+/* La note moyenne : « 4,5/5 », le dénominateur en retrait. */
+.sfc-sur5{ font-size:.55em; font-weight:var(--sf-weight-medium); color:var(--sf-text-2); margin-left:2px; }
+/* Une valeur en toutes lettres (un nom, une décision) : taille du texte de
+   tête, et retour à la ligne plutôt qu'une coupure. */
+.sfc-kpi__texte{ white-space:normal; overflow-wrap:anywhere; font-family:var(--sf-font-ui);
+  font-size:var(--sf-font-lead); font-weight:var(--sf-weight-semibold); line-height:var(--sf-lh-snug); }
+
+/* La lecture. ⚠️ `--sf-text-3` retombe sous AA hors de `--sf-bg` : sur la
+   carte, ce qui n'est pas renseigné s'écrit en `--sf-text-2`. */
+.sfc-vide{ margin:0; color:var(--sf-text-2); }
+.sfc-texte, .sfc-notes{ white-space:pre-wrap; overflow-wrap:anywhere; line-height:var(--sf-lh-normal); }
+.sfc-notes{ margin:0; font-size:var(--sf-font-body); color:var(--sf-text); max-width:72ch; }
+
+/* La note sur cinq, au doigt : 38 px à la souris, 44 sur écran tactile. */
+.sfc-etoiles{ display:flex; gap:var(--sf-space-1); }
+.sfc-etoile{ min-width:var(--sf-control-h); min-height:var(--sf-control-h);
+  display:inline-flex; align-items:center; justify-content:center; border-radius:var(--sf-radius-sm); }
+.sfc-etoile:hover{ background:var(--sf-surface-2); }
+.sfc-etoile:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus); outline-offset:var(--sf-focus-offset); }
+
+@media(max-width:560px){
+  /* La date passe au-dessus : le titre garde la largeur. */
+  .sfc-row{ flex-wrap:wrap; row-gap:var(--sf-space-2); }
+  .sfc-row .sff-row__d{ flex-basis:100%; min-width:0; }
+  /* Au téléphone, cinq compteurs empilés repoussaient la liste sous l'écran :
+     ils passent sur deux colonnes. Le dernier, seul sur sa ligne, prend la
+     largeur — une case vide montrerait le fond qui dessine les séparateurs. */
+  .sfc-liste .sff-kpis{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+  .sfc-liste .sff-kpi:last-child:nth-child(odd){ grid-column:1 / -1; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

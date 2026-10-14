@@ -1042,3 +1042,39 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
   font-size:var(--sf-font-caption); line-height:1.4;
   pointer-events:none;
 }
+
+/* ── Choix segmenté — un critère, quelques valeurs visibles (v=96) ───────────
+   Des boutons à bascule (`aria-pressed`) plutôt qu'une liste déroulante : au
+   doigt, pendant une visite, on touche une valeur qu'on VOIT au lieu d'ouvrir
+   un menu. Toucher le choix retenu le retire : un critère reste facultatif.
+   ⚠️ La couleur ne porte jamais seule : le choix retenu prend une bordure de
+   marque, un fond ET une pastille pleine — l'anneau vide dit « non retenu ».
+   Hauteur de contrôle : 38 px à la souris, 44 au doigt (tactile.css décale
+   l'échelle entière). */
+.sf-choix{ display:flex; flex-wrap:wrap; gap:var(--sf-space-3); }
+.sf-choix__o{
+  display:inline-flex; align-items:center; gap:var(--sf-space-3);
+  min-height:var(--sf-control-h); padding:0 var(--sf-space-5);
+  background:var(--sf-surface-2); color:var(--sf-text-2);
+  border:var(--sf-border-width) solid var(--sf-border); border-radius:var(--sf-radius-full);
+  font-family:var(--sf-font-ui); font-size:var(--sf-font-body-sm);
+  font-weight:var(--sf-weight-medium); line-height:1.2; cursor:pointer;
+  transition:background-color var(--sf-dur) var(--sf-ease), border-color var(--sf-dur) var(--sf-ease),
+             color var(--sf-dur) var(--sf-ease);
+}
+.sf-choix__o::before{
+  content:''; width:8px; height:8px; flex-shrink:0; border-radius:50%;
+  border:1.5px solid currentColor; box-sizing:border-box;
+}
+.sf-choix__o:hover{ background:var(--sf-surface-3); color:var(--sf-text); }
+.sf-choix__o[aria-pressed="true"]{
+  background:var(--sf-brand-wash-2); border-color:var(--sf-brand-vivid); color:var(--sf-text);
+}
+.sf-choix__o[aria-pressed="true"]::before{ background:currentColor; }
+.sf-choix__o:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus); outline-offset:var(--sf-focus-offset); }
+/* Les lettres (DPE) : des pastilles de largeur égale, centrées. Pas de teinte
+   d'étiquette énergie — un seul vert lumineux, réservé aux valeurs positives. */
+.sf-choix--lettres .sf-choix__o{
+  min-width:var(--sf-control-h); justify-content:center; padding:0 var(--sf-space-4);
+  font-family:var(--sf-font-display); font-weight:var(--sf-weight-semibold);
+}
