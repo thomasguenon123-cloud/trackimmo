@@ -159,16 +159,40 @@ test('le masquage des commentaires d’app.js n’efface pas de code (canari)', 
 
 // ── 2. Ce qui est caché ne reste pas dans la page ─────────────────────────
 
-test('la barre de sélection des simulations, cachée, n’existe pas dans la page', () => {
-  const [base] = regle('.sim-action-bar');
-  const [visible] = regle('.sim-action-bar.visible');
-  assert.ok(base && visible, 'témoin : les deux règles de la barre sont trouvées');
-  assert.match(base.corps, /position\s*:\s*fixed/, 'témoin : c\'est bien la barre flottante');
-  assert.match(base.corps, /display\s*:\s*none/,
-    'Cachée par une opacité nulle, la barre reste dans la page : sa boîte dépasse l\'écran et Safari dézoome.');
-  assert.match(visible.corps, /display\s*:\s*flex/, 'montrée, elle s\'affiche');
-  assert.match(base.corps, /max-width\s*:\s*calc\(\s*100vw/, 'montrée, elle tient dans l\'écran');
-  assert.match(base.corps, /flex-wrap\s*:\s*wrap/, 'et passe à la ligne plutôt que de déborder');
+/* La barre de sélection des simulations, cachée par une opacité nulle et
+   recentrée par `transform`, restait dans la page : sa boîte allait jusqu'à
+   858 px sur un iPhone de 402 px. Elle a disparu avec la sélection multiple
+   (v=99) ; la règle reste : un élément FIXE recentré par translate ne se
+   cache jamais par la seule opacité. */
+function fixesCachesParOpacite(regles) {
+  return regles.filter(r => /position\s*:\s*fixed/.test(r.corps)
+    && /translate(X)?\(\s*-50%/.test(r.corps)
+    && /opacity\s*:\s*0(\.0*)?\s*(;|$)/.test(r.corps)
+    && !/display\s*:\s*none/.test(r.corps)).map(r => r.sel);
+}
+
+test('un élément fixe caché ne reste pas dans la page', () => {
+  // Canari : le détecteur reconnaît le défaut qu'il garde.
+  const piege = regles('.x{ position:fixed; left:50%; transform:translateX(-50%) translateY(80px); opacity:0; }'
+    + '.y{ position:fixed; left:50%; transform:translateX(-50%); display:none; }');
+  assert.deepEqual(fixesCachesParOpacite(piege), ['.x'], 'le détecteur ne voit plus le défaut');
+  assert.deepEqual(fixesCachesParOpacite(REGLES), [],
+    'Un élément fixe recentré par transform est caché par une opacité nulle : sa boîte reste dans la page et Safari dézoome.');
+  assert.ok(!/id="sim-action-bar"/.test(lire('index.html')), 'la barre de sélection des simulations est revenue');
+});
+
+test('sur téléphone, les chiffres clés passent sur deux colonnes', () => {
+  const tel = REGLES.filter(r => /max-width\s*:\s*560px/.test(r.media));
+  const deuxColonnes = tel.filter(r => /grid-template-columns\s*:\s*repeat\(\s*2\s*,\s*minmax\(0,\s*1fr\)\)/.test(r.corps));
+  const couverts = new Set(deuxColonnes.flatMap(r => r.sel.split(',').map(x => x.trim())));
+  for (const sel of ['.sff-kpis', '.sfb-kpis', '.mf-page .mfx-kpis', '.acc-kpis']) {
+    assert.ok(couverts.has(sel), `${sel} : quatre chiffres empilés repoussent la liste sous l'écran du téléphone.`);
+  }
+  // Le Suivi financier : sa feuille est chargée après styles.css, la règle doit y être plus précise.
+  const base = regles(CSS['financier.css']).find(r => r.sel === '.mfx-kpis' && !r.media);
+  assert.ok(base, 'témoin : la règle de base des chiffres du Suivi financier est trouvée');
+  const dernier = tel.find(r => /:last-child:nth-child\(odd\)/.test(r.sel) && /grid-column\s*:\s*1\s*\/\s*-1/.test(r.corps));
+  assert.ok(dernier, 'le dernier chiffre, seul sur sa ligne, prend toute la largeur');
 });
 
 test('les onglets de l’Administration tiennent sur un téléphone', () => {

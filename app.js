@@ -797,7 +797,7 @@ function tiCsv(entetes, lignes) {
 }
 
 function tiTelechargerCsv(base, contenu) {
-  const nom = `stonefolio-${base}-${new Date().toISOString().slice(0, 10)}.csv`;
+  const nom = `stonefolio-${base}-${sfAujourdhuiIso()}.csv`;
   const blob = new Blob(['﻿' + contenu], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement('a'), { href: url, download: nom });
@@ -2261,7 +2261,7 @@ function sfAgenda60j() {
 // differents pour le meme mois.
 async function sfPointerLoyer(bienId, mois, annee, boite) {
   if (boite) boite.disabled = true;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = sfAujourdhuiIso();
 
   try {
     const ligne = mfFindLoyer(bienId, mois, annee);
@@ -3895,7 +3895,42 @@ function sfnChamp(c, bien) {
       ${c.aide ? `<p class="sf-hint" id="${aideId}">${esc(c.aide)}${c.annuel ? ` <span class="sfn-mois" id="${c.id}-mois"></span>` : ''}</p>` : ''}
       <p class="sf-hint sf-hint--error" id="${errId}" hidden></p>
       ${c.k === 'code_postal' ? '<div class="sfn-geo" id="f-cp-geo" aria-live="polite"></div>' : ''}
+      ${c.k === 'mensualite_credit' ? '<div class="sfn-estim" id="f-mensualite-estim" aria-live="polite" hidden></div>' : ''}
     </div>`;
+}
+
+/* LA MENSUALITÉ ESTIMÉE (v=99) — la saisie assistée, appliquée au crédit.
+   Tant que la mensualité est vide et que le coût de l'opération est connu, le
+   formulaire PROPOSE une estimation : le coût total financé sur la durée de la
+   fiche, au taux proposé (le vôtre, sinon le taux moyen officiel, sinon celui
+   de votre dernière simulation — sfTauxParDefaut). Il ne la pose jamais seul :
+   une mensualité fait le cashflow, elle se choisit. */
+let sfnTauxEstim = null;
+function sfnEstimationMensualite(data) {
+  const total = mfMontantAcquisition(data);
+  const duree = Number(data.duree_credit_ans) || Number(userPrefs?.duree_credit_ans) || 20;
+  if (!(total > 0) || !sfnTauxEstim) return null;
+  const mens = calcMensualite(total, sfnTauxEstim.taux, duree);
+  return mens > 0 ? { mens: Math.round(mens), total, duree, taux: sfnTauxEstim.taux, mention: sfnTauxEstim.mention } : null;
+}
+function sfnEstimationMaj(data) {
+  const bloc = document.getElementById('f-mensualite-estim');
+  if (!bloc) return;
+  const vide = !(sfLireNombre(document.getElementById('f-mensualite')?.value) > 0);
+  const e = vide ? sfnEstimationMensualite(data) : null;
+  bloc.hidden = !e;
+  if (!e) { bloc.innerHTML = ''; return; }
+  bloc.innerHTML = `<span class="sfn-estim__t">Estimation : <b>${esc(sfEur(e.mens))}</b> par mois, hors assurance, pour ${esc(sfEur(e.total))} sur ${esc(String(e.duree))} ans à ${esc(sfPctNum(e.taux, 2))}.</span>
+    <button type="button" class="sf-btn sf-btn--secondary sf-btn--sm" onclick="sfnUtiliserEstimation()">Utiliser cette estimation</button>
+    <em class="sf-source">${esc(e.mention)}</em>`;
+}
+function sfnUtiliserEstimation() {
+  const e = sfnEstimationMensualite(sfnSynthese().data);
+  if (!e) return;
+  sfnPoser('f-mensualite', sfnFormaterNombre(e.mens));
+  sfnModifie = true;
+  sfnMaj();
+  document.getElementById('f-mensualite')?.focus();
 }
 
 function sfnFichiersHtml() {
@@ -4049,6 +4084,10 @@ async function renderNouveau(el, bien, precedente) {
   page.addEventListener('input', sfnSaisie);
   page.addEventListener('change', sfnSaisie);
   sfnMaj();
+  // Le taux proposé arrive après le rendu (réseau) : l'estimation suit.
+  sfnTauxEstim = null;
+  const jetonTaux = sfnJeton;
+  sfTauxParDefaut().then(t => { if (jetonTaux === sfnJeton && currentPage === 'nouveau') { sfnTauxEstim = t; sfnMaj(); } });
 }
 
 // Toute saisie : la fiche est modifiée, son erreur éventuelle s'efface, la
@@ -4106,6 +4145,7 @@ function sfnMaj() {
     if (cls !== undefined) e.className = 'sfn-r__v sfn-r__v--' + cls;
   };
   if ($('notaire-val')) $('notaire-val').textContent = s.data.prix_affiche ? sfEur(s.data.frais_notaire) : 'Non disponible';
+  sfnEstimationMaj(s.data);
   // Un montant saisi à l'année dit ce qu'il pèse par mois, comme la fiche le compte.
   SFN_SECTIONS.forEach(sec => sec.champs.filter(c => c.annuel).forEach(c => {
     const e = $(c.id + '-mois');
@@ -5589,22 +5629,16 @@ async function renderBienDetail(el) {
             </div>
             <div class="sff-block__b${sims.length ? '' : ' sff-block__b--flush'}">
               ${sims.length
-                ? `<div class="sff-list">${sims.map(s=>`
-                    <div class="sff-row" onclick="openReadSimulation('${s.id}')">
-                      <div class="sff-row__m">${esc(s.nom_simulation||'Simulation')}
-                        <div class="sff-row__s">${sfEur(s.montant_emprunte||0)} sur ${s.duree_ans||20} ans · ${sfPct((s.taux_interet||0).toFixed(2).replace('.',','))}</div>
-                      </div>
-                      <div class="sff-row__a">${sfEur(s.mensualite_calculee||0)} /mois</div>
-                    </div>`).join('')}</div>
+                ? `<div class="sff-list">${sims.map(s => sfsLigneHtml(s, { surFiche: true })).join('')}</div>
                    <div class="sff-cta">
-                     <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="openDossierModal('${b.id}')">${sfAccIcon('doc',15)} Générer le dossier banque</button>
-                     <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="navigate('simulateur')">${sfAccIcon('banque',15)} Nouvelle simulation</button>
+                     <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="openDossierModal(${escJs(b.id)})">${sfAccIcon('doc',15)} Générer le dossier banque</button>
+                     <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="openNouvelleSimulation(${escJs(b.id)})">${sfAccIcon('banque',15)} Nouvelle simulation</button>
                    </div>`
                 : `<div class="sff-empty">
                      <div class="sff-empty__ic">${sfAccIcon('banque',34)}</div>
                      <div class="sff-empty__t">Aucune simulation de crédit</div>
-                     <div class="sff-empty__x">${mensu ? `La mensualité de ${sfEur(mensu)} renseignée plus haut est une hypothèse. Une` : 'Une'} simulation établit la mensualité réelle à partir du taux, de la durée et de l'apport, puis alimente le dossier remis à la banque.</div>
-                     <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="navigate('simulateur')">Simuler ce crédit</button>
+                     <div class="sff-empty__x">${mensu ? `La mensualité de ${sfEur(mensu)} renseignée plus haut est une hypothèse. Une` : 'Une'} simulation calcule la mensualité réelle, assurance comprise, à partir du taux et de la durée. Retenue, elle passe sur cette fiche et alimente le dossier remis à la banque.</div>
+                     <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="openNouvelleSimulation(${escJs(b.id)})">Simuler ce crédit</button>
                    </div>`}
             </div>
           </div>
@@ -5987,10 +6021,37 @@ async function bdDemarrerAcquisition(bienId) {
   if(!b) { showNotif('Bien introuvable', true); return; }
   if(sfDetenu(b)) { showNotif('Ce bien fait déjà partie de votre patrimoine'); return; }
   if(!allSCI.length && currentUser) await loadSCIList();
-  bdAcq = { bienId, mode:'acquisition', vue:'confirmation',
+  // Le crédit retenu pour ce bien (v=99) : l'achat le rappelle, c'est lui que
+  // suivront la fiche et le Suivi financier.
+  const credit = await sfsCreditRetenu(bienId).catch(() => null);
+  bdAcq = { bienId, mode:'acquisition', vue:'confirmation', credit,
             detention:null, sciId:null, locChoix:null, locId:null, enCours:false };
   bdAcqRender();
   openModal('modal-detail');
+}
+
+// Le rappel du financement dans la confirmation d'achat : le crédit retenu,
+// ou à défaut la mensualité de la fiche — jamais un chiffre inventé.
+function bdAcqCreditHtml(b) {
+  const s = bdAcq?.credit;
+  const c = s ? sfSimDepuisLigne(s) : null;
+  const m = parseFloat(b.mensualite_credit) || 0;
+  if (c?.calculable) {
+    /* Le Suivi financier lit la mensualité de la FICHE : si elle diffère de
+       celle du crédit retenu, on le dit plutôt que de promettre l'inverse. */
+    const suivi = Math.round(m) === Math.round(c.mens)
+      ? 'C’est sa mensualité que compte la fiche, et que suivra le Suivi financier.'
+      : m > 0
+        ? `La fiche compte encore <strong>${esc(sfEur(m))}</strong> par mois : c’est ce montant que suivra le Suivi financier, tant que la fiche n’est pas mise à jour depuis la simulation.`
+        : 'La fiche n’a pas encore de mensualité : mettez-la à jour depuis la simulation pour que le Suivi financier la compte.';
+    return `<div class="bd-acq__credit">${sfAccIcon('banque', 16)}
+      <p>Votre crédit : <strong>${esc(sfEur(c.mens))}</strong> par mois${c.assuranceConnue ? ', assurance comprise,' : ''} sur ${esc(String(s.duree_ans))} ans à ${esc(sfPctNum(s.taux_interet, 2))}
+        — la simulation « ${esc(s.nom_simulation || 'retenue')} », retenue pour ce bien. ${suivi}</p></div>`;
+  }
+  return m > 0
+    ? `<div class="bd-acq__credit">${sfAccIcon('banque', 16)}
+        <p>La mensualité de la fiche, <strong>${esc(sfEur(m))}</strong> par mois, sera celle du Suivi financier. Une simulation retenue la remplacerait par celle de votre offre.</p></div>`
+    : '';
 }
 
 /* Point d'entrée de la REPRISE — un bien déjà acquis qu'il reste à déclarer.
@@ -6054,6 +6115,7 @@ function bdAcqVueConfirmation(b) {
             et son locataire.</p>
         </div>
       </div>
+      ${bdAcqCreditHtml(b)}
       <div class="bd-step-pied">
         <button class="sf-btn sf-btn--ghost" onclick="bdAcqAnnuler()">Pas encore</button>
         <button class="sf-btn sf-btn--primary" onclick="bdAcqVersGestion()">${sfAccIcon('check',16)} Oui, ce bien est acheté</button>
@@ -6421,7 +6483,7 @@ async function openActionModal(bienId, actionId) {
     const { data } = await db.from('actions').select('*').eq('id', editingActionId).maybeSingle();
     a = data || null;
   }
-  const today = new Date().toISOString().slice(0,10);
+  const today = sfAujourdhuiIso();
   const curType = a?.type_action || '';
   // Si le type existant n'est pas dans la liste prédéfinie → mode "Autre" pré-rempli
   const isCustom = curType && !ACTION_TYPES.includes(curType);
@@ -6645,10 +6707,12 @@ async function openDossierModal(bienId){
 
   try {
     // Chargement parallèle : presets banque, SCI du compte, simulations du compte
+    const dispo = await sfsVerifierColonnes();
     const [presetsRes, scisRes, simsRes] = await Promise.all([
       bkdocPresetsCache ? Promise.resolve({ data: bkdocPresetsCache }) : db.from('bank_presets').select('*').order('ordre'),
       db.from('sci').select('*').eq('user_id', currentUser.id).order('nom_sci'),
-      db.from('simulations_credit').select('id, nom_simulation, montant_emprunte, taux_interet, duree_ans, mensualite_calculee, taux_endettement, pdf_path, pdf_name, date_document').eq('user_id', currentUser.id).order('created_at', { ascending: false })
+      db.from('simulations_credit').select('id, bien_id, nom_simulation, montant_emprunte, taux_interet, duree_ans, mensualite_calculee, taux_endettement, revenus_mensuels, loyer_exige_banque, pdf_path, pdf_name, date_document'
+        + (dispo ? ', assurance_mensuelle, retenue' : '')).eq('user_id', currentUser.id).order('created_at', { ascending: false })
     ]);
     if(presetsRes.error) throw presetsRes.error;
     if(scisRes.error) throw scisRes.error;
@@ -6661,12 +6725,22 @@ async function openDossierModal(bienId){
     // Présélection : 5 premières photos si plus de 5
     photoPaths.slice(0, 5).forEach((_, i) => bkdocCtx.selPhotos.add(i));
 
-    const presetOpts = bkdocCtx.presets.map(p =>
-      `<option value="${p.key}" ${!p.actif ? 'disabled' : ''} ${p.key === 'credit-agricole' ? 'selected' : ''}>${esc(p.nom)}${!p.actif ? ' (bientôt)' : ''}</option>`).join('');
+    // Pas d'entrée « bientôt » : une banque dont la charte n'est pas prête n'est
+    // pas proposée (même règle que sfParamPropose).
+    const presetOpts = bkdocCtx.presets.filter(p => p.actif).map(p =>
+      `<option value="${esc(p.key)}" ${p.key === 'credit-agricole' ? 'selected' : ''}>${esc(p.nom)}</option>`).join('');
     const sciOpts = ['<option value="">Sans SCI</option>']
       .concat(bkdocCtx.scis.map(s => `<option value="${s.id}" ${b.sci_id === s.id ? 'selected' : ''}>${esc(s.nom_sci)}</option>`)).join('');
-    const simOpts = ['<option value="">Aucune</option>']
-      .concat(bkdocCtx.sims.map(s => `<option value="${s.id}">${esc(s.nom_simulation || 'Simulation')}${s.pdf_path ? ' (PDF joint)' : ''}</option>`)).join('');
+    /* Les simulations de CE bien d'abord, la retenue en tête et choisie
+       d'office : c'est elle qui finance le bien. Les autres restent
+       proposées, plus bas. */
+    const duBien = bkdocCtx.sims.filter(s => s.bien_id === b.id).sort((x, y) => (y.retenue ? 1 : 0) - (x.retenue ? 1 : 0));
+    const autres = bkdocCtx.sims.filter(s => s.bien_id !== b.id);
+    const choisie = duBien[0]?.id || '';
+    const optSim = s => `<option value="${esc(s.id)}"${s.id === choisie ? ' selected' : ''}>${esc(s.nom_simulation || 'Simulation')}${s.retenue ? ' — retenue' : ''}${s.pdf_path ? ' (PDF joint)' : ''}</option>`;
+    const simOpts = '<option value="">Aucune</option>'
+      + (duBien.length ? `<optgroup label="Pour ce bien">${duBien.map(optSim).join('')}</optgroup>` : '')
+      + (autres.length ? `<optgroup label="${duBien.length ? 'Autres simulations' : 'Vos simulations'}">${autres.map(optSim).join('')}</optgroup>` : '');
 
     let photosBlock = '';
     if(photoPaths.length === 0){
@@ -6692,7 +6766,7 @@ async function openDossierModal(bienId){
       <div class="sci-form-group">
         <label class="sci-form-label">Simulation de crédit à joindre</label>
         <select class="sci-form-input" id="bkdoc-sim">${simOpts}</select>
-        <div style="font-size:11px;color:var(--c-muted);margin-top:3px">${sfAccIcon('trombone',12)} « PDF joint » = l'offre de la banque part en annexe. Sans simulation, la page « Plan de financement » est omise.</div>
+        <div style="font-size:11px;color:var(--c-muted);margin-top:3px">${sfAccIcon('trombone',12)} Une simulation « PDF joint » ajoute l'offre de la banque en annexe. Sans simulation, le dossier n'a pas de page « Plan de financement ».</div>
       </div>
       <div class="sci-form-group">
         <label class="sci-form-label">Photos du bien</label>
@@ -6866,9 +6940,13 @@ function bkdocBuildPages(d){
   // ── Page 5 : plan de financement (si simulation) ──
   if(d.sim){
     const s = d.sim;
-    const te = num(s.taux_endettement);
-    const teCls = te <= 33 ? 'ok' : (te <= 40 ? 'warn' : 'bad');
-    const teNote = te <= 33 ? 'Sous le seuil recommandé de 33 %' : (te <= 40 ? 'Entre 33 % et 40 %' : 'Au-dessus de 40 %');
+    // Le même calcul que le simulateur : mensualité assurance comprise,
+    // endettement comparé au plafond bancaire de 35 % (v=99).
+    const c = sfSimDepuisLigne(s);
+    const te = c.calculable && c.te !== null ? c.te : num(s.taux_endettement);
+    const teCls = te <= SF_ENDETTEMENT_MAX ? 'ok' : 'bad';
+    const teNote = te <= SF_ENDETTEMENT_MAX ? `Dans la limite de ${SF_ENDETTEMENT_MAX} % retenue par les banques` : `Au-dessus de la limite de ${SF_ENDETTEMENT_MAX} %`;
+    const mensDoc = c.calculable ? c.mens : num(s.mensualite_calculee);
     pages.push(`<div class="page" style="${vars}">${hdr}
       <div class="ibody">
         <div class="sec-kicker">FINANCEMENT</div>
@@ -6878,7 +6956,7 @@ function bkdocBuildPages(d){
           <div class="fin-card"><div class="fin-l">Montant emprunté</div><div class="fin-v">${bkdocEUR(num(s.montant_emprunte))}</div></div>
           <div class="fin-card"><div class="fin-l">Taux d'intérêt</div><div class="fin-v">${num(s.taux_interet).toFixed(2).replace('.', ',')} %</div></div>
           <div class="fin-card"><div class="fin-l">Durée</div><div class="fin-v">${fmt(num(s.duree_ans))} ans</div></div>
-          <div class="fin-card"><div class="fin-l">Mensualité</div><div class="fin-v">${bkdocEUR(num(s.mensualite_calculee))}</div></div>
+          <div class="fin-card"><div class="fin-l">Mensualité${c.assuranceConnue ? ', assurance comprise' : ''}</div><div class="fin-v">${bkdocEUR(mensDoc)}</div></div>
         </div>
         ${te ? `<div class="endet"><div class="endet-l">Taux d'endettement</div><div class="endet-badge ${teCls}">${te.toFixed(0)} %</div><div class="endet-note">${teNote}</div></div>` : ''}
         ${d.hasAnnex ? '<p class="annex-note">La simulation détaillée est jointe en annexe de ce dossier.</p>' : ''}
@@ -7031,7 +7109,7 @@ async function bkdocGenerate(){
       await db.from('dossiers_bancaires').insert({
         nom_dossier: bkdocFilename(b.titre), bien_id: b.id,
         sci_id: sci?.id || null, simulation_id: sim?.id || null,
-        date_generation: new Date().toISOString().slice(0, 10),
+        date_generation: sfAujourdhuiIso(),
         user_id: currentUser.id
       });
     } catch(e) { console.warn('trace dossier:', e.message); }
@@ -7051,9 +7129,9 @@ async function bkdocGenerate(){
 
 
 
-let visitPhotos = [], visitRating = 0, simEditId = null;
+let visitPhotos = [], visitRating = 0;
 
-const PAGE_LABELS = {accueil:'Tableau de bord',biens:'Mes biens',nouveau:'Ajouter un bien','bien-detail':'Fiche bien',simulateur:'Simulateur crédit',visites:'Comptes rendus','compte-rendu':'Compte rendu',portails:'Portails immo',administration:'Administration','module-financier':'Suivi financier','admin-users':'Gestion utilisateurs','marche-recherche':'Recherche par ville',parametres:'Paramètres'};
+const PAGE_LABELS = {accueil:'Tableau de bord',biens:'Mes biens',nouveau:'Ajouter un bien','bien-detail':'Fiche bien',simulateur:'Simulations',simulation:'Simulation',visites:'Comptes rendus','compte-rendu':'Compte rendu',portails:'Portails immo',administration:'Administration','module-financier':'Suivi financier','admin-users':'Gestion utilisateurs','marche-recherche':'Recherche par ville',parametres:'Paramètres'};
 // PAGE_SECTIONS supprime avec le fil d'Ariane du bandeau : il ne servait qu'a
 // le remplir. SF_MENU_PAGES porte desormais le rattachement page -> section,
 // pour surligner le bon menu.
@@ -7211,7 +7289,7 @@ function renderParamsSection() {
   // Sections prêtes
   if(sec==='compte') c.innerHTML = paramsCompteHtml();
   else if(sec==='apparence') { c.innerHTML = paramsApparenceHtml(); syncAppearanceControls(); }
-  else if(sec==='metier') c.innerHTML = paramsMetierHtml();
+  else if(sec==='metier') { c.innerHTML = paramsMetierHtml(); sfPrefTauxAfficher(); }
   else if(sec==='apropos') c.innerHTML = paramsAproposHtml();
   else if(sec==='donnees') c.innerHTML = paramsDonneesHtml();
   else if(sec==='sci') { c.innerHTML = paramsSciHtml(); loadSCIList(); }
@@ -7333,7 +7411,7 @@ function paramsMetierHtml() {
           <div class="params-field-hint">Pré-rempli à la création d'un bien (défaut : 20 ans)</div>
         </div>
         <div class="params-field">
-          <label class="params-field-label">Assurance (€/mois)</label>
+          <label class="params-field-label">Assurance propriétaire non occupant (€/mois)</label>
           <input class="params-input" id="pref-assurance" type="number" step="1" min="0" value="${p.assurance_mois ?? 33}">
           <div class="params-field-hint">Pré-rempli à la création d'un bien (défaut : 33 €)</div>
         </div>
@@ -7343,10 +7421,37 @@ function paramsMetierHtml() {
           <div class="params-field-hint">Au-dessus, le rendement s'affiche en vert (défaut : 5 %)</div>
         </div>
       </div>
+      ${/* Le taux de crédit n'existe qu'une fois sa colonne ajoutée en base
+            (MIGRATION-SIMULATIONS-V99.sql) : avant, rien ne s'affiche. */''}
+      ${Object.prototype.hasOwnProperty.call(p, 'taux_credit') ? `
+      <div class="params-card-title" style="margin-top:18px">Crédit</div>
+      <div class="params-field-grid">
+        <div class="params-field">
+          <label class="params-field-label" for="pref-taux">Votre taux de crédit (%)</label>
+          <input class="params-input" id="pref-taux" type="text" inputmode="decimal" autocomplete="off"
+                 value="${esc(sfnFormaterNombre(p.taux_credit))}" placeholder="ex. 3,4">
+          <div class="params-field-hint">Celui de votre courtier ou de votre banque. Il sert à estimer la mensualité d'une nouvelle fiche et à pré-remplir une simulation. Laissé vide, Stonefolio prend le taux moyen ci-dessous.</div>
+        </div>
+        <div class="params-field">
+          <span class="params-field-label">Taux moyen en France</span>
+          <div class="sfs-pref-ref" id="pref-taux-ref" aria-live="polite">Lecture du taux moyen…</div>
+        </div>
+      </div>` : ''}
       <div style="display:flex;justify-content:flex-end;margin-top:14px">
         <button class="btn btn-primary" id="pref-save-btn" onclick="saveMyPreferences()">${sfAccIcon('check',14)} Enregistrer</button>
       </div>
     </div>`;
+}
+
+// Le taux moyen officiel, affiché à côté de votre taux, avec sa source.
+async function sfPrefTauxAfficher() {
+  const el = document.getElementById('pref-taux-ref');
+  if (!el) return;
+  const ref = await sfTauxReference();
+  if (!el.isConnected) return;
+  el.innerHTML = ref
+    ? `<b>${esc(sfPctNum(ref.taux, 2))}</b><em class="sf-source">${esc(sfTauxMention(ref))}</em>${sfsLienTauxParDuree()}`
+    : `<span class="sfs-vide">Non disponible pour l'instant.</span>${sfsLienTauxParDuree()}`;
 }
 
 async function saveMyPreferences() {
@@ -7355,6 +7460,13 @@ async function saveMyPreferences() {
   const duree = parseInt(document.getElementById('pref-duree')?.value) || 20;
   const assurance = parseFloat(document.getElementById('pref-assurance')?.value) || 33;
   const seuil = parseFloat(document.getElementById('pref-seuil')?.value) || 5;
+  const champTaux = document.getElementById('pref-taux');
+  const taux = champTaux ? sfLireNombre(champTaux.value) : undefined;
+  if(champTaux && taux !== null && !(taux > 0 && taux <= 20)) {
+    showNotif('Le taux de crédit doit être compris entre 0 et 20 %, ou laissé vide.', true);
+    champTaux.focus();
+    return;
+  }
   if(btn){ btn.disabled = true; btn.innerHTML = '<span class="sf-attente"></span>Enregistrement…'; }
   try {
     const { error } = await db.rpc('update_my_preferences', {
@@ -7364,6 +7476,12 @@ async function saveMyPreferences() {
       p_seuil_rentabilite: seuil
     });
     if(error) throw error;
+    // Le taux s'écrit directement : la règle d'accès de user_preferences
+    // limite chacun à sa ligne (policy user_prefs_update).
+    if(champTaux) {
+      const r = await db.from('user_preferences').update({ taux_credit: taux }).eq('user_id', currentUser.id);
+      if(r.error) throw r.error;
+    }
     // Recharger les préférences en mémoire
     const { data: prefs } = await db.rpc('get_my_preferences');
     if(prefs) userPrefs = prefs;
@@ -7525,7 +7643,7 @@ const SF_MENU_PAGES = {
   marche:   ['marche-recherche'],
   pipeline: ['accueil','biens','nouveau','bien-detail'],
   gestion:  ['module-financier','administration'],
-  outils:   ['simulateur','visites','compte-rendu','portails'],
+  outils:   ['simulateur','simulation','visites','compte-rendu','portails'],
   // Ni « parametres » ni « admin-users » ne figurent ici : ce ne sont plus des
   // menus deroulants mais des icones directes du bandeau, que navigate()
   // surligne deja via #nav-parametres et #nav-admin-users.
@@ -7606,6 +7724,7 @@ function navigate(page) {
   if(page === 'bien-detail') document.getElementById('nav-biens')?.classList.add('active');
   // Un compte rendu ouvert garde « Comptes rendus » surligné, de même.
   if(page === 'compte-rendu') document.getElementById('nav-visites')?.classList.add('active');
+  if(page === 'simulation') document.getElementById('nav-simulateur')?.classList.add('active');
   // Le bandeau surligne aussi la SECTION qui contient la page courante, pour
   // qu'on sache où l'on est même quand le menu est refermé.
   Object.entries(SF_MENU_PAGES).forEach(([cle, pages]) => {
@@ -7620,15 +7739,13 @@ function navigate(page) {
   Object.values(charts).forEach(c=>{try{c.destroy();}catch(e){}});
   charts={}; visitPhotos=[]; visitRating=0;
   if(marcheChart){try{marcheChart.destroy();}catch(e){} marcheChart=null;}
-  simSelected.clear();
-  const bar=document.getElementById('sim-action-bar');
-  if(bar) bar.classList.remove('visible');
   const el=document.getElementById('content');
   if(page==='accueil') renderAccueil(el);
   else if(page==='biens') renderBiens(el);
   else if(page==='bien-detail') renderBienDetail(el);
   else if(page==='nouveau') { const b = sfnEnAttente; sfnEnAttente = null; renderNouveau(el, b, precedente); }
   else if(page==='simulateur') renderSimulateur(el);
+  else if(page==='simulation') renderSimulation(el);
   else if(page==='admin') renderAdmin(el);
   else if(page==='admin-users') renderAdmin(el);
   else if(page==='visites') renderVisites(el);
@@ -9265,7 +9382,7 @@ async function mfQuickToggleLoyer(cellEl, loyerId) {
     newPatch = { statut: 'En attente', montant_encaisse: null, charges_encaissees: null, date_encaissement: null };
   } else if(l.statut === 'En attente') {
     // Marque payé intégralement (montant prévu)
-    const today = new Date().toISOString().slice(0,10);
+    const today = sfAujourdhuiIso();
     newPatch = { statut: 'Payé', montant_encaisse: l.loyer_du, date_encaissement: today,
                  charges_encaissees: (parseFloat(l.charges_dues) || 0) > 0 ? l.charges_dues : null };
   } else {
@@ -9390,7 +9507,7 @@ function mfOpenEncaissementPopup(event, bienId, mois, annee) {
                            : (loc ? (sfProrataBail(loc, mois, annee).charges || 0) : 0);
   const totalDu = montantDu + chargesDuesAff;
   const statutActuel = l?.statut || 'En attente';
-  const today = new Date().toISOString().slice(0,10);
+  const today = sfAujourdhuiIso();
   const dateEnc = l?.date_encaissement || today;
   const montantEnc = l?.montant_encaisse != null ? l.montant_encaisse : montantDu;
   /* Pré-rempli avec ce qui est DÛ, jamais avec un zéro : le cas courant est
@@ -9665,7 +9782,7 @@ function mfOpenChargeModal(preset) {
   }
 
   const biens = sfBiensComptes().filter(b => b.statut === 'Acheté' || b.statut === 'Compromis signé');
-  const today = initial.date_charge || new Date().toISOString().slice(0,10);
+  const today = initial.date_charge || sfAujourdhuiIso();
 
   const html = `
     <div style="padding:14px 16px">
@@ -10678,7 +10795,7 @@ async function sfCongeDemarrer(locId) {
   const { data, error } = await db.from('loyers_mensuels').select('*').eq('locataire_id', locId);
   if(error) { showNotif('Erreur de lecture des loyers : ' + error.message, true); return; }
 
-  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const aujourdhui = sfAujourdhuiIso();
   const dateConge  = loc.date_conge_recu || aujourdhui;
   const mois       = loc.preavis_mois || sfPreavisDureeDefaut(loc);
   sfConge = { locId, vue: 'conge', dateConge, mois,
@@ -10721,7 +10838,7 @@ function sfCongeVueConge(loc) {
             && (!motifRequis || !!sfConge.motif);
 
   const jours = sfConge.dateSortie
-    ? Math.round((Date.parse(sfConge.dateSortie + 'T00:00:00') - Date.parse(new Date().toISOString().slice(0,10) + 'T00:00:00')) / 86400000)
+    ? Math.round((Date.parse(sfConge.dateSortie + 'T00:00:00') - Date.parse(sfAujourdhuiIso() + 'T00:00:00')) / 86400000)
     : null;
 
   return { titre: `Congé — ${nom}`, corps: `
@@ -11070,7 +11187,7 @@ function sfDepotRendu(locId) {
     return;
   }
   const e = sfEcheanceDepot(loc);
-  sfDepot = { locId, vue: 'depot', date: new Date().toISOString().slice(0, 10),
+  sfDepot = { locId, vue: 'depot', date: sfAujourdhuiIso(),
               retenue: 0, echeance: e, enCours: false };
   sfDepotRender();
   openModal('modal-detail');
@@ -11271,7 +11388,7 @@ async function sfSortieDemarrer(locId) {
   }
   sfSortie = { locId, vue: 'sortie', correction: loc.statut === 'Sorti',
                dateCles: loc.date_remise_cles || loc.date_sortie
-                         || new Date().toISOString().slice(0, 10),
+                         || sfAujourdhuiIso(),
                conforme: loc.edl_sortie_conforme ?? null,
                enCours: false, resume: null };
   sfSortieRender();
@@ -12500,7 +12617,7 @@ async function saveLocataire() {
     );
     if(conflit) {
       const fullName = [conflit.prenom, conflit.nom].filter(Boolean).join(' ') || conflit.nom;
-      const aujourdhui = new Date().toISOString().split('T')[0];
+      const aujourdhui = sfAujourdhuiIso();
       const enFr = iso => new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR');
 
       /* ⚠️ DEUX BAUX QUI SE RECOUVRENT NE PEUVENT PAS COEXISTER EN BASE.
@@ -14609,7 +14726,7 @@ async function genAdminTestData() {
     const dateEch = new Date(); dateEch.setDate(dateEch.getDate() + 25);
     await db.from('sci_echeances').insert({
       sci_id: sciData.id, titre: 'Renouvellement assurance PNO TEST',
-      type_echeance: 'Assurance', date_echeance: dateEch.toISOString().split('T')[0],
+      type_echeance: 'Assurance', date_echeance: sfDateIso(dateEch),
       rappel_j_avant: 30, recurrence: 'Annuelle', est_faite: false,
       notes: 'Échéance test', user_id: currentUser.id
     });
@@ -15335,10 +15452,15 @@ function sfcBiensProposes() {
   return allBiens.map(b => ({ id: b.id, titre: (b.titre || 'Sans titre') + (sfBienDeTest(b) ? ' (test)' : ''), ville: b.ville || '' }));
 }
 
-function sfAujourdhuiIso() {
-  const d = new Date();
+/* Une DATE n'est pas un instant : elle se lit à l'heure de l'appareil.
+   `toISOString()` donne la date en temps universel — entre minuit et 2 h
+   l'été (1 h l'hiver), celle de la VEILLE : un loyer marqué payé à 0 h 30
+   était daté du jour d'avant. Toute date du jour passe par ici (v=99, garde
+   `dates.test.js`). */
+function sfDateIso(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+function sfAujourdhuiIso() { return sfDateIso(new Date()); }
 
 // Toute saisie : le compte rendu est modifié ; changer la nature révèle ou
 // cache ce qui en dépend, sans redessiner — la saisie en cours resterait perdue.
@@ -15556,617 +15678,898 @@ async function deleteVisite(id) {
   sfcAller(sfcEtat.retour);
 }
 
-// ── SIMULATEUR CRÉDIT ──
-async function renderSimulateur(el) {
-  // Réinitialiser la sélection à chaque rechargement
-  simSelected.clear();
-  const bar = document.getElementById('sim-action-bar');
-  if(bar) bar.classList.remove('visible');
-  el.innerHTML = `<div class="loading"><div class="spinner"></div>Chargement...</div>`;
-  // Chargement résilient : on tente la jointure biens(titre), et si elle échoue
-  // (relation PostgREST, RLS croisé, etc.) on retombe sur une requête simple.
-  // Sans ça, une erreur de jointure renvoyait sims=null → "0 simulation" alors
-  // que les données existent bien en base.
-  let sims = null;
-  {
-    const { data, error } = await db.from('simulations_credit')
-      .select('*, biens(titre)')
-      .order('created_at', { ascending: false });
-    if (error) {
-      console.warn('Jointure biens(titre) échouée, fallback sans jointure:', error.message);
-      const { data: data2, error: error2 } = await db.from('simulations_credit')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error2) {
-        el.innerHTML = `<div class="empty-state"><h3>Erreur de chargement</h3><p>${esc(error2.message)}</p></div>`;
-        return;
-      }
-      sims = data2 || [];
-    } else {
-      sims = data || [];
-    }
+// ── SIMULATEUR CRÉDIT (v=99) ──────────────────────────────────────────────────
+/* LE SIMULATEUR À LA CHARTE — troisième version de l'étape 1 du fil rouge.
+
+   ⚠️ CE QUI ÉTAIT CASSÉ OU MANQUAIT :
+     · la liste, la lecture et la saisie vivaient dans `modal-detail`, une
+       fenêtre d'ancienne charte (bandeau vert plein, montants en `type=number`
+       qui refusent « 168 000 ») ;
+     · l'assurance emprunteur n'entrait nulle part : la mensualité, le coût du
+       crédit et l'endettement étaient tous calculés sans elle ;
+     · l'endettement se jugeait à 33 % (« Excellent ») et 40 % (« Limite »),
+       alors que le plafond bancaire est de 35 %, assurance comprise — règle du
+       Haut Conseil de stabilité financière ;
+     · « Claude extraira automatiquement les données » : l'import d'une offre
+       est une lecture par motifs, sans IA, et il ÉCRASAIT les champs déjà
+       saisis ;
+     · depuis la fiche, « Simuler ce crédit » ouvrait la liste vide : il
+       fallait recréer le bien, le montant, le loyer à la main ;
+     · rien ne disait quelle simulation finance un bien : la mensualité de la
+       fiche et celle de l'offre vivaient chacune de leur côté.
+
+   CE QUI A ÉTÉ DÉCIDÉ :
+     · liste, lecture et saisie en PAGES (routes `simulateur` et `simulation`),
+       au gabarit des comptes rendus ; « ← » ramène d'où l'on vient ;
+     · un seul calcul, `sfSimCalcul` : mensualité hors assurance, assurance,
+       mensualité assurance comprise, coût total, endettement comparé à
+       SF_ENDETTEMENT_MAX ;
+     · la SIMULATION RETENUE : une par bien. La retenir reporte sa mensualité
+       (assurance comprise) et sa durée sur la fiche ; le dossier banque la
+       présélectionne ; l'achat la rappelle ;
+     · le taux proposé : le vôtre (Préférences métier), sinon le taux moyen
+       officiel des nouveaux crédits immobiliers (fonction `taux-credit`, Banque
+       de France via la BCE), sinon celui de votre dernière simulation ;
+     · plus de sélection multiple : chaque simulation porte ses actions.
+
+   Tant que la migration n'est pas jouée (MIGRATION-SIMULATIONS-V99.sql), les
+   colonnes `assurance_mensuelle` et `retenue` n'existent pas : rien n'est
+   envoyé pour elles, et l'écran ne les propose pas (`sfsColonnesDispo`).
+   Garde : test/simulateur.test.js. */
+
+const SF_ENDETTEMENT_MAX = 35;   // % des revenus, assurance comprise (HCSF)
+const SF_LOYER_RETENU = 0.7;     // part du loyer que la banque compte dans les revenus
+const SF_TAUX_PAR_DUREE = 'https://www.meilleurtaux.com/credit-immobilier/votre-credit-immobilier/barometre-des-taux.html';
+
+// La mensualité d'un prêt amortissable. Un taux nul (prêt à taux zéro) se
+// rembourse par parts égales : la formule usuelle y divise par zéro.
+function calcMensualite(montant, tauxAnnuel, dureeAns) {
+  const m = Number(montant), t = Number(tauxAnnuel), d = Number(dureeAns);
+  if (!(m > 0) || !(d > 0) || !(t >= 0)) return 0;
+  const n = Math.round(d * 12);
+  const tm = t / 100 / 12;
+  return tm === 0 ? m / n : m * tm / (1 - Math.pow(1 + tm, -n));
+}
+
+/* LE calcul d'une simulation — liste, lecture, saisie, fiche et dossier
+   banque passent tous par lui. `te` n'existe que si des revenus sont saisis :
+   un endettement sans revenus n'est pas nul, il n'est pas disponible. */
+function sfSimCalcul({ montant, taux, duree, assurance, revenus, loyer } = {}) {
+  const horsAss = calcMensualite(montant, taux, duree);
+  if (!horsAss) return { calculable: false };
+  const n = Math.round(Number(duree) * 12);
+  const ass = Number(assurance) > 0 ? Number(assurance) : 0;
+  const mens = horsAss + ass;
+  const interets = Math.max(0, horsAss * n - Number(montant));
+  const coutAssurance = ass * n;
+  const revenusRetenus = Number(revenus) > 0 ? Number(revenus) + SF_LOYER_RETENU * (Number(loyer) > 0 ? Number(loyer) : 0) : null;
+  const te = revenusRetenus ? mens / revenusRetenus * 100 : null;
+  return { calculable: true, horsAss, assurance: ass, assuranceConnue: Number(assurance) > 0, mens,
+           interets, coutAssurance, coutTotal: interets + coutAssurance, revenusRetenus, te,
+           dansLaLimite: te === null ? null : te <= SF_ENDETTEMENT_MAX };
+}
+
+function sfSimDepuisLigne(s) {
+  return sfSimCalcul({ montant: s.montant_emprunte, taux: s.taux_interet, duree: s.duree_ans,
+    assurance: s.assurance_mensuelle, revenus: s.revenus_mensuels, loyer: s.loyer_exige_banque });
+}
+
+// L'endettement tel qu'il se dit : la valeur, et sa place par rapport au
+// plafond — par un mot et une icône, jamais par la seule couleur. Dans la
+// limite, il reste neutre : le vert lumineux est réservé aux valeurs positives.
+function sfSimEndettement(c) {
+  if (!c?.calculable || c.te === null) return { val: 'Non disponible', etat: 'none', texte: 'revenus non renseignés' };
+  return c.dansLaLimite
+    ? { val: sfPctNum(c.te, 1), etat: 'ok', texte: `dans la limite de ${SF_ENDETTEMENT_MAX} %`, icone: 'ok' }
+    : { val: sfPctNum(c.te, 1), etat: 'alerte', texte: `au-dessus de la limite de ${SF_ENDETTEMENT_MAX} %`, icone: 'alerte' };
+}
+
+// Une simulation compte-t-elle dans les chiffres ? Celle d'un bien de test
+// non (sfBienCompte, v=94) ; celle qui n'est rattachée à rien, oui.
+function sfSimCompte(s) {
+  return !s.bien_id || sfBienCompte(allBiens.find(b => b.id === s.bien_id));
+}
+
+// ─── Les colonnes de la v=99 existent-elles ? ───────────────────────────────
+let sfsColonnesDispo = null;   // null : pas encore vérifié
+async function sfsVerifierColonnes() {
+  if (sfsColonnesDispo !== null) return sfsColonnesDispo;
+  try {
+    const { error } = await db.from('simulations_credit').select('assurance_mensuelle, retenue').limit(1);
+    sfsColonnesDispo = !error;
+  } catch (e) { sfsColonnesDispo = false; }
+  return sfsColonnesDispo;
+}
+
+// ─── Le taux proposé ────────────────────────────────────────────────────────
+/* Le taux moyen officiel, lu par la fonction serveur `taux-credit` (Banque de
+   France, statistiques publiées par la BCE). Une donnée venue du réseau : on
+   n'en garde qu'un nombre borné et une période au format vérifié ; le libellé
+   affiché est écrit ici, jamais repris de la réponse. */
+let sfTauxRefPromesse = null;
+function sfTauxReference() {
+  if (!sfTauxRefPromesse) {
+    sfTauxRefPromesse = (async () => {
+      try {
+        const { data, error } = await db.functions.invoke('taux-credit');
+        const taux = Number(data?.taux);
+        if (error || !(taux >= 0.1 && taux <= 15) || !/^\d{4}-(0[1-9]|1[0-2])$/.test(String(data?.periode || ''))) return null;
+        return { taux: Math.round(taux * 100) / 100, periode: data.periode };
+      } catch (e) { return null; }
+    })().then(r => { if (!r) sfTauxRefPromesse = null; return r; });
   }
+  return sfTauxRefPromesse;
+}
 
-  const bienOptions = allBiens.map(b=>`<option value="${b.id}">${esc(b.titre)} — ${esc(b.ville||'')}</option>`).join('');
+// « Taux moyen des nouveaux crédits immobiliers en France, août 2026 — Banque de France »
+function sfTauxMention(ref) {
+  if (!ref) return '';
+  const [a, m] = ref.periode.split('-').map(Number);
+  return `Taux moyen des nouveaux crédits immobiliers en France, ${MOIS_LONGS[m - 1].toLowerCase()} ${a} — Banque de France`;
+}
 
-  // Compute stats
-  const bestRate = sims?.length ? Math.min(...sims.map(s=>s.taux_interet||99)).toFixed(2) : null;
-  const avgMens = sims?.length ? Math.round(sims.reduce((a,s)=>a+(s.mensualite_calculee||0),0)/sims.length) : null;
-  const withPdf = sims?.filter(s=>s.pdf_data||s.pdf_path).length || 0;
+/* Le taux à proposer : le vôtre s'il est réglé, sinon la moyenne officielle,
+   sinon celui de votre dernière simulation. Jamais un taux inventé : sans
+   aucune des trois, rien n'est proposé. */
+async function sfTauxParDefaut() {
+  const perso = Number(userPrefs?.taux_credit);
+  if (perso > 0) return { taux: perso, origine: 'preference', mention: 'Votre taux, réglé dans Préférences métier' };
+  const ref = await sfTauxReference();
+  if (ref) return { taux: ref.taux, origine: 'reference', mention: sfTauxMention(ref) };
+  try {
+    const { data } = await db.from('simulations_credit').select('taux_interet').order('created_at', { ascending: false }).limit(1);
+    const t = Number(data?.[0]?.taux_interet);
+    if (t > 0) return { taux: t, origine: 'simulation', mention: 'Le taux de votre dernière simulation' };
+  } catch (e) { /* rien à proposer */ }
+  return null;
+}
+
+function sfsLienTauxParDuree() {
+  return `<a class="sfs-lien" href="${esc(safeUrl(SF_TAUX_PAR_DUREE))}" target="_blank" rel="noopener noreferrer">Voir les taux par durée</a>`;
+}
+
+// ─── La liste ───────────────────────────────────────────────────────────────
+
+// La ligne d'une simulation : la même dans la liste et sur la fiche du bien.
+function sfsLigneHtml(s, { surFiche = false } = {}) {
+  const c = sfSimDepuisLigne(s);
+  const bien = s.bien_id ? allBiens.find(b => b.id === s.bien_id) : null;
+  const titreBien = bien?.titre || s.biens?.titre || '';
+  const endet = sfSimEndettement(c);
+  const details = [
+    !surFiche && titreBien ? titreBien : '',
+    s.montant_emprunte ? `${sfEur(s.montant_emprunte)} sur ${s.duree_ans || 20} ans` : '',
+    s.taux_interet != null ? sfPctNum(s.taux_interet, 2) : '',
+  ].filter(Boolean).join(' · ');
+  const pastilles = [
+    // Retenue POUR UN BIEN : supprimer le bien détache la simulation (ON DELETE
+    // SET NULL) sans effacer le drapeau — détachée, elle n'est plus retenue.
+    s.retenue && bien ? `<span class="sf-pill sf-pill--brand">${sfAccIcon('check', 11)} ${sfDetenu(bien) ? 'Votre prêt' : 'Retenue'}</span>` : '',
+    !surFiche && bien && sfBienDeTest(bien) ? '<span class="sf-pill sf-pill--test">Test</span>' : '',
+    endet.etat === 'alerte' ? `<span class="sf-pill sf-pill--alert">${sfAccIcon('alerte', 11)} Endettement ${esc(endet.val)}</span>` : '',
+    (s.pdf_path || s.pdf_data) ? `<span class="sfs-row__doc" title="Offre jointe">${sfAccIcon('trombone', 13)}<span class="sf-sr-only">Offre jointe</span></span>` : '',
+  ].filter(Boolean).join('');
+  return `
+    <button type="button" class="sff-row sfs-row" onclick="openReadSimulation(${escJs(s.id)})">
+      <span class="sff-row__m">
+        <span class="sfs-row__t">${esc(s.nom_simulation || 'Simulation')}</span>
+        ${details ? `<span class="sff-row__s">${esc(details)}</span>` : ''}
+        ${pastilles ? `<span class="sfs-row__p">${pastilles}</span>` : ''}
+      </span>
+      <span class="sfs-row__a">${c.calculable ? `${sfEur(c.mens)}<small> /mois</small>` : '<small>non calculée</small>'}</span>
+    </button>`;
+}
+
+async function renderSimulateur(el) {
+  const jeton = ++sfsJeton;
+  el.innerHTML = `<div class="loading"><div class="spinner"></div>Chargement…</div>`;
+  let res = await db.from('simulations_credit').select('*, biens(titre, ville)').order('created_at', { ascending: false });
+  // La jointure peut échouer (relation, droits croisés) : la liste reste due.
+  if (res.error) res = await db.from('simulations_credit').select('*').order('created_at', { ascending: false });
+  const [, ref] = await Promise.all([sfAssurerBiens(), sfTauxReference()]);
+  if (jeton !== sfsJeton || currentPage !== 'simulateur') return;
+  if (res.error) {
+    el.innerHTML = `<div class="sff-page"><div class="sff-empty">
+      <div class="sff-empty__ic">${sfAccIcon('alerte', 34)}</div>
+      <div class="sff-empty__t">Les simulations n'ont pas pu être chargées</div>
+      <div class="sff-empty__x">${esc(res.error.message)}</div>
+      <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="navigate('simulateur')">Réessayer</button></div></div>`;
+    return;
+  }
+  const sims = res.data || [];
+  const comptees = sims.filter(sfSimCompte).map(s => ({ s, c: sfSimDepuisLigne(s) })).filter(x => x.c.calculable);
+  const meilleurTaux = comptees.length ? Math.min(...comptees.map(x => Number(x.s.taux_interet) || 0)) : null;
+  const plusPetite = comptees.length ? Math.min(...comptees.map(x => x.c.mens)) : null;
+  const kpi = (lab, val, sous, cls = '') => `<div class="sff-kpi${cls}"><span class="sff-kpi__l">${lab}</span>
+      <span class="sff-kpi__v${val == null ? ' sff-kpi__v--none' : ''}">${val == null ? 'Non disponible' : val}</span><span class="sff-kpi__s">${sous}</span></div>`;
 
   el.innerHTML = `
-    <!-- Hero section -->
-    <div style="background:var(--accent-g);border-radius:var(--r);padding:24px 28px;margin-bottom:20px;color:white;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
-      <div>
-        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;opacity:0.7;margin-bottom:4px">Vos simulations</div>
-        <div style="font-size:26px;font-weight:800;letter-spacing:-0.5px">${sims?.length||0} simulation${(sims?.length||0)>1?'s':''} de crédit</div>
-        <div style="font-size:13px;opacity:0.75;margin-top:4px">Comparez vos offres de prêt immobilier</div>
-      </div>
-      <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
-        ${bestRate && bestRate < 99 ? `<div style="text-align:center"><div style="font-size:20px;font-weight:800">${bestRate}%</div><div style="font-size:10px;opacity:0.7;margin-top:2px">Meilleur taux</div></div>` : ''}
-        ${avgMens ? `<div style="text-align:center"><div style="font-size:20px;font-weight:800">${fmt(avgMens)} €</div><div style="font-size:10px;opacity:0.7;margin-top:2px">Mensualité moy.</div></div>` : ''}
-        ${withPdf ? `<div style="text-align:center"><div style="font-size:20px;font-weight:800">${withPdf}</div><div style="font-size:10px;opacity:0.7;margin-top:2px">${sfAccIcon('doc',11)} PDF importé${withPdf>1?'s':''}</div></div>` : ''}
-        <button class="btn" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3)" onclick="openNouvelleSimulation()">＋ Nouvelle simulation</button>
+  <div class="sff-page sfs">
+    <div class="sff-top">
+      <div class="sff-titleline">
+        <div class="sff-titleline__id">
+          <h1 class="sff-h1">Simulations de crédit</h1>
+          <p class="sff-sub">Comparez les offres de prêt, et retenez celle qui finance chaque bien.</p>
+        </div>
+        <div class="sff-acts">
+          <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="openNouvelleSimulation()">${sfAccIcon('plus', 15)} Nouvelle simulation</button>
+        </div>
       </div>
     </div>
 
-    ${sims?.length ? `
-    <div>
-      <div class="section-header"><div class="section-title">Simulations sauvegardées</div><span class="count-pill">${sims.length}</span></div>
-      <div class="sim-list" id="sim-list">
-        ${sims.map(s=>renderSimCard(s)).join('')}
+    <div class="sff-kpis">
+      ${kpi('Simulations', String(comptees.length), comptees.length > 1 ? 'offres à comparer' : 'offre enregistrée')}
+      ${kpi('Meilleur taux', meilleurTaux == null ? null : esc(sfPctNum(meilleurTaux, 2)), 'parmi vos simulations')}
+      ${kpi('Plus petite mensualité', plusPetite == null ? null : esc(sfEur(plusPetite)), 'assurance comprise')}
+      ${kpi('Taux moyen en France', ref ? esc(sfPctNum(ref.taux, 2)) : null,
+        ref ? `<em class="sf-source">${esc(sfTauxMention(ref))}</em>` : 'source momentanément indisponible')}
+    </div>
+
+    ${sims.length ? `
+    <section class="sff-block">
+      <div class="sff-block__h"><h2 class="sff-block__t">Vos simulations</h2><span class="sff-block__n">${sims.length}</span></div>
+      <div class="sff-block__b"><div class="sff-list">${sims.map(s => sfsLigneHtml(s)).join('')}</div></div>
+    </section>` : `
+    <section class="sff-block"><div class="sff-block__b sff-block__b--flush">
+      <div class="sff-empty">
+        <div class="sff-empty__ic">${sfAccIcon('banque', 34)}</div>
+        <div class="sff-empty__t">Aucune simulation de crédit</div>
+        <div class="sff-empty__x">Une simulation calcule la mensualité, assurance comprise, le coût du crédit et votre taux d'endettement. Rattachée à un bien et retenue, elle alimente sa fiche et le dossier remis à la banque.</div>
+        <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="openNouvelleSimulation()">Simuler un crédit</button>
       </div>
-    </div>` : `<div class="empty-state"><h3>Aucune simulation</h3><p>Créez votre première simulation de crédit.</p><button class="btn btn-primary" style="margin-top:12px" onclick="openNouvelleSimulation()">＋ Commencer</button></div>`}
-  `;
-}
-
-let simSelected = new Set();
-
-function toggleSimSelect(id, evt) {
-  evt.stopPropagation();
-  if(simSelected.has(id)) simSelected.delete(id);
-  else simSelected.add(id);
-  // Mettre à jour la checkbox
-  const cb = document.querySelector(`.sim-checkbox[data-id="${id}"]`);
-  const card = document.querySelector(`.sim-list-item[data-id="${id}"]`);
-  if(cb) { cb.classList.toggle('checked',simSelected.has(id)); cb.innerHTML=simSelected.has(id)?sfAccIcon('check',12):''; }
-  if(card) card.classList.toggle('selected',simSelected.has(id));
-  updateSimActionBar();
-}
-
-function updateSimActionBar() {
-  const bar = document.getElementById('sim-action-bar');
-  if(!bar) return;
-  const n = simSelected.size;
-  bar.classList.toggle('visible', n>0);
-  const cnt = bar.querySelector('.sim-action-count');
-  if(cnt) cnt.textContent = n + ' sélectionnée'+(n>1?'s':'');
-}
-
-async function simActionDelete() {
-  if(!simSelected.size) return;
-  const n = simSelected.size;
-  if(!(await sfConfirmer({ titre: 'Supprimer les simulations',
-    question: `Supprimer ${n} simulation${n>1?'s':''} ?`,
-    detail: 'Cette action est irréversible.', ok: 'Supprimer', danger: true }))) return;
-  const ids = [...simSelected];
-  // Nettoyer les PDF Storage rattachés (best-effort)
-  const {data:simsToDel} = await db.from('simulations_credit').select('pdf_path').in('id', ids);
-  const pdfPaths = (simsToDel||[]).map(s=>s.pdf_path).filter(Boolean);
-  if(pdfPaths.length) await TI_STORAGE.remove('simulations-pdf', pdfPaths);
-  const {error} = await db.from('simulations_credit').delete().in('id', ids);
-  if(error) { showNotif('Erreur suppression : '+error.message, true); return; }
-  simSelected.clear();
-  showNotif(`${n} simulation${n>1?'s':''} supprimée${n>1?'s':''}`);
-  renderSimulateur(document.getElementById('content'));
-}
-
-async function simActionAttribuer() {
-  if(!simSelected.size) return;
-  const biens = sfBiensComptes();
-  if(!biens.length) { showNotif('Aucun bien disponible à attribuer', true); return; }
-  const opts = biens.map(b=>`<option value="${b.id}">${esc(b.titre)}${b.ville?' — '+esc(b.ville):''}</option>`).join('');
-  // Afficher une modal de sélection propre
-  document.getElementById('detail-titre').textContent = 'Attribuer à un bien';
-  document.getElementById('detail-content').innerHTML = `
-    <div style="margin-bottom:16px;font-size:13px;color:var(--c-dim)">
-      Choisissez le bien à associer aux <strong>${simSelected.size} simulation${simSelected.size>1?'s':''}</strong> sélectionnée${simSelected.size>1?'s':''}.
-    </div>
-    <div class="form-group">
-      <label class="form-label">Bien immobilier</label>
-      <select class="form-select" id="attrib-bien-id" style="width:100%">
-        <option value="">— Sélectionner un bien —</option>
-        <option value="null">Aucun (détacher)</option>
-        ${opts}
-      </select>
-    </div>
-    <div class="modal-actions" style="margin-top:20px">
-      <button class="btn btn-secondary" onclick="closeModal('modal-detail');simDeselectAll()">Annuler</button>
-      <button class="btn btn-primary" onclick="confirmAttribuer()">${sfAccIcon('check',14)} Confirmer</button>
-    </div>
-  `;
-  openModal('modal-detail');
-}
-
-async function confirmAttribuer() {
-  const sel = document.getElementById('attrib-bien-id');
-  if(!sel || !sel.value) { showNotif('Sélectionnez un bien', true); return; }
-  const bienId = sel.value === 'null' ? null : sel.value;
-  const ids = [...simSelected];
-  const { error } = await db.from('simulations_credit')
-    .update({ bien_id: bienId })
-    .in('id', ids);
-  if(error) { showNotif('Erreur : '+error.message, true); return; }
-  closeModal('modal-detail');
-  simSelected.clear();
-  showNotif(`${ids.length} simulation${ids.length>1?'s':''} attribuée${ids.length>1?'s':''}`);
-
-  // FLX-002 : une seule source de vérité pour la mensualité — si la simulation
-  // attribuée diffère de la mensualité saisie sur le bien, proposer la synchro.
-  if (bienId && ids.length === 1) {
-    try {
-      const [simRes, bienRes] = await Promise.all([
-        db.from('simulations_credit').select('mensualite_calculee,duree_ans').eq('id', ids[0]).single(),
-        db.from('biens').select('id,titre,mensualite_credit').eq('id', bienId).single()
-      ]);
-      const m = Math.round(parseFloat(simRes.data?.mensualite_calculee) || 0);
-      const bm = Math.round(parseFloat(bienRes.data?.mensualite_credit) || 0);
-      if (m > 0 && m !== bm) {
-        const synchro = await sfConfirmer({
-          titre: 'Synchroniser la mensualité',
-          question: 'Mettre à jour la fiche du bien avec la mensualité de la simulation ?',
-          detail: `La simulation donne <strong>${sfEur(m)}</strong> par mois ; la fiche « ${esc(bienRes.data?.titre || 'du bien')} » `
-                + `porte ${bm ? `<strong>${sfEur(bm)}</strong>` : 'une mensualité non renseignée'}.`,
-          ok: 'Mettre à jour', annuler: 'Garder la fiche' });
-        if (synchro) {
-          const patch = { mensualite_credit: m };
-          if (simRes.data?.duree_ans) patch.duree_credit_ans = simRes.data.duree_ans;
-          await db.from('biens').update(patch).eq('id', bienId).eq('user_id', currentUser.id);
-          showNotif('Mensualité du bien synchronisée');
-        }
-      }
-    } catch(e) { console.warn('sync mensualité:', e.message); }
-  }
-  renderSimulateur(document.getElementById('content'));
-}
-
-async function simActionDupliquer() {
-  if(!simSelected.size) return;
-  const ids = [...simSelected];
-  for(const id of ids) {
-    const {data:s} = await db.from('simulations_credit').select('*').eq('id',id).maybeSingle();
-    if(!s) continue;
-    const {pdf_data, pdf_name, pdf_path, id:_, created_at, updated_at, ...rest} = s;
-    await db.from('simulations_credit').insert({...rest, nom_simulation: s.nom_simulation+' (copie)', user_id: currentUser.id});
-  }
-  simSelected.clear();
-  showNotif('Simulation(s) dupliquée(s)');
-  renderSimulateur(document.getElementById('content'));
-}
-
-function simDeselectAll() {
-  simSelected.clear();
-  document.querySelectorAll('.sim-list-item').forEach(el=>el.classList.remove('selected'));
-  document.querySelectorAll('.sim-checkbox').forEach(cb=>{cb.classList.remove('checked');cb.textContent='';});
-  updateSimActionBar();
-}
-
-function renderSimCard(s) {
-  const m = s.mensualite_calculee||0;
-  const te = s.taux_endettement;
-  return `<div class="sim-list-item" data-id="${s.id}" onclick="openReadSimulation('${s.id}')">
-    <div class="sim-checkbox" data-id="${s.id}" onclick="toggleSimSelect('${s.id}',event)" title="Sélectionner" aria-label="Sélectionner cette simulation"></div>
-    <div class="sim-list-content">
-      <div class="sim-item-name">${esc(s.nom_simulation)}${s.date_document?' <span style="font-size:10px;color:var(--c-muted);font-weight:400">· '+new Date(s.date_document+'T12:00:00').toLocaleDateString('fr-FR')+'</span>':''}</div>
-      <div class="sim-item-detail">${s.biens?.titre?sfAccIcon('maison',12)+' '+esc(s.biens.titre)+' · ':''} ${fmt(s.montant_emprunte||0)} € sur ${s.duree_ans||20} ans · ${(s.taux_interet||0).toFixed(2)}%</div>
-    </div>
-    ${(s.pdf_data||s.pdf_path)?`<button class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="event.stopPropagation();openPdfSim('${s.id}')">${sfAccIcon('doc',12)} PDF</button>`:''}
-    ${te?`<span class="sim-taux-badge">Endettement : ${te.toFixed(1)}%</span>`:''}
-    <div class="sim-mensualite">${fmt(m)} €/mois</div>
+    </div></section>`}
   </div>`;
 }
 
-function calcMensualite(montant, tauxAnnuel, dureeAns) {
-  if(!montant||!tauxAnnuel||!dureeAns) return 0;
-  const tm = tauxAnnuel/100/12;
-  const n = dureeAns*12;
-  if(tm===0) return montant/n;
-  return montant*tm/(1-Math.pow(1+tm,-n));
+// ─── La page d'une simulation : lecture ou saisie ─────────────────────────
+
+let sfsEtat = { id: null, mode: 'lecture', bienId: null, retour: { page: 'simulateur' } };
+let sfsJeton = 0;
+let sfsModifie = false;
+let sfsEnvoi = false;
+let sfsSimulation = null;   // la simulation chargée
+let sfsPdf = null;          // { nom, data } : une offre lue, en attente d'enregistrement
+
+function sfsRetourDepuis(page) {
+  if (page === 'bien-detail' && currentBienId) return { page: 'bien-detail', id: currentBienId, back: bienDetailBack };
+  if (page === 'simulation') return sfsEtat.retour;
+  return { page: 'simulateur' };
 }
 
-function openNouvelleSimulation() {
-  simEditId = null;
-  showSimModal(null);
+function sfsOuvrir(etat) {
+  sfsEtat = { id: null, bienId: null, ...etat, retour: etat.retour || sfsRetourDepuis(currentPage) };
+  navigate('simulation');
 }
+function openNouvelleSimulation(bienId) { sfsOuvrir({ mode: 'saisie', id: null, bienId: bienId || null }); }
+function openReadSimulation(id) { sfsOuvrir({ mode: 'lecture', id }); }
+function openEditSimulation(id) { sfsOuvrir({ mode: 'saisie', id }); }
 
-async function openReadSimulation(id) {
-  const { data: s, error } = await db.from('simulations_credit').select('*, biens(titre,ville)').eq('id', id).maybeSingle();
-  if(error) { showNotif('Erreur : '+error.message, true); return; }
-  if(!s) { showNotif('Cette simulation n\'existe plus', true); return; }
-  const m = s.mensualite_calculee||0;
-  const te = s.taux_endettement;
-  const teColor = !te?'rgba(255,255,255,0.5)':te<=33?'#bbf7d0':te<=40?'#fef08a':'#fecdd3';
-  const dateStr = s.date_document ? new Date(s.date_document+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}) : null;
-
-  document.getElementById('detail-titre').textContent = s.nom_simulation;
-  document.getElementById('detail-content').innerHTML = `
-    <!-- Hero -->
-    <div style="background:var(--accent-g);border-radius:var(--r);padding:22px 24px;margin-bottom:18px;color:white">
-      <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;opacity:0.7;margin-bottom:4px">Mensualité calculée</div>
-      <div style="font-size:36px;font-weight:800;letter-spacing:-1px">${fmt(m)} <span style="font-size:16px;opacity:0.7">€/mois</span></div>
-      <div style="display:flex;gap:20px;margin-top:16px;flex-wrap:wrap">
-        <div><div style="font-size:18px;font-weight:700">${fmt(s.montant_emprunte||0)} €</div><div style="font-size:10px;opacity:0.65;margin-top:2px">Montant emprunté</div></div>
-        <div><div style="font-size:18px;font-weight:700">${(s.taux_interet||0).toFixed(2)}%</div><div style="font-size:10px;opacity:0.65;margin-top:2px">Taux annuel</div></div>
-        <div><div style="font-size:18px;font-weight:700">${s.duree_ans||20} ans</div><div style="font-size:10px;opacity:0.65;margin-top:2px">Durée</div></div>
-        ${te?`<div><div style="font-size:18px;font-weight:700;color:${teColor}">${te.toFixed(1)}%</div><div style="font-size:10px;opacity:0.65;margin-top:2px">Taux d'endettement</div></div>`:''}
-      </div>
-    </div>
-
-    <!-- Infos complémentaires -->
-    <div class="detail-grid" style="margin-bottom:16px">
-      ${dateStr?`<div class="detail-item"><div class="detail-label">Date d'émission</div><div class="detail-value">${dateStr}</div></div>`:''}
-      ${s.biens?.titre?`<div class="detail-item"><div class="detail-label">Bien rattaché</div><div class="detail-value">${sfAccIcon('maison',13)} ${esc(s.biens.titre)}${s.biens.ville?' — '+esc(s.biens.ville):''}</div></div>`:''}
-      ${s.loyer_exige_banque?`<div class="detail-item"><div class="detail-label">Loyer exigé banque</div><div class="detail-value">${fmt(s.loyer_exige_banque)} €/mois</div></div>`:''}
-      ${s.revenus_mensuels?`<div class="detail-item"><div class="detail-label">Revenus mensuels</div><div class="detail-value">${fmt(s.revenus_mensuels)} €/mois</div></div>`:''}
-      <div class="detail-item"><div class="detail-label">Coût total du crédit</div><div class="detail-value">${fmt(Math.round((m*s.duree_ans*12)-(s.montant_emprunte||0)))} €</div></div>
-    </div>
-
-    ${s.notes?`<div class="notes-box" style="margin-bottom:16px">${esc(s.notes)}</div>`:''}
-
-    <!-- PDF viewer -->
-    ${(s.pdf_data||s.pdf_path)?`
-    <div style="margin-bottom:16px">
-      <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--c-muted);margin-bottom:8px">${sfAccIcon('doc',12)} Document importé</div>
-      <div style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="openPdfSim('${s.id}')">
-        <div style="width:40px;height:40px;background:rgba(23,160,107,0.1);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent)">${sfAccIcon('doc',20)}</div>
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--c-text)">${esc(s.pdf_name||'Document PDF')}</div>
-          <div style="font-size:11px;color:var(--accent);margin-top:2px">Cliquer pour ouvrir le document</div>
-        </div>
-      </div>
-    </div>`:
-    '<div style="padding:12px;background:var(--c-bg);border-radius:var(--r-sm);font-size:12px;color:var(--c-muted);margin-bottom:16px;text-align:center">Aucun PDF importé pour cette simulation</div>'}
-
-    <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Fermer</button>
-      <button class="btn btn-primary" onclick="openEditSimulation('${s.id}')">${sfAccIcon('crayon',14)} Modifier</button>
-    </div>
-  `;
-  openModal('modal-detail');
-}
-
-async function openEditSimulation(id) {
-  simEditId = id;
-  const {data:s, error} = await db.from('simulations_credit').select('*').eq('id',id).maybeSingle();
-  if(error) { showNotif('Erreur : '+error.message, true); return; }
-  if(!s) { showNotif('Cette simulation n\'existe plus', true); return; }
-  showSimModal(s);
-}
-
-function showSimModal(s) {
-  // Reset state PDF en mémoire (évite de ré-uploader un PDF d'une session précédente)
-  window._currentPdfName = null;
-  window._currentPdfData = null;
-  const bienOptions = allBiens.map(b=>`<option value="${b.id}" ${s?.bien_id===b.id?'selected':''}>${esc(b.titre)} — ${esc(b.ville||'')}</option>`).join('');
-  document.getElementById('detail-titre').textContent = s?'Modifier la simulation':'Nouvelle simulation';
-  document.getElementById('detail-content').innerHTML = `
-    <!-- Import PDF -->
-    <div class="pdf-zone" id="pdf-zone" onclick="document.getElementById('pdf-input').click()">
-      <div class="pdf-zone-icon">${sfAccIcon('doc',26)}</div>
-      <div class="pdf-zone-text">Importer une offre de prêt (PDF)</div>
-      <div class="pdf-zone-sub">Claude extraira automatiquement les données de votre document bancaire</div>
-    </div>
-    <input type="file" id="pdf-input" accept="application/pdf" style="display:none" onchange="extractPDF(event)">
-    <div id="pdf-status"></div>
-
-    <div class="form-grid" style="margin-bottom:14px">
-      <div class="form-group form-full"><label>Nom de la simulation *</label><input type="text" id="s-nom" value="${esc(s?.nom_simulation||'')}" placeholder="ex: Offre Crédit Agricole 20 ans"></div>
-      <div class="form-group"><label>Date d'émission du document</label><input type="date" id="s-date-doc" value="${esc(s?.date_document||'')}"></div>
-      <div class="form-group"><label>Rattacher à un bien</label>
-        <select class="form-select" id="s-bien"><option value="">— Non rattaché —</option>${bienOptions}</select>
-      </div>
-      <div class="form-group"><label>Montant emprunté (€)</label><input type="number" id="s-montant" value="${esc(s?.montant_emprunte||'')}" oninput="recalcSim()"></div>
-      <div class="form-group"><label>Taux d'intérêt annuel (%)</label><input type="number" id="s-taux" step="0.01" value="${esc(s?.taux_interet||'')}" oninput="recalcSim()"></div>
-      <div class="form-group"><label>Durée (ans)</label><input type="number" id="s-duree" value="${esc(s?.duree_ans||20)}" oninput="recalcSim()"></div>
-      <div class="form-group"><label>Mensualité calculée</label>
-        <div class="calc-field" id="s-mensualite-display">
-          <span class="calc-field-badge">${sfAccIcon('lock',11)} Auto</span>
-          <span id="s-mensualite-val">${s?.mensualite_calculee?fmt(s.mensualite_calculee)+' €/mois':'—'}</span>
-        </div>
-      </div>
-      <div class="form-group"><label>Loyer min. exigé par la banque (€/mois)</label><input type="number" id="s-loyer-banque" value="${esc(s?.loyer_exige_banque||'')}" oninput="recalcSim()" placeholder="ex: 1 200"></div>
-      <div class="form-group"><label>Vos revenus mensuels (€/mois)</label><input type="number" id="s-revenus" value="${esc(s?.revenus_mensuels||'')}" oninput="recalcSim()" placeholder="ex: 4 000"></div>
-    </div>
-
-    <!-- Résultats en temps réel -->
-    <div id="sim-preview" style="margin-bottom:14px"></div>
-
-    <div style="clear:both;margin-top:16px" class="form-group">
-      <label>Notes</label>
-      <textarea id="s-notes" placeholder="Conditions de l'offre, points à négocier...">${esc(s?.notes||'')}</textarea>
-    </div>
-    <div class="modal-actions">
-      ${s?`<button class="btn btn-danger" onclick="deleteSim('${s.id}')">${sfAccIcon('poubelle',14)} Supprimer</button>`:''}
-      <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Annuler</button>
-      <button class="btn btn-primary" onclick="saveSim()">${s?sfAccIcon('check',14)+' Enregistrer':'＋ Sauvegarder'}</button>
-    </div>
-  `;
-  openModal('modal-detail');
-  if(s) recalcSim();
-}
-
-function recalcSim() {
-  const montant = parseFloat(document.getElementById('s-montant')?.value)||0;
-  const taux = parseFloat(document.getElementById('s-taux')?.value)||0;
-  const duree = parseFloat(document.getElementById('s-duree')?.value)||20;
-  const loyerBanque = parseFloat(document.getElementById('s-loyer-banque')?.value)||0;
-  const revenus = parseFloat(document.getElementById('s-revenus')?.value)||0;
-
-  const mensualite = calcMensualite(montant, taux, duree);
-  const mensEl = document.getElementById('s-mensualite-val');
-  if(mensEl) mensEl.textContent = mensualite>0 ? fmt(mensualite)+' €/mois' : '—';
-
-  // Taux d'endettement : mensualité / (revenus + loyer*0.7) * 100
-  const prevEl = document.getElementById('sim-preview');
-  if(!prevEl) return;
-  if(!montant && !mensualite) { prevEl.innerHTML=''; return; }
-
-  let endettHTML = '';
-  if(revenus > 0) {
-    const revenusEffectifs = revenus + loyerBanque * 0.7;
-    const te = (mensualite / revenusEffectifs) * 100;
-    const teClass = te<=33?'ok':te<=40?'warn':'danger';
-    /* ⚠️ LA COULEUR NE PORTE PAS SEULE — regle 4 de la planche de marque :
-     8 % des hommes sont daltoniens. L'icone double le mot, le mot double la
-     couleur. Les trois emojis d'avant faisaient le meme travail, mais en
-     police systeme et sans suivre la couleur du texte. */
-  const teCle   = te<=33 ? 'ok' : te<=40 ? 'alerte' : 'interdit';
-  const teLabel = sfAccIcon(teCle,14) + ' ' + (te<=33?'Excellent':te<=40?'Limite':'Trop élevé');
-    endettHTML = `
-      <div class="sim-endettement">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div style="font-size:11px;color:rgba(255,255,255,0.7)">Taux d'endettement</div>
-          <div style="font-size:11px;font-weight:700">${teLabel}</div>
-        </div>
-        <div style="font-size:26px;font-weight:800;margin:4px 0">${te.toFixed(1)}%</div>
-        <div class="sim-bar-bg"><div class="sim-bar-fill ${teClass}" style="width:${Math.min(te/50*100,100)}%"></div></div>
-        <div style="font-size:10px;color:rgba(255,255,255,0.6);margin-top:6px">Revenus pris en compte : ${fmt(revenusEffectifs)} € (revenus + 70% du loyer)</div>
-      </div>`;
-  }
-
-  prevEl.innerHTML = `
-    <div class="sim-result-card" style="position:relative">
-      <div class="sim-result-label">Mensualité calculée</div>
-      <div class="sim-result-value">${mensualite>0?fmt(mensualite)+' €':'—'}<span style="font-size:14px;opacity:0.6">/mois</span></div>
-      <div class="sim-detail-row"><span class="sim-detail-label">Montant emprunté</span><span class="sim-detail-value">${fmt(montant)} €</span></div>
-      <div class="sim-detail-row"><span class="sim-detail-label">Taux annuel</span><span class="sim-detail-value">${taux.toFixed(2)} %</span></div>
-      <div class="sim-detail-row"><span class="sim-detail-label">Durée</span><span class="sim-detail-value">${duree} ans</span></div>
-      <div class="sim-detail-row"><span class="sim-detail-label">Coût total du crédit</span><span class="sim-detail-value">${fmt(mensualite*duree*12-montant)} €</span></div>
-      ${loyerBanque?`<div class="sim-detail-row"><span class="sim-detail-label">Loyer min. banque</span><span class="sim-detail-value">${fmt(loyerBanque)} €/mois</span></div>`:''}
-      ${endettHTML}
-    </div>
-  `;
-}
-
-async function extractPDF(e) {
-  const file = e.target.files[0];
-  if(!file) return;
-  const zone = document.getElementById('pdf-zone');
-  const status = document.getElementById('pdf-status');
-  zone.classList.add('loading');
-  zone.innerHTML = `<div class="pdf-zone-icon"><span class="sf-attente"></span></div><div class="pdf-zone-text">Lecture du document PDF…</div><div class="pdf-zone-sub">Extraction des données en cours</div>`;
-
-  try {
-    // Configure PDF.js worker
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-
-    // Extract all text from all pages
-    let fullText = '';
-    for(let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      fullText += content.items.map(item => item.str).join(' ') + '\n';
-    }
-
-    // --- Extraction précise pour documents bancaires français ---
-    const extracted = {};
-
-    // ── MONTANT EMPRUNTÉ ──
-    const montantPatterns = [
-      /total des prêts[^\n]{0,60}([\d\s]{5,}[\d,]+)\s*€?/i,
-      /total du financement[^\n]{0,60}([\d\s]{5,}[\d,]+)\s*€/i,
-      /montant[^\n]{0,10}emprunté[^\d€]{0,30}([\d\s]{5,}[\d,]+)\s*€/i,
-    ];
-    for(const p of montantPatterns) {
-      const m = fullText.match(p);
-      if(m) {
-        const val = parseFloat(m[1].replace(/\s/g,'').replace(',','.'));
-        if(val > 10000 && val < 10000000) { extracted.montant_emprunte = val; break; }
-      }
-    }
-
-    // ── TAUX D'INTÉRÊT — doit être réaliste (0.5% à 15%), pas les taux d'invalidité (66%) ──
-    const tauxPatterns = [
-      /PTH[^\n]{0,80}(\d+[,\.]\d+)\s*%/i,
-      /taux[^\n]{0,20}nominal[^\n]{0,30}(\d+[,\.]\d+)\s*%/i,
-      /taux[^\n]{0,15}intérêt[^\n]{0,20}(\d+[,\.]\d+)\s*%/i,
-    ];
-    for(const p of tauxPatterns) {
-      const m = fullText.match(p);
-      if(m) {
-        const val = parseFloat(m[1].replace(',','.'));
-        if(val >= 0.5 && val <= 15) { extracted.taux_interet = val; break; }
-      }
-    }
-
-    // ── DURÉE ──
-    const dureeMoisMatch = fullText.match(/PTH[^\n]{0,80}(\d{3})\s*(?:mois|$)/i)
-      || fullText.match(/durée[^\n]{0,30}(\d{2,3})\s*mois/i)
-      || fullText.match(/duration.*?(\d{3})\s*mois/i);
-    const dureeAnsMatch = fullText.match(/(\d{2})\s*ans/i);
-    if(dureeMoisMatch) {
-      const mois = parseInt(dureeMoisMatch[1]);
-      if(mois >= 12 && mois <= 360) extracted.duree_ans = Math.round(mois/12);
-    } else if(dureeAnsMatch) {
-      const ans = parseInt(dureeAnsMatch[1]);
-      if(ans >= 1 && ans <= 30) extracted.duree_ans = ans;
-    }
-
-    // ── MENSUALITÉ HORS ASSURANCE ──
-    const mensPatterns = [
-      /mensualité\s+hors\s+assurance[^€\d]{0,20}([\d\s]+[\d,]+)\s*€/i,
-      /(?:1er|1°)\s*à\s*240[^€\d]{0,30}([\d\s]+[\d,]+)\s*€/i,
-      /échéance mensuelle[^€\d]{0,30}([\d\s]+[\d,]+)\s*€/i,
-    ];
-    for(const p of mensPatterns) {
-      const m = fullText.match(p);
-      if(m) {
-        const val = parseFloat(m[1].replace(/\s/g,'').replace(',','.'));
-        if(val >= 100 && val <= 20000) { extracted.mensualite = val; break; }
-      }
-    }
-
-    // ── LOYER SIMULÉ ──
-    const loyerMatch = fullText.match(/loyer[^\n]{0,20}mensuel[^€\d]{0,20}([\d\s]+[\d,]+)\s*€/i)
-      || fullText.match(/montant mensuel[^€\d]{0,20}([\d\s]+[\d,]+)\s*€/i);
-    if(loyerMatch) {
-      const val = parseFloat(loyerMatch[1].replace(/\s/g,'').replace(',','.'));
-      if(val >= 100 && val <= 20000) extracted.loyer_exige = val;
-    }
-
-    // ── REVENUS MENSUELS (priorité absolue sur les mensuels, sinon annuels / 12) ──
-    const revenusMatch = fullText.match(/revenus\s+mensuels?[^\d€]{0,20}([\d\s]+[\d,]+)\s*€/i);
-    if(revenusMatch) {
-      const val = parseFloat(revenusMatch[1].replace(/\s/g,'').replace(',','.'));
-      if(val >= 500 && val <= 50000) extracted.revenus = val;
-    }
-    // Fallback : revenus annuels / 12
-    if(!extracted.revenus) {
-      const revenusAnnuelsMatch = fullText.match(/revenus?\s+annuels?[^\d€]{0,20}([\d\s]+[\d,]+)\s*€/i);
-      if(revenusAnnuelsMatch) {
-        const annuel = parseFloat(revenusAnnuelsMatch[1].replace(/\s/g,'').replace(',','.'));
-        if(annuel >= 6000 && annuel <= 600000) extracted.revenus = Math.round(annuel/12);
-      }
-    }
-
-    // ── DATE DU DOCUMENT ──
-    const datePatterns = [
-      /valable à compter du\s+(\d{2})\/(\d{2})\/(\d{4})/i,
-      /fiche remise le\s*:\s*(\d{2})\/(\d{2})\/(\d{4})/i,
-      /simulation[^\n]{0,60}_(\d{2})(\d{2})(\d{4})\d*/i,
-    ];
-    for(const p of datePatterns) {
-      const m = fullText.match(p);
-      if(m && m[3]) {
-        extracted.date_document = `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-        break;
-      }
-    }
-
-    // Pré-remplir les champs
-    if(extracted.montant_emprunte) { const el=document.getElementById('s-montant'); if(el)el.value=extracted.montant_emprunte; }
-    if(extracted.taux_interet) { const el=document.getElementById('s-taux'); if(el)el.value=extracted.taux_interet; }
-    if(extracted.duree_ans) { const el=document.getElementById('s-duree'); if(el)el.value=extracted.duree_ans; }
-    if(extracted.loyer_exige) { const el=document.getElementById('s-loyer-banque'); if(el)el.value=extracted.loyer_exige; }
-    if(extracted.revenus) { const el=document.getElementById('s-revenus'); if(el)el.value=extracted.revenus; }
-    if(extracted.date_document) { const el=document.getElementById('s-date-doc'); if(el)el.value=extracted.date_document; }
-    recalcSim();
-
-    const fieldsFound = Object.values(extracted).filter(v=>v!=null&&!isNaN(v)).length;
-    zone.classList.remove('loading');
-    zone.innerHTML = `<div class="pdf-zone-icon">${sfAccIcon('ok',26)}</div><div class="pdf-zone-text">${esc(file.name)}</div>`;
-    // Store PDF for later saving
-    window._currentPdfName = file.name;
-    window._currentPdfData = await new Promise(res=>{const r=new FileReader();r.onload=()=>res(r.result);r.readAsDataURL(file);});
-
-    if(fieldsFound > 0) {
-      const details = [
-        extracted.montant_emprunte?`Montant: ${fmt(extracted.montant_emprunte)} €`:'',
-        extracted.taux_interet?`Taux: ${extracted.taux_interet}%`:'',
-        extracted.duree_ans?`Durée: ${extracted.duree_ans} ans`:'',
-        extracted.mensualite?`Mensualité: ${fmt(extracted.mensualite)} €`:'',
-      ].filter(Boolean).join(' · ');
-      status.innerHTML = `<div class="pdf-extracted-badge">${sfAccIcon('ok',13)} ${fieldsFound} champ${fieldsFound>1?'s':''} extrait${fieldsFound>1?'s':''}</div><div style="font-size:11px;color:var(--c-dim);margin-top:6px">${details}</div>`;
-    } else {
-      status.innerHTML = `<div style="color:var(--warning);font-size:12px;padding:8px">${sfAccIcon('alerte',13)} Aucune donnée reconnue automatiquement. Veuillez remplir les champs manuellement.</div>`;
-    }
-
-  } catch(err) {
-    zone.classList.remove('loading');
-    zone.innerHTML = `<div class="pdf-zone-icon">${sfAccIcon('doc',26)}</div><div class="pdf-zone-text">Importer une offre de prêt (PDF)</div><div class="pdf-zone-sub">Claude extraira automatiquement les données</div>`;
-    status.innerHTML = `<div style="color:var(--negative);font-size:12px">Erreur lecture PDF : ${esc(err.message)}</div>`;
-    console.error(err);
+// D'où l'on vient décide où l'on revient : la fiche (onglet Finances), ou la
+// liste. Une fiche ouverte depuis une simulation ne renvoie pas vers elle.
+function sfsAller(r) {
+  if (r.page === 'bien-detail' && r.id && allBiens.find(b => b.id === r.id)) {
+    currentBienId = r.id;
+    bienDetailTab = 'finances';
+    bdVersOnglets = true;
+    bienDetailBack = r.back && r.back !== 'simulation' ? r.back : 'simulateur';
+    navigate('bien-detail');
+  } else {
+    navigate(r.page && r.page !== 'simulation' && r.page !== 'bien-detail' ? r.page : 'simulateur');
   }
 }
 
-function openPdfSim(id) {
-  // Find sim in rendered list - reload from DB
-  db.from('simulations_credit').select('pdf_data,pdf_name,pdf_path').eq('id',id).maybeSingle().then(async ({data, error})=>{
-    if(error) {showNotif('Erreur : '+error.message, true); return;}
-    let src = null;
-    if(data?.pdf_path){
-      src = await TI_STORAGE.signedUrl('simulations-pdf', data.pdf_path);
-    } else if(data?.pdf_data){
-      src = data.pdf_data; // fallback legacy base64
-    }
-    if(!src){showNotif('PDF non disponible',true);return;}
-    const w=window.open('');
-    if(w){w.document.write(`<iframe src="${src}" style="width:100%;height:100vh;border:none"></iframe>`);w.document.close();}
-  });
+function sfsRetourLib(r) {
+  return r.page === 'bien-detail' ? 'Fiche du bien' : (PAGE_LABELS[r.page] || 'Simulations');
+}
+
+// Une nouvelle simulation part de ce qu'on sait déjà : le bien (son coût, son
+// loyer, la durée de sa fiche), le taux proposé, les revenus de la dernière.
+async function sfsPreremplir(bienId) {
+  const s = { bien_id: bienId || null, nom_simulation: '', duree_ans: Number(userPrefs?.duree_credit_ans) || 20 };
+  const bien = bienId ? allBiens.find(b => b.id === bienId) : null;
+  const [taux, derniere] = await Promise.all([
+    sfTauxParDefaut(),
+    db.from('simulations_credit').select('revenus_mensuels').order('created_at', { ascending: false }).limit(1),
+  ]);
+  if (bien) {
+    // Une valeur, pas du HTML : elle s'échappe là où elle s'affiche.
+    s.nom_simulation = ('Crédit — ' + (bien.titre || 'bien')).slice(0, 120);
+    const cout = mfMontantAcquisition(bien);
+    if (cout > 0) s.montant_emprunte = Math.round(cout);
+    if (Number(bien.duree_credit_ans) > 0) s.duree_ans = Number(bien.duree_credit_ans);
+    if (Number(bien.loyer_en_etat) > 0) s.loyer_exige_banque = Number(bien.loyer_en_etat);
+  }
+  if (taux) s.taux_interet = taux.taux;
+  const rev = Number(derniere?.data?.[0]?.revenus_mensuels);
+  if (rev > 0) s.revenus_mensuels = rev;
+  return { s, taux };
+}
+
+async function renderSimulation(el) {
+  const jeton = ++sfsJeton;
+  const etat = sfsEtat;
+  el.innerHTML = `<div class="loading"><div class="spinner"></div>Chargement…</div>`;
+  const [dispo, , lecture] = await Promise.all([
+    sfsVerifierColonnes(),
+    sfAssurerBiens(),
+    etat.id ? db.from('simulations_credit').select('*, biens(titre, ville)').eq('id', etat.id).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  // ⚠️ Un rendu périmé n'écrit pas : une autre navigation est arrivée.
+  if (jeton !== sfsJeton || currentPage !== 'simulation') return;
+  if (lecture.error || (etat.id && !lecture.data)) {
+    showNotif(lecture.error ? 'Erreur : ' + lecture.error.message : 'Cette simulation n\'existe plus', true);
+    sfsAller(etat.retour);
+    return;
+  }
+  let s = lecture.data, taux = null;
+  if (!s) {
+    ({ s, taux } = await sfsPreremplir(etat.bienId));
+    if (jeton !== sfsJeton || currentPage !== 'simulation') return;
+  }
+  sfsSimulation = s;
+  if (etat.mode === 'lecture') sfsRenderLecture(el, s, dispo);
+  else sfsRenderSaisie(el, s, dispo, taux);
+}
+
+function sfsDateLongue(d) {
+  if (!d) return '';
+  const dt = new Date(d + 'T12:00:00');
+  return isNaN(dt) ? '' : dt.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function sfsRenderLecture(el, s, dispo) {
+  const c = sfSimDepuisLigne(s);
+  const endet = sfSimEndettement(c);
+  const bien = s.bien_id ? allBiens.find(b => b.id === s.bien_id) : null;
+  const detenu = bien && sfDetenu(bien);
+  const mensFiche = Math.round(parseFloat(bien?.mensualite_credit) || 0);
+  const mens = c.calculable ? Math.round(c.mens) : 0;
+  const peutRetenir = dispo && bien && !s.retenue && c.calculable;
+  const kpi = (lab, val, sous, cls = '') => `<div class="sff-kpi${cls}"><span class="sff-kpi__l">${lab}</span>
+      <span class="sff-kpi__v${val == null ? ' sff-kpi__v--none' : ''}">${val == null ? 'Non disponible' : val}</span><span class="sff-kpi__s">${sous}</span></div>`;
+  const ligne = (lab, val, cls = '') => `<div class="sff-line${cls}"><span class="sff-line__l">${lab}</span><span class="sff-line__v">${val}</span><span></span></div>`;
+
+  el.innerHTML = `
+  <div class="sff-page sfs">
+    <div class="sff-top">
+      <button type="button" class="sff-back" onclick="sfsAller(sfsEtat.retour)">${sfAccIcon('retour', 14)} ${esc(sfsRetourLib(sfsEtat.retour))}</button>
+      <div class="sff-titleline">
+        <div class="sff-titleline__id">
+          <h1 class="sff-h1">${esc(s.nom_simulation || 'Simulation')}</h1>
+          <p class="sff-sub">${[s.date_document ? 'Offre du ' + esc(sfsDateLongue(s.date_document)) : '',
+            bien ? esc(bien.titre || 'Bien') + (bien.ville ? ', ' + esc(bien.ville) : '') : 'Rattachée à aucun bien'].filter(Boolean).join(' · ')}
+            ${s.retenue && bien ? ` <span class="sf-pill sf-pill--brand">${sfAccIcon('check', 11)} ${detenu ? 'Votre prêt' : 'Retenue pour ce bien'}</span>` : ''}</p>
+        </div>
+        <div class="sff-acts">
+          ${bien && !(sfsEtat.retour.page === 'bien-detail' && sfsEtat.retour.id === bien.id)
+            ? `<button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="openDetail(${escJs(bien.id)})">${sfAccIcon('maison', 15)} Voir la fiche</button>` : ''}
+          <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="sfsDupliquer(${escJs(s.id)})">${sfAccIcon('doc', 15)} Dupliquer</button>
+          <button class="sf-btn sf-btn--${peutRetenir ? 'secondary' : 'primary'} sf-btn--sm" type="button" onclick="openEditSimulation(${escJs(s.id)})">${sfAccIcon('crayon', 15)} Modifier</button>
+          ${peutRetenir ? `<button class="sf-btn sf-btn--primary sf-btn--sm" type="button" id="sfs-retenir" onclick="sfsRetenir(${escJs(s.id)})">${sfAccIcon('check', 15)} Retenir pour ce bien</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="sff-kpis">
+      ${kpi('Mensualité', c.calculable ? esc(sfEur(c.mens)) : null,
+        !c.calculable ? 'montant, taux et durée à renseigner'
+          : c.assuranceConnue ? `dont ${esc(sfEur(c.assurance))} d'assurance` : 'assurance non renseignée', ' sff-kpi--hi')}
+      ${kpi('Coût total du crédit', c.calculable ? esc(sfEur(c.coutTotal)) : null,
+        c.calculable ? (c.assuranceConnue ? `intérêts et assurance sur ${esc(String(s.duree_ans))} ans` : `intérêts sur ${esc(String(s.duree_ans))} ans`) : 'non calculable')}
+      ${kpi('Taux d\'endettement', c.calculable && c.te !== null ? esc(endet.val) : null,
+        endet.icone ? `${sfAccIcon(endet.icone, 12)} ${esc(endet.texte)}` : esc(endet.texte), endet.etat === 'alerte' ? ' sfs-kpi--alerte' : '')}
+      ${kpi('Montant emprunté', s.montant_emprunte ? esc(sfEur(s.montant_emprunte)) : null,
+        s.montant_emprunte ? `sur ${esc(String(s.duree_ans || 20))} ans à ${esc(sfPctNum(s.taux_interet, 2))}` : 'non renseigné')}
+    </div>
+
+    ${bien && dispo ? `
+    <section class="sff-block sfs-bien">
+      <div class="sff-block__h"><h2 class="sff-block__t">${detenu ? 'Le prêt de ce bien' : 'Le financement de ce bien'}</h2></div>
+      <div class="sff-block__b">
+        <p class="sfs-bien__x">${s.retenue
+          ? (mens && mens === mensFiche
+              ? `${detenu ? 'C\'est le prêt suivi' : 'C\'est la simulation retenue'} : sa mensualité, assurance comprise, est celle de la fiche${detenu ? ' et du Suivi financier' : ''}.`
+              : `Retenue pour ce bien, mais la fiche compte ${mensFiche ? esc(sfEur(mensFiche)) : 'une mensualité non renseignée'} par mois quand cette simulation en donne ${esc(sfEur(mens))}.`)
+          : `La fiche compte ${mensFiche ? esc(sfEur(mensFiche)) + ' par mois de crédit' : 'aucune mensualité de crédit'}. Retenir cette simulation y reporte sa mensualité, assurance comprise${c.calculable ? ` (${esc(sfEur(mens))})` : ''}, et sa durée.`}</p>
+        ${s.retenue && mens && mens !== mensFiche ? `<button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="sfsRetenir(${escJs(s.id)})">Mettre la fiche à jour</button>` : ''}
+      </div>
+    </section>` : ''}
+
+    <div class="sff-grid2">
+      <section class="sff-block">
+        <div class="sff-block__h"><h2 class="sff-block__t">Le prêt</h2></div>
+        <div class="sff-block__b"><div class="sff-lines sff-lines--plain sfs-lines">
+          ${ligne('Montant emprunté', s.montant_emprunte ? esc(sfEur(s.montant_emprunte)) : 'Non renseigné')}
+          ${ligne('Taux nominal', s.taux_interet != null ? esc(sfPctNum(s.taux_interet, 2)) : 'Non renseigné')}
+          ${ligne('Durée', esc(String(s.duree_ans || 20)) + ' ans')}
+          ${ligne('Mensualité hors assurance', c.calculable ? esc(sfEur(c.horsAss)) : 'Non disponible')}
+          ${dispo ? ligne('Assurance emprunteur', c.assuranceConnue ? esc(sfEur(c.assurance)) + ' /mois' : 'Non renseignée') : ''}
+          ${ligne('Mensualité assurance comprise', c.calculable ? esc(sfEur(c.mens)) : 'Non disponible', ' sff-line--tot')}
+          ${ligne('Intérêts', c.calculable ? esc(sfEur(c.interets)) : 'Non disponible')}
+          ${dispo && c.assuranceConnue ? ligne('Coût de l\'assurance', esc(sfEur(c.coutAssurance))) : ''}
+        </div></div>
+      </section>
+      <section class="sff-block">
+        <div class="sff-block__h"><h2 class="sff-block__t">Votre situation</h2></div>
+        <div class="sff-block__b"><div class="sff-lines sff-lines--plain sfs-lines">
+          ${ligne('Revenus mensuels', s.revenus_mensuels ? esc(sfEur(s.revenus_mensuels)) : 'Non renseignés')}
+          ${ligne('Loyer du bien', s.loyer_exige_banque ? esc(sfEur(s.loyer_exige_banque)) : 'Non renseigné')}
+          ${ligne('Revenus retenus par la banque', c.revenusRetenus ? esc(sfEur(c.revenusRetenus)) : 'Non disponible')}
+          ${ligne('Taux d\'endettement', c.calculable && c.te !== null ? `<span class="sfs-endet sfs-endet--${endet.etat}">${sfAccIcon(endet.icone, 13)} ${esc(endet.val)}</span>` : 'Non disponible', ' sff-line--tot')}
+        </div>
+        ${c.calculable && c.te !== null ? `<p class="sfs-note">${endet.etat === 'ok' ? 'Dans' : 'Au-dessus de'} la limite de ${SF_ENDETTEMENT_MAX} % retenue par les banques.</p>` : ''}
+        </div>
+      </section>
+    </div>
+
+    <section class="sff-block">
+      <div class="sff-block__h"><h2 class="sff-block__t">L'offre de la banque</h2></div>
+      <div class="sff-block__b">${(s.pdf_path || s.pdf_data)
+        ? `<button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="openPdfSim(${escJs(s.id)})">${sfAccIcon('trombone', 15)} Ouvrir l'offre${s.pdf_name ? ' — ' + esc(s.pdf_name) : ''}</button>`
+        : `<p class="sfs-vide">Aucune offre jointe. Elle se joint depuis « Modifier ».</p>`}</div>
+    </section>
+
+    ${s.notes ? `
+    <section class="sff-block">
+      <div class="sff-block__h"><h2 class="sff-block__t">Notes</h2></div>
+      <div class="sff-block__b"><p class="sfs-notes">${esc(s.notes)}</p></div>
+    </section>` : ''}
+  </div>`;
+}
+
+// Un champ de montant, de taux ou de durée : texte, clavier numérique, unité
+// dans le champ, montant aligné à droite (gabarit de la fiche).
+function sfsChampHtml({ id, lab, val, unite, mode = 'decimal', aide = '', requis = false, large = false }) {
+  const aideId = aide ? id + '-aide' : '';
+  return `<div class="sf-field sfn-f${large ? ' sfn-f--large' : ''}">
+      <label class="sf-label" for="${id}">${esc(lab)}${requis ? '<span class="sf-label__req" aria-hidden="true">*</span>' : ''}</label>
+      <div class="sfn-saisie sfs-saisie">
+        <input class="sf-input sfn-nombre" id="${id}" type="text" inputmode="${mode}" autocomplete="off"
+               value="${esc(sfnFormaterNombre(val))}" onblur="sfnFormater(this)"
+               aria-describedby="${[aideId, id + '-err'].filter(Boolean).join(' ')}"${requis ? ' aria-required="true"' : ''}>
+        <span class="sfn-unite" aria-hidden="true">${esc(unite)}</span>
+      </div>
+      ${aide ? `<p class="sf-hint" id="${aideId}">${aide}</p>` : ''}
+      <p class="sf-hint sf-hint--error" id="${id}-err" hidden></p>
+    </div>`;
+}
+
+function sfsRenderSaisie(el, s, dispo, taux) {
+  sfsModifie = false;
+  sfsEnvoi = false;
+  sfsPdf = null;
+  const creation = !s.id;
+  const bienOptions = sfcBiensProposes().map(b => `<option value="${esc(b.id)}"${s.bien_id === b.id ? ' selected' : ''}>${esc(b.titre)}${b.ville ? ' — ' + esc(b.ville) : ''}</option>`).join('');
+  const aideTaux = (taux && creation ? `<em class="sf-source">${esc(taux.mention)}</em> · ` : '') + sfsLienTauxParDuree();
+
+  el.innerHTML = `
+  <div class="sff-page sfn sfs">
+    <div class="sff-top">
+      <button type="button" class="sff-back" onclick="sfsQuitter()">${sfAccIcon('retour', 14)} ${creation ? esc(sfsRetourLib(sfsEtat.retour)) : 'Simulation'}</button>
+      <div class="sff-titleline">
+        <div class="sff-titleline__id">
+          <h1 class="sff-h1">${creation ? 'Nouvelle simulation' : 'Modifier la simulation'}</h1>
+          <p class="sff-sub">${creation ? 'Saisissez l\'offre, ou lisez-la depuis son PDF : la mensualité et l\'endettement se calculent au fil de la frappe.' : esc(s.nom_simulation || 'Simulation')}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sfn-body">
+      <aside class="sfn-rail" aria-label="Résultat de la simulation">
+        <div class="sff-rail__b sfn-r">
+          <span class="sff-rail__l">Mensualité</span>
+          <span class="sfn-r__v" id="sfs-r-mens"></span>
+          <span class="sff-rail__s" id="sfs-r-mens-s"></span>
+        </div>
+        <div class="sff-rail__b sfn-r">
+          <span class="sff-rail__l">Coût total du crédit</span>
+          <span class="sfn-r__v" id="sfs-r-cout"></span>
+          <span class="sff-rail__s" id="sfs-r-cout-s"></span>
+        </div>
+        <div class="sff-rail__b sfn-r">
+          <span class="sff-rail__l">Taux d'endettement</span>
+          <span class="sfn-r__v" id="sfs-r-endet"></span>
+          <span class="sff-rail__s" id="sfs-r-endet-s"></span>
+        </div>
+      </aside>
+
+      <div class="sfn-main">
+        <section class="sff-block">
+          <div class="sff-block__h"><h2 class="sff-block__t">L'offre</h2>
+            <span class="sfn-sec__resume"><span class="sf-label__req" aria-hidden="true">*</span> obligatoire</span></div>
+          <div class="sff-block__b"><div class="sfn-grid">
+            <div class="sf-field sfn-f sfn-f--large">
+              <label class="sf-label" for="s-nom">Nom de la simulation<span class="sf-label__req" aria-hidden="true">*</span></label>
+              <input class="sf-input" type="text" id="s-nom" maxlength="120" value="${esc(s.nom_simulation || '')}" placeholder="ex. Offre Crédit Agricole 20 ans" aria-required="true" aria-describedby="s-nom-err">
+              <p class="sf-hint sf-hint--error" id="s-nom-err" hidden></p>
+            </div>
+            <div class="sf-field sfn-f">
+              <label class="sf-label" for="s-bien">Bien financé</label>
+              <select class="sf-input sf-select" id="s-bien"><option value="">— Aucun bien rattaché —</option>${bienOptions}</select>
+            </div>
+            <div class="sf-field sfn-f">
+              <label class="sf-label" for="s-date-doc">Date de l'offre</label>
+              <input class="sf-input" type="date" id="s-date-doc" value="${esc(s.date_document || '')}">
+            </div>
+            <div class="sf-field sfn-f sfn-f--large">
+              <div class="sfn-fichiers__h">
+                <span class="sf-label">Offre de la banque (PDF)</span>
+                <button type="button" class="sf-btn sf-btn--secondary sf-btn--sm" onclick="document.getElementById('pdf-input').click()">${sfAccIcon('trombone', 15)} ${s.pdf_path || s.pdf_data ? 'Remplacer l\'offre' : 'Lire une offre de prêt'}</button>
+              </div>
+              <input type="file" id="pdf-input" accept="application/pdf" hidden onchange="extractPDF(event)">
+              <p class="sf-hint" id="sfs-pdf-etat" aria-live="polite">${s.pdf_name ? 'Offre jointe : ' + esc(s.pdf_name) + '. ' : ''}Les montants reconnus remplissent les champs vides ; vérifiez-les avant d'enregistrer.</p>
+            </div>
+          </div></div>
+        </section>
+
+        <section class="sff-block">
+          <div class="sff-block__h"><h2 class="sff-block__t">Le prêt</h2></div>
+          <div class="sff-block__b"><div class="sfn-grid">
+            ${sfsChampHtml({ id: 's-montant', lab: 'Montant emprunté', val: s.montant_emprunte, unite: '€', requis: true,
+              aide: creation && s.montant_emprunte ? 'Le coût total de l\'opération, frais et travaux compris : ôtez votre apport.' : '' })}
+            ${sfsChampHtml({ id: 's-taux', lab: 'Taux nominal', val: s.taux_interet, unite: '%', requis: true, aide: aideTaux })}
+            ${sfsChampHtml({ id: 's-duree', lab: 'Durée', val: s.duree_ans || 20, unite: 'ans', mode: 'numeric', requis: true })}
+            ${dispo ? sfsChampHtml({ id: 's-assurance', lab: 'Assurance emprunteur', val: s.assurance_mensuelle, unite: '€/mois',
+              aide: 'Le montant mensuel indiqué dans l\'offre, tous emprunteurs confondus.' }) : ''}
+          </div></div>
+        </section>
+
+        <section class="sff-block">
+          <div class="sff-block__h"><h2 class="sff-block__t">Votre situation</h2></div>
+          <div class="sff-block__b"><div class="sfn-grid">
+            ${sfsChampHtml({ id: 's-revenus', lab: 'Revenus mensuels nets', val: s.revenus_mensuels, unite: '€/mois',
+              aide: 'Les vôtres, ou ceux de tous les emprunteurs.' })}
+            ${sfsChampHtml({ id: 's-loyer-banque', lab: 'Loyer du bien', val: s.loyer_exige_banque, unite: '€/mois',
+              aide: `La banque en compte ${Math.round(SF_LOYER_RETENU * 100)} % dans vos revenus.` })}
+          </div></div>
+        </section>
+
+        <section class="sff-block">
+          <div class="sff-block__h"><h2 class="sff-block__t">Notes</h2></div>
+          <div class="sff-block__b"><div class="sfn-grid">
+            <div class="sf-field sfn-f sfn-f--large">
+              <label class="sf-label" for="s-notes">Notes</label>
+              <textarea class="sf-input" id="s-notes" rows="4" placeholder="Conditions de l'offre, points à négocier, garantie…">${esc(s.notes || '')}</textarea>
+            </div>
+          </div></div>
+        </section>
+
+        ${creation ? '' : `
+        <div class="sfn-suppr">
+          <button type="button" class="sf-btn sf-btn--danger sf-btn--sm" onclick="deleteSim(${escJs(s.id)})">${sfAccIcon('poubelle', 14)} Supprimer cette simulation</button>
+        </div>`}
+      </div>
+    </div>
+
+    <div class="sfn-barre">
+      <div class="sfn-barre__resume">
+        <span class="sfn-barre__l">Mensualité</span>
+        <b class="sfn-barre__v" id="sfs-barre-mens"></b>
+      </div>
+      <div class="sfn-barre__acts">
+        <button type="button" class="sf-btn sf-btn--secondary" onclick="sfsQuitter()">Annuler</button>
+        <button type="button" class="sf-btn sf-btn--primary" id="sfs-enregistrer" onclick="saveSim()">${creation ? 'Enregistrer la simulation' : 'Enregistrer'}</button>
+      </div>
+    </div>
+  </div>`;
+
+  sfsMaj();
+  const page = el.querySelector('.sfs');
+  page.addEventListener('input', sfsSaisie);
+  page.addEventListener('change', sfsSaisie);
+}
+
+function sfsSaisie(e) {
+  if (e?.target?.id === 'pdf-input') return;
+  sfsModifie = true;
+  sfsMaj();
+}
+
+// Ce que l'écran saisit, avant validation.
+function sfsLireEcran() {
+  const $ = id => document.getElementById(id);
+  const nombre = id => { const n = sfLireNombre($(id)?.value); return Number.isFinite(n) ? n : (n === null ? null : NaN); };
+  return {
+    nom: ($('s-nom')?.value || '').trim(),
+    bienId: $('s-bien')?.value || null,
+    date: $('s-date-doc')?.value || null,
+    montant: nombre('s-montant'), taux: nombre('s-taux'), duree: nombre('s-duree'),
+    assurance: $('s-assurance') ? nombre('s-assurance') : null,
+    revenus: nombre('s-revenus'), loyer: nombre('s-loyer-banque'),
+    notes: ($('s-notes')?.value || '').trim() || null,
+  };
+}
+
+// La synthèse se met à jour à chaque frappe : le rail sur grand écran, la
+// barre en bas sur téléphone.
+function sfsMaj() {
+  const e = sfsLireEcran();
+  const c = sfSimCalcul({ montant: e.montant, taux: e.taux, duree: e.duree, assurance: e.assurance, revenus: e.revenus, loyer: e.loyer });
+  const endet = sfSimEndettement(c);
+  const pose = (id, texte, cls) => { const x = document.getElementById(id); if (!x) return; x.textContent = texte; if (cls) x.className = 'sfn-r__v sfn-r__v--' + cls; };
+  pose('sfs-r-mens', c.calculable ? sfEur(c.mens) : 'Non disponible', c.calculable ? 'neutre' : 'none');
+  pose('sfs-r-mens-s', !c.calculable ? 'montant, taux et durée à renseigner'
+    : c.assuranceConnue ? `dont ${sfEur(c.assurance)} d'assurance` : 'hors assurance');
+  pose('sfs-r-cout', c.calculable ? sfEur(c.coutTotal) : 'Non disponible', c.calculable ? 'neutre' : 'none');
+  pose('sfs-r-cout-s', c.calculable ? `sur ${e.duree} ans` : '');
+  pose('sfs-r-endet', endet.val, endet.etat === 'ok' ? 'neutre' : endet.etat);
+  const s2 = document.getElementById('sfs-r-endet-s');
+  if (s2) s2.innerHTML = (endet.icone ? sfAccIcon(endet.icone, 12) + ' ' : '') + esc(endet.texte);
+  const barre = document.getElementById('sfs-barre-mens');
+  if (barre) { barre.textContent = c.calculable ? sfEur(c.mens) + ' /mois' : 'Non disponible'; barre.className = 'sfn-barre__v' + (c.calculable ? '' : ' sfn-barre__v--none'); }
+}
+
+// Un champ en erreur : le message sous le champ, le champ marqué.
+function sfsErreur(id, message) {
+  const champ = document.getElementById(id), err = document.getElementById(id + '-err');
+  if (champ) { champ.classList.toggle('sf-input--invalid', !!message); champ.setAttribute('aria-invalid', message ? 'true' : 'false'); }
+  if (err) { err.hidden = !message; err.textContent = message || ''; }
+  return !message;
+}
+
+function sfsValider(e) {
+  const ok = [
+    sfsErreur('s-nom', e.nom ? '' : 'Donnez un nom à cette simulation.'),
+    sfsErreur('s-montant', Number.isNaN(e.montant) ? 'Montant illisible.' : e.montant > 0 && e.montant <= 20000000 ? '' : 'Indiquez le montant emprunté.'),
+    sfsErreur('s-taux', Number.isNaN(e.taux) ? 'Taux illisible.' : e.taux !== null && e.taux >= 0 && e.taux <= 20 ? '' : 'Indiquez un taux entre 0 et 20 %.'),
+    sfsErreur('s-duree', Number.isNaN(e.duree) ? 'Durée illisible.' : e.duree >= 1 && e.duree <= 40 && Number.isInteger(e.duree) ? '' : 'Indiquez une durée entière, de 1 à 40 ans.'),
+    !document.getElementById('s-assurance') || sfsErreur('s-assurance', Number.isNaN(e.assurance) ? 'Montant illisible.' : ''),
+    sfsErreur('s-revenus', Number.isNaN(e.revenus) ? 'Montant illisible.' : ''),
+    sfsErreur('s-loyer-banque', Number.isNaN(e.loyer) ? 'Montant illisible.' : ''),
+  ].every(Boolean);
+  if (!ok) document.querySelector('.sfs .sf-input--invalid')?.focus();
+  return ok;
+}
+
+async function sfsQuitter() {
+  if (sfsModifie && !(await sfConfirmer({ titre: 'Quitter la saisie',
+    question: 'Quitter sans enregistrer ?',
+    detail: 'Ce que vous avez saisi depuis l’ouverture de la simulation sera perdu.',
+    ok: 'Quitter sans enregistrer', danger: true }))) return;
+  sfsModifie = false;
+  if (sfsEtat.id) { sfsEtat.mode = 'lecture'; navigate('simulation'); }
+  else sfsAller(sfsEtat.retour);
 }
 
 async function saveSim() {
-  const nom = document.getElementById('s-nom')?.value;
-  if(!nom){showNotif('Le nom est requis',true);return;}
-  const montant = parseFloat(document.getElementById('s-montant')?.value)||0;
-  const taux = parseFloat(document.getElementById('s-taux')?.value)||0;
-  const duree = parseInt(document.getElementById('s-duree')?.value)||20;
-  const loyerBanque = parseFloat(document.getElementById('s-loyer-banque')?.value)||0;
-  const revenus = parseFloat(document.getElementById('s-revenus')?.value)||0;
-  const mensualite = calcMensualite(montant,taux,duree);
-  const revenusEff = revenus + loyerBanque*0.7;
-  const te = revenus>0 ? (mensualite/revenusEff)*100 : null;
-  const bienId = document.getElementById('s-bien')?.value||null;
-  const notes = document.getElementById('s-notes')?.value||null;
-  const dateDoc = document.getElementById('s-date-doc')?.value||null;
-  const pdfName = window._currentPdfName||null; const pdfData = window._currentPdfData||null;
+  // ⚠️ La garde contre le double envoi se pose AVANT le premier await.
+  if (sfsEnvoi) return;
+  const e = sfsLireEcran();
+  if (!sfsValider(e)) return;
+  sfsEnvoi = true;
+  const btn = document.getElementById('sfs-enregistrer');
+  if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+  const avant = sfsSimulation || {};
   try {
-    // 1. Insert/update des champs (sans nouveau PDF) → récupérer l'id
-    const payload = {nom_simulation:nom,bien_id:bienId||null,montant_emprunte:montant,taux_interet:taux,duree_ans:duree,mensualite_calculee:mensualite,loyer_exige_banque:loyerBanque,revenus_mensuels:revenus,taux_endettement:te,notes,date_document:dateDoc||null,user_id:currentUser?.id};
-    if(pdfName) payload.pdf_name = pdfName;
-    let simId = simEditId;
-    if(simEditId){
-      const {error} = await db.from('simulations_credit').update(payload).eq('id',simEditId);
-      if(error) throw error;
+    const dispo = await sfsVerifierColonnes();
+    const c = sfSimCalcul({ montant: e.montant, taux: e.taux, duree: e.duree, assurance: e.assurance, revenus: e.revenus, loyer: e.loyer });
+    const payload = {
+      nom_simulation: e.nom.slice(0, 120), bien_id: e.bienId || null, date_document: e.date || null,
+      montant_emprunte: e.montant, taux_interet: e.taux, duree_ans: e.duree,
+      mensualite_calculee: c.calculable ? Math.round(c.mens * 100) / 100 : 0,
+      loyer_exige_banque: e.loyer || 0, revenus_mensuels: e.revenus || 0,
+      taux_endettement: c.te === null || c.te === undefined ? null : Math.round(c.te * 10) / 10,
+      notes: e.notes, user_id: currentUser.id,
+    };
+    if (dispo) {
+      payload.assurance_mensuelle = e.assurance > 0 ? e.assurance : null;
+      // Changer de bien, c'est cesser d'être la simulation retenue de l'ancien.
+      if (avant.id && avant.retenue && avant.bien_id !== payload.bien_id) payload.retenue = false;
+    }
+    if (sfsPdf) payload.pdf_name = sfsPdf.nom;
+    let id = avant.id || null;
+    if (id) {
+      const { error } = await db.from('simulations_credit').update(payload).eq('id', id).eq('user_id', currentUser.id);
+      if (error) throw error;
     } else {
-      const {data:inserted, error} = await db.from('simulations_credit').insert(payload).select('id').single();
-      if(error) throw error;
-      simId = inserted.id;
+      const { data, error } = await db.from('simulations_credit').insert(payload).select('id').single();
+      if (error) throw error;
+      id = data.id;
     }
-    // 2. Si un NOUVEAU PDF a été importé (base64 dataURL en mémoire), l'uploader
-    if(pdfData && pdfData.startsWith('data:')){
-      const up = await TI_STORAGE.uploadDataURL('simulations-pdf', simId, pdfData, pdfName || 'simulation.pdf');
-      const {error:upErr} = await db.from('simulations_credit').update({pdf_path:up.path, pdf_data:null}).eq('id',simId);
-      if(upErr) throw upErr;
+    if (sfsPdf?.data?.startsWith('data:')) {
+      const up = await TI_STORAGE.uploadDataURL('simulations-pdf', id, sfsPdf.data, sfsPdf.nom || 'offre.pdf');
+      const { error } = await db.from('simulations_credit').update({ pdf_path: up.path, pdf_data: null }).eq('id', id);
+      if (error) throw error;
     }
-    showNotif(simEditId?'Simulation mise à jour':'Simulation sauvegardée');
-    closeModal('modal-detail');
-    renderSimulateur(document.getElementById('content'));
-  } catch(error) {
-    showNotif('Erreur : '+error.message,true);
+    sfsModifie = false;
+    showNotif(avant.id ? 'Simulation mise à jour' : 'Simulation enregistrée');
+    // La simulation retenue a changé de mensualité : la fiche le suit, sur accord.
+    const retenue = dispo && avant.retenue && payload.retenue !== false;
+    if (retenue || (!dispo && payload.bien_id)) await sfsProposerReport(id, payload.bien_id, c, e.duree);
+    sfsEtat = { ...sfsEtat, id, mode: 'lecture' };
+    navigate('simulation');
+  } catch (err) {
+    showNotif('Erreur : ' + err.message, true);
+  } finally {
+    sfsEnvoi = false;
+    if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = avant.id ? 'Enregistrer' : 'Enregistrer la simulation'; }
+  }
+}
+
+// Reporter la mensualité (assurance comprise) et la durée d'une simulation
+// sur la fiche de son bien, si elles diffèrent — sur accord.
+async function sfsProposerReport(simId, bienId, c, duree) {
+  const bien = allBiens.find(b => b.id === bienId);
+  if (!bien || !c?.calculable) return false;
+  const m = Math.round(c.mens), bm = Math.round(parseFloat(bien.mensualite_credit) || 0);
+  if (m === bm && Number(bien.duree_credit_ans) === Number(duree)) return false;
+  if (!(await sfConfirmer({ titre: 'Mettre la fiche à jour',
+    question: 'Reporter cette mensualité sur la fiche du bien ?',
+    detail: `« ${esc(bien.titre || 'Le bien')} » compte ${bm ? `<strong>${esc(sfEur(bm))}</strong>` : 'une mensualité non renseignée'} ; la simulation donne <strong>${esc(sfEur(m))}</strong> par mois, assurance comprise, sur ${esc(String(duree))} ans.`,
+    ok: 'Mettre la fiche à jour', annuler: 'Garder la fiche' }))) return false;
+  return sfsReporterSurFiche(bien, m, duree);
+}
+
+async function sfsReporterSurFiche(bien, mens, duree) {
+  const patch = { mensualite_credit: mens, duree_credit_ans: duree };
+  const { error } = await db.from('biens').update(patch).eq('id', bien.id).eq('user_id', currentUser.id);
+  if (error) { showNotif('Erreur : ' + error.message, true); return false; }
+  Object.assign(bien, patch);
+  return true;
+}
+
+/* RETENIR une simulation pour son bien : elle devient son financement. Sa
+   mensualité, assurance comprise, et sa durée passent sur la fiche ; une autre
+   simulation retenue pour ce bien cesse de l'être (l'index unique de la base
+   n'en admet qu'une — d'où l'ordre : retirer d'abord, retenir ensuite). */
+async function sfsRetenir(id) {
+  if (sfsEnvoi) return;
+  const s = sfsSimulation;
+  const bien = s && s.id === id && s.bien_id ? allBiens.find(b => b.id === s.bien_id) : null;
+  if (!bien) return;
+  const c = sfSimDepuisLigne(s);
+  if (!c.calculable) return;
+  const m = Math.round(c.mens), bm = Math.round(parseFloat(bien.mensualite_credit) || 0);
+  sfsEnvoi = true;
+  try {
+    if (!s.retenue && !(await sfConfirmer({ titre: 'Retenir cette simulation',
+      question: `Retenir « ${s.nom_simulation || 'cette simulation'} » pour ce bien ?`,
+      detail: `Sa mensualité, assurance comprise, et sa durée passent sur la fiche de « ${esc(bien.titre || 'ce bien')} » : `
+        + `${bm && bm !== m ? `${esc(sfEur(bm))} → ` : ''}<strong>${esc(sfEur(m))}</strong> par mois sur ${esc(String(s.duree_ans))} ans. `
+        + 'Une autre simulation retenue pour ce bien cesse de l’être.',
+      ok: 'Retenir' }))) return;
+    if (!s.retenue) {
+      const r1 = await db.from('simulations_credit').update({ retenue: false }).eq('bien_id', bien.id).eq('retenue', true).eq('user_id', currentUser.id);
+      if (r1.error) throw r1.error;
+      const r2 = await db.from('simulations_credit').update({ retenue: true }).eq('id', id).eq('user_id', currentUser.id);
+      if (r2.error) throw r2.error;
+    }
+    if (!(await sfsReporterSurFiche(bien, m, Number(s.duree_ans) || 20))) return;
+    showNotif(s.retenue ? 'Fiche mise à jour' : 'Simulation retenue : la fiche est à jour');
+    navigate('simulation');
+  } catch (err) {
+    showNotif('Erreur : ' + err.message, true);
+  } finally {
+    sfsEnvoi = false;
+  }
+}
+
+// Dupliquer pour comparer : la copie s'ouvre en modification. Ni l'offre
+// jointe ni le statut de simulation retenue ne la suivent.
+async function sfsDupliquer(id) {
+  if (sfsEnvoi) return;
+  sfsEnvoi = true;
+  try {
+    const { data: s, error } = await db.from('simulations_credit').select('*').eq('id', id).maybeSingle();
+    if (error || !s) throw error || new Error('Cette simulation n\'existe plus');
+    const { id: _i, created_at, updated_at, pdf_data, pdf_name, pdf_path, pdf_extracted, retenue, biens, ...reste } = s;
+    const { data, error: e2 } = await db.from('simulations_credit')
+      .insert({ ...reste, nom_simulation: `${s.nom_simulation || 'Simulation'} (copie)`.slice(0, 120), user_id: currentUser.id })
+      .select('id').single();
+    if (e2) throw e2;
+    showNotif('Copie créée : modifiez-la pour comparer');
+    sfsOuvrir({ mode: 'saisie', id: data.id, retour: sfsEtat.retour });
+  } catch (err) {
+    showNotif('Erreur : ' + err.message, true);
+  } finally {
+    sfsEnvoi = false;
   }
 }
 
 async function deleteSim(id) {
-  if(!(await sfConfirmer({ titre: 'Supprimer la simulation', question: 'Supprimer cette simulation ?',
-    detail: 'Cette action est irréversible.', ok: 'Supprimer', danger: true }))) return;
-  const{error}=await db.from('simulations_credit').delete().eq('id',id);
-  if(error){showNotif('Erreur',true);return;}
-  showNotif('Simulation supprimée');closeModal('modal-detail');
-  renderSimulateur(document.getElementById('content'));
+  if (!(await sfConfirmer({ titre: 'Supprimer la simulation', question: 'Supprimer cette simulation ?',
+    detail: 'Elle disparaît avec son offre jointe. La fiche du bien garde sa mensualité.', ok: 'Supprimer', danger: true }))) return;
+  const { data: s } = await db.from('simulations_credit').select('pdf_path').eq('id', id).maybeSingle();
+  if (s?.pdf_path) { try { await TI_STORAGE.remove('simulations-pdf', [s.pdf_path]); } catch (e) { /* le fichier orphelin ne bloque rien */ } }
+  const { error } = await db.from('simulations_credit').delete().eq('id', id).eq('user_id', currentUser.id);
+  if (error) { showNotif('Erreur : ' + error.message, true); return; }
+  sfsModifie = false;
+  showNotif('Simulation supprimée');
+  sfsAller(sfsEtat.retour);
+}
+
+/* LIRE UNE OFFRE DE PRÊT (PDF) — par motifs, sur l'appareil, sans IA : le
+   texte du document ne quitte pas le navigateur avant l'enregistrement, où
+   le fichier rejoint votre espace de stockage. Comme « Coller l'annonce »,
+   seuls les champs VIDES sont remplis : une saisie n'est jamais remplacée. */
+function sfsLireOffre(texte) {
+  const nombre = brut => sfLireNombre(String(brut).replace(/\s/g, ''));
+  const premier = (motifs, ok) => { for (const p of motifs) { const m = texte.match(p); const v = m && nombre(m[1]); if (Number.isFinite(v) && ok(v)) return v; } return null; };
+  const r = {};
+  r.montant = premier([/total des prêts[^\n]{0,60}?([\d\s]{5,}[\d,]*)\s*€?/i, /total du financement[^\n]{0,60}?([\d\s]{5,}[\d,]*)\s*€/i,
+    /montant[^\n]{0,10}emprunté[^\d€]{0,30}([\d\s]{5,}[\d,]*)\s*€/i], v => v > 10000 && v < 10000000);
+  r.taux = premier([/PTH[^\n]{0,80}?(\d+[,.]\d+)\s*%/i, /taux[^\n]{0,20}nominal[^\n]{0,30}?(\d+[,.]\d+)\s*%/i,
+    /taux[^\n]{0,15}intérêt[^\n]{0,20}?(\d+[,.]\d+)\s*%/i], v => v >= 0.5 && v <= 15);
+  const mois = premier([/PTH[^\n]{0,80}?(\d{3})\s*mois/i, /durée[^\n]{0,30}?(\d{2,3})\s*mois/i], v => v >= 12 && v <= 480);
+  if (mois) r.duree = Math.round(mois / 12);
+  else { const ans = premier([/durée[^\n]{0,30}?(\d{1,2})\s*ans/i], v => v >= 1 && v <= 40); if (ans) r.duree = ans; }
+  r.assurance = premier([/assurance[^\n€]{0,60}?([\d\s]+[\d,]*)\s*€\s*(?:par mois|\/\s*mois|mensuel)/i,
+    /cotisation mensuelle[^\n€]{0,40}?assurance[^\d€\n]{0,20}([\d\s]+[\d,]*)\s*€/i], v => v > 0 && v <= 2000);
+  r.loyer = premier([/loyer[^\n]{0,20}mensuel[^€\d]{0,20}([\d\s]+[\d,]*)\s*€/i], v => v >= 100 && v <= 20000);
+  r.revenus = premier([/revenus\s+mensuels?[^\d€]{0,20}([\d\s]+[\d,]*)\s*€/i], v => v >= 500 && v <= 50000);
+  if (!r.revenus) { const an = premier([/revenus?\s+annuels?[^\d€]{0,20}([\d\s]+[\d,]*)\s*€/i], v => v >= 6000 && v <= 600000); if (an) r.revenus = Math.round(an / 12); }
+  for (const p of [/valable à compter du\s+(\d{2})\/(\d{2})\/(\d{4})/i, /fiche remise le\s*:\s*(\d{2})\/(\d{2})\/(\d{4})/i]) {
+    const m = texte.match(p);
+    if (m) { r.date = `${m[3]}-${m[2]}-${m[1]}`; break; }
+  }
+  return r;
+}
+
+async function extractPDF(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const etat = document.getElementById('sfs-pdf-etat');
+  const dit = html => { if (etat) etat.innerHTML = html; };
+  dit('Lecture de l’offre…');
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    let texte = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      texte += (await page.getTextContent()).items.map(x => x.str).join(' ') + '\n';
+    }
+    const lu = sfsLireOffre(texte);
+    const champs = [['montant', 's-montant', 'montant'], ['taux', 's-taux', 'taux'], ['duree', 's-duree', 'durée'],
+      ['assurance', 's-assurance', 'assurance'], ['revenus', 's-revenus', 'revenus'], ['loyer', 's-loyer-banque', 'loyer']];
+    const repris = [], gardes = [];
+    for (const [k, id, lab] of champs) {
+      const el = document.getElementById(id);
+      if (!el || lu[k] == null) continue;
+      if (sfLireNombre(el.value) > 0) { gardes.push(lab); continue; }
+      el.value = sfnFormaterNombre(lu[k]); repris.push(lab);
+    }
+    const date = document.getElementById('s-date-doc');
+    if (date && lu.date && !date.value) { date.value = lu.date; repris.push('date'); }
+    sfsPdf = { nom: file.name, data: await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(file); }) };
+    sfsModifie = true;
+    sfsMaj();
+    // Le nom du fichier vient de l'appareil : il s'échappe comme tout texte libre.
+    dit('« ' + esc(file.name) + ' » sera jointe à l’enregistrement. '
+      + (repris.length ? 'Repris : ' + repris.join(', ') + '. ' : 'Aucun montant reconnu : complétez à la main. ')
+      + (gardes.length ? 'Déjà saisis, gardés : ' + gardes.join(', ') + '.' : ''));
+  } catch (err) {
+    dit('Ce PDF n’a pas pu être lu : complétez à la main, ou essayez un autre fichier.');
+    console.warn('lecture offre :', err.message);
+  } finally {
+    evt.target.value = '';
+  }
+}
+
+/* Ouvrir l'offre jointe. ⚠️ La fenêtre s'ouvre AU CLIC, avant toute attente :
+   Safari refuse une fenêtre ouverte après une requête (bloqueur de fenêtres),
+   et l'offre restait inaccessible sur iPhone et iPad. */
+async function openPdfSim(id) {
+  const w = window.open('', '_blank');
+  const { data, error } = await db.from('simulations_credit').select('pdf_data,pdf_name,pdf_path').eq('id', id).maybeSingle();
+  let src = null;
+  if (!error && data?.pdf_path) { try { src = await TI_STORAGE.signedUrl('simulations-pdf', data.pdf_path); } catch (e) { src = null; } }
+  if (!src || (!data?.pdf_path && data?.pdf_data)) {
+    // Ancien stockage en base64 : une adresse data: ne s'ouvre pas en page.
+    if (data?.pdf_data && w) { w.document.write(`<iframe src="${esc(data.pdf_data)}" style="width:100%;height:100vh;border:none"></iframe>`); w.document.close(); return; }
+    if (w) w.close();
+    showNotif('Offre non disponible', true);
+    return;
+  }
+  if (w) w.location.href = src;
+  else window.location.href = src;
+}
+
+// La simulation retenue d'un bien, s'il en a une (achat, dossier banque).
+async function sfsCreditRetenu(bienId) {
+  if (!bienId || !(await sfsVerifierColonnes())) return null;
+  const { data } = await db.from('simulations_credit').select('*').eq('bien_id', bienId).eq('retenue', true).limit(1);
+  return data?.[0] || null;
 }
 
 function openModal(id){document.getElementById(id).classList.add('open');}

@@ -19,7 +19,7 @@
   `tokens.css` → `components.css` → `styles.css` → `financier.css` → `tactile.css`.
 - **Supabase** (projet `immo-pipeline`, eu-west-1) : Postgres + RLS sur toutes
   les tables, Storage, Auth (mot de passe + Google restreint aux comptes
-  connus), Edge Functions (`admin-invite-user`, `news-proxy`).
+  connus), Edge Functions (`admin-invite-user`, `news-proxy`, `taux-credit`).
 - Le premier testeur extérieur est sur **iPad** : pas de survol, `title=`
   invisible, glisser-déposer au doigt.
 
@@ -129,6 +129,28 @@
   se saisissent À L'ANNÉE (`annuel: true` dans `SFN_SECTIONS`) et se comptent
   par mois. « Coller l'annonce » lit le texte sur l'appareil (rien n'est envoyé)
   et ne remplit que les champs vides. Garde : `saisie-assistee.test.js`.
+- **Simulations de crédit** (v=99) : liste, lecture et saisie en PAGES
+  (routes `simulateur` et `simulation`), à la charte. Une mensualité compte
+  l'ASSURANCE EMPRUNTEUR quand elle est saisie, et le dit. L'endettement se juge
+  à **35 %** (`SF_ENDETTEMENT_MAX`, HCSF), assurance comprise, sur les revenus +
+  70 % du loyer : dans la limite = neutre, au-dessus = alerte (jamais de vert) ;
+  sans revenus = « non disponible ». Une simulation peut être **retenue** pour
+  son bien — une seule (index unique en base) : sa mensualité et sa durée
+  passent sur la fiche, sur accord ; le dossier banque la présélectionne ;
+  l'achat la rappelle. ⚠️ Le Suivi financier lit la mensualité de la FICHE, pas
+  la simulation : quand elles diffèrent, l'écran le dit et propose « Mettre la
+  fiche à jour ». **Le taux proposé** : le vôtre (Préférences métier), sinon le
+  taux moyen officiel (fonction `taux-credit` : BCE, série Banque de France,
+  mention en italique `.sf-source`), sinon celui de la dernière simulation,
+  sinon rien. Le formulaire d'un bien PROPOSE une mensualité estimée
+  (« Utiliser cette estimation »), il ne la pose jamais seul. L'offre PDF se lit
+  sur l'appareil, par motifs (aucune IA), et ne remplit que les champs vides.
+  Tant que les colonnes de la v=99 n'existent pas (`sfsColonnesDispo`), ni
+  assurance, ni « Retenir », ni taux personnel, et rien n'est envoyé pour eux.
+  Garde : `simulateur.test.js`.
+- **Chiffres clés sur téléphone** (v=99) : deux colonnes sous 560 px
+  (`.sff-kpis`, `.sfb-kpis`, `.mfx-kpis`, `.acc-kpis`), le dernier impair sur
+  toute la largeur. Garde : `mise-en-page.test.js`.
 - **Choix segmenté** : `.sf-choix` (components.css) — des boutons
   `aria-pressed` pour quelques valeurs visibles ; toucher le choix retenu le
   retire. Le choix retenu se dit par la bordure, le fond ET une pastille.
@@ -175,6 +197,10 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 | Lire le texte d'une annonce collée | `sfAnnonceLire()` |
 | Source d'une annonce d'après son lien | `sfSourceDepuisLien()` (`SF_SOURCES_DOMAINES` ⊂ `TI_BIENS.SOURCES`) |
 | Montant saisi à l'année, compté par mois | `sfnChampAnnuel()`, appliqué dans `getFormData()` |
+| Calcul d'un crédit (mensualité assurance comprise, coût, endettement) | `sfSimCalcul()` · depuis une ligne en base : `sfSimDepuisLigne()` · jugement : `sfSimEndettement()` |
+| Taux de crédit proposé | `sfTauxParDefaut()` · taux officiel : `sfTauxReference()` · sa mention : `sfTauxMention()` |
+| Ligne d'une simulation (liste et Plan de financement de la fiche) | `sfsLigneHtml()` · simulation retenue d'un bien : `sfsCreditRetenu()` |
+| Date du jour, date d'un objet `Date` (YYYY-MM-DD, heure locale) | `sfAujourdhuiIso()` · `sfDateIso()` |
 
 ## Pièges connus — chacun a coûté au moins une fois
 
@@ -182,7 +208,11 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
   803 €). Une borne de fin de mois va jusqu'à 23:59:59.999 (`finDeJournee`).
   Une date n'est pas un instant : la date du jour se lit en heure locale
   (`sfAujourdhuiIso`) — `toISOString().slice(0,10)` donne la veille entre
-  minuit et 2 h l'été.
+  minuit et 2 h l'été. Les treize lectures fautives sont corrigées depuis la
+  v=99 (garde `dates.test.js`, qui se place à Paris à 0 h 30 l'été).
+- **Une réponse réseau ne s'affiche jamais telle quelle** : du taux officiel,
+  on ne garde qu'un nombre borné et une période au format vérifié ; le libellé
+  est écrit côté client (`sfTauxReference`).
 - **Une garde contre le double envoi se pose AVANT le premier `await`** :
   posée après, deux appuis rapprochés passent tous les deux (v=96, trouvé au
   banc d'essai).

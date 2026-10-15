@@ -221,8 +221,6 @@ test('les lectures agrégées de allBiens passent toutes par sfBiensComptes', ()
     sfBiensSelectionnes: 'une sélection faite à la main dans la liste',
     renderMarcheResults: 'la liste des fiches suivies dans une commune',
     sfcBiensProposes: 'une liste de choix d\'un bien (compte rendu)',
-    renderSimulateur: 'une liste de choix d\'un bien',
-    showSimModal: 'une liste de choix d\'un bien',
     mfBiensExercice: 'filtrée par mfDansLePerimetre, qui applique sfBienCompte',
     mfLoyersNonSoldes: 'filtrée par mfDansLePerimetre, qui applique sfBienCompte',
     renderModuleFinancier: 'teste seulement si les biens sont chargés',

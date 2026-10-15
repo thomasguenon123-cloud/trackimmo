@@ -1029,16 +1029,6 @@ html, body{ overflow-x:clip; }
 .form-group textarea{resize:vertical;min-height:70px;}
 
 /* Champ calculé lecture seule */
-.calc-field{
-  background:var(--sf-gain-wash);border:1px solid var(--sf-gain-wash);
-  border-radius:var(--r-sm);padding:9px 12px;
-  font-family:var(--font);font-size:13px;font-weight:600;
-  color:var(--positive-c);display:flex;align-items:center;gap:8px;
-}
-.calc-field-badge{
-  font-size:10px;font-weight:600;background:var(--sf-gain-wash);
-  color:var(--positive-c);padding:2px 7px;border-radius:4px;
-}
 
 /* Boutons de la fenêtre SCI (index.html) */
 .sci-btn{
@@ -1203,50 +1193,59 @@ html, body{ overflow-x:clip; }
   color:var(--sf-text-3);transition:color .1s;}
 .star-btn.active{color:var(--sf-alert);}
 
-/* ════ SIMULATEUR ════ */
-.simulateur-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start;}
-.sim-result-card{
-  background:var(--accent-g);border-radius:var(--r);padding:24px;
-  color:white;box-shadow:0 8px 24px rgba(23,160,107,0.25);
-  margin-bottom:20px;
+/* ════ SIMULATEUR — `.sfs-*` (v=99) ════
+   Liste, lecture et saisie au gabarit de la fiche (sff-*) et de son
+   formulaire (sfn-*) : seules les pièces propres au crédit vivent ici. */
+.sfs-row{ font:inherit; color:inherit; text-align:left; background:none; border:0;
+  border-bottom:var(--sf-border-width) solid var(--sf-border); width:calc(100% + 2 * var(--sf-space-4)); }
+.sfs-row:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus); outline-offset:-2px; }
+.sfs-row__t{ display:block; font-weight:var(--sf-weight-semibold); overflow-wrap:anywhere; }
+.sfs-row .sff-row__s{ display:block; overflow-wrap:anywhere; }
+.sfs-row__p{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--sf-space-3); margin-top:var(--sf-space-3); }
+.sfs-row__doc{ display:inline-flex; color:var(--sf-text-2); }
+.sfs-row__a{ margin-left:auto; flex-shrink:0; text-align:right; font-family:var(--sf-font-num);
+  font-variant-numeric:tabular-nums; font-size:var(--sf-font-lead); font-weight:var(--sf-weight-semibold);
+  color:var(--sf-text); white-space:nowrap; }
+.sfs-row__a small{ font-family:var(--sf-font-ui); font-size:var(--sf-font-caption); font-weight:var(--sf-weight-regular); color:var(--sf-text-2); }
+/* La source d'un taux : en italique, en clair, sous ce qu'elle justifie. */
+.sf-source{ display:block; font-style:italic; font-size:var(--sf-font-caption);
+  color:var(--sf-text-2); line-height:var(--sf-lh-snug); white-space:normal; }
+/* Un lien dans le texte : sa zone de toucher dépasse sa ligne (44 px au doigt), sans la décaler. */
+.sfs-lien{ display:inline-block; padding-block:14px; margin-block:-14px; color:var(--sf-text); text-decoration:underline; text-underline-offset:2px; }
+.sfs-lien:hover{ color:var(--sf-brand-vivid); }
+.sfs-kpi--alerte .sff-kpi__s{ color:var(--sf-alert); }
+.sfs-kpi--alerte .sff-kpi__s svg{ vertical-align:-2px; }
+.sfs-endet{ display:inline-flex; align-items:center; gap:var(--sf-space-2); }
+.sfs-endet--alerte{ color:var(--sf-alert); }
+.sfn-r__v--alerte{ color:var(--sf-alert); }
+.sfs-lines .sff-line__v{ text-align:right; }
+.sfs-note, .sfs-bien__x{ margin:var(--sf-space-4) 0 0; font-size:var(--sf-font-body-sm);
+  color:var(--sf-text-2); line-height:var(--sf-lh-normal); }
+.sfs-bien__x{ margin:0 0 var(--sf-space-4); }
+.sfs-vide{ color:var(--sf-text-2); font-size:var(--sf-font-body-sm); }
+.sfs-notes{ white-space:pre-wrap; overflow-wrap:anywhere; color:var(--sf-text); line-height:var(--sf-lh-normal); }
+.sfs-saisie .sfn-nombre{ text-align:right; }
+.sfs-pref-ref{ display:flex; flex-direction:column; gap:var(--sf-space-2); padding-top:var(--sf-space-3); }
+.sfs-pref-ref b{ font-family:var(--sf-font-display); font-size:var(--sf-font-lead); color:var(--sf-text); }
+/* L'estimation de mensualité sous le champ du formulaire d'un bien. */
+.sfn-estim{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--sf-space-3) var(--sf-space-4);
+  margin-top:var(--sf-space-3); padding:var(--sf-space-4) var(--sf-space-5);
+  background:var(--sf-surface-2); border-radius:var(--sf-radius-sm); }
+.sfn-estim[hidden]{ display:none; }
+.sfn-estim__t{ flex:1 1 220px; font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
+.sfn-estim__t b{ color:var(--sf-text); font-variant-numeric:tabular-nums; }
+.sfn-estim .sf-source{ flex-basis:100%; }
+/* Le rappel du crédit dans la confirmation d'achat. */
+.bd-acq__credit{ display:flex; gap:var(--sf-space-4); align-items:flex-start;
+  margin:var(--sf-space-5) 0 0; padding:var(--sf-space-5); border-radius:var(--sf-radius-sm);
+  background:var(--sf-surface-2); color:var(--sf-text-2); font-size:var(--sf-font-body-sm); line-height:var(--sf-lh-normal); }
+.bd-acq__credit svg{ flex-shrink:0; margin-top:2px; color:var(--sf-brand-vivid); }
+.bd-acq__credit p{ margin:0; }
+.bd-acq__credit strong{ color:var(--sf-text); }
+@media(max-width:560px){
+  .sfs-row{ flex-wrap:wrap; row-gap:var(--sf-space-2); }
+  .sfs-row__a{ margin-left:0; }
 }
-.sim-result-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.65);margin-bottom:6px;}
-.sim-result-value{font-size:36px;font-weight:800;letter-spacing:-1.5px;margin-bottom:20px;}
-.sim-detail-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid rgba(255,255,255,0.15);}
-.sim-detail-label{font-size:12px;color:rgba(255,255,255,0.7);}
-.sim-detail-value{font-size:13px;font-weight:700;}
-.sim-endettement{margin-top:16px;background:rgba(255,255,255,0.12);border-radius:10px;padding:14px;}
-.sim-bar-bg{height:8px;background:rgba(255,255,255,0.2);border-radius:4px;margin-top:8px;overflow:hidden;}
-/* Ces barres sont posees DANS .sim-result-card, qui est deja un fond vert
-   sombre. Elles prennent donc les teintes pleines et non les lavis : un lavis
-   a 12 % d'opacite serait invisible sur ce fond. */
-.sim-bar-fill{height:100%;border-radius:4px;transition:width 0.5s;background:var(--sf-action-bg);}
-.sim-bar-fill.ok{background:var(--sf-gain);}
-.sim-bar-fill.warn{background:var(--sf-alert);}
-.sim-bar-fill.danger{background:var(--sf-loss);}
-
-.pdf-zone{
-  background:var(--c-bg);border:2px dashed var(--c-border2);border-radius:var(--r);
-  padding:24px;text-align:center;cursor:pointer;transition:all 0.15s;margin-bottom:16px;
-}
-.pdf-zone:hover{border-color:var(--accent);background:rgba(23,160,107,0.04);}
-.pdf-zone.loading{border-color:var(--accent);background:rgba(23,160,107,0.06);}
-.pdf-zone-icon{font-size:32px;margin-bottom:8px;}
-.pdf-zone-text{font-size:13px;font-weight:500;color:var(--c-dim);}
-.pdf-zone-sub{font-size:11px;color:var(--c-muted);margin-top:4px;}
-.pdf-extracted-badge{display:inline-flex;align-items:center;gap:6px;background:var(--pos-bg);color:var(--positive-c);padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:12px;}
-
-.sim-list{display:flex;flex-direction:column;gap:10px;}
-.sim-item{
-  background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r);
-  padding:16px;box-shadow:var(--c-shadow);cursor:pointer;
-  transition:border-color 0.15s;display:flex;align-items:center;gap:14px;
-}
-.sim-item:hover{border-color:var(--accent);}
-.sim-item-name{font-size:14px;font-weight:600;color:var(--c-text);flex:1;}
-.sim-item-detail{font-size:11px;color:var(--c-dim);margin-top:2px;}
-.sim-mensualite{font-size:16px;font-weight:800;color:var(--accent);}
-.sim-taux-badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;background:rgba(23,160,107,0.1);color:var(--accent);}
 
 /* Bien select in forms */
 .bien-select-opt{font-size:13px;}
@@ -1637,57 +1636,7 @@ html, body{ overflow-x:clip; }
 
 
 /* ── SIMULATIONS SÉLECTION ── */
-.sim-list-item{
-  position:relative;display:flex;align-items:center;
-  background:var(--c-card);border:1.5px solid var(--c-border);
-  border-radius:var(--r);padding:16px 20px;margin-bottom:10px;
-  cursor:pointer;transition:all 0.15s;gap:14px;
-}
-.sim-list-item:hover{border-color:var(--accent);box-shadow:var(--c-shadow-lg);}
-.sim-list-item.selected{border-color:var(--accent);background:rgba(23,160,107,0.04);}
-.sim-checkbox{
-  width:18px;height:18px;border-radius:5px;border:2px solid var(--c-border2);
-  background:var(--sf-surface);flex-shrink:0;display:flex;align-items:center;justify-content:center;
-  transition:all 0.15s;cursor:pointer;
-}
-.sim-checkbox.checked{background:var(--accent);border-color:var(--accent);color:var(--accent-on);font-size:11px;}
-.sim-checkbox:hover{border-color:var(--accent);}
-.sim-list-content{flex:1;min-width:0;}
 
-/* Barre d'actions flottante (sélection de simulations)
-   ⚠️ CACHÉE, ELLE N'EXISTE PAS : `display:none`, pas une simple opacité nulle
-   (v=98). Elle était posée à `left:50%` puis recentrée par `transform`, et
-   restait dans la page, invisible, sur TOUS les écrans : sa boîte avant
-   transformation allait jusqu'à 858 px sur un iPhone de 402 px — de quoi faire
-   dézoomer Safari, qui cadre la page sur ce qui dépasse. Elle tient désormais
-   dans l'écran (max-width) et passe à la ligne plutôt que de déborder. */
-.sim-action-bar{
-  position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom, 0px));
-  transform:translateX(-50%);
-  width:max-content; max-width:calc(100vw - 24px); box-sizing:border-box;
-  display:none; flex-wrap:wrap; align-items:center; justify-content:center; gap:var(--sf-space-3);
-  padding:var(--sf-space-4) var(--sf-space-5);
-  background:var(--sf-surface-2); color:var(--sf-text);
-  border:var(--sf-border-width) solid var(--sf-border-strong); border-radius:var(--sf-radius-lg);
-  box-shadow:var(--sf-elev-3); z-index:500;
-}
-.sim-action-bar.visible{ display:flex; animation:sim-barre-entree .25s cubic-bezier(0.34,1.56,0.64,1); }
-@media (prefers-reduced-motion: reduce){ .sim-action-bar.visible{ animation:none; } }
-@keyframes sim-barre-entree{ from{ opacity:0; transform:translateX(-50%) translateY(24px); } }
-.sim-action-count{
-  font-size:12px; font-weight:700; background:var(--sf-surface-3); color:var(--sf-text);
-  padding:3px 10px; border-radius:var(--sf-radius-sm); font-variant-numeric:tabular-nums;
-}
-.sim-action-btn{
-  display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600;
-  min-height:var(--sf-control-h-sm); padding:0 14px; border-radius:var(--sf-radius-sm); border:none; cursor:pointer;
-  transition:background .15s; background:var(--sf-surface-3); color:var(--sf-text);
-  font-family:var(--font);
-}
-.sim-action-btn:hover{ background:var(--sf-border); }
-.sim-action-btn.danger{ background:var(--sf-loss-wash); color:var(--sf-loss); }
-.sim-action-btn.danger:hover{ background:var(--sf-loss-wash); box-shadow:inset 0 0 0 1px var(--sf-loss); }
-.sim-action-sep{ width:1px; height:24px; background:var(--sf-border); }
 
 
 /* ── ADMIN USERS ── */
@@ -2516,11 +2465,8 @@ body:has(.sfn-barre) .sf-topnav__tests{ bottom:calc(84px + env(safe-area-inset-b
   /* La date passe au-dessus : le titre garde la largeur. */
   .sfc-row{ flex-wrap:wrap; row-gap:var(--sf-space-2); }
   .sfc-row .sff-row__d{ flex-basis:100%; min-width:0; }
-  /* Au téléphone, cinq compteurs empilés repoussaient la liste sous l'écran :
-     ils passent sur deux colonnes. Le dernier, seul sur sa ligne, prend la
-     largeur — une case vide montrerait le fond qui dessine les séparateurs. */
-  .sfc-liste .sff-kpis{ grid-template-columns:repeat(2, minmax(0,1fr)); }
-  .sfc-liste .sff-kpi:last-child:nth-child(odd){ grid-column:1 / -1; }
+  /* Les compteurs passent sur deux colonnes : règle commune, en fin de
+     feuille (« Chiffres clés sur téléphone », v=99). */
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -3906,3 +3852,25 @@ body[data-densite="compact"] .sfb-t__s{ display:none; }
 
 /* Encart d'information de l'écran Utilisateurs : l'icône remplace un emoji. */
 .adm-info-ic{ display:flex; flex-shrink:0; color:var(--sf-info); }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHIFFRES CLÉS SUR TÉLÉPHONE — une règle pour toutes les rangées (v=99)
+   Quatre chiffres empilés, chacun sur toute la largeur, remplissaient le
+   premier écran de Mes biens, du Suivi financier et de la fiche : la liste
+   attendue commençait sous la ligne de flottaison. Sous 560 px, ils passent
+   sur deux colonnes. Le dernier, seul sur sa ligne, prend la largeur : une
+   case vide laisserait voir le fond qui dessine les séparateurs.
+   `.mf-page .mfx-kpis` : financier.css est chargé APRÈS cette feuille, la
+   règle doit y être plus précise pour l'emporter.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width:560px){
+  .sff-kpis, .sfb-kpis, .mf-page .mfx-kpis, .acc-kpis{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+  .sff-kpis > :last-child:nth-child(odd), .sfb-kpis > :last-child:nth-child(odd),
+  .mf-page .mfx-kpis > :last-child:nth-child(odd), .acc-kpis > :last-child:nth-child(odd){ grid-column:1 / -1; }
+  .acc-kpis, .sfb-kpis{ gap:var(--sf-space-4); }
+  /* Sur une demi-largeur, la valeur se resserre et la phrase sous elle passe
+     à la ligne plutôt que d'être coupée par des points de suspension. */
+  .sff-kpi__v, .sfb-kpi__v, .mf-page .mfx-kpi__v{ font-size:clamp(20px, 6vw, 26px); }
+  .sff-kpi__s{ white-space:normal; }
+}
