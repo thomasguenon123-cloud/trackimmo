@@ -383,13 +383,13 @@ test('la liste : une seule action principale, les biens de test marqués, un ét
 
 test('la fiche du bien et la liste montrent la même ligne de compte rendu', () => {
   assert.match(corps('renderBienDetail'), /visites\.map\(sfcLigneHtml\)/,
-    'L\'onglet Visites de la fiche réécrit sa propre ligne : les deux affichages divergeront.');
+    'L\'onglet Comptes rendus de la fiche réécrit sa propre ligne : les deux affichages divergeront.');
   assert.match(corps('sfcGroupeHtml'), /\.map\(sfcLigneHtml\)/);
   // La ligne est un bouton : elle s'ouvre au clavier comme au doigt, en lecture.
   assert.match(corps('sfcLigneHtml'), /<button type="button" class="sff-row sfc-row" onclick="openReadVisite\(/);
 });
 
-test('on revient d\'où l\'on vient : la fiche du bien, sur l\'onglet Visites', () => {
+test('on revient d\'où l\'on vient : la fiche du bien, sur l\'onglet Comptes rendus', () => {
   const ctx = app();
   injecter(ctx, { currentPage: 'bien-detail', currentBienId: 'b-reel', bienDetailBack: 'biens' });
   ctx.openNouvelleVisite('b-reel');
@@ -414,4 +414,130 @@ test('on revient d\'où l\'on vient : la fiche du bien, sur l\'onglet Visites', 
   injecter(ctx, { currentPage: 'compte-rendu' });
   ctx.openDetailVisite('v1');
   assert.equal(lire(ctx, 'sfcEtat.retour.page'), 'module-financier');
+});
+
+// ─── Un seul point d'entrée (v=98) ─────────────────────────────────────────
+
+test('une visite ne se saisit plus comme un échange de la Négociation', () => {
+  const ctx = app();
+  for (const v of ['Visite', '2e visite', 'Contre-visite', 'VISITES du bien']) {
+    assert.ok(ctx.sfEstUneVisite(v), `« ${v} » est une visite`);
+  }
+  for (const v of ['Appel téléphonique', 'Offre envoyée', 'Revisiter le prix', '']) {
+    assert.ok(!ctx.sfEstUneVisite(v), `« ${v} » n'est pas une visite`);
+  }
+  const visites = Array.from(lire(ctx, 'ACTION_TYPES')).filter(t => ctx.sfEstUneVisite(t));
+  assert.deepEqual(visites, [],
+    'La Négociation propose de nouveau une « Visite » : la même visite se saisirait à deux endroits.');
+  assert.ok(Array.from(lire(ctx, 'ACTION_TYPES')).length >= 5, 'témoin : les autres échanges restent');
+});
+
+test('une visite tapée dans la Négociation mène à son compte rendu, rien n\'est perdu', async () => {
+  const ctx = app();
+  const els = {
+    'act-type': { value: '__autre__' }, 'act-type-custom': { value: '2e visite' },
+    'act-date': { value: '2026-10-12' }, 'act-comment': { value: 'Cave humide, à vérifier.' },
+    'adm-modal-save': { disabled: false, innerHTML: '' },
+  };
+  ctx.document.getElementById = id => els[id] || null;
+  const appels = dbEnregistreur(ctx);
+  injecter(ctx, { actionModalBienId: 'b-reel', editingActionId: null });
+  let ouvert = null, ferme = false, reponse = false;
+  ctx.closeAdmModal = () => { ferme = true; };
+  ctx.sfConfirmer = async () => reponse;
+  ctx.openNouvelleVisite = (bienId, preset) => { ouvert = { bienId, preset: JSON.parse(JSON.stringify(preset)) }; };
+  // Refuser : la fenêtre reste ouverte, rien n'est enregistré ni perdu.
+  await ctx.saveAction();
+  assert.ok(!ferme && ouvert === null, 'Refuser le compte rendu a fermé la fenêtre : la saisie est perdue.');
+  assert.equal(appels.filter(x => x.table === 'actions').length, 0, 'refuser n\'enregistre pas d\'échange');
+  reponse = true;
+  await ctx.saveAction();
+  assert.equal(appels.filter(x => x.table === 'actions').length, 0,
+    'La visite a été enregistrée comme un échange de la Négociation.');
+  assert.ok(ferme, 'la fenêtre de l\'échange se ferme');
+  assert.deepEqual(ouvert, { bienId: 'b-reel', preset: { type: 'achat', date: '2026-10-12', notes: 'Cave humide, à vérifier.' } },
+    'le compte rendu s\'ouvre sur ce bien, avec la date et le commentaire repris');
+  // Témoin : un vrai échange s'enregistre toujours.
+  els['act-type'].value = 'Appel téléphonique';
+  ctx.openDetail = () => {};
+  await ctx.saveAction();
+  assert.equal(appels.filter(x => x.table === 'actions').length, 1);
+  // …et la saisie les montre bien.
+  dbEnregistreur(ctx);
+  injecter(ctx, { currentPage: 'compte-rendu', sfcEtat: { mode: 'saisie', id: null, bienId: 'b-reel', preset: ouvert.preset, retour: { page: 'bien-detail', id: 'b-reel' } } });
+  const el = { innerHTML: '', querySelector: () => ({ addEventListener() {} }) };
+  await ctx.renderCompteRendu(el);
+  assert.match(el.innerHTML, /id="v-notes"[^>]*>Cave humide, à vérifier\.<\/textarea>/,
+    'Le commentaire tapé dans la Négociation n\'arrive pas dans le compte rendu.');
+  assert.match(el.innerHTML, /value="2026-10-12"/, 'témoin : la date est reprise');
+});
+
+test('la fiche et le menu nomment les comptes rendus de la même façon', () => {
+  assert.match(corps('renderBienDetail'), /visites:\s*\{ lab:sfAccIcon\('carnet',15\)\+' Comptes rendus'/,
+    'L\'onglet de la fiche ne s\'appelle plus « Comptes rendus » : deux noms pour une seule chose.');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /id="nav-visites"[\s\S]{0,2000}?sf-menu__t">Comptes rendus</, 'témoin : le menu dit « Comptes rendus »');
+});
+
+// ─── Revenir sur un onglet, c'est le voir (v=98) ───────────────────────────
+
+test('RÉGRESSION — après un échange, la fiche revient sur la Négociation', () => {
+  /* L'onglet s'appelle 'nego' depuis le passage à six onglets (avant le
+     14/08, plus ancien état du dépôt). saveAction et deleteAction demandaient
+     encore 'actions' : la fiche, devant une clé inconnue, retombait sur « Le
+     bien » — chaque échange enregistré renvoyait loin de la Négociation. */
+  const cles = [...corps('renderBienDetail').match(/const TAB_DEFS = \{([\s\S]*?)\n  \};/)[1]
+    .matchAll(/^\s{4}(\w+):\s*\{/gm)].map(m => m[1]);
+  assert.ok(cles.includes('nego') && cles.includes('visites') && cles.length >= 6, `témoin : les onglets sont lus (${cles})`);
+  const demandes = [...SRC.matchAll(/(?:_reopenDetailTab|bienDetailTab)\s*=\s*'(\w+)'/g)].map(m => m[1]);
+  assert.ok(demandes.length >= 4, 'témoin : les demandes d\'onglet sont trouvées');
+  assert.deepEqual(demandes.filter(t => !cles.includes(t)), [],
+    'Un onglet est demandé sous un nom que la fiche ne connaît pas : elle retombe sur « Le bien ».');
+  assert.match(corps('saveAction'), /_reopenDetailTab = 'nego'/);
+  assert.match(corps('deleteAction'), /_reopenDetailTab = 'nego'/);
+});
+
+test('revenir d\'un compte rendu ou d\'un échange descend jusqu\'aux onglets', () => {
+  const ctx = app();
+  injecter(ctx, { bdVersOnglets: false });
+  ctx.sfcAller({ page: 'bien-detail', id: 'b-reel', back: 'biens' });
+  assert.equal(lire(ctx, 'bdVersOnglets'), true, 'le retour d\'un compte rendu demande d\'y descendre');
+  injecter(ctx, { bdVersOnglets: false, _reopenDetailTab: 'nego', currentPage: 'bien-detail' });
+  ctx.openDetail('b-reel');
+  assert.equal(lire(ctx, 'bdVersOnglets'), true, 'le retour d\'un échange aussi');
+  assert.equal(lire(ctx, 'bienDetailTab'), 'nego');
+  ctx.openDetail('b-reel');
+  assert.equal(lire(ctx, 'bdVersOnglets'), false, 'témoin : ouvrir une fiche ne fait rien défiler');
+  // Le rendu consomme la demande, et défile seulement si la barre est hors de l'écran.
+  assert.match(corps('renderBienDetail'), /const versOnglets = bdVersOnglets;\s*bdVersOnglets = false;/);
+  assert.match(corps('renderBienDetail'), /if\(versOnglets\) bdDefilerVersOnglets\(\);/);
+  let defile = 0;
+  const barre = top => ({ getBoundingClientRect: () => ({ top }), scrollIntoView: () => { defile++; } });
+  ctx.window.innerHeight = 874;
+  ctx.document.querySelector = () => barre(1067);
+  ctx.bdDefilerVersOnglets();
+  assert.equal(defile, 1, 'Sur téléphone, la barre d\'onglets est sous les chiffres clés : le retour la laisse hors de l\'écran.');
+  ctx.document.querySelector = () => barre(300);
+  ctx.bdDefilerVersOnglets();
+  assert.equal(defile, 1, 'déjà à l\'écran (grand écran) : rien ne bouge');
+});
+
+test('l\'onglet ouvert n\'est jamais coupé au bord de la barre d\'onglets', () => {
+  const ctx = app();
+  const actif = { getBoundingClientRect: () => ({ left: 300, right: 486, width: 186 }) };
+  const barre = { scrollLeft: 0, getBoundingClientRect: () => ({ left: 10, right: 392, width: 382 }),
+    querySelector: () => actif };
+  ctx.document.querySelector = sel => (sel === '.sff-tabs' ? barre : null);
+  ctx.document.querySelectorAll = () => [];
+  ctx.switchBienTab('visites');
+  assert.ok(barre.scrollLeft > 0, 'L\'onglet ouvert reste coupé au bord droit de la barre.');
+  assert.equal(Math.round(barre.scrollLeft), 192, 'il est ramené au centre de la barre');
+  barre.scrollLeft = 0;
+  actif.getBoundingClientRect = () => ({ left: 20, right: 120, width: 100 });
+  ctx.switchBienTab('bien');
+  assert.equal(barre.scrollLeft, 0, 'témoin : un onglet déjà visible ne fait rien défiler');
+  // Une seule règle pour les deux barres qui défilent : la fiche et le Suivi financier.
+  assert.match(corps('switchBienTab'), /sfOngletDansLeChamp\(document\.querySelector\('\.sff-tabs'\)\)/);
+  assert.match(corps('switchMfTab'), /sfOngletDansLeChamp\(document\.querySelector\('\.mfx-tabs'\)\)/,
+    'L\'onglet « Suivi mensuel » reste coupé au bord de la barre du Suivi financier.');
 });

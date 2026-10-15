@@ -233,6 +233,11 @@
   /* Trames de graphique */
   --sf-chart-grid: rgba(234,240,236,.07);
   --sf-chart-axis: #6E8177;
+
+  /* Les controles NATIFS (liste d'un select, calendrier d'une date, barres de
+     defilement) suivent le theme : sans cela, le systeme les dessine en clair
+     sur la charte sombre — un menu blanc au milieu du Suivi financier (v=98). */
+  color-scheme: dark;
 }
 
 
@@ -290,6 +295,8 @@
 
   --sf-chart-grid: rgba(12,23,16,.08);
   --sf-chart-axis: #6E8177;
+
+  color-scheme: light;
 }
 
 

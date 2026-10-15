@@ -106,8 +106,20 @@
   grille ne s'affiche pas et rien n'est envoyé pour elle. Les comptes rendus
   des biens de test sortent des chiffres ; la note moyenne ne porte que sur les
   visites notées. Un enregistrement ouvre la lecture, « ← » ramène d'où l'on
-  venait (fiche sur l'onglet Visites, Suivi financier, liste).
-  Garde : `comptes-rendus.test.js`.
+  venait (fiche sur l'onglet Comptes rendus, Suivi financier, liste).
+  **Un seul point d'entrée** (v=98) : la Négociation ne propose plus
+  « Visite » (`ACTION_TYPES`) ; une visite tapée dans « Autre… » mène à son
+  compte rendu, date et commentaire repris (`sfEstUneVisite`) — refuser laisse
+  la fenêtre telle quelle. L'onglet de la fiche s'appelle « Comptes rendus »,
+  comme le menu. **Revenir sur un onglet, c'est le voir** : après un compte
+  rendu ou un échange, la fiche descend jusqu'à sa barre d'onglets quand elle
+  est hors de l'écran (`bdVersOnglets`), et l'onglet ouvert est ramené dans la
+  barre qui défile. Garde : `comptes-rendus.test.js`.
+- **Sur téléphone, ce qu'on choisit s'affiche** (v=98) : ce qui s'ouvre sous
+  ce qui l'a fait choisir (onglets de la fiche, section des Paramètres sous
+  leur sommaire) est amené à l'écran par `sfAmenerDansLeChamp()` ; une barre
+  d'onglets qui défile en largeur garde l'onglet ouvert visible
+  (`sfOngletDansLeChamp()`). Sur grand écran, rien ne bouge.
 - **Saisie assistée** (v=97) : l'assistance ne remplace JAMAIS une saisie —
   elle remplit un champ vide ou propose. Le code postal donne la ville et
   inversement (geo.api.gouv.fr ; un service muet ne bloque personne) ; le titre
@@ -157,7 +169,8 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 | Rédaction d'un cashflow (libellé, valeur, sous-titre) | `sfResumeCashflow()` — fiche et formulaire |
 | Champs de la fiche bien (ordre, sections) | `SFN_SECTIONS` ; libellés et types : `TI_BIENS.CHAMPS` |
 | Critères de la grille de visite | `SF_GRILLE` ; ce qui entre en base : `sfGrilleNormaliser()` |
-| Ligne d'un compte rendu (liste et onglet Visites de la fiche) | `sfcLigneHtml()` |
+| Ligne d'un compte rendu (liste et onglet Comptes rendus de la fiche) | `sfcLigneHtml()` |
+| Amener à l'écran ce qu'on vient d'ouvrir (téléphone) | `sfAmenerDansLeChamp()` · onglet ouvert dans sa barre : `sfOngletDansLeChamp()` |
 | Lire le texte d'une annonce collée | `sfAnnonceLire()` |
 | Source d'une annonce d'après son lien | `sfSourceDepuisLien()` (`SF_SOURCES_DOMAINES` ⊂ `TI_BIENS.SOURCES`) |
 | Montant saisi à l'année, compté par mois | `sfnChampAnnuel()`, appliqué dans `getFormData()` |
@@ -189,6 +202,24 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 - `roleColors` reste en hexadécimal 6 chiffres (`${couleur}22`).
 - `.sff-line` fait **5 colonnes** dans `styles.css` : surcharger, jamais
   réutiliser tel quel. Toujours `minmax(0,1fr)`, jamais `1fr` seul.
+- **Safari sur iPhone cadre la page sur ce qui DÉPASSE** (v=98) : un seul
+  élément plus large que l'écran et toute l'application s'affiche dézoomée,
+  serrée à gauche. Trois causes trouvées : une grille en `1fr` nu (un titre
+  long élargit sa colonne), des onglets `nowrap` en ligne, et un élément
+  `fixed` caché par `opacity:0` + `transform` (sa boîte reste dans la page).
+  Donc : `minmax(0,1fr)` partout (garde `mise-en-page.test.js`) ; un élément
+  caché se cache par `display:none` ; `html, body{overflow-x:clip}` n'est
+  qu'un filet — jamais `hidden`, qui casse le `position:sticky`.
+- **Une clé d'onglet inconnue retombe EN SILENCE sur « Le bien »**
+  (`if(!TAB_DEFS[bienDetailTab])`) : `saveAction` demandait encore `'actions'`,
+  renommé `'nego'` au passage à six onglets, et chaque échange renvoyait loin
+  de la Négociation — depuis au moins le 14/08, plus ancien état du dépôt.
+  Toute demande d'onglet est vérifiée contre `TAB_DEFS` (garde
+  `comptes-rendus.test.js`).
+- **Au doigt, AUCUN `<select>` n'est habillé** (`sfAmeliorerSelects` s'arrête
+  sous `SF_SEUIL_MOBILE`) : un select sans classe garde le dessin du système,
+  clair sur la charte sombre. Toujours une classe (`sf-input sf-select` à
+  défaut). Les contrôles natifs suivent le thème par `color-scheme` (tokens.css).
 - **Contraste** : `--sf-text-3` retombe sous AA dès qu'il quitte `--sf-bg` →
   `--sf-text-2`. Les `--sf-*-wash` sont en `rgba()` : compositer la pile de fonds.
 - **Ordre de chargement CSS** : `components.css` est chargé AVANT `styles.css`.
@@ -214,7 +245,10 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 - **Un domaine se reconnaît par égalité ou par le suffixe `'.' + domaine`**,
   jamais par `endsWith(domaine)` : « faux-pap.fr » finit par « pap.fr ».
 - **Banc Playwright** : une capture `fullPage` coupe l'émulation tactile ;
-  mesurer les cibles AVANT toute capture, une page neuve par vue.
+  mesurer les cibles AVANT toute capture, une page neuve par vue. L'émulation
+  iPhone (`isMobile: true`) reproduit le dézoom de Safari : mesurer
+  `scrollWidth` en NEUTRALISANT le filet `overflow-x:clip`, sinon il masque
+  le débordement qu'on cherche. Données longues (titre de 76 caractères).
 - `node --check` ne voit pas une variable hors portée.
 - Une couleur qui « ne prend pas » : chercher qui l'écrit en JS (style en ligne).
 - Quand un affichage diffère selon l'écran : chercher un second mapping.

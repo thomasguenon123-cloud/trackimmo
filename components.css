@@ -719,7 +719,7 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
   display:grid; grid-template-columns:minmax(0,2fr) minmax(290px,1fr);
   gap:var(--sf-space-6); margin-bottom:var(--sf-space-7); align-items:start;
 }
-@media (max-width:1000px){ .acc-bento{ grid-template-columns:1fr; } }
+@media (max-width:1000px){ .acc-bento{ grid-template-columns:minmax(0,1fr); } }
 
 .acc-kpis{
   display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
@@ -901,6 +901,11 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 
 @media (max-width:640px){
   .acc-pas{ flex-wrap:wrap; }
+  /* Le texte reste à côté de sa pastille et se replie. Sans base de flex, il
+     passait SOUS la pastille dès que sa phrase dépassait la ligne, et le
+     bouton — décalé pour s'aligner sur le texte — restait seul en retrait
+     (v=98 : vu dès que la colonne a cessé de déborder de l'écran). */
+  .acc-pas__body{ flex:1 1 calc(100% - 26px - var(--sf-space-5)); }
   .acc-pas__a{ margin-left:calc(26px + var(--sf-space-5)); padding-left:0; }
 }
 

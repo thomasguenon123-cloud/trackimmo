@@ -1032,6 +1032,7 @@ function sfGoParam(id) {
   sfCloseMenus();
   if(currentPage === 'parametres') renderParametres(document.getElementById('content'));
   else navigate('parametres');
+  sfAmenerDansLeChamp(document.getElementById('params-content'));
 }
 
 // Panneau de la roue dentee, CONSTRUIT DEPUIS PARAMS_SECTIONS.
@@ -5099,6 +5100,12 @@ function inlineEditField(span) {
 let currentBienId = null;
 let bienDetailTab = 'bien';
 let bienDetailBack = 'biens';
+/* Revenir SUR un onglet — après un compte rendu, après un échange — c'est le
+   VOIR. Sur téléphone, la barre d'onglets vient après les chiffres clés, hors
+   de l'écran : le retour semblait ramener en haut de la fiche, la liste
+   attendue loin dessous (v=98). Posé par qui demande un onglet, consommé par
+   le rendu suivant de la fiche. */
+let bdVersOnglets = false;
 let bdPhotos = [];    // URLs résolues de la fiche courante (galerie)
 
 // Point d'entrée historique — appelé depuis les cartes, le kanban, le dashboard.
@@ -5108,6 +5115,7 @@ function openDetail(id) {
   if(currentPage !== 'bien-detail') bienDetailBack = currentPage;
   currentBienId = id;
   bienDetailTab = _reopenDetailTab || 'bien';
+  bdVersOnglets = !!_reopenDetailTab;
   _reopenDetailTab = null;
   navigate('bien-detail');
 }
@@ -5120,6 +5128,28 @@ function switchBienTab(tab) {
   // l'arbre d'accessibilite en meme temps que de l'affichage, et il ne bat pas
   // les regles de la feuille de style comme le faisait `style.display`.
   document.querySelectorAll('.sff-pane').forEach(p => { p.hidden = (p.dataset.pane !== tab); });
+  sfOngletDansLeChamp(document.querySelector('.sff-tabs'));
+}
+
+/* Sur téléphone, une barre d'onglets défile en largeur : l'onglet ouvert
+   (« Comptes rendus » de la fiche, « Suivi mensuel » du Suivi financier)
+   restait coupé au bord, voire hors du champ (v=98). On le ramène au centre —
+   horizontalement seulement, la page ne bouge pas. */
+/* Sur téléphone, ce qu'on vient de choisir s'affiche souvent SOUS ce qui l'a
+   fait choisir — l'onglet sous les chiffres clés de la fiche, la section des
+   Paramètres sous leur sommaire, qui occupe tout l'écran : rien ne semblait
+   se passer. On y descend quand c'est hors de l'écran ; sur un grand écran,
+   c'est à côté, rien ne bouge (v=98). */
+function sfAmenerDansLeChamp(el) {
+  if(!el || el.getBoundingClientRect().top < window.innerHeight * 0.6) return;
+  el.scrollIntoView({ block: 'start' });
+}
+
+function sfOngletDansLeChamp(barre) {
+  const actif = barre?.querySelector('[aria-selected="true"]');
+  if(!barre || !actif) return;
+  const b = barre.getBoundingClientRect(), a = actif.getBoundingClientRect();
+  if(a.left < b.left || a.right > b.right) barre.scrollLeft += (a.left - b.left) - (b.width - a.width) / 2;
 }
 
 // Re-rendu de la fiche courante (après ajout d'action, rattachement SCI…)
@@ -5145,6 +5175,8 @@ function bdGoToRenta(bienId) {
 async function renderBienDetail(el) {
   const b = allBiens.find(x => x.id === currentBienId);
   if(!b) { navigate('biens'); return; }
+  const versOnglets = bdVersOnglets;
+  bdVersOnglets = false;
   el.innerHTML = `<div class="loading"><div class="spinner"></div>Chargement de la fiche…</div>`;
 
   const cf=computeCF(b),has=b.mensualite_credit||b.loyer_en_etat;
@@ -5212,7 +5244,8 @@ async function renderBienDetail(el) {
   const TAB_DEFS = {
     bien:     { lab:sfAccIcon('maison',15)+' Le bien', badge:'' },
     finances: { lab:sfAccIcon('euro',15)+' Finances', badge: sims.length ? `<span class="sff-tab__n">${sims.length}</span>` : '' },
-    visites:  { lab:sfAccIcon('carnet',15)+' Visites', badge: visites.length ? `<span class="sff-tab__n">${visites.length}</span>` : '' },
+    // Le même nom que le menu (Outils › Comptes rendus) : une seule chose, un seul nom.
+    visites:  { lab:sfAccIcon('carnet',15)+' Comptes rendus', badge: visites.length ? `<span class="sff-tab__n">${visites.length}</span>` : '' },
     nego:     { lab:sfAccIcon('echange',15)+' Négociation', badge: actions.length ? `<span class="sff-tab__n">${actions.length}</span>` : '' },
     locatif:  { lab:sfAccIcon('cle',15)+' Locatif', badge: locActif ? '<span class="sff-tab__n on">1</span>' : '' },
     sci:      { lab:sfAccIcon('colonne',15)+' SCI', badge: sciBien ? `<span class="sff-tab__n on">${sfAccIcon('check',11)}</span>` : '' },
@@ -5791,6 +5824,13 @@ async function renderBienDetail(el) {
   </div>`;
 
   switchBienTab(bienDetailTab);
+  if(versOnglets) bdDefilerVersOnglets();
+}
+
+// Descend jusqu'à la barre d'onglets si elle est hors de l'écran (téléphone) ;
+// sur un grand écran, elle est déjà à côté des chiffres clés : rien ne bouge.
+function bdDefilerVersOnglets() {
+  sfAmenerDansLeChamp(document.querySelector('.sff-tabs'));
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -6359,7 +6399,18 @@ let _reopenDetailTab = null;          // onglet à réactiver après rebuild de 
 let editingActionId = null;           // null = création, sinon édition
 let actionModalBienId = null;         // bien rattaché à l'action en cours
 
-const ACTION_TYPES = ['Appel téléphonique','Email envoyé','Visite','Offre envoyée','Relance','Rendez-vous','Document reçu','Note libre'];
+/* ⚠️ PAS DE « VISITE » ICI (v=98). Une visite se consigne dans son COMPTE
+   RENDU — date, grille, photos, suite à donner —, que la fiche montre dans son
+   onglet du même nom. Elle se saisissait aussi comme un « échange » de la
+   Négociation : deux endroits pour un même fait, que rien ne reliait. Une
+   visite tapée dans « Autre… » est redirigée vers son compte rendu
+   (sfEstUneVisite, dans saveAction). */
+const ACTION_TYPES = ['Appel téléphonique','Email envoyé','Offre envoyée','Relance','Rendez-vous','Document reçu','Note libre'];
+
+// « Visite », « 2e visite », « contre-visite »… : un fait qui a son compte rendu.
+function sfEstUneVisite(type) {
+  return /\bvisites?\b/.test(tiNormTexte(type));
+}
 
 async function openActionModal(bienId, actionId) {
   actionModalBienId = bienId;
@@ -6392,6 +6443,8 @@ async function openActionModal(bienId, actionId) {
       <label class="sci-form-label">Préciser le type</label>
       <input class="sci-form-input" id="act-type-custom" type="text" maxlength="60" value="${isCustom?esc(curType):''}" placeholder="Ex : Signature mandat">
     </div>
+    <p class="act-visite">Une visite ? Elle se consigne dans son compte rendu, avec sa grille et ses photos.
+      <button type="button" class="sf-btn sf-btn--ghost sf-btn--sm" onclick="closeAdmModal(); openNouvelleVisite(${escJs(bienId)})">Rédiger un compte rendu</button></p>
     <div class="sci-form-group">
       <label class="sci-form-label">Date <span style="color:var(--sf-loss)">*</span></label>
       <input class="sci-form-input" id="act-date" type="date" value="${esc(a?.date_action || today)}">
@@ -6418,6 +6471,18 @@ async function saveAction() {
   const date = document.getElementById('act-date').value;
   if(!type) { showNotif('Le type d\'action est obligatoire.', true); return; }
   if(!date) { showNotif('La date est obligatoire.', true); return; }
+  // Une visite a son compte rendu : on y emmène, avec la date et le commentaire.
+  // Refuser laisse la fenêtre ouverte, telle qu'elle était remplie.
+  if(sfEstUneVisite(type)) {
+    const notes = (document.getElementById('act-comment').value || '').trim() || null;
+    const bienId = actionModalBienId;
+    if(!await sfConfirmer({ titre: 'Une visite a son compte rendu', question: 'Rédiger le compte rendu de cette visite ?',
+      detail: 'Elle s\'y consigne avec sa date, sa grille, ses photos et la suite à donner, et apparaît dans l\'onglet Comptes rendus de la fiche.',
+      ok: 'Rédiger le compte rendu' })) return;
+    closeAdmModal();
+    openNouvelleVisite(bienId, { type: 'achat', date, notes });
+    return;
+  }
 
   const btn = document.getElementById('adm-modal-save');
   btn.disabled = true; btn.innerHTML = '<span class="sci-spinner"></span>Enregistrement…';
@@ -6436,7 +6501,11 @@ async function saveAction() {
     if(res.error) throw res.error;
     showNotif(editingActionId ? 'Action mise à jour' : 'Action ajoutée');
     closeAdmModal();
-    _reopenDetailTab = 'actions';
+    /* ⚠️ 'nego', pas 'actions' : l'onglet a changé de nom au passage à six
+       onglets, et la fiche retombe sur « Le bien » devant une clé qu'elle ne
+       connaît pas — chaque échange enregistré renvoyait loin de la
+       Négociation, depuis au moins le 14/08 (v=98). */
+    _reopenDetailTab = 'nego';
     openDetail(actionModalBienId);
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
@@ -6454,7 +6523,7 @@ async function deleteAction() {
   showNotif('Action supprimée');
   const bienId = actionModalBienId;
   closeAdmModal();
-  _reopenDetailTab = 'actions';
+  _reopenDetailTab = 'nego';
   openDetail(bienId);
 }
 
@@ -7099,6 +7168,7 @@ function selectParamsSection(id) {
   document.querySelectorAll('.params-nav-item').forEach(el=>el.classList.remove('active'));
   event.currentTarget.classList.add('active');
   renderParamsSection();
+  sfAmenerDansLeChamp(document.getElementById('params-content'));
 }
 
 function renderParamsSection() {
@@ -7995,7 +8065,7 @@ function mfRenderShell() {
       </div>
       <div>
         <span class="mfx-champ-lab">Exercice</span>
-        <select id="mf-exercice" aria-label="Exercice comptable" onchange="mfSetExercice(this.value)">
+        <select id="mf-exercice" class="sf-input sf-select" aria-label="Exercice comptable" onchange="mfSetExercice(this.value)">
           ${annees.map(a => `<option value="${a}" ${a === mfExercice ? 'selected' : ''}>${a}</option>`).join('')}
         </select>
       </div>
@@ -8068,6 +8138,7 @@ function switchMfTab(tab) {
   document.querySelectorAll('.mfx-tab').forEach(b => {
     b.setAttribute('aria-selected', String(b.getAttribute('onclick') === `switchMfTab('${tab}')`));
   });
+  sfOngletDansLeChamp(document.querySelector('.mfx-tabs'));
   const c = document.getElementById('mf-content');
   if(!c) return;
   if(tab === 'performance')      renderMfPerformance(c);
@@ -8166,7 +8237,7 @@ function renderMfPerformance(c) {
     <div class="mfx-tools">
       <div class="mfx-pick-lg">
         <span class="mfx-champ-lab">Périmètre</span>
-        <select aria-label="Périmètre analysé" onchange="mfSetPerfBien(this.value)">
+        <select class="sf-input sf-select" aria-label="Périmètre analysé" onchange="mfSetPerfBien(this.value)">
           <option value="">Tous les biens</option>
           ${tous.map(b => `<option value="${b.id}" ${b.id === mfPerfBienId ? 'selected' : ''}>${esc(b.titre || 'Bien')}${b.ville ? ' — ' + esc(b.ville) : ''}</option>`).join('')}
         </select>
@@ -8387,7 +8458,7 @@ function mfSectionDeclaration(annee) {
         <p class="sff-block__t">Déclaration fiscale</p>
         <span class="sff-block__n">exercice ${annee}</span>
         ${decls.length > 1 ? `<span class="sff-block__a">
-          <select aria-label="Déclarant" onchange="mfSetDeclarant(this.value)">
+          <select class="sf-input sf-select" aria-label="Déclarant" onchange="mfSetDeclarant(this.value)">
             ${decls.map(x => `<option value="${x.cle}" ${x.cle === d.cle ? 'selected' : ''}>${esc(x.nom)}</option>`).join('')}
           </select>
         </span>` : ''}
@@ -8558,7 +8629,7 @@ function mfMiniGraphique(bien, annee) {
   const ampli = Math.max(1, ...serie.map(m => Math.abs(m.cashflow)));
   const dernier = serie[nb - 1];
   const aDesManques = serie.some(m => m.manque);
-  const cols = `grid-template-columns:repeat(${nb},1fr)`;
+  const cols = `grid-template-columns:repeat(${nb},minmax(0,1fr))`;
   return `
     <div class="mfx-card__spark">
       <div class="mfx-spark__h">
@@ -8648,7 +8719,7 @@ function renderMfPortefeuille(c) {
       <div class="mfx-tools__fin">
         <div>
           <span class="mfx-champ-lab">Trier par</span>
-          <select aria-label="Trier les biens" onchange="setMfBiensSort(this.value)">
+          <select class="sf-input sf-select" aria-label="Trier les biens" onchange="setMfBiensSort(this.value)">
             ${tris.map(([k, lab]) => `<option value="${k}" ${mfBiensSort === k ? 'selected' : ''}>${lab}</option>`).join('')}
           </select>
         </div>
@@ -13487,7 +13558,7 @@ function openBilanModal(id) {
         <input class="sci-form-input" id="bil-annee" type="number" value="${esc(b?.exercice||anneeActuelle)}" min="2020" max="2050"></div>
     </div>
     <div class="sci-form-group"><label class="sci-form-label">Régime fiscal <span style="color:var(--sf-loss)">*</span></label>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-top:4px">
         <label class="regime-option ${!b||b.regime==='IR'?'active':''}">
           <input type="radio" name="bil-regime" value="IR" ${!b||b.regime==='IR'?'checked':''} onchange="this.closest('.sci-form-group').querySelectorAll('.regime-option').forEach(o=>o.classList.toggle('active',o.querySelector('input').checked))">
           <span class="bilan-badge ir">IR</span>
@@ -14461,7 +14532,7 @@ function renderSCIDocsList() {
     <div class="sci-doc-item">
       <span>${sfAccIcon(d.type.includes('pdf') ? 'doc' : 'image', 15)}</span>
       <span class="sci-doc-name">${esc(d.nom)}</span>
-      <select onchange="sciDocsPending[${i}].type_doc=this.value" style="font-size:11px;padding:3px 6px;border:1px solid var(--c-border);border-radius:5px;background:var(--c-card);color:var(--c-text)" title="Type de document">
+      <select class="sci-doc-type" onchange="sciDocsPending[${i}].type_doc=this.value" aria-label="Type de document">
         ${TYPES_DOC.map(t => `<option value="${t}" ${(d.type_doc||'Autre')===t?'selected':''}>${t}</option>`).join('')}
       </select>
       <button class="sci-doc-remove" onclick="sciDocsPending.splice(${i},1);renderSCIDocsList()" aria-label="Retirer">${sfAccIcon('croix',13)}</button>
@@ -14938,7 +15009,7 @@ let sfcModifie = false;
 let sfcEnvoi = false;
 let sfcVisite = null;      // le compte rendu chargé (lecture ou saisie)
 
-// D'où l'on vient décide où l'on revient : la fiche du bien (onglet Visites),
+// D'où l'on vient décide où l'on revient : la fiche du bien (onglet Comptes rendus),
 // le Suivi financier (état des lieux depuis l'acte de sortie), ou la liste.
 // Depuis la fiche, on garde aussi SON retour, pour le lui rendre.
 function sfcRetourDepuis(page) {
@@ -14954,9 +15025,10 @@ function sfcOuvrir(etat) {
   navigate('compte-rendu');
 }
 
-/* `preset` : { type, locataireId, date, conforme } — le pré-remplissage venu
-   de l'acte de sortie. Un état des lieux n'est pas saisi de zéro : on sait
-   déjà de quel bien, de qui, de quand et de quel constat il parle. */
+/* `preset` : { type, locataireId, date, conforme, notes } — le pré-remplissage
+   venu de l'acte de sortie, ou d'une visite tapée dans la Négociation. Un état
+   des lieux n'est pas saisi de zéro : on sait déjà de quel bien, de qui, de
+   quand et de quel constat il parle. */
 function openNouvelleVisite(bienId, preset) { sfcOuvrir({ mode: 'saisie', id: null, bienId: bienId || null, preset: preset || null }); }
 function openReadVisite(id) { sfcOuvrir({ mode: 'lecture', id }); }
 function openDetailVisite(id) { sfcOuvrir({ mode: 'saisie', id }); }
@@ -14980,7 +15052,7 @@ async function renderCompteRendu(el) {
   }
   const v = lecture.data || (etat.preset
     ? { type_visite: etat.preset.type, locataire_id: etat.preset.locataireId, date_visite: etat.preset.date,
-        conforme: etat.preset.conforme ?? null, bien_id: etat.bienId }
+        conforme: etat.preset.conforme ?? null, bien_id: etat.bienId, notes: etat.preset.notes || null }
     : { type_visite: 'achat', bien_id: etat.bienId });
   sfcVisite = v;
   if (etat.mode === 'lecture') await sfcRenderLecture(el, v, grilleDispo, jeton);
@@ -15448,6 +15520,7 @@ function sfcAller(r) {
   if (r.page === 'bien-detail' && r.id && allBiens.find(b => b.id === r.id)) {
     currentBienId = r.id;
     bienDetailTab = 'visites';
+    bdVersOnglets = true;
     /* ⚠️ La fiche retrouve SON retour. Ouverte depuis un compte rendu, elle
        renvoyait vers lui, qui renvoyait vers elle : une boucle sans sortie.
        Dans ce cas, elle revient à la liste des comptes rendus. */
@@ -15781,7 +15854,7 @@ function showSimModal(s) {
       <div class="form-group form-full"><label>Nom de la simulation *</label><input type="text" id="s-nom" value="${esc(s?.nom_simulation||'')}" placeholder="ex: Offre Crédit Agricole 20 ans"></div>
       <div class="form-group"><label>Date d'émission du document</label><input type="date" id="s-date-doc" value="${esc(s?.date_document||'')}"></div>
       <div class="form-group"><label>Rattacher à un bien</label>
-        <select id="s-bien"><option value="">— Non rattaché —</option>${bienOptions}</select>
+        <select class="form-select" id="s-bien"><option value="">— Non rattaché —</option>${bienOptions}</select>
       </div>
       <div class="form-group"><label>Montant emprunté (€)</label><input type="number" id="s-montant" value="${esc(s?.montant_emprunte||'')}" oninput="recalcSim()"></div>
       <div class="form-group"><label>Taux d'intérêt annuel (%)</label><input type="number" id="s-taux" step="0.01" value="${esc(s?.taux_interet||'')}" oninput="recalcSim()"></div>

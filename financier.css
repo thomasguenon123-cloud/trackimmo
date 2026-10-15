@@ -189,7 +189,7 @@
 .mfk-col__b .mfx-loccard{ width:100%; }
 
 @media (max-width: 1100px){ .mfk-board{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
-@media (max-width: 640px){  .mfk-board{ grid-template-columns:1fr; } }
+@media (max-width: 640px){  .mfk-board{ grid-template-columns:minmax(0,1fr); } }
 
 .mfp-jour{ display:grid; grid-template-columns:auto minmax(0,1fr) auto;
   gap:var(--sf-space-4); align-items:baseline; }
@@ -218,7 +218,7 @@
 .mfp-plan__note{ margin:var(--sf-space-5) 0 0; font-size:var(--sf-font-label);
   color:var(--sf-text-3); line-height:1.5; }
 
-@media (max-width: 900px){ .mfp-plan{ grid-template-columns:1fr; } }
+@media (max-width: 900px){ .mfp-plan{ grid-template-columns:minmax(0,1fr); } }
 
 /* ═══ FENÊTRE LOCATAIRE — sections et grille ═══════════════════════════════ */
 .locf-sect{
@@ -237,7 +237,7 @@
 .mf-statut-opt .ic{ display:flex; align-items:center; justify-content:center;
   color:var(--sf-text-3); }
 .mf-statut-opt.active .ic{ color:var(--sf-brand-vivid); }
-@media (max-width: 600px){ .locf-grid{ grid-template-columns:1fr; } }
+@media (max-width: 600px){ .locf-grid{ grid-template-columns:minmax(0,1fr); } }
 
 /* ═══ BANDEAU ════════════════════════════════════════════════════════════════ */
 .mfx-top{ display:flex; align-items:flex-end; justify-content:space-between;
@@ -341,7 +341,7 @@
   font-size:var(--sf-font-caption); font-weight:var(--sf-weight-semibold); white-space:nowrap;
   background:none; border:0; cursor:pointer; font-family:inherit; padding:0; }
 .mfx-card__lien:hover{ text-decoration:underline; }
-.mfx-card__stats{ display:grid; grid-template-columns:1fr 1fr; gap:1px;
+.mfx-card__stats{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:1px;
   background:var(--sf-border); border-bottom:var(--sf-border-width) solid var(--sf-border); }
 .mfx-stat{ background:var(--sf-surface); padding:var(--sf-space-5) var(--sf-space-6); }
 .mfx-stat__l{ font-size:var(--sf-font-label); text-transform:uppercase;
@@ -380,7 +380,7 @@
 /* ⚠️ Le nombre de colonnes est POSÉ EN LIGNE par le rendu, pas figé ici : il
    vaut le nombre de mois ÉCOULÉS de l'exercice. Figé à 8, le graphique aurait
    été juste en août et faux tous les autres mois de l'année. */
-.mfx-mini, .mfx-mini__x{ display:grid; grid-template-columns:repeat(12,1fr); gap:3px; }
+.mfx-mini, .mfx-mini__x{ display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:3px; }
 .mfx-mini{ align-items:end; height:44px; }
 .mfx-mini__b{ border-radius:2px 2px 0 0; min-height:2px; background:var(--sf-loss); }
 .mfx-mini__b--ko{ background:var(--sf-alert); }
@@ -401,7 +401,7 @@
 .mfx-card__cta .sf-btn{ width:100%; }
 
 /* ═══ GRAPHIQUES (Performance) ═══════════════════════════════════════════════ */
-.mfx-chart{ display:grid; grid-template-columns:repeat(12,1fr); gap:var(--sf-space-3);
+.mfx-chart{ display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:var(--sf-space-3);
   align-items:end; height:180px; }
 .mfx-col{ display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
   height:100%; gap:var(--sf-space-3); }
@@ -420,7 +420,7 @@
 .mfx-legend i.vide{ background:transparent; border:1px dashed var(--sf-border-strong); }
 .mfx-legend i.trait{ height:0; border-top:2px dashed var(--sf-text-3); border-radius:0; width:16px; }
 .mfx-svg{ display:block; width:100%; }
-.mfx-mois{ display:grid; grid-template-columns:repeat(12,1fr); margin-top:var(--sf-space-4);
+.mfx-mois{ display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); margin-top:var(--sf-space-4);
   font-size:10px; color:var(--sf-text-3); font-family:var(--sf-font-num); text-align:center; }
 /* Le cumul est en demi-largeur à côté d'une carte nettement plus haute : le
    graphique grandit pour remplir, sinon la carte voisine imposerait sa hauteur
