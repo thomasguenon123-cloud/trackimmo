@@ -2,8 +2,15 @@
 -- GARDE-BIENS-TEST.sql — v=94, 02/10/2026
 -- Seul un administrateur peut marquer un bien comme « bien de test ».
 --
--- STATUT : NON JOUÉ. À jouer par Thomas dans l'éditeur SQL de Supabase,
--- guidé pas à pas ; vérifié ensuite en lecture de notre côté.
+-- STATUT : JOUÉ le 15/10/2026 par Thomas dans l'éditeur SQL de Supabase
+-- (« Success. No rows returned »), dans la forme ci-dessous. Vérifié le jour
+-- même : déclencheur actif (BEFORE INSERT OR UPDATE OF is_test), fonction en
+-- SECURITY INVOKER avec search_path vide, données inchangées (7 biens dont 5
+-- de test). Éprouvé dans une transaction ANNULÉE (rien d'enregistré) :
+-- utilisateur ordinaire qui marque un bien → refusé (42501) ; qui crée un
+-- bien de test → refusé ; anonyme → refusé ; administrateur → accepté ;
+-- modification d'un bien déjà de test → acceptée. Aucune alerte nouvelle de
+-- l'advisor de sécurité.
 -- ═══════════════════════════════════════════════════════════════════════════
 --
 -- POURQUOI. Depuis la v=94, un bien de test sort de tous les chiffres. La
@@ -53,8 +60,9 @@ begin
 end;
 $$;
 
-drop trigger if exists trg_biens_garde_is_test on public.biens;
-
-create trigger trg_biens_garde_is_test
+-- « create or replace trigger » (PostgreSQL 14 et plus) : rejouable sans
+-- « drop », qui déclenche l'avertissement « opération destructrice » de
+-- l'éditeur SQL.
+create or replace trigger trg_biens_garde_is_test
   before insert or update of is_test on public.biens
   for each row execute function public.biens_garde_is_test();
