@@ -472,6 +472,21 @@ test('une visite tapée dans la Négociation mène à son compte rendu, rien n\'
   assert.match(el.innerHTML, /value="2026-10-12"/, 'témoin : la date est reprise');
 });
 
+test('le rappel « Rédiger un compte rendu » de la fenêtre reprend ce qui était saisi', () => {
+  const ctx = app();
+  const els = { 'act-date': { value: '2026-10-13' }, 'act-comment': { value: '  Parquet abîmé.  ' } };
+  ctx.document.getElementById = id => els[id] || null;
+  injecter(ctx, { actionModalBienId: 'b-reel' });
+  let ouvert = null, ferme = false;
+  ctx.closeAdmModal = () => { ferme = true; };
+  ctx.openNouvelleVisite = (bienId, preset) => { ouvert = { bienId, preset: JSON.parse(JSON.stringify(preset)) }; };
+  ctx.actVersCompteRendu();
+  assert.ok(ferme, 'la fenêtre de l\'échange se ferme');
+  assert.deepEqual(ouvert, { bienId: 'b-reel', preset: { type: 'achat', date: '2026-10-13', notes: 'Parquet abîmé.' } },
+    'Le rappel ouvre un compte rendu vierge : la date et le commentaire déjà saisis sont perdus.');
+  assert.match(corps('openActionModal'), /onclick="actVersCompteRendu\(\)">Rédiger un compte rendu</, 'témoin : c\'est bien lui que le rappel appelle');
+});
+
 test('la fiche et le menu nomment les comptes rendus de la même façon', () => {
   assert.match(corps('renderBienDetail'), /visites:\s*\{ lab:sfAccIcon\('carnet',15\)\+' Comptes rendus'/,
     'L\'onglet de la fiche ne s\'appelle plus « Comptes rendus » : deux noms pour une seule chose.');

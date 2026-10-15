@@ -110,7 +110,8 @@
   **Un seul point d'entrée** (v=98) : la Négociation ne propose plus
   « Visite » (`ACTION_TYPES`) ; une visite tapée dans « Autre… » mène à son
   compte rendu, date et commentaire repris (`sfEstUneVisite`) — refuser laisse
-  la fenêtre telle quelle. L'onglet de la fiche s'appelle « Comptes rendus »,
+  la fenêtre telle quelle ; son rappel « Rédiger un compte rendu » reprend la
+  même saisie (`actVersCompteRendu`). L'onglet de la fiche s'appelle « Comptes rendus »,
   comme le menu. **Revenir sur un onglet, c'est le voir** : après un compte
   rendu ou un échange, la fiche descend jusqu'à sa barre d'onglets quand elle
   est hors de l'écran (`bdVersOnglets`), et l'onglet ouvert est ramené dans la

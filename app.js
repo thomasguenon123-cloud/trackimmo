@@ -6444,7 +6444,7 @@ async function openActionModal(bienId, actionId) {
       <input class="sci-form-input" id="act-type-custom" type="text" maxlength="60" value="${isCustom?esc(curType):''}" placeholder="Ex : Signature mandat">
     </div>
     <p class="act-visite">Une visite ? Elle se consigne dans son compte rendu, avec sa grille et ses photos.
-      <button type="button" class="sf-btn sf-btn--ghost sf-btn--sm" onclick="closeAdmModal(); openNouvelleVisite(${escJs(bienId)})">Rédiger un compte rendu</button></p>
+      <button type="button" class="sf-btn sf-btn--ghost sf-btn--sm" onclick="actVersCompteRendu()">Rédiger un compte rendu</button></p>
     <div class="sci-form-group">
       <label class="sci-form-label">Date <span style="color:var(--sf-loss)">*</span></label>
       <input class="sci-form-input" id="act-date" type="date" value="${esc(a?.date_action || today)}">
@@ -6463,6 +6463,16 @@ function actionTypeToggle() {
   if(wrap) wrap.style.display = sel === '__autre__' ? 'block' : 'none';
 }
 
+// Le rappel de la fenêtre et la visite tapée mènent au même endroit, avec ce
+// qui était déjà saisi : la date et le commentaire passent au compte rendu.
+function actVersCompteRendu() {
+  const date = document.getElementById('act-date')?.value || null;
+  const notes = (document.getElementById('act-comment')?.value || '').trim() || null;
+  const bienId = actionModalBienId;
+  closeAdmModal();
+  openNouvelleVisite(bienId, { type: 'achat', date, notes });
+}
+
 async function saveAction() {
   const sel = document.getElementById('act-type').value;
   const type = sel === '__autre__'
@@ -6479,8 +6489,7 @@ async function saveAction() {
     if(!await sfConfirmer({ titre: 'Une visite a son compte rendu', question: 'Rédiger le compte rendu de cette visite ?',
       detail: 'Elle s\'y consigne avec sa date, sa grille, ses photos et la suite à donner, et apparaît dans l\'onglet Comptes rendus de la fiche.',
       ok: 'Rédiger le compte rendu' })) return;
-    closeAdmModal();
-    openNouvelleVisite(bienId, { type: 'achat', date, notes });
+    actVersCompteRendu();
     return;
   }
 
