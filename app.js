@@ -3280,7 +3280,7 @@ let sfnEnvoi = false;             // un enregistrement est en cours : un second 
    mode_detention / sci_id (sfDetentionDepuisChamp). */
 const SFN_SECTIONS = [
   { id: 'essentiel', titre: "L'essentiel", champs: [
-    { k: 'titre',         id: 'f-titre', large: true },
+    { k: 'titre',         id: 'f-titre', large: true, aide: 'Il se propose d’après le type, la ville et la surface ; écrivez le vôtre si vous préférez.' },
     { k: 'ville',         id: 'f-ville' },
     { k: 'code_postal',   id: 'f-cp' },
     { k: 'type_bien',     id: 'f-type' },
@@ -3293,9 +3293,9 @@ const SFN_SECTIONS = [
   { id: 'credit', titre: 'Crédit et charges', champs: [
     { k: 'mensualite_credit',  id: 'f-mensualite' },
     { k: 'duree_credit_ans',   id: 'f-duree' },
-    { k: 'charge_copro',       id: 'f-copro' },
+    { k: 'charge_copro',       id: 'f-copro', annuel: true, aide: 'Le montant annuel, tel que l’annonce l’indique.' },
     { k: 'assurance_logement', id: 'f-assurance' },
-    { k: 'taxe_fonciere',      id: 'f-taxe', aide: 'Le montant annuel divisé par douze.' },
+    { k: 'taxe_fonciere',      id: 'f-taxe', annuel: true, aide: 'Le montant annuel de l’avis de taxe foncière.' },
   ]},
   { id: 'acquisition', titre: "Coûts d'acquisition", champs: [
     { k: 'frais_notaire', id: 'f-notaire' },
@@ -3309,7 +3309,7 @@ const SFN_SECTIONS = [
     { k: 'charges_locataire_travaux', id: 'f-charges-travaux' },
   ]},
   { id: 'annonce', titre: 'Annonce et contact', champs: [
-    { k: 'lien_annonce',  id: 'f-lien', large: true },
+    { k: 'lien_annonce',  id: 'f-lien', large: true, aide: 'Collez le lien : la source se reconnaît d’elle-même.' },
     { k: 'source',        id: 'f-source' },
     { k: 'balise',        id: 'f-balise' },
     { k: 'intermediaire', id: 'f-inter' },
@@ -3331,6 +3331,439 @@ const SFN_TEXTE = {
   telephone:     { type: 'tel', auto: 'tel' },
   mail:          { type: 'email', auto: 'email' },
 };
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LA SAISIE ASSISTÉE (v=97) — ce que la fiche peut remplir elle-même.
+
+   ⚠️ UNE RÈGLE POUR TOUT CE BLOC : l'assistance ne remplace JAMAIS une valeur
+   saisie. Elle remplit un champ vide, ou propose ; la saisie gagne toujours.
+
+     · le code postal donne la ville, la ville donne le code postal
+       (geo.api.gouv.fr, déjà interrogé par le Marché) ;
+     · le titre se propose d'après le type, la ville et la surface, tant qu'on
+       ne l'a pas écrit soi-même ;
+     · la source se déduit du lien de l'annonce ;
+     · les charges de copropriété et la taxe foncière se saisissent à l'année,
+       comme les annonces et l'avis d'imposition les donnent — la fiche les
+       compte par mois ;
+     · « Coller l'annonce » lit le texte copié sur un portail et remplit les
+       champs vides — phase 1 de l'import d'annonces. Rien ne part sur le
+       réseau : la lecture se fait sur l'appareil, par des motifs.
+
+   Garde : test/saisie-assistee.test.js. */
+
+// Le domaine du lien → la valeur de « Source ». Chaque valeur existe dans
+// TI_BIENS.SOURCES (une garde le vérifie) : on n'invente pas une source.
+const SF_SOURCES_DOMAINES = [
+  ['seloger.com', 'SeLoger'], ['leboncoin.fr', 'LeBonCoin'], ['pap.fr', 'PAP'],
+  ['logic-immo.com', 'Logic-Immo'], ['bienici.com', "Bien'ici"], ['jinka.fr', 'Jinka'],
+];
+
+/* La source d'un lien d'annonce, ou null. Le domaine se lit par un motif et
+   non par `new URL()` : un lien mal formé ne doit rien lever. Un domaine qui
+   CONTIENT celui d'un portail (« seloger.com.exemple.fr », « faux-pap.fr »)
+   n'est pas ce portail. */
+function sfSourceDepuisLien(lien) {
+  const m = /^\s*https?:\/\/([^/?#:\s]+)/i.exec(String(lien || ''));
+  if (!m) return null;
+  const hote = m[1].toLowerCase().replace(/\.$/, '');
+  const t = SF_SOURCES_DOMAINES.find(([d]) => hote === d || hote.endsWith('.' + d));
+  return t && TI_BIENS.SOURCES.includes(t[1]) ? t[1] : null;
+}
+
+// Le titre proposé : « T2 Lyon · 42 m² ». Sans type ni ville, rien à proposer.
+function sfnTitrePropose(d) {
+  const ville = String(d?.ville || '').trim();
+  if (!ville || !d.type_bien) return '';
+  const type = d.type_bien && d.type_bien !== 'Autre' ? d.type_bien : 'Bien';
+  const s = Number(d.surface_m2);
+  return `${type} ${ville}${s > 0 ? ` · ${sfnFormaterNombre(s)} m²` : ''}`;
+}
+
+/* ─── LIRE UNE ANNONCE COLLÉE ────────────────────────────────────────────────
+   Le texte copié sur SeLoger, Bien'ici, PAP, Leboncoin ou Jinka. Chaque
+   montant est classé par le MOT LE PLUS PROCHE qui le précède (prix, loyer,
+   charges, taxe foncière, honoraires) — jamais par sa seule taille, sauf pour
+   le prix quand aucun mot ne le désigne. Ce qui reste ambigu n'est pas rempli. */
+
+// Un code postal français plausible : 01000 à 95999, outre-mer 97 et 98.
+const SF_CP_VALIDE = /^(?:0[1-9]|[1-8]\d|9[0-5]|97|98)\d{3}$/;
+// Les mots d'une annonce qui précèdent ou suivent une ville sans en faire partie.
+const SF_ANNONCE_HORS_VILLE = /^(?:appartement|appart|maison|villa|studio|vente|achat|vends?|immeuble|parking|garage|box|loft|duplex|triplex|bien|local|terrain|particulier|propriete|propriété|pieces?|pièces?|[tf]\d|ref|réf|prix|annonce|neuf|ancien)$/i;
+const SF_ANNONCE_LETTRES = "A-Za-zÀ-ÖØ-öø-ÿ'’\\-";
+const SF_ANNONCE_MAJ = 'A-ZÀ-ÖØ-Þ';
+
+// Une ville captée, débarrassée des mots d'annonce qui l'entourent.
+function sfAnnonceVille(brut) {
+  const mots = String(brut || '').replace(/\s+/g, ' ').trim().split(' ');
+  while (mots.length && SF_ANNONCE_HORS_VILLE.test(mots[0])) {
+    mots.shift();
+    // « Appartement à Lyon », « Maison en Isère » : la préposition suit le mot ôté.
+    if (mots.length > 1 && /^(?:à|a|au|en|sur)$/i.test(mots[0])) mots.shift();
+  }
+  while (mots.length && SF_ANNONCE_HORS_VILLE.test(mots[mots.length - 1])) mots.pop();
+  const v = mots.join(' ').replace(/^[\s'’\-]+|[\s'’\-,]+$/g, '');
+  return v.length >= 2 ? v : null;
+}
+
+function sfAnnonceLieu(texte) {
+  const L = SF_ANNONCE_LETTRES, M = SF_ANNONCE_MAJ;
+  const connecteurs = '(?:sur|sous|de|du|des|en|le|la|les|lès|aux?)';
+  const nom = `[${M}][${L}]*(?: (?:[${M}][${L}]*|${connecteurs}(?= [${M}])))*`;
+  const motifs = [
+    // « Lyon 4ème (69004) », « Saint-Étienne (42000) »
+    new RegExp(`([${M}][${L} ]{0,40}?)\\s*(?:\\d{1,2}\\s*(?:er|e|ème|eme)\\b\\s*)?\\(\\s*(\\d{5})\\s*\\)`, 'g'),
+    // « 69004 Lyon »
+    new RegExp(`(?:^|[\\s,–—])(\\d{5})\\s+(${nom})`, 'gm'),
+    // « Lyon 69007 » — mais pas « Prix 95000 € » : un nombre suivi de l'euro est un montant
+    new RegExp(`(${nom})\\s+(\\d{5})\\b(?![\\s\\u00a0\\u202f]*(?:€|euros?))`, 'g'),
+  ];
+  for (let i = 0; i < motifs.length; i++) {
+    for (const m of texte.matchAll(motifs[i])) {
+      const [ville, cp] = i === 1 ? [m[2], m[1]] : [m[1], m[2]];
+      const v = sfAnnonceVille(ville);
+      if (v && SF_CP_VALIDE.test(cp)) return { ville: v, code_postal: cp };
+    }
+  }
+  return { ville: null, code_postal: null };
+}
+
+function sfAnnonceType(texte) {
+  const t = String(texte || '');
+  const vers = n => n >= 4 ? 'T4+' : 'T' + n;
+  let type = null;
+  if (/\bstudio\b/i.test(t)) type = 'Studio';
+  else if (/\bimmeuble\s+(?:de\s+rapport|entier)\b|\bvente\s+(?:d['’]un\s+)?immeuble\b/i.test(t)) type = 'Immeuble';
+  else {
+    const m = /\b(\d{1,2})\s*pi[eè]ces?\b/i.exec(t) || /\b[TF]\s?(\d)\b/.exec(t) || /\btype\s+(\d)\b/i.exec(t);
+    const n = m ? parseInt(m[1], 10) : 0;
+    if (n >= 1 && n <= 20) type = vers(n);
+    else if (/^\s*(?:vente\s+(?:d['’]une?\s+)?)?(?:parking|garage|box|place\s+de\s+(?:parking|stationnement))\b/im.test(t)) type = 'Parking';
+  }
+  return type && TI_BIENS.TYPES.includes(type) ? type : null;
+}
+
+function sfAnnonceSurface(texte) {
+  const re = /(^|[^\d.,])(\d{1,4}(?:[.,]\d{1,2})?)[ \u00a0\u202f]*m(?:²|2)(?![a-zà-ÿ\d])/gi;
+  // Une pièce, un extérieur ou une annexe n'est pas la surface du bien.
+  const ANNEXE = /\b(terrain|jardin|balcon|terrasse|cave|parking|garage|loggia|grenier|cour|piscine|sejour|salon|chambres?|cuisine|piece|sdb|salle|bureau|veranda|combles|dependance|box|lot|lots)\b[^.]*$/;
+  const LIBELLE = /\b(habitable|carrez|surface|superficie)\b[^.]*$/;
+  let premiere = null, libellee = null, fin = 0;
+  for (const m of texte.matchAll(re)) {
+    const debut = m.index + m[1].length;
+    const avant = tiNormTexte(texte.slice(Math.max(fin, debut - 32), debut));
+    fin = m.index + m[0].length;
+    const v = parseFloat(m[2].replace(',', '.'));
+    if (!(v >= 8 && v <= 2000)) continue;
+    if (LIBELLE.test(avant) && !ANNEXE.test(avant.replace(LIBELLE, ''))) { libellee = libellee ?? v; continue; }
+    if (ANNEXE.test(avant)) continue;
+    premiere = premiere ?? v;
+  }
+  return libellee ?? premiere;
+}
+
+// Les montants en euros, chacun avec ce qui le précède et ce qui le suit.
+function sfAnnonceMontants(texte) {
+  const re = /(^|[^\d.,])(\d{1,3}(?:[ \u00a0\u202f.]\d{3})+|\d+)(?:,(\d{1,2}))?[ \u00a0\u202f]*(?:€|euros?\b|eur\b)/gi;
+  const liste = [];
+  let fin = 0;
+  for (const m of texte.matchAll(re)) {
+    const debut = m.index + m[1].length;
+    const valeur = parseFloat(m[2].replace(/[ \u00a0\u202f.]/g, '') + (m[3] ? '.' + m[3] : ''));
+    const apres = texte.slice(m.index + m[0].length, m.index + m[0].length + 28);
+    liste.push({ valeur, avant: texte.slice(Math.max(fin, debut - 90), debut), apres });
+    fin = m.index + m[0].length;
+  }
+  return liste;
+}
+
+// Le mot le plus proche avant un montant dit ce qu'il est.
+const SF_ANNONCE_MOTS = [
+  ['taxe', /\b(taxe fonciere|tf)\b/g],
+  ['charges', /\bcharges?\b/g],
+  ['honoraires', /\b(honoraires|frais d agence)\b/g],
+  ['loyer', /\b(loyers?|loue|louee|revenus? locatifs?)\b/g],
+  ['prix', /\b(prix|vente|vendu|fai|hai)\b/g],
+];
+function sfAnnonceNature(avant) {
+  /* ⚠️ « Charges comprises », « hors charges », « CC », « HC » qualifient un
+     LOYER : ils ne désignent pas des charges. Sans les ôter, « loyer 650 €
+     charges comprises, soit 600 € hors charges » faisait de 600 € des charges
+     de copropriété. */
+  const n = tiNormTexte(avant).replace(/\b(charges? comprises?|charges? incluses?|hors charges?|cc|hc)\b/g, ' ');
+  let nature = null, pos = -1;
+  for (const [cle, re] of SF_ANNONCE_MOTS) {
+    for (const m of n.matchAll(re)) if (m.index >= pos) { pos = m.index; nature = cle; }
+  }
+  return nature;
+}
+
+function sfAnnoncePeriode(m) {
+  if (/^\s*(?:\/|par)\s*mois\b|^\s*mensuel/i.test(m.apres)) return 'mois';
+  if (/^\s*(?:\/|par)\s*an\b|^\s*annuel/i.test(m.apres)) return 'an';
+  const n = tiNormTexte(m.avant);
+  if (/\bmensuel(le)?s?\b|\bpar mois\b/.test(n)) return 'mois';
+  if (/\bannuel(le)?s?\b|\bpar an\b/.test(n)) return 'an';
+  return null;
+}
+
+/* Le texte d'une annonce → ce que la fiche peut en reprendre. Chaque valeur
+   absente vaut null : « non trouvé », jamais un zéro. Les charges et la taxe
+   sont rendues À L'ANNÉE, comme la fiche les saisit désormais. */
+function sfAnnonceLire(texte) {
+  const t = String(texte || '').slice(0, 20000);
+  const r = { prix_affiche: null, surface_m2: null, type_bien: null, ville: null, code_postal: null,
+              loyer_en_etat: null, charges_annuelles: null, taxe_annuelle: null, frais_agence: null,
+              lien_annonce: null, source: null };
+  if (!t.trim()) return r;
+
+  const prix = [];
+  for (const m of sfAnnonceMontants(t)) {
+    // Un prix au mètre carré n'est ni un prix ni une charge.
+    if (/^\s*(?:\/|par|le)\s*m(?:²|2|\b)/i.test(m.apres) || /\b(prix|€)\s*(?:au|du|par)?\s*m(?:²|2)\s*:?\s*$/i.test(m.avant)) continue;
+    const nature = sfAnnonceNature(m.avant);
+    const periode = sfAnnoncePeriode(m);
+    if (nature === 'taxe' && r.taxe_annuelle == null) r.taxe_annuelle = periode === 'mois' ? m.valeur * 12 : m.valeur;
+    // La loi ALUR impose aux annonces le montant ANNUEL des charges : c'est la
+    // lecture retenue quand la période n'est pas dite.
+    else if (nature === 'charges' && r.charges_annuelles == null) r.charges_annuelles = periode === 'mois' ? m.valeur * 12 : m.valeur;
+    else if (nature === 'honoraires' && r.frais_agence == null) r.frais_agence = m.valeur;
+    else if (nature === 'loyer' && r.loyer_en_etat == null && m.valeur < 20000) r.loyer_en_etat = periode === 'an' ? m.valeur / 12 : m.valeur;
+    else if (nature === 'prix' || (nature === null && m.valeur >= 10000)) prix.push({ v: m.valeur, libelle: nature === 'prix' });
+  }
+  const libelles = prix.filter(p => p.libelle && p.v >= 1000);
+  const candidats = libelles.length ? libelles : prix.filter(p => p.v >= 10000);
+  if (candidats.length) r.prix_affiche = Math.max(...candidats.map(p => p.v));
+
+  r.surface_m2 = sfAnnonceSurface(t);
+  r.type_bien = sfAnnonceType(t);
+  Object.assign(r, sfAnnonceLieu(t));
+  const lien = /https?:\/\/[^\s<>"'`]+/i.exec(t);
+  if (lien) {
+    r.lien_annonce = lien[0].replace(/[.,;:!?)\]]+$/, '');
+    r.source = sfSourceDepuisLien(r.lien_annonce);
+  }
+  return r;
+}
+
+/* ─── LE CODE POSTAL ET LA VILLE ─────────────────────────────────────────────
+   geo.api.gouv.fr, l'API publique des communes que le Marché interroge déjà.
+   ⚠️ Un service muet ne bloque personne : une erreur, un délai dépassé ou une
+   réponse inattendue ne remplissent rien et ne disent rien — la saisie reste
+   entièrement manuelle, comme avant. */
+const SF_GEO_COMMUNES = 'https://geo.api.gouv.fr/communes';
+const sfGeoCache = new Map();
+
+async function sfGeoCommunes(params) {
+  const q = Object.entries({ ...params, fields: 'nom,code,codesPostaux', format: 'json' })
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+  if (sfGeoCache.has(q)) return sfGeoCache.get(q);
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  const minuterie = ctrl ? setTimeout(() => ctrl.abort(), 5000) : null;
+  try {
+    const r = await fetch(`${SF_GEO_COMMUNES}?${q}`, ctrl ? { signal: ctrl.signal } : undefined);
+    if (!r.ok) return null;
+    const brut = await r.json();
+    // Ce qui vient d'un tiers se vérifie : un nom texte, des codes à 5 chiffres.
+    const communes = (Array.isArray(brut) ? brut : [])
+      .filter(c => c && typeof c.nom === 'string' && c.nom.trim())
+      .map(c => ({ nom: c.nom.trim(), codesPostaux: (Array.isArray(c.codesPostaux) ? c.codesPostaux : [])
+        .filter(cp => /^\d{5}$/.test(cp)) }));
+    sfGeoCache.set(q, communes);
+    return communes;
+  } catch (e) {
+    return null;
+  } finally {
+    if (minuterie) clearTimeout(minuterie);
+  }
+}
+
+// La dernière recherche en cours : une réponse plus ancienne n'écrit rien.
+let sfnGeoJeton = 0;
+
+function sfnGeoZone(html) {
+  const z = document.getElementById('f-cp-geo');
+  if (z) z.innerHTML = html;
+}
+
+// Le code postal tapé : s'il désigne une seule commune et que la ville est
+// vide, elle se remplit ; s'il en désigne plusieurs, on les propose.
+async function sfnGeoDepuisCp() {
+  const jeton = ++sfnGeoJeton;
+  const cpEl = document.getElementById('f-cp'), villeEl = document.getElementById('f-ville');
+  const cp = (cpEl?.value || '').trim();
+  sfnGeoZone('');
+  if (!villeEl || villeEl.value.trim() || !SF_CP_VALIDE.test(cp)) return;
+  const communes = await sfGeoCommunes({ codePostal: cp });
+  // Entre-temps, la saisie a pu changer : on ne remplit que ce qui est encore vrai.
+  if (jeton !== sfnGeoJeton || !communes?.length || villeEl.value.trim() || (cpEl.value || '').trim() !== cp) return;
+  if (communes.length === 1) {
+    sfnPoser('f-ville', communes[0].nom);
+    sfnGeoZone(`<span class="sfn-geo__ok">${sfAccIcon('check', 13)} Ville trouvée pour ${esc(cp)}.</span>`);
+    return;
+  }
+  sfnGeoZone(sfnGeoChoixHtml('Plusieurs communes pour', cp, 'f-ville', communes.slice(0, 12).map(c => c.nom)));
+}
+
+// La ville saisie, à la sortie du champ : son code postal, s'il est vide.
+async function sfnGeoDepuisVille() {
+  const jeton = ++sfnGeoJeton;
+  const cpEl = document.getElementById('f-cp'), villeEl = document.getElementById('f-ville');
+  const nom = (villeEl?.value || '').trim();
+  if (!cpEl || cpEl.value.trim() || nom.length < 2) return;
+  sfnGeoZone('');
+  const communes = await sfGeoCommunes({ nom, boost: 'population', limit: 5 });
+  if (jeton !== sfnGeoJeton || !communes?.length || cpEl.value.trim() || (villeEl.value || '').trim() !== nom) return;
+  // Le nom doit correspondre exactement (accents et casse mis à part) : « Lyo »
+  // ne donne pas le code postal de Lyon.
+  const commune = communes.find(c => tiNormTexte(c.nom) === tiNormTexte(nom));
+  if (!commune || !commune.codesPostaux.length) return;
+  if (commune.codesPostaux.length === 1) {
+    sfnPoser('f-cp', commune.codesPostaux[0]);
+    sfnGeoZone(`<span class="sfn-geo__ok">${sfAccIcon('check', 13)} Code postal de ${esc(commune.nom)}.</span>`);
+    return;
+  }
+  sfnGeoZone(sfnGeoChoixHtml('Codes postaux de', commune.nom, 'f-cp', commune.codesPostaux));
+}
+
+// Les choix proposés : la commune ou le code postal vient d'un tiers, il s'échappe.
+function sfnGeoChoixHtml(prefixe, objet, cible, valeurs) {
+  return `<span class="sfn-geo__l" id="f-cp-geo-l">${esc(prefixe)} ${esc(objet)} :</span>
+    <div class="sf-choix" role="group" aria-labelledby="f-cp-geo-l">${valeurs.map(v =>
+      `<button type="button" class="sf-choix__o" aria-pressed="false" data-cible="${esc(cible)}" data-v="${esc(v)}" onclick="sfnGeoChoisir(this)">${esc(v)}</button>`).join('')}</div>`;
+}
+
+function sfnGeoChoisir(btn) {
+  sfnPoser(btn.dataset.cible, btn.dataset.v);
+  sfnGeoZone('');
+  document.getElementById(btn.dataset.cible)?.focus();
+}
+
+/* Poser une valeur comme si on l'avait saisie : l'événement part, la fiche
+   se sait modifiée, la synthèse suit, et une liste habillée (.sf-pick) montre
+   la nouvelle valeur. */
+function sfnPoser(id, valeur) {
+  const el = document.getElementById(id);
+  if (!el) return false;
+  if (el.tagName === 'SELECT' && el.options && ![...el.options].some(o => o.value === String(valeur))) return false;
+  el.value = valeur;
+  if (typeof Event === 'function' && el.dispatchEvent) {
+    el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+  }
+  return true;
+}
+
+/* ─── LE TITRE ET LA SOURCE ───────────────────────────────────────────────── */
+
+// Tant que le titre n'a pas été écrit à la main (`data-auto`), il suit le
+// type, la ville et la surface.
+function sfnTitreAuto() {
+  const t = document.getElementById('f-titre');
+  if (!t || t.dataset.auto !== '1') return;
+  const p = sfnTitrePropose(getFormData());
+  if (!p || t.value === p) return;
+  t.value = p;
+  sfnErreur('f-titre', '');
+}
+
+// Un lien collé dit d'où vient l'annonce, si la source n'est pas déjà choisie.
+function sfnSourceAuto() {
+  const src = sfSourceDepuisLien(document.getElementById('f-lien')?.value);
+  const sel = document.getElementById('f-source');
+  if (src && sel && !sel.value) sfnPoser('f-source', src);
+}
+
+/* ─── LES MONTANTS SAISIS À L'ANNÉE ──────────────────────────────────────────
+   Les charges de copropriété et la taxe foncière se lisent à l'année dans une
+   annonce et sur l'avis d'imposition. La fiche, elle, les compte par mois :
+   la conversion se fait ici, et seulement ici. */
+function sfnChampAnnuel(id) {
+  return SFN_SECTIONS.some(s => s.champs.some(c => c.id === id && c.annuel));
+}
+
+/* ─── COLLER L'ANNONCE ───────────────────────────────────────────────────────
+   Ce que la lecture peut remplir, dans l'ordre où on le remplit. ⚠️ La source
+   passe AVANT le lien : poser le lien déduit la source (sfnSourceAuto), et
+   celle de l'annonce serait alors comptée « déjà renseignée ». La ville
+   passe avant le code postal pour la même raison (sfnGeoDepuisCp). */
+const SFN_ANNONCE_CHAMPS = [
+  { cle: 'prix_affiche',      id: 'f-prix',    lab: 'Prix',                   lu: v => sfEur(v) },
+  { cle: 'surface_m2',        id: 'f-surface', lab: 'Surface',                lu: v => `${sfnFormaterNombre(v)} m²` },
+  { cle: 'type_bien',         id: 'f-type',    lab: 'Type',                   lu: v => v },
+  { cle: 'ville',             id: 'f-ville',   lab: 'Ville',                  lu: v => v },
+  { cle: 'code_postal',       id: 'f-cp',      lab: 'Code postal',            lu: v => v },
+  { cle: 'loyer_en_etat',     id: 'f-loyer',   lab: 'Loyer',                  lu: v => `${sfEur(v)} par mois` },
+  { cle: 'charges_annuelles', id: 'f-copro',   lab: 'Charges de copropriété', lu: v => `${sfEur(v)} par an` },
+  { cle: 'taxe_annuelle',     id: 'f-taxe',    lab: 'Taxe foncière',          lu: v => `${sfEur(v)} par an` },
+  { cle: 'frais_agence',      id: 'f-agence',  lab: "Frais d'agence",         lu: v => sfEur(v) },
+  { cle: 'source',            id: 'f-source',  lab: 'Source',                 lu: v => v },
+  { cle: 'lien_annonce',      id: 'f-lien',    lab: "Lien de l'annonce",      lu: () => 'repris' },
+];
+
+// Un champ est vide quand rien n'y est écrit. ⚠️ Un montant illisible
+// (« 12 a ») n'est PAS vide : c'est une saisie, on ne l'écrase pas.
+function sfnChampVide(el) {
+  if (!el) return false;
+  if (el.tagName === 'SELECT') return !el.value;
+  if (el.classList?.contains('sfn-nombre')) { const n = sfLireNombre(el.value); return n === null || n === 0; }
+  return !String(el.value || '').trim();
+}
+
+function sfnAnnonceHtml() {
+  return `
+    <details class="sff-block sfn-sec sfn-annonce" data-sec="coller">
+      <summary class="sfn-sec__s"><span class="sff-block__h">
+        <span class="sff-block__t">Coller l'annonce</span>
+        <span class="sfn-sec__resume">Remplit les champs vides à partir du texte copié</span>
+        <span class="sfn-sec__chev" aria-hidden="true">${sfAccIcon('chevron-bas', 16)}</span>
+      </span></summary>
+      <div class="sff-block__b">
+        <div class="sf-field">
+          <label class="sf-label" for="sfn-annonce-texte">Texte de l'annonce</label>
+          <textarea class="sf-input" id="sfn-annonce-texte" rows="6" aria-describedby="sfn-annonce-aide"
+            placeholder="Copiez le texte de l'annonce sur SeLoger, Bien'ici, PAP, Leboncoin ou Jinka, puis collez-le ici."></textarea>
+          <p class="sf-hint" id="sfn-annonce-aide">Le texte est lu sur cet appareil : il n'est ni envoyé ni enregistré. Seuls les champs encore vides sont remplis.</p>
+        </div>
+        <div class="sfn-annonce__acts">
+          <button type="button" class="sf-btn sf-btn--secondary sf-btn--sm" onclick="sfnRemplirDepuisAnnonce()">${sfAccIcon('eclair', 15)} Remplir les champs vides</button>
+        </div>
+        <div class="sfn-annonce__bilan" id="sfn-annonce-bilan" role="status" aria-live="polite"></div>
+      </div>
+    </details>`;
+}
+
+function sfnRemplirDepuisAnnonce() {
+  const texte = document.getElementById('sfn-annonce-texte')?.value || '';
+  const bilan = document.getElementById('sfn-annonce-bilan');
+  const lu = sfAnnonceLire(texte);
+  const remplis = [], gardes = [];
+  for (const c of SFN_ANNONCE_CHAMPS) {
+    const v = lu[c.cle];
+    if (v === null || v === undefined || v === '') continue;
+    const el = document.getElementById(c.id);
+    if (!el) continue;
+    if (!sfnChampVide(el)) { gardes.push(c.lab); continue; }
+    const saisie = typeof v === 'number' ? sfnFormaterNombre(v) : String(v);
+    if (sfnPoser(c.id, saisie)) remplis.push([c.lab, c.lu(v)]);
+  }
+  sfnTitreAuto();
+  sfnMaj();
+  if (!bilan) return { remplis, gardes };
+  if (!remplis.length && !gardes.length) {
+    bilan.innerHTML = `<p class="sfn-annonce__t">Rien de reconnu dans ce texte.</p>
+      <p class="sf-hint">Collez le texte de l'annonce elle-même : son prix, sa surface ou sa ville doivent y figurer.</p>`;
+    return { remplis, gardes };
+  }
+  bilan.innerHTML = `
+    <p class="sfn-annonce__t">${remplis.length
+      ? `${remplis.length} champ${remplis.length > 1 ? 's' : ''} rempli${remplis.length > 1 ? 's' : ''} depuis l'annonce`
+      : 'Aucun champ vide à remplir'}</p>
+    ${remplis.length ? `<ul class="sfn-annonce__l">${remplis.map(([l, v]) =>
+      `<li><span>${esc(l)}</span><b>${esc(v)}</b></li>`).join('')}</ul>` : ''}
+    ${gardes.length ? `<p class="sf-hint">Déjà renseignés, laissés tels quels : ${esc(gardes.join(', '))}.</p>` : ''}
+    ${remplis.length ? '<p class="sf-hint">Vérifiez ces valeurs avant d\'enregistrer.</p>' : ''}`;
+  return { remplis, gardes };
+}
 
 /* UN MONTANT SE LIT COMME IL S'ÉCRIT. « 168 000 », « 168 000 € », « 1 200,50 »
    et « 168.000 » sont des montants ; « 12 a » ne l'est pas, et le dire vaut
@@ -3433,16 +3866,19 @@ function sfnChamp(c, bien) {
     saisie = `<textarea class="sf-input" id="${c.id}" rows="5" ${decrit}
       placeholder="Points d'attention, observations, négociation prévue…">${esc(val || '')}</textarea>`;
   } else if (SFN_UNITES[def.type]) {
-    lu = `<span class="sf-sr-only"> ${SFN_UNITES_LUES[def.type]}</span>`;
+    // Saisi à l'année (charges, taxe foncière) ; la fiche le garde par mois.
+    const annuel = !!c.annuel;
+    lu = `<span class="sf-sr-only"> ${annuel ? 'en euros par an' : SFN_UNITES_LUES[def.type]}</span>`;
     const valeur = c.k === 'duree_credit_ans' ? (val || userPrefs.duree_credit_ans || 20)
                  : c.k === 'assurance_logement' ? (bien ? val : userPrefs.assurance_mois || 33)
                  : c.k === 'creation_sci' ? (sciOui ? val : '')
+                 : annuel ? (parseFloat(val) > 0 ? parseFloat(val) * 12 : val)
                  : val;
-    saisie = `<div class="sfn-saisie sfn-saisie--${def.type}">
+    saisie = `<div class="sfn-saisie sfn-saisie--${annuel ? 'euro_an' : def.type}">
         <input class="sf-input sfn-nombre" id="${c.id}" type="text"
                inputmode="${def.type === 'annees' ? 'numeric' : 'decimal'}" autocomplete="off"
                value="${esc(sfnFormaterNombre(valeur))}" onblur="sfnFormater(this)" ${decrit}>
-        <span class="sfn-unite" aria-hidden="true">${SFN_UNITES[def.type]}</span>
+        <span class="sfn-unite" aria-hidden="true">${annuel ? '€/an' : SFN_UNITES[def.type]}</span>
       </div>`;
   } else {
     const t = SFN_TEXTE[c.k] || {};
@@ -3455,8 +3891,9 @@ function sfnChamp(c, bien) {
   return `<div class="sf-field sfn-f${c.large ? ' sfn-f--large' : ''}" data-k="${c.k}"${c.k === 'creation_sci' ? ' id="sfn-f-sci" hidden' : ''}>
       ${ouvre}${lab}${requis ? '<span class="sf-label__req" aria-hidden="true">*</span>' : ''}${lu}</${etiquette}>
       ${saisie}
-      ${c.aide ? `<p class="sf-hint" id="${aideId}">${esc(c.aide)}</p>` : ''}
+      ${c.aide ? `<p class="sf-hint" id="${aideId}">${esc(c.aide)}${c.annuel ? ` <span class="sfn-mois" id="${c.id}-mois"></span>` : ''}</p>` : ''}
       <p class="sf-hint sf-hint--error" id="${errId}" hidden></p>
+      ${c.k === 'code_postal' ? '<div class="sfn-geo" id="f-cp-geo" aria-live="polite"></div>' : ''}
     </div>`;
 }
 
@@ -3570,6 +4007,7 @@ async function renderNouveau(el, bien, precedente) {
       </aside>
 
       <div class="sfn-main">
+        ${sfnAnnonceHtml()}
         ${SFN_SECTIONS.map(sec => sfnSectionHtml(sec, bien)).join('')}
         ${bien ? `
         <div class="sfn-suppr">
@@ -3590,6 +4028,9 @@ async function renderNouveau(el, bien, precedente) {
     </div>
   </div>`;
 
+  // Un titre vide se propose seul (sfnTitreAuto) ; un titre existant reste.
+  const champTitre = document.getElementById('f-titre');
+  if (champTitre && !champTitre.value.trim()) champTitre.dataset.auto = '1';
   // Arrivée depuis « Créer une fiche bien ici » (Marché)
   if (!bien && nouveauPrefill) {
     const v = document.getElementById('f-ville'), cp = document.getElementById('f-cp');
@@ -3614,10 +4055,19 @@ async function renderNouveau(el, bien, precedente) {
 function sfnSaisie(e) {
   const cible = e.target;
   if (!cible || !cible.id || cible.type === 'file') return;
+  // Le texte d'une annonce collée n'est pas la fiche : le coller ne la modifie pas.
+  if (cible.id === 'sfn-annonce-texte') return;
   sfnModifie = true;
   // Toucher aux frais de SCI, c'est répondre à la question : la valeur saisie
   // gagne sur le calcul (voir getFormData).
   if (cible.id === 'f-sci') sciOui = true;
+  // La saisie assistée (v=97). Écrire le titre soi-même arrête la proposition ;
+  // le vider la relance.
+  if (cible.id === 'f-titre') cible.dataset.auto = cible.value.trim() ? '' : '1';
+  if (cible.id === 'f-type' || cible.id === 'f-ville' || cible.id === 'f-surface') sfnTitreAuto();
+  if (cible.id === 'f-lien') sfnSourceAuto();
+  if (cible.id === 'f-cp' && e.type === 'input') sfnGeoDepuisCp();
+  if (cible.id === 'f-ville' && e.type === 'change') sfnGeoDepuisVille();
   sfnErreur(cible.id, '');
   sfnMaj();
 }
@@ -3655,6 +4105,11 @@ function sfnMaj() {
     if (cls !== undefined) e.className = 'sfn-r__v sfn-r__v--' + cls;
   };
   if ($('notaire-val')) $('notaire-val').textContent = s.data.prix_affiche ? sfEur(s.data.frais_notaire) : 'Non disponible';
+  // Un montant saisi à l'année dit ce qu'il pèse par mois, comme la fiche le compte.
+  SFN_SECTIONS.forEach(sec => sec.champs.filter(c => c.annuel).forEach(c => {
+    const e = $(c.id + '-mois');
+    if (e) e.textContent = s.data[c.k] > 0 ? `Soit ${sfEur(s.data[c.k])} par mois.` : '';
+  }));
 
   const lab = $('sfn-cf-lab');
   if (lab && lab.dataset.nom !== s.cf.nom) { lab.innerHTML = s.cf.lab; lab.dataset.nom = s.cf.nom; }
@@ -4054,6 +4509,8 @@ function getFormData() {
   // Un montant se lit comme il s'écrit (« 168 000 », « 1 200,50 ») : parseFloat
   // lisait 168 et 1. Voir sfLireNombre.
   const v = id => sfnNombre(id);
+  // Les montants saisis à l'année (sfnChampAnnuel) sont comptés par mois.
+  const m = id => sfnChampAnnuel(id) ? v(id) / 12 : v(id);
   const s = id => document.getElementById(id)?.value||null;
   const t = id => (s(id) || '').trim() || null;
   const sciVal = sciOui ? (v('f-sci')||0) : 0;
@@ -4090,7 +4547,7 @@ function getFormData() {
     /* L'assurance se préremplit avec la préférence du compte, mais un champ
        VIDÉ est une réponse : « ||33 » réécrivait 33 € sur une assurance qu'on
        venait d'effacer. */
-    charge_copro:v('f-copro'),assurance_logement:v('f-assurance'),taxe_fonciere:v('f-taxe'),
+    charge_copro:m('f-copro'),assurance_logement:v('f-assurance'),taxe_fonciere:m('f-taxe'),
     loyer_en_etat:v('f-loyer'),charges_locataire_etat:v('f-charges-loc'),
     loyer_apres_travaux:v('f-loyer-travaux')||null,
     charges_locataire_travaux:v('f-charges-travaux')||null,

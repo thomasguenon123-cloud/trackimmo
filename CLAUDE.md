@@ -108,6 +108,14 @@
   visites notées. Un enregistrement ouvre la lecture, « ← » ramène d'où l'on
   venait (fiche sur l'onglet Visites, Suivi financier, liste).
   Garde : `comptes-rendus.test.js`.
+- **Saisie assistée** (v=97) : l'assistance ne remplace JAMAIS une saisie —
+  elle remplit un champ vide ou propose. Le code postal donne la ville et
+  inversement (geo.api.gouv.fr ; un service muet ne bloque personne) ; le titre
+  se propose d'après type, ville et surface tant qu'on ne l'a pas écrit ; la
+  source se déduit du domaine du lien ; charges de copropriété et taxe foncière
+  se saisissent À L'ANNÉE (`annuel: true` dans `SFN_SECTIONS`) et se comptent
+  par mois. « Coller l'annonce » lit le texte sur l'appareil (rien n'est envoyé)
+  et ne remplit que les champs vides. Garde : `saisie-assistee.test.js`.
 - **Choix segmenté** : `.sf-choix` (components.css) — des boutons
   `aria-pressed` pour quelques valeurs visibles ; toucher le choix retenu le
   retire. Le choix retenu se dit par la bordure, le fond ET une pastille.
@@ -150,6 +158,9 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 | Champs de la fiche bien (ordre, sections) | `SFN_SECTIONS` ; libellés et types : `TI_BIENS.CHAMPS` |
 | Critères de la grille de visite | `SF_GRILLE` ; ce qui entre en base : `sfGrilleNormaliser()` |
 | Ligne d'un compte rendu (liste et onglet Visites de la fiche) | `sfcLigneHtml()` |
+| Lire le texte d'une annonce collée | `sfAnnonceLire()` |
+| Source d'une annonce d'après son lien | `sfSourceDepuisLien()` (`SF_SOURCES_DOMAINES` ⊂ `TI_BIENS.SOURCES`) |
+| Montant saisi à l'année, compté par mois | `sfnChampAnnuel()`, appliqué dans `getFormData()` |
 
 ## Pièges connus — chacun a coûté au moins une fois
 
@@ -197,6 +208,11 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
   n'admet que du contenu phrasé. Le flex va sur un `<span>` intérieur.
 - **`hidden` perd contre une classe qui pose `display`** (`.sff-block`,
   `.form-group`, `.sfn-f`…) : ajouter la règle `[hidden]{display:none}`.
+- **`toLocaleString('fr-FR')` sépare les milliers par U+202F** : « 150 000 »
+  affiché n'est pas « 150 000 » tapé. Comparer des montants par
+  `sfLireNombre()`, jamais par chaîne (deux contrôles s'y sont trompés en v=97).
+- **Un domaine se reconnaît par égalité ou par le suffixe `'.' + domaine`**,
+  jamais par `endsWith(domaine)` : « faux-pap.fr » finit par « pap.fr ».
 - **Banc Playwright** : une capture `fullPage` coupe l'émulation tactile ;
   mesurer les cibles AVANT toute capture, une page neuve par vue.
 - `node --check` ne voit pas une variable hors portée.

@@ -2346,6 +2346,31 @@ details.sfn-sec[open] .sfn-sec__chev{ transform:rotate(180deg); }
 
 .sfn-suppr{ display:flex; justify-content:flex-start; padding-top:var(--sf-space-3); }
 
+/* ── La saisie assistée (v=97) ──────────────────────────────────────────────
+   Un montant saisi à l'année porte une unité plus courte que « €/mois ». */
+.sfn-saisie--euro_an .sf-input{ padding-right:60px; }
+.sfn-mois{ color:var(--sf-text-2); }
+/* Le code postal et la ville : ce qui a été trouvé, ou les choix proposés. */
+.sfn-geo:empty{ display:none; }
+.sfn-geo{ display:flex; flex-direction:column; gap:var(--sf-space-3); margin-top:var(--sf-space-3);
+  font-size:var(--sf-font-caption); color:var(--sf-text-2); }
+.sfn-geo__ok{ display:inline-flex; align-items:center; gap:var(--sf-space-2); }
+/* Coller l'annonce : le texte, l'action, puis ce qui a été repris. */
+.sfn-annonce__acts{ display:flex; justify-content:flex-end; margin-top:var(--sf-space-5); }
+.sfn-annonce__bilan:empty{ display:none; }
+.sfn-annonce__bilan{ margin-top:var(--sf-space-5); padding-top:var(--sf-space-5);
+  border-top:var(--sf-border-width) solid var(--sf-border); display:flex; flex-direction:column; gap:var(--sf-space-3); }
+.sfn-annonce__t{ margin:0; font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
+.sfn-annonce__l{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; }
+.sfn-annonce__l li{ display:flex; justify-content:space-between; align-items:baseline; gap:var(--sf-space-5);
+  padding:var(--sf-space-3) 0; border-bottom:var(--sf-border-width) solid var(--sf-border);
+  font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
+.sfn-annonce__l li:last-child{ border-bottom:0; }
+/* Les montants à droite, en chiffres tabulaires. */
+.sfn-annonce__l b{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); text-align:right;
+  font-variant-numeric:tabular-nums; overflow-wrap:anywhere; min-width:0; }
+.sfn-annonce .sfn-sec__resume{ color:var(--sf-text-2); }
+
 /* La barre d'enregistrement : UNE action principale, toujours à portée de
    pouce, collée au bas de l'écran tant que la fiche défile. */
 .sfn-barre{ position:sticky; bottom:0; z-index:150;
