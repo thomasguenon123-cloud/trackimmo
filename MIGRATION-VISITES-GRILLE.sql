@@ -2,8 +2,11 @@
 -- MIGRATION-VISITES-GRILLE.sql — v=96, 14/10/2026
 -- La grille de visite : une colonne `grille` (jsonb) sur public.visites.
 --
--- STATUT : NON JOUÉ. À jouer par Thomas dans l'éditeur SQL de Supabase,
--- guidé pas à pas ; vérifié ensuite en lecture de notre côté.
+-- STATUT : JOUÉ le 15/10/2026 par Thomas dans l'éditeur SQL de Supabase
+-- (« Success. No rows returned »), dans la forme ci-dessous. Vérifié en
+-- lecture le jour même : colonne jsonb nullable, contrainte
+-- visites_grille_objet en place, commentaire posé, aucune grille remplie sur
+-- les 3 comptes rendus existants, RLS active avec ses 4 policies « own ».
 -- ═══════════════════════════════════════════════════════════════════════════
 --
 -- POURQUOI. Depuis la v=96, une visite d'achat se remplit avec une grille,
@@ -37,15 +40,19 @@
 alter table public.visites
   add column if not exists grille jsonb;
 
-alter table public.visites
-  drop constraint if exists visites_grille_objet;
-
-alter table public.visites
-  add constraint visites_grille_objet
-  check (grille is null or jsonb_typeof(grille) = 'object');
+-- La contrainte n'est posée que si elle manque : pas de « drop », qui
+-- déclenche l'avertissement « opération destructrice » de l'éditeur SQL.
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'visites_grille_objet') then
+    alter table public.visites
+      add constraint visites_grille_objet
+      check (grille is null or jsonb_typeof(grille) = 'object');
+  end if;
+end $$;
 
 comment on column public.visites.grille is
-  'Grille de visite d''achat (v=96). Critères normalisés par sfGrilleNormaliser (app.js). NULL : grille non remplie.';
+  'Grille de visite d''achat (v=96). NULL : grille non remplie.';
 
 -- L'API relit le schéma : la colonne est utilisable aussitôt.
 notify pgrst, 'reload schema';
