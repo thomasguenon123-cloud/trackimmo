@@ -23,9 +23,9 @@
      l'icône Apple l'ajout à l'écran d'accueil sur iPhone. Les trois portent
      `?v=` comme le reste : une favicon est mise en cache très agressivement,
      et sans la version le changement peut rester invisible des semaines. -->
-<link rel="icon" type="image/svg+xml" href="favicon.svg?v=100">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=100">
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=100">
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=101">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=101">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=101">
 <meta name="theme-color" content="#0A100C" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#F5F8F6" media="(prefers-color-scheme: light)">
 <!-- ⚠️ Le chargement de Google Fonts a été retiré le 13/08/2026 : « Inter » n'est
@@ -35,7 +35,12 @@
      auto-hébergées dans /fonts depuis la phase 1, via 4 @font-face de
      tokens.css. Ce <link> ne servait donc qu'à télécharger une police inutilisée
      — et à transmettre l'adresse IP de chaque visiteur à un tiers. -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- v=101 : supabase-js est épinglé. « @2 » servait la dernière version sortie,
+     sans test : le 15/10/2026, la production a pris une version publiée la
+     veille, dans la page même où vit la session. 2.117.3 est celle que la
+     production a servie du 07 au 15/10, sous laquelle les v=98 à v=100 ont été
+     éprouvées. Monter de version = un geste délibéré, testé au banc. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <!-- ?v= : cache-busting — incrémenter à chaque déploiement modifiant CSS/JS.
@@ -43,19 +48,19 @@
 <!-- Socle de jetons Stonefolio (phase 2). Ne declare que des variables : aucun
      effet visuel tant qu'aucun composant ne les consomme. Charge AVANT
      styles.css pour que la migration puisse s'appuyer dessus. -->
-<link rel="stylesheet" href="tokens.css?v=100">
-<link rel="stylesheet" href="components.css?v=100">
-<link rel="stylesheet" href="styles.css?v=100">
+<link rel="stylesheet" href="tokens.css?v=101">
+<link rel="stylesheet" href="components.css?v=101">
+<link rel="stylesheet" href="styles.css?v=101">
 <!-- Suivi financier : chargé APRÈS styles.css, c'est ce qui permet aux deux
      surcharges de géométrie (`.sff-line` à 2 colonnes au lieu de 5) de gagner
      dans le seul périmètre `.mf-page`, sans toucher à la fiche bien. -->
-<link rel="stylesheet" href="financier.css?v=100">
+<link rel="stylesheet" href="financier.css?v=101">
 <!-- Tactile : chargée EN DERNIER, et c'est ce qui la fait fonctionner. Elle ne
      contient que des surcharges sous requête média (`any-pointer: coarse`) qui
      doivent gagner contre les quatre feuilles précédentes ; à spécificité égale,
      c'est l'ordre de chargement qui tranche. Aucun effet sur un poste sans
      pointeur tactile. -->
-<link rel="stylesheet" href="tactile.css?v=100">
+<link rel="stylesheet" href="tactile.css?v=101">
 </head>
 <body>
 
@@ -235,7 +240,7 @@
 
 <div class="notif" id="notif"></div>
 
-<script src="app.js?v=100"></script>
+<script src="app.js?v=101"></script>
 
 <!-- LIGHTBOX -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">

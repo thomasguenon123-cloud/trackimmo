@@ -457,10 +457,13 @@ test('l\'encart dit d\'où l\'on vient, sans rien conseiller', () => {
   const ctx = app();
   const ref = { taux: 3.7, periode: '2026-08',
     historique: serie('2024-09', [3.6, 3.65, 3.7, 3.75, 3.8, 3.85, 3.9, 3.92, 3.95, 3.97, 4.0, 4.02, 4.03, 4.04, 4.05, 4.06, 4.07, 4.08, 4.10, 4.0, 3.9, 3.91, 3.8, 3.7]),
-    oat10: serie('2026-03', [3.0, 3.02, 3.05, 3.1, 3.2, 3.25]), bce: { taux: 2, depuis: '2025-06-11' } };
+    // Comme en production le 16/10/2026 : l'OAT a un mois d'avance sur le taux moyen.
+    oat10: serie('2026-04', [3.0, 3.02, 3.05, 3.1, 3.2, 3.25]), bce: { taux: 2, depuis: '2025-06-11' } };
   const h = ctx.sfTauxEncartHtml(ref);
   assert.match(h, /<strong>En baisse depuis 5 mois<\/strong> · 4,02\u202f% il y a un an/);
-  assert.match(h, /OAT 10 ans : <b>3,25\u202f%<\/b>, en hausse sur 3 mois/);
+  // v=101 : l'OAT dit son mois, qui n'est pas celui du taux moyen.
+  assert.match(h, /OAT 10 ans : <b>3,25\u202f%<\/b> en septembre 2026, en hausse sur 3 mois/);
+  assert.match(h, /taux moyen, août 2026/, 'témoin : le taux moyen garde son propre mois');
   assert.match(h, /Taux de dépôt de la BCE : <b>2\u202f%<\/b> depuis le 11 juin 2025/);
   assert.match(h, /role="img" aria-label="Taux moyen sur 24 mois : 3,6\u202f% en septembre 2024, 3,7\u202f% en août 2026"/,
     'la courbe se lit sans la voir');

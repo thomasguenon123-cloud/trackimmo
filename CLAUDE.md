@@ -202,6 +202,7 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 |---|---|
 | Affichage d'un cashflow (réel / attente / estimé) | `cfDisplayData()` — jamais `computeCF()` seul pour agréger |
 | État d'un loyer, retard, impayé | `sfLoyerEtat()` |
+| Jour d'échéance d'un loyer pour un mois donné (un « 30 » tombe le 28 en février) | `sfJourEcheance()` — jamais un plafond fixe à 28 |
 | Dû et encaissé (`charges_encaissees IS NULL` = « non suivi », pas zéro) | `sfDuEtEncaisse()` |
 | Prorata d'un loyer | `mfLoyerProrata()` |
 | Génération des loyers | `autoGenerateLoyers()` |
@@ -228,6 +229,10 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 | Une explication derrière un « ? » | `sfAide()` — jamais un `title=`, jamais une ligne grise sous la valeur |
 | Un chiffre clé des pages à la charte (libellé, « ? », valeur, sous-ligne) | `sfKpi()` |
 | Tendance d'une série de taux · série venue du réseau · « août 2026 » | `sfTendance()` · `sfSerieValide()` · `sfMoisLong()` |
+| Lire une table qui grandit (loyers, charges) au-delà de 1 000 lignes | `sfLireTout()` — ordre total, l'id départage |
+| Fichiers d'une SCI à effacer avec elle (chemins lus AVANT, effacés APRÈS la ligne) | `sciFichiers()` |
+| Erreur d'un lot d'écritures Supabase (qui ne lèvent pas) | `sfPremiereErreur()` |
+| Ce que le générateur de données d'administration de test écrit, et la seule chose que sa purge reconnaît | `SF_TEST_ADMIN` |
 
 ## Pièges connus — chacun a coûté au moins une fois
 
@@ -240,6 +245,31 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 - **Une réponse réseau ne s'affiche jamais telle quelle** : du taux officiel,
   on ne garde qu'un nombre borné et une période au format vérifié ; le libellé
   est écrit côté client (`sfTauxReference`).
+- **Une écriture Supabase ne LÈVE pas** : elle rend `{ error }`. Un
+  `Promise.all` de suppressions passe donc toujours, et l'écran disait
+  « supprimé » sur un refus (v=101). Lire chaque `error`, ou `sfPremiereErreur()`.
+- **Une requête rend au plus 1 000 lignes, sans erreur** (plafond PostgREST) :
+  au-delà, les plus anciennes sortent EN SILENCE des chiffres. Une table qui
+  grandit se lit par `sfLireTout()`, dans un ordre total (v=101).
+- **Une purge par motif emporte ce qu'elle ne vise pas** : `ilike('%test%')`
+  attrape « attestation », `'%TEST%'` une SCI « Testard ». Une purge ne
+  reconnaît que l'égalité exacte avec ce que son générateur écrit (v=101).
+- **Le stockage ne suit pas les clés étrangères** : une cascade supprime les
+  lignes, pas les fichiers qu'elles désignent (un PDF de SCI orphelin trouvé
+  à l'audit du 16/10). Lire les chemins avant, effacer les fichiers après la
+  ligne — jamais avant, ou un refus laisse des documents sans fichier.
+- **`auth.admin.generateLink()` n'envoie RIEN** : il fabrique un lien pour qui
+  expédie ses propres e-mails. Pour envoyer : `resetPasswordForEmail()`,
+  `inviteUserByEmail()` (v=101, l'écran annonçait un mail jamais parti).
+- **Une dépendance de CDN en version flottante (`@2`) est une mise en
+  production sans test** : le 15/10, la production a pris une version de la
+  veille. Toute bibliothèque est épinglée à une version exacte (garde
+  `audit-101.test.js`) ; monter de version = un geste testé au banc.
+- **ESLint `no-undef` voit ce que `node --check` ne voit pas** : « Grouper par
+  type » levait une ReferenceError (`TYPES` disparu) depuis le passage au
+  registre `TI_BIENS`. Lancer, sur une copie d'app.js :
+  `/opt/node-tools/node_modules/.bin/eslint` avec `no-undef` et les globales
+  du navigateur (méthode dans le rapport d'audit du 16/10).
 - **Un écran qu'aucun test ne REND casse en silence** (v=100) : deux
   ReferenceError — « Mes biens » et la lecture d'une simulation — n'ont été
   vues qu'au banc, aucun test ne rendant ces écrans. Une garde d'écran appelle
@@ -340,6 +370,14 @@ garder le canari qui vérifie que le masquage n'efface pas de code.
 - Les « index inutilisés » de l'advisor : normal à ce volume. Ne rien supprimer.
 - L'id `bf-resultat` dupliqué : branches IR/IS exclusives.
 - Les couleurs TrackImmo trouvées dans des **commentaires** qui documentent leur suppression.
+- Les colonnes `is_test` de `locataires`, `loyers_mensuels`, `charges_reelles`
+  divergent de celles de leur bien (28 loyers au 16/10) : elles ne sont lues
+  NULLE PART, un loyer suit son bien (`sfLignesComptees`, `GARDE-BIENS-TEST.sql`).
+- `update_my_appearance` n'est pas tout à fait morte : `persistAppearance()`
+  l'appelle encore à la première connexion d'un compte dont `accent_color` est
+  vide (vérifié au 16/10). Retirer cet appel AVANT de supprimer la fonction.
+- Les 401 sur `/auth/v1/health` des journaux : ils ne viennent pas d'app.js
+  (aucun appel à cette route).
 
 ## Où trouver l'état du projet
 
@@ -360,3 +398,7 @@ garder le canari qui vérifie que le masquage n'efface pas de code.
   de drapeau en base : elles restent visibles dans Administration.
 - Vocabulaire Cerfa : `CERFA_MAPPING` suit la 2044 (personne physique), alors
   qu'une SCI à l'IR dépose une 2072 — à voir avec un comptable.
+- L'inscription libre reste-t-elle ouverte (avec `GARDE-PROFILS.sql`), ou
+  passe-t-on à l'invitation seule ? (audit du 16/10/2026)
+- Empreintes SRI sur les scripts de CDN : elles supposent que Thomas recharge
+  la page juste après le déploiement (une empreinte fausse = page blanche).

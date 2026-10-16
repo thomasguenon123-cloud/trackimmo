@@ -71,7 +71,10 @@ Deno.serve(async (req: Request) => {
     }
 
     // 4. Vérifier si l'utilisateur existe déjà
-    const { data: existingList } = await supabaseAdmin.auth.admin.listUsers()
+    // v=101 : listUsers() sans argument ne rend que la première page (50
+    // comptes) : au-delà, un compte existant passait pour nouveau et
+    // l'invitation échouait sur « déjà inscrit ».
+    const { data: existingList } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 })
     const existingUser = existingList?.users?.find(u => u.email?.toLowerCase() === cleanEmail)
 
     let userId: string
@@ -81,12 +84,14 @@ Deno.serve(async (req: Request) => {
       // Cas 1 : l'utilisateur existe déjà → renvoyer un mail de récupération
       alreadyRegistered = true
       userId = existingUser.id
-      const { error: resetErr } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'recovery',
-        email: cleanEmail,
-        options: { redirectTo: REDIRECT_URL }
+      // ⚠️ v=101 (audit du 16/10/2026) : generateLink() FABRIQUE le lien sans
+      // l'envoyer — il sert à qui expédie ses propres e-mails. L'écran
+      // annonçait « Mail de réinitialisation envoyé » et personne ne recevait
+      // rien. resetPasswordForEmail() l'envoie, avec le gabarit du projet.
+      const { error: resetErr } = await supabaseAdmin.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: REDIRECT_URL
       })
-      if (resetErr) throw new Error('Erreur génération du lien : ' + resetErr.message)
+      if (resetErr) throw new Error('Envoi du lien impossible : ' + resetErr.message)
     } else {
       // Cas 2 : nouveau user → mail d'invitation
       const { data: invited, error: inviteErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(cleanEmail, {

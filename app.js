@@ -1088,9 +1088,14 @@ function buildUserRowsHtml(users, myEmail) {
     if(isMe) {
       actions.push('<span style="font-size:11px;color:var(--sf-text-3);font-style:italic">Mon compte</span>');
     } else if(u.status === 'pending') {
-      // En attente : valider l'accès OU renvoyer l'invitation
-      actions.push('<button class="admin-action-btn is-validate admin-validate-btn" data-id="'+u.id+'" data-email="'+esc(u.email)+'" aria-label="Valider l\'accès" title="Activer le compte"><span class="ic">'+sfAccIcon("check",14)+'</span> Valider</button>');
-      actions.push('<button class="admin-action-btn is-resend admin-resend-btn" data-email="'+esc(u.email)+'" data-fn="'+esc(u.first_name||'')+'" data-ln="'+esc(u.last_name||'')+'" data-role="'+u.role+'" aria-label="Renvoyer l\'invitation" title="Renvoyer un email d\'invitation"><span class="ic">'+sfAccIcon("envoi",14)+'</span> Renvoyer</button>');
+      /* En attente : valider l'accès. « Renvoyer l'invitation » est retiré en
+         v=101 : un compte en attente est une INSCRIPTION LIBRE, son compte
+         existe déjà. Le bouton appelait l'invitation, qui (1) refusait faute
+         de prénom et de nom — l'inscription ne les demande pas —, (2) sinon
+         passait le compte en « active » sans le dire et effaçait sa note, et
+         (3) n'envoyait aucun e-mail (generateLink fabrique un lien sans
+         l'expédier). Valider est le seul geste utile ici. */
+      actions.push('<button class="admin-action-btn is-validate admin-validate-btn" data-id="'+esc(u.id)+'" data-email="'+esc(u.email)+'" aria-label="Valider l\'accès" title="Activer le compte"><span class="ic">'+sfAccIcon("check",14)+'</span> Valider</button>');
     } else if(u.status === 'active') {
       // Actif : envoyer reset password OU archiver
       actions.push('<button class="admin-action-btn is-reset admin-resetpwd-btn" data-email="'+esc(u.email)+'" aria-label="Envoyer un email de réinitialisation de mot de passe" title="Envoyer un email de réinitialisation"><span class="ic">'+sfAccIcon("cle",14)+'</span> Reset</button>');
@@ -1118,12 +1123,10 @@ document.addEventListener('click', function(e) {
   var disBtn      = e.target.closest('.admin-disable-btn');
   var enBtn       = e.target.closest('.admin-enable-btn');
   var validateBtn = e.target.closest('.admin-validate-btn');
-  var resendBtn   = e.target.closest('.admin-resend-btn');
   var resetBtn    = e.target.closest('.admin-resetpwd-btn');
   if(disBtn) adminDisableUser(disBtn.dataset.id);
   if(enBtn) adminEnableUser(enBtn.dataset.id);
   if(validateBtn) adminValidateUser(validateBtn.dataset.id, validateBtn.dataset.email);
-  if(resendBtn) adminResendInvite(resendBtn.dataset.email, resendBtn.dataset.fn, resendBtn.dataset.ln, resendBtn.dataset.role);
   if(resetBtn) adminSendResetPwd(resetBtn.dataset.email);
 });
 
@@ -1307,22 +1310,6 @@ async function adminInviteUser() {
     showNotif('Erreur : ' + e.message, true);
   } finally {
     if(btn) { btn.disabled = false; btn.innerHTML = sfAccIcon("envoi",14)+' Envoyer l\'invitation'; }
-  }
-}
-
-// ── Renvoyer une invitation existante ──
-async function adminResendInvite(email, firstName, lastName, role) {
-  if(!email) return;
-  if(!(await sfConfirmer({ titre: "Renvoyer l'invitation",
-    question: `Renvoyer un e-mail d'invitation à ${email} ?`, ok: 'Renvoyer' }))) return;
-  try {
-    const { data, error } = await db.functions.invoke('admin-invite-user', {
-      body: { email, firstName, lastName, role: role || 'user' }
-    });
-    if(error || data?.error) throw new Error(data?.error || error.message);
-    showNotif('Invitation renvoyée à ' + email);
-  } catch(e) {
-    showNotif('Erreur : ' + e.message, true);
   }
 }
 
@@ -2206,6 +2193,17 @@ function sfDuEtEncaisse(ligne) {
   };
 }
 
+/* Le jour d'échéance d'un loyer, pour un mois donné (v=101). Le bail en dit un
+   de 1 à 31 ; le calcul le plafonnait à 28, pour qu'un « 31 février » ne
+   déborde pas sur mars. Effet de bord : un loyer dû le 30 passait « en retard »
+   dès le 29 — une fausse alerte chaque mois pour un loyer payé en fin de mois.
+   On plafonne au dernier jour DU MOIS : le 30 reste le 30 en octobre et
+   devient le 28 (ou le 29) en février. Source unique : état, agenda, échéances. */
+function sfJourEcheance(locataire, mois, annee) {
+  const j = Math.max(parseInt(locataire?.jour_paiement, 10) || 5, 1);
+  return Math.min(j, new Date(annee, mois, 0).getDate());
+}
+
 function sfLoyerEtat(ligne, mois, annee, locataire) {
   /* ⚠️ HORS BAIL — la garde passe AVANT tout le reste, et c'est ici qu'elle
      doit vivre : cette fonction est la source unique de l'état d'un loyer, et
@@ -2220,7 +2218,7 @@ function sfLoyerEtat(ligne, mois, annee, locataire) {
   if (ligne && ligne.statut === 'Partiel') return 'part';
   if (locataire && !sfBailCouvre(locataire, mois, annee)) return 'none';
 
-  const jour = Math.min(Math.max(parseInt(locataire?.jour_paiement, 10) || 5, 1), 28);
+  const jour = sfJourEcheance(locataire, mois, annee);
   const aujourdhui = new Date(); aujourdhui.setHours(0, 0, 0, 0);
   // Même seuil qu'à l'agenda : le lendemain de l'échéance.
   const limiteRetard = new Date(annee, mois - 1, jour + 1);
@@ -2249,12 +2247,14 @@ function sfLoyersAttendus() {
     // echeances qu'il reste justement a encaisser.
     if (!sfEstOccupant(loc) || !loc.bien_id) continue;
     const bien = allBiens.find(b => b.id === loc.bien_id);
-    const jour = Math.min(Math.max(parseInt(loc.jour_paiement, 10) || 5, 1), 28);
+    const jourBail = Math.min(Math.max(parseInt(loc.jour_paiement, 10) || 5, 1), 31);
 
     for (let i = 0; i < 3; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() + i, jour);
+      const premier = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const mois = premier.getMonth() + 1, annee = premier.getFullYear();
+      const jour = sfJourEcheance(loc, mois, annee);
+      const d = new Date(annee, mois - 1, jour);
       if (d > fin) continue;
-      const mois = d.getMonth() + 1, annee = d.getFullYear();
 
       /* ⚠️ LE BAIL COUVRE-T-IL CE MOIS-LA ? La boucle part du mois COURANT,
          sans regarder les dates du bail : elle annoncait donc un loyer pour un
@@ -2282,7 +2282,7 @@ function sfLoyersAttendus() {
         bienId: loc.bien_id, locataireId: loc.id, mois, annee,
         jour: d.getDate(), moisCourt: MOIS[d.getMonth()], tri: d.getTime(),
         titre: `Loyer attendu — ${esc(bien?.titre || 'Bien')}`,
-        meta: `${esc([loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Locataire')} · le ${jour} de chaque mois`,
+        meta: `${esc([loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Locataire')} · le ${jourBail} de chaque mois`,
         // Le montant du fait foi quand la ligne existe : il peut porter un
         // prorata loi 1989 que le loyer de bail ne reflete pas. Quand elle
         // n'existe pas, on annonce le PRORATA et non le loyer plein : le mois
@@ -2985,7 +2985,10 @@ function renderKanban(biens) {
     columns = presentTypes.map(t => ({
       key: t, label: t, icone:'maison', dot: 'phase-generic', biens: biens.filter(b=>b.type_bien===t)
     }));
-    const autres = biens.filter(b=>!b.type_bien||!TYPES.includes(b.type_bien));
+    /* v=101 : `TYPES` n'existait plus depuis le registre TI_BIENS. « Grouper par
+       type » levait une ReferenceError et le kanban restait vide — trouvé par
+       ESLint (no-undef), confirmé au banc d'essai. */
+    const autres = biens.filter(b=>!b.type_bien||!TI_BIENS.TYPES.includes(b.type_bien));
     if(autres.length) columns.push({key:'__autre__',label:'Non renseigné',icone:'maison',dot:'phase-generic',biens:autres});
   }
 
@@ -4472,23 +4475,6 @@ async function tiMigrateToStorage() {
        libelle — definitivement, jusqu'au rechargement. */
     if(btn){ btn.disabled = false;
              btn.innerHTML = sfAccIcon('echange',14) + ' Lancer la migration base64 vers Storage'; }
-  }
-}
-
-// ── Remplit les vignettes Storage en post-rendu (data-thumb-bucket/path) ──
-async function tiFillThumbs(scopeEl) {
-  const root = scopeEl || document;
-  const thumbs = root.querySelectorAll('[data-thumb-path]');
-  for (const el of thumbs) {
-    const bucket = el.getAttribute('data-thumb-bucket');
-    const path = el.getAttribute('data-thumb-path');
-    if (!bucket || !path) continue;
-    const url = await TI_STORAGE.signedUrl(bucket, path);
-    if (url) {
-      el.style.backgroundImage = `url('${url}')`;
-      el.textContent = '';
-    }
-    el.removeAttribute('data-thumb-path'); // évite de re-signer
   }
 }
 
@@ -7776,15 +7762,6 @@ let mfTab = 'performance';
 
 // ─── STATUTS — Code couleur par phase ───────────────────────
 
-const STATUT_PHASE_LABELS = {
-  prospection:  'Prospection',
-  negociation: 'Négociation',
-  accord:      'Accord',
-  banque:      'Banque',
-  closing:     'Closing',
-  abandon:     'Abandon',
-};
-
 function getStatutPhase(statut) {
   /* ⚠️ SOURCE UNIQUE : `PHASE_MAP`. Il existait un SECOND mapping,
      `STATUT_PHASES`, avec ses propres phases — `accord`, `closing`, `abandon` —
@@ -9324,12 +9301,6 @@ function mfMajBadges() {
 }
 
 // ── Actions navigation année / filtre charges ──
-function mfSuiviChangeYear(delta) {
-  mfSuiviYear += delta;
-  const c = document.getElementById('mf-content');
-  if(c) renderMfSuivi(c);
-    mfMajBadges();
-}
 function mfSuiviClearFilter() {
   mfSuiviBienFilter = null;
   mfSuiviBienHighlight = null;
@@ -10101,8 +10072,7 @@ function renderMfLocataires(c) {
     // ne couvre plus le mois : l'annoncer « attendu » promet un encaissement
     // sur un logement vide, et le fait entrer dans le total du mois.
     if (!sfBailCouvre(loc, l.mois, annee)) continue;
-    const jour = Math.min(Math.max(parseInt(loc?.jour_paiement, 10) || 5, 1), 28);
-    const d = new Date(annee, l.mois - 1, jour);
+    const d = new Date(annee, l.mois - 1, sfJourEcheance(loc, l.mois, annee));
     if (d < auj || d > horizon) continue;
     echeances.push({ d, type: 'loyer', loc, bien: allBiens.find(b => b.id === l.bien_id),
                      libelle: [loc?.prenom, loc?.nom].filter(Boolean).join(' ') || 'Locataire',
@@ -11597,72 +11567,6 @@ async function sfSortieConfirmer() {
 
 /* « Rentabilite » a fusionne dans « Performance » : renderMfRenta, mfRentaRefresh, mfRentaSetBien et mfRentaChangeYear sont supprimes. Leur seul appelant vivant, mfBilanFeedSaveBiens, redessine desormais l'onglet courant. */
 
-function initMfRentaCharts(serieReel, cfPrevMensuel, serieCumulReel, serieCumulPrev) {
-  if(typeof Chart === 'undefined') return;
-  const euroTip = {
-    backgroundColor: 'rgba(15,23,42,0.95)', titleFont: { size: 11 },
-    bodyFont: { size: 12, weight: 'bold' }, padding: 8, cornerRadius: 6,
-    callbacks: { label: (ctx) => (ctx.dataset.label ? ctx.dataset.label + ' : ' : '')
-      + (ctx.parsed.y >= 0 ? '+' : '') + Math.round(ctx.parsed.y).toLocaleString('fr-FR') + ' €' }
-  };
-  const euroAxis = { ticks: { font: { size: 10 }, callback: v => Math.round(v).toLocaleString('fr-FR') + ' €' },
-    grid: { color: sfToken('--sf-chart-grid','rgba(234,240,236,.07)') } };
-
-  const cvM = document.getElementById('mfr-chart-mensuel');
-  if(cvM) {
-    try {
-      mfbCharts['renta-mensuel'] = new Chart(cvM, {
-        type: 'bar',
-        data: { labels: MOIS_LABELS, datasets: [
-          { label: 'Réel', data: serieReel,
-            backgroundColor: serieReel.map(v => (v ?? 0) >= 0 ? 'rgba(22,163,74,0.75)' : 'rgba(220,38,38,0.75)'),
-            borderRadius: 4, maxBarThickness: 24, order: 2 },
-          { label: 'Prévisionnel', type: 'line', data: Array(12).fill(Math.round(cfPrevMensuel)),
-            borderColor: sfToken('--accent','#17A06B'), borderWidth: 2, borderDash: [6, 4],
-            pointRadius: 0, pointHoverRadius: 3, fill: false, order: 1 },
-        ]},
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          interaction: { intersect: false, mode: 'index' },
-          plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, font: { size: 11 } } }, tooltip: euroTip },
-          scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: euroAxis }
-        }
-      });
-    } catch(e) { console.warn('[mfr] Erreur chart mensuel', e); }
-  }
-
-  const cvC = document.getElementById('mfr-chart-cumul');
-  if(cvC) {
-    // Couleur de base = signe du dernier cumul connu, pour que la pastille de
-    // légende corresponde à la couleur réellement affichée en fin de trajectoire
-    const dernierCumul = [...serieCumulReel].reverse().find(v => v != null) ?? 0;
-    const couleurCumul = dernierCumul < 0 ? sfToken('--sf-loss','#FF7A6B') : sfToken('--sf-gain','#4ADE80');
-    try {
-      mfbCharts['renta-cumul'] = new Chart(cvC, {
-        type: 'line',
-        data: { labels: MOIS_LABELS, datasets: [
-          // Le cumul change de couleur selon son signe : vert au-dessus de zéro,
-          // rouge en dessous (sinon une trajectoire déficitaire s'affiche en vert)
-          { label: 'Cumul réel', data: serieCumulReel,
-            borderColor: couleurCumul,
-            segment: { borderColor: ctx => ((ctx.p0.parsed.y < 0 || ctx.p1.parsed.y < 0) ? sfToken('--sf-loss','#FF7A6B') : sfToken('--sf-gain','#4ADE80')) },
-            fill: { target: 'origin', above: 'rgba(22,163,74,0.10)', below: 'rgba(220,38,38,0.08)' },
-            borderWidth: 2.5, tension: 0.3, pointRadius: 0, pointHoverRadius: 4 },
-          { label: 'Cumul prévisionnel', data: serieCumulPrev,
-            borderColor: sfToken('--accent','#17A06B'), borderWidth: 2, borderDash: [6, 4],
-            fill: false, tension: 0.3, pointRadius: 0, pointHoverRadius: 4 },
-        ]},
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          interaction: { intersect: false, mode: 'index' },
-          plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, font: { size: 11 } } }, tooltip: euroTip },
-          scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: euroAxis }
-        }
-      });
-    } catch(e) { console.warn('[mfr] Erreur chart cumul', e); }
-  }
-}
-
 // ═════════════════════════════════════════════════════
 //  ALIMENTATION DU BILAN SCI (IR + IS) — depuis les données réelles
 // ═════════════════════════════════════════════════════
@@ -11988,21 +11892,41 @@ async function loadLocataires() {
   allLocataires = sfLignesComptees(data || []);
 }
 
+/* v=101 — LIRE TOUTES LES LIGNES. Une requête rend au plus 1 000 lignes
+   (plafond `max_rows` du projet), sans erreur ni avertissement : au-delà, les
+   loyers les plus anciens sortaient EN SILENCE des chiffres (douze lignes par
+   bien et par an : dix biens sur huit ans suffisent). On lit donc par pages,
+   dans un ordre TOTAL — l'id départage les ex aequo ; sans lui, une ligne peut
+   changer de page entre deux lectures et compter deux fois, ou jamais.
+   `construire` rend une requête neuve à chaque page. */
+const SF_PAGE_LIGNES = 1000;
+async function sfLireTout(construire) {
+  const lignes = [];
+  for (let debut = 0; ; debut += SF_PAGE_LIGNES) {
+    const { data, error } = await construire().range(debut, debut + SF_PAGE_LIGNES - 1);
+    if (error) return { data: null, error };
+    lignes.push(...(data || []));
+    if (!data || data.length < SF_PAGE_LIGNES) return { data: lignes, error: null };
+  }
+}
+
 // ─── Chargement loyers + charges du user (pour Module Financier) ───
 async function loadMfFinancialData() {
   if(!currentUser) return;
   await sfAssurerBiens();
   // Parallèle pour gagner du temps
   const [loyersRes, chargesRes] = await Promise.all([
-    db.from('loyers_mensuels')
+    sfLireTout(() => db.from('loyers_mensuels')
       .select('*')
       .eq('user_id', currentUser.id)
       .order('annee', { ascending: false })
-      .order('mois', { ascending: false }),
-    db.from('charges_reelles')
+      .order('mois', { ascending: false })
+      .order('id')),
+    sfLireTout(() => db.from('charges_reelles')
       .select('*')
       .eq('user_id', currentUser.id)
       .order('date_charge', { ascending: false })
+      .order('id'))
   ]);
   if(loyersRes.error)  showNotif('Erreur loyers : '+loyersRes.error.message, true);
   if(chargesRes.error) showNotif('Erreur charges : '+chargesRes.error.message, true);
@@ -13617,7 +13541,9 @@ async function deleteEcheance() {
 }
 
 async function toggleEcheance(id, val) {
-  await db.from('sci_echeances').update({est_faite:val}).eq('id',id);
+  // v=101 : un refus de la base se disait par un retour silencieux de la case.
+  const { error } = await db.from('sci_echeances').update({est_faite:val}).eq('id',id);
+  if (error) showNotif('Erreur : ' + error.message, true);
   await loadAdminData(); switchAdminTab('echeances');
 }
 
@@ -13770,14 +13696,6 @@ function renderMarcheRecherche(el) {
             onkeydown="if(event.key==='Enter')marcheSearch()">
           <div class="marche-suggest-list" id="marche-suggest-list" style="display:none"></div>
         </div>
-        <div class="marche-search-field" style="flex:1;max-width:180px">
-          <div class="marche-search-label">Type de bien</div>
-          <select class="marche-search-select" id="marche-type-bien">
-            <option value="">Tous types</option>
-            <option value="appartement">Appartements</option>
-            <option value="maison">Maisons</option>
-          </select>
-        </div>
         <div>
           <div class="marche-search-label" style="visibility:hidden">.</div>
           <button class="marche-search-btn" id="marche-search-btn" onclick="marcheSearch()">
@@ -13929,7 +13847,9 @@ async function mFetch(url, label) {
 // ═══════════════════════════════════════════════════════════════
 async function marcheSearch() {
   const input    = document.getElementById('marche-ville-input');
-  const typeBien = document.getElementById('marche-type-bien')?.value || '';
+  /* v=101 : le sélecteur « Type de bien » est retiré. Sa valeur était lue ici
+     puis jamais utilisée : aucune des sources (INSEE, ADEME, actualités) n'était
+     filtrée, et l'analyse affichait la même chose quel que soit le choix. */
   const box      = document.getElementById('marche-suggest-list');
   if (box) box.style.display = 'none';
 
@@ -14690,6 +14610,16 @@ async function deleteSciDocument(docId, path) {
 // ══════════════════════════════════════════════════════════════
 // DONNÉES TESTS — MODULE ADMINISTRATION
 // ══════════════════════════════════════════════════════════════
+/* Ce que le générateur écrit, et la SEULE chose que la purge reconnaît (v=101).
+   La purge cherchait « TEST » dans le nom des SCI et « test » dans la note
+   des échéances : elle aurait emporté une SCI « Testard » avec ses documents
+   et ses bilans, ou une échéance « Envoyer l'attestation d'assurance »
+   (attes-TEST-ation). Elle ne vise plus que l'égalité exacte. */
+const SF_TEST_ADMIN = {
+  sci: 'SCI de test — à supprimer', contact: 'Contact test',
+  echeance: 'Échéance test', bilan: 'Bilan test',
+};
+
 async function genAdminTestData() {
   if (!currentUser) return;
   if (!sfEstAdmin()) { showNotif('Réservé aux administrateurs', true); return; }
@@ -14699,7 +14629,7 @@ async function genAdminTestData() {
       nom_sci: 'SCI TEST Guénon', siret: '12345678900019',
       adresse: '12 rue de la Paix, 75001 Paris', capital_social: 1000,
       associes: [{ prenom: 'Thomas', nom: 'Guénon', telephone: '06 12 34 56 78', email: 'thomas@test.fr', parts_pct: 100 }],
-      notes: 'SCI de test — à supprimer', user_id: currentUser.id
+      notes: SF_TEST_ADMIN.sci, user_id: currentUser.id
     }).select().single();
     if (sciErr) throw sciErr;
 
@@ -14707,7 +14637,7 @@ async function genAdminTestData() {
     await db.from('contacts').insert({
       nom: 'Martin', prenom: 'Jean', role: 'Notaire', societe: 'Cabinet Martin & Associés',
       telephone: '05 49 12 34 56', email: 'jean.martin@notaires.fr',
-      notes: 'Contact test', user_id: currentUser.id
+      notes: SF_TEST_ADMIN.contact, user_id: currentUser.id
     });
 
     // 1 échéance test
@@ -14716,13 +14646,13 @@ async function genAdminTestData() {
       sci_id: sciData.id, titre: 'Renouvellement assurance PNO TEST',
       type_echeance: 'Assurance', date_echeance: sfDateIso(dateEch),
       rappel_j_avant: 30, recurrence: 'Annuelle', est_faite: false,
-      notes: 'Échéance test', user_id: currentUser.id
+      notes: SF_TEST_ADMIN.echeance, user_id: currentUser.id
     });
 
     // 1 bilan test
     await db.from('bilans_comptables').insert({
       sci_id: sciData.id, exercice: 2025, regime: 'IR',
-      statut: 'Brouillon', notes: 'Bilan test', user_id: currentUser.id
+      statut: 'Brouillon', notes: SF_TEST_ADMIN.bilan, user_id: currentUser.id
     });
 
     showNotif('Données tests créées (SCI, contact, échéance, bilan)');
@@ -14745,12 +14675,18 @@ async function purgeAdminTestData() {
        fier à `allSCI` : si la cache était en retard, on supprimerait une SCI
        dont les biens n'auraient pas été détachés, et la base refuserait. */
     const { data: sciTest, error: eLect } = await db.from('sci')
-      .select('id').eq('user_id', currentUser.id).ilike('nom_sci', '%TEST%');
+      .select('id').eq('user_id', currentUser.id).eq('notes', SF_TEST_ADMIN.sci);
     if (eLect) throw eLect;
-    await sciDetacherBiens((sciTest || []).map(s => s.id));
-    await db.from('sci').delete().eq('user_id', currentUser.id).ilike('nom_sci', '%TEST%');
-    await db.from('contacts').delete().eq('user_id', currentUser.id).eq('notes', 'Contact test');
-    await db.from('sci_echeances').delete().eq('user_id', currentUser.id).ilike('notes', '%test%');
+    const idsTest = (sciTest || []).map(s => s.id);
+    const fichiers = await sciFichiers(idsTest);
+    await sciDetacherBiens(idsTest);
+    const erreur = sfPremiereErreur([
+      idsTest.length ? await db.from('sci').delete().eq('user_id', currentUser.id).in('id', idsTest) : null,
+      await db.from('contacts').delete().eq('user_id', currentUser.id).eq('notes', SF_TEST_ADMIN.contact),
+      await db.from('sci_echeances').delete().eq('user_id', currentUser.id).eq('notes', SF_TEST_ADMIN.echeance),
+    ]);
+    if (erreur) throw erreur;
+    await TI_STORAGE.remove('sci-documents', fichiers);
     showNotif('Données tests supprimées');
     await loadAdminData(); switchAdminTab(adminTab);
   } catch(e) { showNotif('Erreur : ' + e.message, true); }
@@ -14792,19 +14728,25 @@ async function purgeAllAdminData() {
     ok: 'Tout supprimer', danger: true });
   if (!ok) return;
   try {
-    await Promise.all([
+    // Les chemins d'abord : une fois les lignes parties, plus rien ne les désigne.
+    const { data: sciTout, error: eLect } = await db.from('sci')
+      .select('id').eq('user_id', currentUser.id);
+    if (eLect) throw eLect;
+    const idsSci = (sciTout || []).map(s => s.id);
+    const fichiers = await sciFichiers(idsSci);
+    const erreur = sfPremiereErreur(await Promise.all([
       db.from('bilans_comptables').delete().eq('user_id', currentUser.id),
       db.from('sci_echeances').delete().eq('user_id', currentUser.id),
       db.from('sci_contacts').delete().eq('user_id', currentUser.id),
       db.from('contacts').delete().eq('user_id', currentUser.id),
       db.from('sci_documents').delete().eq('user_id', currentUser.id),
-    ]);
+    ]));
+    if (erreur) throw erreur;
     // Idem : aucun bien ne doit rester rattaché quand les SCI partent.
-    const { data: sciTout, error: eLect } = await db.from('sci')
-      .select('id').eq('user_id', currentUser.id);
-    if (eLect) throw eLect;
-    await sciDetacherBiens((sciTout || []).map(s => s.id));
-    await db.from('sci').delete().eq('user_id', currentUser.id);
+    await sciDetacherBiens(idsSci);
+    const { error: eSci } = await db.from('sci').delete().eq('user_id', currentUser.id);
+    if (eSci) throw eSci;
+    await TI_STORAGE.remove('sci-documents', fichiers);
     showNotif('Toutes les données d\'administration supprimées');
     await loadAdminData(); switchAdminTab(adminTab);
   } catch(e) { showNotif('Erreur : ' + e.message, true); }
@@ -14944,12 +14886,6 @@ function sfGrilleNormaliser(brut) {
     }
   }
   return Object.keys(out).length ? out : null;
-}
-
-// Combien de critères sont renseignés, sur combien.
-function sfGrilleCompte(g) {
-  const n = sfGrilleNormaliser(g);
-  return { remplis: n ? Object.keys(n).length : 0, total: SF_GRILLE_CHAMPS.length };
 }
 
 // La valeur d'un critère telle qu'elle se lit : un libellé, un montant, un texte.
@@ -15937,8 +15873,12 @@ function sfTauxEncartHtml(ref) {
         <em class="sf-source">Source momentanément indisponible</em></div></section>`;
   const t = sfTendance(ref.historique);
   const oat = sfTendance(ref.oat10);
+  /* v=101 : l'OAT dit son mois. Elle est publiée un mois avant le taux moyen
+     (septembre quand le taux moyen dit août) : sans son mois, la ligne laissait
+     croire que les deux chiffres portaient sur la même période. */
+  const moisOat = oat ? sfMoisLong(oat.periode) : '';
   const autres = [
-    oat ? `OAT 10 ans : <b>${esc(sfPctNum(oat.dernier, 2))}</b>, ${oat.sens === 'stable' ? 'stable' : 'en ' + oat.sens} sur 3 mois` : '',
+    oat ? `OAT 10 ans : <b>${esc(sfPctNum(oat.dernier, 2))}</b>${moisOat ? ` en ${esc(moisOat)}` : ''}, ${oat.sens === 'stable' ? 'stable' : 'en ' + oat.sens} sur 3 mois` : '',
     ref.bce ? `Taux de dépôt de la BCE : <b>${esc(sfPctNum(ref.bce.taux, 2))}</b>${ref.bce.depuis ? ` depuis le ${esc(sfsDateLongue(ref.bce.depuis))}` : ''}` : '',
   ].filter(Boolean);
   return `<section class="sff-block sfs-tendance">${tete}
@@ -16609,7 +16549,10 @@ async function extractPDF(evt) {
   dit('Lecture de l’offre…');
   try {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    /* v=101 : pdf.js 3.11 compile certaines polices en code exécutable
+       (CVE-2024-4367) : un PDF piégé exécutait du script sur la plateforme.
+       `isEvalSupported: false` coupe ce chemin ; on ne lit ici que le texte. */
+    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
     let texte = '';
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
@@ -17123,6 +17066,29 @@ async function sciDetacherBiens(sciIds) {
   return vises.length;
 }
 
+/* v=101 — LES PDF D'UNE SCI PARTENT AVEC ELLE. La base supprime ses lignes
+   `sci_documents` en cascade, mais le stockage ne suit pas les clés
+   étrangères : statuts, Kbis et pièces des associés restaient en ligne après
+   la suppression (un fichier orphelin trouvé à l'audit du 16/10/2026).
+   L'ordre : lire les chemins AVANT tout (lève si la lecture échoue — rien n'a
+   encore bougé), supprimer les lignes, PUIS les fichiers. Effacer les fichiers
+   d'abord laisserait, si la base refusait ensuite, des documents sans PDF. */
+async function sciFichiers(sciIds) {
+  const ids = (Array.isArray(sciIds) ? sciIds : [sciIds]).filter(Boolean);
+  if (!ids.length) return [];
+  const { data, error } = await db.from('sci_documents')
+    .select('pdf_path').in('sci_id', ids).eq('user_id', currentUser.id);
+  if (error) throw error;
+  return (data || []).map(d => d.pdf_path).filter(Boolean);
+}
+
+/* Une écriture Supabase ne LÈVE pas : elle rend { error }. Un Promise.all de
+   suppressions passait donc toujours, et l'écran annonçait « supprimé » même
+   quand la base avait refusé. Rend la première erreur d'un lot, ou null. */
+function sfPremiereErreur(resultats) {
+  return (resultats || []).map(r => r && r.error).find(Boolean) || null;
+}
+
 // ── Suppression SCI ──
 async function deleteSCI() {
   if (!currentSCIId) return;
@@ -17151,9 +17117,11 @@ async function deleteSCI() {
   btn.disabled = true;
   try {
     // L'ordre compte : détacher D'ABORD, supprimer ensuite.
+    const fichiers = await sciFichiers(currentSCIId);
     const detaches = await sciDetacherBiens(currentSCIId);
     const { error } = await db.from('sci').delete().eq('id', currentSCIId);
     if (error) throw error;
+    await TI_STORAGE.remove('sci-documents', fichiers);
     showNotif(detaches
       ? `SCI supprimée · ${detaches} bien${detaches > 1 ? 's' : ''} à redéclarer`
       : 'SCI supprimée');
