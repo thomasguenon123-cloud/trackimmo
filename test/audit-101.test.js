@@ -241,3 +241,15 @@ test('un loyer dû en fin de mois n\'est en retard que le lendemain de son éch�
   assert.equal(ctx.sfJourEcheance({}, 10, 2026), 5, 'sans jour saisi : le 5, comme avant');
   assert.equal(ctx.sfJourEcheance({ jour_paiement: 5 }, 10, 2026), 5, 'témoin : un loyer dû le 5 ne bouge pas');
 });
+
+// ─── Échappement : la ville d'une carte du kanban ──────────────────────────
+
+test('la carte du kanban échappe la ville et le code postal (seule injection trouvée au banc)', () => {
+  const ctx = app();
+  const piege = '"><img src=x onerror="alert(1)">';
+  const b = { ...BIEN, id: 'b1', titre: 'T2 Lyon', type_bien: 'T2', ville: 'Lyon' + piege, code_postal: '69' + piege };
+  injecter(ctx, { allBiens: [b] });
+  const h = ctx.renderKanbanCard(b, true);
+  assert.match(h, /Lyon&quot;&gt;&lt;img/, 'témoin : la ville est bien affichée, échappée');
+  assert.doesNotMatch(h, /<img src=x/, 'aucune balise injectée ne passe');
+});

@@ -3043,6 +3043,8 @@ function renderKanbanCard(b, draggable=true) {
   const locParts = [];
   if(b.ville) locParts.push(b.ville);
   if(b.code_postal) locParts.push(b.code_postal);
+  // v=101 : la ville et le code postal sont du texte saisi — échappés (trouvé
+  // par le balayage du banc avec des données piégées, seule faille de l'audit).
   const loc = locParts.join(' ') || '—';
   const dragAttrs = draggable
     ? `draggable="true" ondragstart="kanbanDragStart(event,'${b.id}')" ondragend="kanbanDragEnd(event)"`
@@ -3053,7 +3055,7 @@ function renderKanbanCard(b, draggable=true) {
       <div class="kc-title">${esc(b.titre)}</div>
       <div class="kc-cf ${cfC}">${cfTxt}</div>
     </div>
-    <div class="kc-loc">${sfAccIcon('pin',12)} ${loc}</div>
+    <div class="kc-loc">${sfAccIcon('pin',12)} ${esc(loc)}</div>
     <div class="kc-meta">
       ${b.type_bien?`<span class="kc-tag">${b.type_bien}${b.surface_m2?' · '+b.surface_m2+'m²':''}</span>`:''}
       ${b.prix_affiche?`<span class="kc-tag">${fmt(b.prix_affiche)}€</span>`:''}

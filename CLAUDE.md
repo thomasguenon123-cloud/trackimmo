@@ -289,6 +289,10 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 - **Échappement** : un `<textarea>` EST du HTML généré ; un filtre
   `replace(/<[^>]+>/g,'')` ne protège pas (balise non fermée) ; une donnée
   tierce (NewsAPI, API publiques) est la plus exposée. Garde : `echappement.test.js`.
+  Le 16/10, un balayage au banc avec TOUS les champs de texte libre piégés
+  (`"><img onerror=…>`) et chaque élément cliquable de 56 écrans a trouvé la
+  seule fuite qu'aucune lecture n'avait vue : la ville sur les cartes du kanban.
+  Le rejouer après tout nouvel écran (méthode dans le rapport d'audit).
 - **`.sf-pick`** déplace le `<select>` 30 ms après son insertion → focus perdu
   sans `blur`. Créer un select pour interagir ⇒ `sfSelectHabillerMaintenant()`.
   Son panneau est téléporté dans `<body>` : tout garde global teste
