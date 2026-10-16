@@ -140,7 +140,9 @@ test('une fiche vide n\'affiche aucun cashflow', () => {
   formulaire(ctx, { 'f-assurance': '33', 'f-statut': 'Renseignements Web' });
   const s = ctx.sfnSynthese();
   assert.equal(s.cf.val, 'Non disponible', 'Un cashflow s\'affiche sur une fiche vide : un chiffre inventé.');
-  assert.match(s.cf.sub, /prix/, 'la synthèse dit ce qui manque');
+  // Ce qui manque se dit dans « Pour chiffrer ce bien » (v=100), plus sous la valeur.
+  assert.ok(Array.from(s.manque, c => c.k).includes('prix_affiche'), 'la synthèse dit ce qui manque');
+  assert.equal(s.cf.sub, '', 'sous la valeur, plus d\'explication');
   assert.equal(s.rendement, null);
 
   // Témoin positif : complète, la fiche est chiffrée par les fonctions de la fiche.

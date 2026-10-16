@@ -97,11 +97,16 @@ test('RÉGRESSION — aucun état n’est stocké, le parcours se déduit', () =
 
 // ── Un seul geste actionnable à la fois ────────────────────────────────────
 
+/* Les boutons d'ACTION : les « ? » d'aide (v=100) ne sont pas des gestes à faire. */
+const actions = html => (html.match(/<button(?![^>]*class="sf-lex__b")/g) || []).length;
+
 test('RÉGRESSION — le rendu ne propose qu’UN bouton, celui de l’étape suivante', () => {
   /* Montrer un bouton sur une étape inatteignable — déclarer un locataire sans
      bien acquis — serait promettre un raccourci qui n'existe pas. */
   const html = app.sfParcoursHtml(app.sfParcoursDemarrage([], [], []));
-  assert.equal((html.match(/<button/g) || []).length, 1);
+  assert.equal(actions(html), 1);
+  // Témoin (v=100) : l'explication de chaque étape est rangée derrière son « ? ».
+  assert.equal((html.match(/class="sf-lex__b"/g) || []).length, 3, 'chaque étape garde son explication, derrière un « ? »');
   assert.match(html, /acc-pas--suivant/);
   assert.equal((html.match(/acc-pas--plus-tard/g) || []).length, 2);
 });
@@ -109,12 +114,12 @@ test('RÉGRESSION — le rendu ne propose qu’UN bouton, celui de l’étape su
 test('le rendu marque comme faites les étapes franchies', () => {
   const html = app.sfParcoursHtml(app.sfParcoursDemarrage(ACQUIS, [], OCCUPANT));
   assert.equal((html.match(/acc-pas--fait/g) || []).length, 2);
-  assert.equal((html.match(/<button/g) || []).length, 1, 'reste le troisième geste');
+  assert.equal(actions(html), 1, 'reste le troisième geste');
 });
 
 test('aucun bouton quand tout est fait', () => {
   const html = app.sfParcoursHtml(app.sfParcoursDemarrage(ACQUIS, POINTE, OCCUPANT));
-  assert.equal((html.match(/<button/g) || []).length, 0);
+  assert.equal(actions(html), 0);
 });
 
 // ── Le verdict cesse de mentir ─────────────────────────────────────────────

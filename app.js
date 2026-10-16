@@ -1163,8 +1163,7 @@ async function renderAdmin(el) {
     <div class="admin-hero">
       <div>
         <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;opacity:0.6;margin-bottom:4px">Admin</div>
-        <div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">Gestion des utilisateurs</div>
-        <div style="font-size:13px;opacity:0.65;margin-top:4px">Invitez et modérez les accès à Stonefolio</div>
+        <div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">Gestion des utilisateurs${sfAide('Invitez et modérez les accès à Stonefolio.', 'cette page')}</div>
       </div>
       <div style="display:flex;gap:24px;flex-wrap:wrap">
         <div class="admin-hero-stat"><div class="admin-hero-num">${total}</div><div class="admin-hero-lbl">Total</div></div>
@@ -1178,8 +1177,7 @@ async function renderAdmin(el) {
     <div class="invite-form-card">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
         <div>
-          <div style="font-size:14px;font-weight:700;color:var(--c-text)">${sfAccIcon('envoi',16)} Inviter un nouvel utilisateur</div>
-          <div style="font-size:12px;color:var(--c-dim);margin-top:3px">Un email d'invitation sera envoyé. L'utilisateur définira lui-même son mot de passe.</div>
+          <div style="font-size:14px;font-weight:700;color:var(--c-text)">${sfAccIcon('envoi',16)} Inviter un nouvel utilisateur${sfAide('L’utilisateur reçoit un e-mail de bienvenue avec un lien sécurisé, et définit lui-même son mot de passe en cliquant dessus. Aucun mot de passe n’est jamais visible pour vous.', 'l’invitation')}</div>
         </div>
       </div>
       <div class="invite-form-grid">
@@ -1206,10 +1204,6 @@ async function renderAdmin(el) {
           <label class="form-label">Notes (optionnel)</label>
           <textarea class="form-input" id="invite-notes" rows="2" style="resize:vertical;font-family:inherit" placeholder="Ex : Investisseur partenaire de l'agence Lyon Nord"></textarea>
         </div>
-      </div>
-      <div style="background:rgba(23,160,107,0.06);border:1px solid rgba(23,160,107,0.15);border-radius:8px;padding:10px 14px;margin-top:14px;font-size:12px;color:var(--c-dim);display:flex;gap:10px;align-items:flex-start">
-        <span class="adm-info-ic">${sfAccIcon('info',16)}</span>
-        <span>L'utilisateur recevra un email de bienvenue avec un lien sécurisé. Il définira lui-même son mot de passe en cliquant sur ce lien. Aucun mot de passe n'est jamais visible pour vous.</span>
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:14px">
         <button class="btn btn-primary" id="btn-invite-send" onclick="adminInviteUser()" style="padding:10px 20px">
@@ -1868,6 +1862,46 @@ function sfLex(cle, libelle) {
        + `<span class="sf-lex__x" role="tooltip" hidden><b>${esc(e.terme)}</b>${esc(e.texte)}</span></span>`;
 }
 
+/* L'AIDE « ? » (v=100) — une explication rangée derrière un point
+   d'interrogation, avec la mécanique du lexique : un vrai bouton, ouvert au
+   doigt comme au clavier, une seule bulle à la fois, refermée par un tap
+   ailleurs, un défilement ou Échap.
+
+   ⚠️ LA RÈGLE DE CE QUI S'Y RANGE, arbitrée par Thomas le 16/10 : derrière le
+   « ? », les EXPLICATIONS — pourquoi un chiffre manque, ce qu'il couvre, à
+   quoi sert une page, un champ ou une section, l'explication d'un état vide.
+   Restent VISIBLES : les chiffres, leur unité ou leur période quand elle en
+   change le sens (« par mois », « assurance comprise »), les données (ville,
+   surface, dates, « sur 6 200 € dus ») et les jugements qui doublent une
+   couleur (« en dessous de votre seuil », « En retard ») — la couleur ne
+   porte jamais seule.
+
+   ⚠️ `html` EST DU HTML : l'appelant échappe ce qui vient des données, comme
+   pour le `detail` de sfConfirmer. Jamais dans un `<button>` ni un lien : un
+   bouton dans un bouton n'est pas du HTML valide, et le tap déclencherait les
+   deux. Dans une ligne cliquable, le clic s'arrête au « ? ». */
+function sfAide(html, sujet, id) {
+  if (!html) return '';
+  const nom = sujet ? `En savoir plus : ${sujet}` : 'En savoir plus';
+  /* `id` : la bulle d'un champ reste sa description (aria-describedby) — un
+     lecteur d'écran la lit même fermée. */
+  return `<span class="sf-lex sf-aide"><button type="button" class="sf-lex__b" aria-label="${esc(nom)}"`
+       + ` aria-expanded="false" onclick="event.stopPropagation(); sfLexOuvrir(this)">?</button>`
+       + `<span class="sf-lex__x" role="tooltip"${id ? ` id="${esc(id)}"` : ''} hidden>${html}</span></span>`;
+}
+
+/* UN CHIFFRE CLÉ des pages à la charte (v=100) — une seule rédaction pour
+   les comptes rendus, les simulations et ce qui viendra : le libellé et son
+   « ? », la valeur (« Non disponible » quand elle manque), et une sous-ligne
+   SEULEMENT si elle est une unité, une donnée ou un jugement (voir sfAide).
+   `lab` est du texte de code, `val`, `sous` et `aide` du HTML déjà échappé. */
+function sfKpi({ lab, val, sous = '', aide = '', vide = 'Non disponible', cls = '', clsVal = '' }) {
+  const manque = val == null || val === '';
+  return `<div class="sff-kpi${cls}"><span class="sff-kpi__l">${lab}${sfAide(aide, lab)}</span>`
+       + `<span class="sff-kpi__v${manque ? ' sff-kpi__v--none' : clsVal}">${manque ? vide : val}</span>`
+       + `${sous ? `<span class="sff-kpi__s">${sous}</span>` : ''}</div>`;
+}
+
 /* Une seule explication ouverte à la fois : deux bulles superposées sur un
    écran de tablette se recouvrent et deviennent illisibles. */
 function sfLexOuvrir(btn) {
@@ -1927,6 +1961,22 @@ document.addEventListener('click', e => {
   });
 }, true);
 
+/* Échap referme la bulle ouverte et rend le focus à son « ? » (v=100) : au
+   clavier, une bulle qui ne se ferme qu'à la souris est un piège. Rien n'est
+   intercepté quand aucune bulle n'est ouverte — Échap garde alors son rôle
+   (fermer une fenêtre). */
+document.addEventListener('keydown', e => {
+  if(e.key !== 'Escape') return;
+  const ouverts = document.querySelectorAll('.sf-lex__b[aria-expanded="true"]');
+  if(!ouverts.length) return;
+  e.stopPropagation();
+  ouverts.forEach(b => {
+    b.setAttribute('aria-expanded', 'false');
+    const x = b.nextElementSibling; if(x) x.hidden = true;
+    b.focus();
+  });
+}, true);
+
 function sfParcoursDemarrage(biens, loyers, locataires) {
   /* Les données sont des PARAMÈTRES, avec les globales pour défaut : sans
      cela la fonction ne se teste que sur l'état réel de l'application, et
@@ -1964,8 +2014,7 @@ function sfParcoursHtml(parcours) {
       <div class="acc-pas acc-pas--${etat}">
         <span class="acc-pas__n" aria-hidden="true">${g.fait ? sfAccIcon('ok', 14) : i + 1}</span>
         <div class="acc-pas__body">
-          <p class="acc-pas__t">${esc(g.titre)}</p>
-          <p class="acc-pas__x">${g.enjeu}</p>
+          <p class="acc-pas__t">${esc(g.titre)}${sfAide(g.enjeu, g.titre)}</p>
         </div>
         ${i === prochain ? `<span class="acc-pas__a">
           <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="${g.cible}">${esc(g.action)}</button>
@@ -2009,6 +2058,7 @@ function sfPointsAttention() {
       enjeu: mensu > 0
         ? `<strong class="sf-loss">−${fmt(mensu)} €</strong> de mensualités chaque mois, zéro loyer en face.`
         : `Aucun loyer en face de ${pl(sansLoc.length,'cette acquisition','ces acquisitions')}.`,
+      chiffre: mensu > 0,
       action: 'Ajouter un locataire', cible: `navigate('module-financier')` });
   }
 
@@ -2059,6 +2109,7 @@ function sfPointsAttention() {
       rang: retards.length ? 0.5 : 1,
       type: retards.length ? 'loss' : '', icone: 'horloge',
       titre,
+      chiffre: true,
       enjeu: retards.length
         ? `<strong class="sf-loss">${fmt(manque)} €</strong> attendus et non encaissés.`
         : `Votre cashflow est sous-estimé de <strong>${fmt(manque)} €</strong>.`,
@@ -2390,8 +2441,7 @@ function renderAccueil(el) {
     <div class="acc-verdict acc-verdict--${verdict.type}">
       <span class="acc-verdict__ic">${sfAccIcon(verdict.icone, 20)}</span>
       <div>
-        <div class="acc-verdict__txt">${verdict.txt}</div>
-        <div class="acc-verdict__sub">${verdict.sub}</div>
+        <div class="acc-verdict__txt">${verdict.txt}${sfAide(verdict.sub, verdict.txt)}</div>
       </div>
     </div>
 
@@ -2409,8 +2459,8 @@ function renderAccueil(el) {
             <div class="sf-alert${p.type ? ' sf-alert--' + p.type : ''}">
               <span class="sf-alert__icon">${sfAccIcon(p.icone)}</span>
               <div class="sf-alert__body">
-                <p class="sf-alert__title">${p.titre}</p>
-                <p class="sf-alert__why">${p.enjeu}</p>
+                <p class="sf-alert__title">${p.titre}${p.chiffre ? '' : sfAide(p.enjeu, p.titre)}</p>
+                ${p.chiffre ? `<p class="sf-alert__why">${p.enjeu}</p>` : ''}
               </div>
               <span class="sf-alert__action">
                 <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="${p.cible}">${p.action}</button>
@@ -2421,10 +2471,9 @@ function renderAccueil(el) {
               ${/* ⚠️ NE PAS SE FÉLICITER PENDANT LE DÉMARRAGE. « Tout est à
                     jour » et « prospectez l'esprit tranquille » sont vrais
                     d'un portefeuille tenu, faux d'un compte qui n'a rien. */''}
-              <h3 class="sf-empty__title">${demarrage ? 'Rien à signaler pour l’instant' : 'Tout est à jour'}</h3>
-              <p class="sf-empty__text">${demarrage
+              <h3 class="sf-empty__title">${demarrage ? 'Rien à signaler pour l’instant' : 'Tout est à jour'}${sfAide(demarrage
                 ? 'Les alertes apparaîtront ici dès que vous aurez déclaré un bien et son bail.'
-                : 'Aucun loyer en attente, aucune fiche incomplète. Vous pouvez prospecter l\'esprit tranquille.'}</p>
+                : 'Aucun loyer en attente, aucune fiche incomplète. Vous pouvez prospecter l\'esprit tranquille.')}</h3>
               ${demarrage ? '' : `<div class="sf-empty__actions">
                 <button class="sf-btn sf-btn--primary" type="button" onclick="navigate('marche-recherche')">Explorer une ville</button>
               </div>`}
@@ -2437,23 +2486,23 @@ function renderAccueil(el) {
         <div class="acc-quick">
           <button class="sf-quick" type="button" onclick="navigate('nouveau')">
             <span class="sf-quick__icon">${sfAccIcon('plus', 18)}</span>
-            <span class="sf-quick__label">Ajouter un bien<span class="sf-quick__sub">depuis une annonce</span></span>
+            <span class="sf-quick__label">Ajouter un bien</span>
           </button>
           <button class="sf-quick" type="button" onclick="navigate('module-financier')">
             <span class="sf-quick__icon">${sfAccIcon('check', 18)}</span>
-            <span class="sf-quick__label">Pointer un loyer<span class="sf-quick__sub">suivi mensuel</span></span>
+            <span class="sf-quick__label">Pointer un loyer</span>
           </button>
           <button class="sf-quick" type="button" onclick="navigate('marche-recherche')">
             <span class="sf-quick__icon">${sfAccIcon('loupe', 18)}</span>
-            <span class="sf-quick__label">Explorer une ville<span class="sf-quick__sub">prix, emploi, marché</span></span>
+            <span class="sf-quick__label">Explorer une ville</span>
           </button>
           <button class="sf-quick" type="button" onclick="navigate('simulateur')">
             <span class="sf-quick__icon">${sfAccIcon('credit', 18)}</span>
-            <span class="sf-quick__label">Simuler un crédit<span class="sf-quick__sub">mensualité, capacité</span></span>
+            <span class="sf-quick__label">Simuler un crédit</span>
           </button>
           <button class="sf-quick" type="button" onclick="navigate('module-financier')">
             <span class="sf-quick__icon">${sfAccIcon('doc', 18)}</span>
-            <span class="sf-quick__label">Saisir une charge<span class="sf-quick__sub">taxe foncière, copropriété</span></span>
+            <span class="sf-quick__label">Saisir une charge</span>
           </button>
         </div>
       </section>
@@ -2463,30 +2512,33 @@ function renderAccueil(el) {
       <span class="acc-sec__n sf-num">${acquis.length} bien${acquis.length>1?'s':''} acquis · 12 derniers mois</span></h2>
     <div class="acc-kpis">
       <div class="sf-kpi">
-        <span class="sf-kpi__label">Ce que ça rapporte</span>
+        <span class="sf-kpi__label">Ce que ça rapporte${sfAide(acquis.length
+          ? 'Les loyers encaissés moins les charges et le crédit, en moyenne par mois sur les 12 derniers mois.'
+          : 'Aucun bien acquis pour l’instant : ce chiffre apparaîtra avec votre premier achat.', 'Ce que ça rapporte')}</span>
         ${acquis.length
           ? `<span class="sf-kpi__value ${patCF>=0?'sf-kpi__value--gain':'sf-kpi__value--loss'}">${patCF>=0?'+':'−'}${fmt(Math.abs(patCF/12))} €</span>
-             <span class="sf-kpi__sub">par mois · loyers moins charges et crédit</span>`
-          : `<span class="sf-kpi__value sf-kpi__value--none">non disponible</span>
-             <span class="sf-kpi__sub">aucun bien acquis</span>`}
+             <span class="sf-kpi__sub">par mois</span>`
+          : `<span class="sf-kpi__value sf-kpi__value--none">non disponible</span>`}
       </div>
       <div class="sf-kpi">
-        <span class="sf-kpi__label">Loyers encaissés</span>
+        <span class="sf-kpi__label">Loyers encaissés${sfAide('Les loyers pointés comme encaissés sur les 12 derniers mois, charges comprises.', 'Loyers encaissés')}</span>
         <span class="sf-kpi__value">${fmt(patLoyers)} €</span>
         <span class="sf-kpi__sub">sur 12 mois</span>
       </div>
       <div class="sf-kpi">
-        <span class="sf-kpi__label">Turnover</span>
+        <span class="sf-kpi__label">Turnover${sfAide(tauxLoue === null
+          ? 'Aucun bien acquis pour l’instant : ce chiffre apparaîtra avec votre premier achat.'
+          : `La part du temps où vos biens ont été loués sur les 12 derniers mois : ${bmLoues} mois loués sur ${bmTotal} mois de détention.`, 'Turnover')}</span>
         ${tauxLoue === null
-          ? `<span class="sf-kpi__value sf-kpi__value--none">non disponible</span>
-             <span class="sf-kpi__sub">aucun bien acquis</span>`
+          ? `<span class="sf-kpi__value sf-kpi__value--none">non disponible</span>`
           : `<span class="sf-kpi__value ${tauxLoue>=70?'sf-kpi__value--gain':'sf-kpi__value--loss'}">${tauxLoue} %</span>
-             <span class="sf-kpi__sub">${bmLoues} mois loués sur ${bmTotal} mois de détention</span>`}
+             <span class="sf-kpi__sub">${tauxLoue>=70 ? 'au-dessus du seuil de 70 %' : 'sous le seuil de 70 %'}</span>`}
       </div>
       <div class="sf-kpi">
-        <span class="sf-kpi__label">Fiches en prospection</span>
+        <span class="sf-kpi__label">Fiches en prospection${sfAide(prospection.length
+          ? (sansLoyerProsp ? `Dont ${sansLoyerProsp} sans loyer estimé : leur rendement ne peut pas encore se calculer.` : 'Toutes ont un loyer estimé : leur rendement se calcule.')
+          : 'Les annonces que vous suivez, de la première visite à l’offre.', 'Fiches en prospection')}</span>
         <span class="sf-kpi__value">${prospection.length}</span>
-        <span class="sf-kpi__sub">${sansLoyerProsp ? sansLoyerProsp + ' sans loyer estimé' : 'toutes chiffrées'}</span>
       </div>
     </div>
 
@@ -2514,8 +2566,7 @@ function renderAccueil(el) {
               </div>`).join('')}
             <div class="sf-empty" style="padding:var(--sf-space-8) var(--sf-space-7)">
               <div class="sf-empty__icon">${sfAccIcon('agenda', 20)}</div>
-              <h3 class="sf-empty__title">Aucune échéance administrative programmée</h3>
-              <p class="sf-empty__text">Assurance PNO, assemblée générale de copropriété, déclaration 2044&nbsp;: les dates qui coûtent cher quand on les oublie.</p>
+              <h3 class="sf-empty__title">Aucune échéance administrative programmée${sfAide('Assurance PNO, assemblée générale de copropriété, déclaration 2044&nbsp;: les dates qui coûtent cher quand on les oublie.', 'les échéances')}</h3>
               <div class="sf-empty__actions">
                 <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="navigate('administration')">Programmer une échéance</button>
               </div>
@@ -2540,8 +2591,7 @@ function renderAccueil(el) {
             </div>` : `
             <div class="sf-empty">
               <div class="sf-empty__icon">${sfAccIcon('loupe', 22)}</div>
-              <h3 class="sf-empty__title">Aucune fiche en prospection</h3>
-              <p class="sf-empty__text">Ajoutez une annonce pour suivre son rendement et son avancement jusqu'à la signature.</p>
+              <h3 class="sf-empty__title">Aucune fiche en prospection${sfAide('Ajoutez une annonce pour suivre son rendement et son avancement jusqu’à la signature.', 'la prospection')}</h3>
               <div class="sf-empty__actions">
                 <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="navigate('nouveau')">Ajouter un bien</button>
               </div>
@@ -2695,10 +2745,11 @@ function renderBiens(el) {
     <div id="biens-content"></div>
 
     <div class="sfb-legend">
-      <span><span class="sfb-src sfb-src--reel">Réel</span> Calculé sur vos loyers encaissés</span>
-      <span><span class="sfb-src sfb-src--attente">Attente</span> Bien acquis, loyers pas encore pointés</span>
-      <span><span class="sfb-src sfb-src--estime">Estimé</span> Projection avant achat</span>
-      <span><span class="sfb-src sfb-src--manque">À compléter</span> Une information essentielle manque</span>
+      <span class="sfb-src sfb-src--reel">Réel</span>
+      <span class="sfb-src sfb-src--attente">Attente</span>
+      <span class="sfb-src sfb-src--estime">Estimé</span>
+      <span class="sfb-src sfb-src--manque">À compléter</span>
+      ${sfAide('<b>Réel</b> : calculé sur vos loyers encaissés.<br><b>Attente</b> : bien acquis, loyers pas encore pointés.<br><b>Estimé</b> : projection avant achat.<br><b>À compléter</b> : une information essentielle manque.', 'les pastilles du cashflow')}
     </div>`;
   applyFilters();
 }
@@ -2737,43 +2788,41 @@ function renderBiensContent(biens) {
   const seuil    = parseFloat(userPrefs?.seuil_rentabilite) || 5;
   const auSeuil  = chiffres.filter(b => (sfRendement(b) ?? 0) >= seuil).length;
   const capital  = comptes.reduce((s,b) => s + (parseFloat(b.prix_affiche) || 0), 0);
-  const kpi = (lab,val,sub,cl) => `<div class="sfb-kpi"><span class="sfb-kpi__l">${lab}</span>
-    <span class="sfb-kpi__v${cl?' '+cl:''}">${val}</span><span class="sfb-kpi__s">${sub}</span></div>`;
+  // L'explication de chaque chiffre est rangée derrière son « ? » (v=100).
+  const kpi = (lab,val,aide,cl) => `<div class="sfb-kpi"><span class="sfb-kpi__l">${lab}${sfAide(aide, lab)}</span>
+    <span class="sfb-kpi__v${cl?' '+cl:''}">${val}</span></div>`;
+  /* Ce que les indicateurs écartent se dit dans leur « ? », plus en pied de
+     tableau : les fiches incomplètes sous « à compléter », les fiches de test
+     sous le cashflow. */
+  const exclues = aFaire.length
+    ? ` ${aFaire.length > 1 ? 'Elles sont exclues' : 'Elle est exclue'} des indicateurs, et ${aFaire.length > 1 ? 'apparaissent' : 'apparaît'} aussi dans « À traiter » sur l’accueil.` : '';
+  const test = horsTest
+    ? ` ${horsTest} fiche${horsTest>1?'s':''} de test ${horsTest>1?'figurent':'figure'} dans la liste sans entrer dans les indicateurs.` : '';
   const cfCl = chiffres.length ? (somme>=0 ? 'sfb-kpi__v--gain' : 'sfb-kpi__v--loss') : '';
   const cfVal = chiffres.length ? (somme>=0?'+':'−')+fmt(Math.abs(somme))+' €' : '—';
 
   if($('sfb-kpis')) $('sfb-kpis').innerHTML = bienOnglet==='detenus'
-    ? kpi('Cashflow mensuel', cfVal, 'Loyers moins charges et crédits', cfCl)
+    ? kpi('Cashflow mensuel', cfVal, 'Les loyers moins les charges et les crédits, par mois.' + test, cfCl)
       + kpi('Au-dessus de votre seuil', `${auSeuil} <span class="sfb-kpi__sur">sur ${chiffres.length}</span>`,
-            `Rendement brut supérieur à ${seuil} %`)
-      + kpi('Capital engagé', fmt(capital)+' €', "Total des prix d'achat")
-      + kpi('Biens à compléter', String(aFaire.length), 'Une information essentielle manque',
+            `Les biens dont le rendement brut dépasse ${seuil} %, votre seuil réglé dans Préférences métier.`)
+      + kpi('Capital engagé', fmt(capital)+' €', "Le total des prix d'achat.")
+      + kpi('Biens à compléter', String(aFaire.length), 'Une information essentielle manque à leur fiche.' + exclues,
             aFaire.length ? 'sfb-kpi__v--alerte' : '')
-    : kpi('Cashflow projeté', cfVal, 'Si vous achetiez aux conditions saisies', cfCl)
+    : kpi('Cashflow projeté', cfVal, 'Ce que rapporteraient ces biens par mois, si vous les achetiez aux conditions saisies.' + test, cfCl)
       + kpi('Au-dessus de votre seuil', `${auSeuil} <span class="sfb-kpi__sur">sur ${chiffres.length}</span>`,
-            `Rendement brut supérieur à ${seuil} %`)
-      + kpi('Budget étudié', fmt(capital)+' €', 'Total des prix affichés')
-      + kpi('Fiches à compléter', String(aFaire.length), 'Une information essentielle manque',
+            `Les fiches dont le rendement brut dépasse ${seuil} %, votre seuil réglé dans Préférences métier.`)
+      + kpi('Budget étudié', fmt(capital)+' €', 'Le total des prix affichés.')
+      + kpi('Fiches à compléter', String(aFaire.length), 'Une information essentielle manque à leur fiche.' + exclues,
             aFaire.length ? 'sfb-kpi__v--alerte' : '');
 
-  if($('sfb-foot')) $('sfb-foot').innerHTML = [
-    aFaire.length
-      ? `<b>${aFaire.length} fiche${aFaire.length>1?'s':''}</b> ${aFaire.length>1?'sont exclues':'est exclue'} des indicateurs
-         ci-dessus, faute d'une information essentielle. ${aFaire.length>1?'Elles apparaissent':'Elle apparaît'}
-         aussi dans « À traiter » sur l'accueil.` : '',
-    horsTest
-      // Sans gras : le gras de ce pied est celui des alertes, et ceci n'en est pas une.
-      ? `${horsTest} fiche${horsTest>1?'s':''} de test ${horsTest>1?'figurent':'figure'} dans la liste
-         sans entrer dans les indicateurs.` : '',
-  ].filter(Boolean).join('<br>');
+  if($('sfb-foot')) $('sfb-foot').innerHTML = '';
 
   if(!l.length) return `
     <div class="bd-empty-state">
       <div class="bd-empty-icon">${sfAccIcon('maison', 24)}</div>
-      <h3>${bienOnglet==='detenus' ? 'Aucun bien acquis' : 'Aucune fiche en prospection'}</h3>
-      <p>${bienOnglet==='detenus'
+      <h3>${bienOnglet==='detenus' ? 'Aucun bien acquis' : 'Aucune fiche en prospection'}${sfAide(bienOnglet==='detenus'
         ? 'Vos biens apparaîtront ici une fois leur statut passé à « Acheté ».'
-        : 'Ajoutez une annonce pour suivre son rendement jusqu\'à la signature.'}</p>
+        : 'Ajoutez une annonce pour suivre son rendement jusqu’à la signature.')}</h3>
       <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="navigate('nouveau')">Ajouter un bien</button>
     </div>`;
 
@@ -2837,7 +2886,7 @@ function renderBiensTableau(l) {
              <span class="sfb-part">${d.manque.map(x=>x.lab).join(', ')} à renseigner</span>`
           : d.value == null
             ? '<span class="sfb-vide-val">—</span>'
-            : `<span class="${d.value>0?'sf-gain':d.value<0?'sf-loss':''}">${(d.value>=0?'+':'−')+sfEur(Math.abs(d.value))}</span>
+            : `<span class="sfb-cf__v ${d.value>0?'sf-gain':d.value<0?'sf-loss':''}">${(d.value>=0?'+':'−')+sfEur(Math.abs(d.value))}</span>
                <span class="sfb-src sfb-src--${srcCls}">${srcLbl}</span>`}</td>
         <td onclick="event.stopPropagation()">${sfDetenu(b)
           ? `<span class="statut-pill phase-${(PHASE_MAP[b.statut]||'generic')}">${esc(b.statut || '—')}</span>`
@@ -3715,15 +3764,13 @@ function sfnAnnonceHtml() {
     <details class="sff-block sfn-sec sfn-annonce" data-sec="coller">
       <summary class="sfn-sec__s"><span class="sff-block__h">
         <span class="sff-block__t">Coller l'annonce</span>
-        <span class="sfn-sec__resume">Remplit les champs vides à partir du texte copié</span>
         <span class="sfn-sec__chev" aria-hidden="true">${sfAccIcon('chevron-bas', 16)}</span>
       </span></summary>
       <div class="sff-block__b">
         <div class="sf-field">
-          <label class="sf-label" for="sfn-annonce-texte">Texte de l'annonce</label>
+          <span class="sf-tete"><label class="sf-label" for="sfn-annonce-texte">Texte de l'annonce</label>${sfAide('Le texte est lu sur cet appareil : il n’est ni envoyé ni enregistré. Seuls les champs encore vides sont remplis.', 'le texte de l’annonce', 'sfn-annonce-aide')}</span>
           <textarea class="sf-input" id="sfn-annonce-texte" rows="6" aria-describedby="sfn-annonce-aide"
             placeholder="Copiez le texte de l'annonce sur SeLoger, Bien'ici, PAP, Leboncoin ou Jinka, puis collez-le ici."></textarea>
-          <p class="sf-hint" id="sfn-annonce-aide">Le texte est lu sur cet appareil : il n'est ni envoyé ni enregistré. Seuls les champs encore vides sont remplis.</p>
         </div>
         <div class="sfn-annonce__acts">
           <button type="button" class="sf-btn sf-btn--secondary sf-btn--sm" onclick="sfnRemplirDepuisAnnonce()">${sfAccIcon('eclair', 15)} Remplir les champs vides</button>
@@ -3807,21 +3854,19 @@ function sfnFormater(input) {
 
 /* LE RÉSUMÉ D'UN CASHFLOW — une seule rédaction, pour la fiche et ce
    formulaire. Le libellé suit le mode affiché (réel ou prévisionnel), et une
-   valeur absente se dit « Non disponible », avec ce qui manque. */
+   valeur absente se dit « Non disponible ».
+   ⚠️ v=100 : sous la valeur, seulement son unité (« par mois ») ou la donnée
+   qui la complète (le prévisionnel en regard du réel). Ce qui manque se lit
+   déjà dans la complétude (fiche) et « Pour chiffrer ce bien » (formulaire) ;
+   la différence réel / prévisionnel, dans le « ? » du lexique sur le libellé. */
 function sfResumeCashflow(d) {
   const lab = d.mode === 'reel' ? sfLex('cashflow-reel') : sfLex('cashflow-previsionnel');
   const nom = d.mode === 'reel' ? 'Cashflow réel' : 'Cashflow prévisionnel';
-  if (d.value == null) {
-    const sub = d.manque && d.manque.length
-      ? 'à compléter : ' + d.manque.map(c => c.lab.toLowerCase()).join(', ')
-      : 'loyer ou mensualité manquant';
-    return { lab, nom, val: 'Non disponible', cls: 'none', sub };
-  }
+  if (d.value == null) return { lab, nom, val: 'Non disponible', cls: 'none', sub: '' };
   const val = (d.value >= 0 ? '+' : '−') + sfEur(Math.abs(d.value));
   const sub = d.mode === 'reel' && d.hasPrev
       ? `par mois · prévisionnel ${d.prev >= 0 ? '+' : '−'}${sfEur(Math.abs(d.prev))}`
-    : d.attenteReel ? 'réel dès la saisie des loyers'
-    : 'par mois, sur données estimées';
+    : 'par mois';
   return { lab, nom, val, cls: d.value >= 0 ? 'gain' : 'loss', sub };
 }
 
@@ -3834,6 +3879,8 @@ function sfnChamp(c, bien) {
   const decrit = `aria-describedby="${[aideId, errId].filter(Boolean).join(' ')}"`;
   const requis = c.k === 'titre' || c.k === 'type_bien';
   let lab = esc(def.lab || c.k), lu = '', saisie = '', etiquette = 'label';
+  // L'aide du champ, derrière le « ? » de son libellé (v=100) : du HTML échappé.
+  let aide = c.aide ? esc(c.aide) : '';
 
   if (c.k === 'detention') {
     lab = sfLex('mode-detention', 'Détention');
@@ -3851,14 +3898,14 @@ function sfnChamp(c, bien) {
     saisie = sfDetenu(bien || {})
       ? `<select class="sf-input sf-select" id="f-statut-affiche" disabled aria-describedby="f-statut-aide">
            <option>${esc(bien.statut)}</option></select>
-         <input type="hidden" id="f-statut" value="${esc(bien.statut)}">
-         <p class="sf-hint" id="f-statut-aide">Bien acquis : pour le remettre en prospection, utilisez l'action prévue sur sa fiche.</p>`
+         <input type="hidden" id="f-statut" value="${esc(bien.statut)}">`
       : `<select id="f-statut" class="sf-input sf-select" ${decrit}>${TI_BIENS.options('STATUTS_FICHE', bien?.statut)}</select>`;
+    if (sfDetenu(bien || {})) aide = 'Bien acquis : pour le remettre en prospection, utilisez l’action prévue sur sa fiche.';
   } else if (c.k === 'frais_notaire') {
     etiquette = 'span';
     saisie = `<div class="sfn-calcule" id="${c.id}" aria-labelledby="${c.id}-lab" aria-describedby="${c.id}-aide">
-        <span id="notaire-val">Non disponible</span></div>
-      <p class="sf-hint" id="${c.id}-aide">${esc(sfPctNum(notairePct() * 100, 1))} du prix affiché, un taux modifiable dans Paramètres › Préférences métier.</p>`;
+        <span id="notaire-val">Non disponible</span></div>`;
+    aide = `${esc(sfPctNum(notairePct() * 100, 1))} du prix affiché, un taux modifiable dans Paramètres › Préférences métier.`;
   } else if (def.type === 'enum') {
     const vide = c.k === 'type_bien' ? (bien ? '' : '— Choisir —')
                : c.k === 'source' ? '— Non renseignée —' : '— Sans balise —';
@@ -3890,9 +3937,9 @@ function sfnChamp(c, bien) {
 
   const ouvre = etiquette === 'label' ? `<label class="sf-label" for="${c.id}">` : `<span class="sf-label" id="${c.id}-lab">`;
   return `<div class="sf-field sfn-f${c.large ? ' sfn-f--large' : ''}" data-k="${c.k}"${c.k === 'creation_sci' ? ' id="sfn-f-sci" hidden' : ''}>
-      ${ouvre}${lab}${requis ? '<span class="sf-label__req" aria-hidden="true">*</span>' : ''}${lu}</${etiquette}>
+      <span class="sf-tete">${ouvre}${lab}${requis ? '<span class="sf-label__req" aria-hidden="true">*</span>' : ''}${lu}</${etiquette}>${sfAide(aide, def.lab || c.k, c.id + '-aide')}</span>
       ${saisie}
-      ${c.aide ? `<p class="sf-hint" id="${aideId}">${esc(c.aide)}${c.annuel ? ` <span class="sfn-mois" id="${c.id}-mois"></span>` : ''}</p>` : ''}
+      ${c.annuel ? `<p class="sf-hint sfn-mois" id="${c.id}-mois"></p>` : ''}
       <p class="sf-hint sf-hint--error" id="${errId}" hidden></p>
       ${c.k === 'code_postal' ? '<div class="sfn-geo" id="f-cp-geo" aria-live="polite"></div>' : ''}
       ${c.k === 'mensualite_credit' ? '<div class="sfn-estim" id="f-mensualite-estim" aria-live="polite" hidden></div>' : ''}
@@ -4008,9 +4055,8 @@ async function renderNouveau(el, bien, precedente) {
       <button type="button" class="sff-back" onclick="sfnQuitter()">${sfAccIcon('retour', 14)} ${esc(retourLib)}</button>
       <div class="sff-titleline">
         <div class="sff-titleline__id">
-          <h1 class="sff-h1">${bien ? 'Modifier la fiche' : 'Nouvelle fiche'}</h1>
-          <p class="sff-sub">${bien ? esc(bien.titre || 'Sans titre')
-            : 'Le titre, la ville, le prix et le loyer suffisent pour chiffrer le bien. Le reste se complète quand vous l’avez.'}</p>
+          <h1 class="sff-h1">${bien ? 'Modifier la fiche' : 'Nouvelle fiche'}${bien ? '' : sfAide('Le titre, la ville, le prix et le loyer suffisent pour chiffrer le bien. Le reste se complète quand vous l’avez.', 'cette page')}</h1>
+          ${bien ? `<p class="sff-sub">${esc(bien.titre || 'Sans titre')}</p>` : ''}
         </div>
       </div>
     </div>
@@ -4038,7 +4084,7 @@ async function renderNouveau(el, bien, precedente) {
             <li data-k="${c.k}"><span class="sfn-ess__ic"></span>${esc(c.lab)}</li>`).join('')}
           </ul>
           <div class="sff-prog"><div class="sff-prog__f" id="sfn-prog"></div></div>
-          <span class="sff-rail__s" id="sfn-ess-txt"></span>
+          <span class="sf-sr-only" id="sfn-ess-txt" aria-live="polite"></span>
         </div>
       </aside>
 
@@ -4158,7 +4204,7 @@ function sfnMaj() {
   pose('sfn-cf-sub', s.cf.sub);
   const r = s.rendement;
   pose('sfn-rdt-val', r == null ? 'Non disponible' : sfPctNum(r, 1), r == null ? 'none' : r >= s.seuil ? 'gain' : 'loss');
-  pose('sfn-rdt-sub', r == null ? 'prix et loyer à renseigner'
+  pose('sfn-rdt-sub', r == null ? ''
     : `${r >= s.seuil ? 'au-dessus de' : 'en dessous de'} votre seuil de ${sfPctNum(s.seuil, 1)}`);
   pose('sfn-cout-val', s.total > 0 ? sfEur(s.total) : 'Non disponible', s.total > 0 ? 'neutre' : 'none');
 
@@ -5372,9 +5418,8 @@ async function renderBienDetail(el) {
       </button>
       <div class="sff-titleline">
         <div class="sff-titleline__id">
-          <h1 class="sff-h1">${esc(b.titre || 'Sans titre')}${sfBienDeTest(b)?' <span class="sf-pill sf-pill--test">Bien de test</span>':''}</h1>
+          <h1 class="sff-h1">${esc(b.titre || 'Sans titre')}${sfBienDeTest(b)?' <span class="sf-pill sf-pill--test">Bien de test</span>':''}${sfBienCompte(b) ? '' : sfAide('Ses loyers, charges et locataires n’apparaissent qu’avec « Inclure les biens de test », dans Paramètres › Maintenance.', 'ce bien de test')}</h1>
           <p class="sff-sub">${[b.ville, b.code_postal, b.type_bien, b.surface_m2 ? b.surface_m2+' m²' : null].filter(Boolean).map(esc).join(' · ')}</p>
-          ${sfBienCompte(b) ? '' : `<p class="sff-sub sff-sub--test">Ses loyers, charges et locataires n'apparaissent qu'avec « Inclure les biens de test », dans Paramètres › Maintenance.</p>`}
         </div>
         <div class="sff-acts">
           ${b.ville ? `<button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="bdVoirMarche(${escJs(b.ville)})">${sfAccIcon('pin',15)} Le marché à ${esc(b.ville)}</button>` : ''}
@@ -5390,17 +5435,17 @@ async function renderBienDetail(el) {
       <div class="sff-kpi">
         <span class="sff-kpi__l">Prix affiché</span>
         <span class="sff-kpi__v${b.prix_affiche ? '' : ' sff-kpi__v--none'}">${b.prix_affiche ? sfEur(b.prix_affiche) : 'Non renseigné'}</span>
-        <span class="sff-kpi__s">${prixM2 ? sfEur(prixM2)+' le m²' : 'surface non renseignée'}</span>
+        ${prixM2 ? `<span class="sff-kpi__s">${sfEur(prixM2)} le m²</span>` : ''}
       </div>
       <div class="sff-kpi">
-        <span class="sff-kpi__l">Rendement brut</span>
+        <span class="sff-kpi__l">Rendement brut${rendement==='—' ? sfAide('Il se calcule dès que le prix et le loyer sont renseignés.', 'Rendement brut') : ''}</span>
         <span class="sff-kpi__v ${rendement==='—' ? 'sff-kpi__v--none' : parseFloat(rendement)>=userPrefs.seuil_rentabilite ? 'sff-kpi__v--gain' : 'sff-kpi__v--loss'}">${rendement==='—' ? 'Non calculé' : rendement}</span>
-        <span class="sff-kpi__s">${rendement==='—' ? 'loyer non renseigné' : (parseFloat(rendement)>=userPrefs.seuil_rentabilite ? 'au-dessus de' : 'en dessous de')+' votre seuil de '+sfPct(userPrefs.seuil_rentabilite)}</span>
+        ${rendement==='—' ? '' : `<span class="sff-kpi__s">${(parseFloat(rendement)>=userPrefs.seuil_rentabilite ? 'au-dessus de' : 'en dessous de')+' votre seuil de '+sfPct(userPrefs.seuil_rentabilite)}</span>`}
       </div>
       <div class="sff-kpi sff-kpi--hi">
         <span class="sff-kpi__l">${cfLab}</span>
         <span class="sff-kpi__v ${dHero.value==null ? 'sff-kpi__v--none' : dHero.value>=0 ? 'sff-kpi__v--gain' : 'sff-kpi__v--loss'}">${cfVal}</span>
-        <span class="sff-kpi__s">${cfSub}</span>
+        ${cfSub ? `<span class="sff-kpi__s">${cfSub}</span>` : ''}
       </div>
       <div class="sff-kpi">
         <span class="sff-kpi__l">Coût total de l'opération</span>
@@ -5503,8 +5548,7 @@ async function renderBienDetail(el) {
                 ? `<div class="sff-gal">${photos.map((u,i)=>`<button class="sff-gal__i" style="background-image:url('${u}')" onclick="openLightbox('${u}')" aria-label="Photo ${i+1}"></button>`).join('')}</div>`
                 : `<div class="sff-empty">
                      <div class="sff-empty__ic">${sfAccIcon('image',34)}</div>
-                     <div class="sff-empty__t">Aucune photo</div>
-                     <div class="sff-empty__x">Les visuels de l'annonce et les clichés pris en visite se rassemblent ici. Le premier sert de vignette dans la liste de vos biens.</div>
+                     <div class="sff-empty__t">Aucune photo${sfAide(`Les visuels de l'annonce et les clichés pris en visite se rassemblent ici. Le premier sert de vignette dans la liste de vos biens.`, `Aucune photo`)}</div>
                      <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="editBien('${b.id}')">Ajouter des photos</button>
                    </div>`}
             </div>
@@ -5520,8 +5564,7 @@ async function renderBienDetail(el) {
                 ? `<div class="sff-docs">${docs.map(d=>`<button class="sff-doc" onclick="openDoc('${d.url||''}')" title="${esc(d.name||'Document')}">${sfAccIcon('doc',15)} <span>${esc(d.name||'Document')}</span></button>`).join('')}</div>`
                 : `<div class="sff-empty">
                      <div class="sff-empty__ic">${sfAccIcon('doc',34)}</div>
-                     <div class="sff-empty__t">Aucun document</div>
-                     <div class="sff-empty__x">Diagnostics, règlement de copropriété, procès-verbaux d'assemblée générale, compromis : les pièces que la banque et le notaire réclameront le moment venu.</div>
+                     <div class="sff-empty__t">Aucun document${sfAide(`Diagnostics, règlement de copropriété, procès-verbaux d'assemblée générale, compromis : les pièces que la banque et le notaire réclameront le moment venu.`, `Aucun document`)}</div>
                      <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="editBien('${b.id}')">Déposer un document</button>
                    </div>`}
             </div>
@@ -5636,8 +5679,7 @@ async function renderBienDetail(el) {
                    </div>`
                 : `<div class="sff-empty">
                      <div class="sff-empty__ic">${sfAccIcon('banque',34)}</div>
-                     <div class="sff-empty__t">Aucune simulation de crédit</div>
-                     <div class="sff-empty__x">${mensu ? `La mensualité de ${sfEur(mensu)} renseignée plus haut est une hypothèse. Une` : 'Une'} simulation calcule la mensualité réelle, assurance comprise, à partir du taux et de la durée. Retenue, elle passe sur cette fiche et alimente le dossier remis à la banque.</div>
+                     <div class="sff-empty__t">Aucune simulation de crédit${sfAide(`${mensu ? `La mensualité de ${sfEur(mensu)} renseignée plus haut est une hypothèse. Une` : 'Une'} simulation calcule la mensualité réelle, assurance comprise, à partir du taux et de la durée. Retenue, elle passe sur cette fiche et alimente le dossier remis à la banque.`, `Aucune simulation de crédit`)}</div>
                      <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="openNouvelleSimulation(${escJs(b.id)})">Simuler ce crédit</button>
                    </div>`}
             </div>
@@ -5659,8 +5701,7 @@ async function renderBienDetail(el) {
                 ? `<div class="sff-list">${visites.map(sfcLigneHtml).join('')}</div>`
                 : `<div class="sff-empty">
                      <div class="sff-empty__ic">${sfAccIcon('carnet',34)}</div>
-                     <div class="sff-empty__t">Aucun compte rendu</div>
-                     <div class="sff-empty__x">Après chaque visite, notez l'état du bien, la copropriété, le quartier et ce que vous comptez faire, photos à l'appui. Les comptes rendus se retrouvent ici et dans Outils, Comptes rendus.</div>
+                     <div class="sff-empty__t">Aucun compte rendu${sfAide(`Après chaque visite, notez l'état du bien, la copropriété, le quartier et ce que vous comptez faire, photos à l'appui. Les comptes rendus se retrouvent ici et dans Outils, Comptes rendus.`, `Aucun compte rendu`)}</div>
                      <button type="button" class="sf-btn sf-btn--primary sf-btn--sm" onclick="openNouvelleVisite(${escJs(b.id)})">Rédiger le premier compte rendu</button>
                    </div>`}
             </div>
@@ -5705,8 +5746,7 @@ async function renderBienDetail(el) {
                     </div>`).join('')}</div>`
                 : `<div class="sff-empty">
                      <div class="sff-empty__ic">${sfAccIcon('agenda',34)}</div>
-                     <div class="sff-empty__t">Aucun échange enregistré</div>
-                     <div class="sff-empty__x">Appels, offres, relances et rendez-vous : cet historique vous rappellera où vous en êtes avec ce vendeur dans trois semaines.</div>
+                     <div class="sff-empty__t">Aucun échange enregistré${sfAide(`Appels, offres, relances et rendez-vous : cet historique vous rappellera où vous en êtes avec ce vendeur dans trois semaines.`, `Aucun échange enregistré`)}</div>
                      <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="openActionModal('${b.id}')">Enregistrer le premier échange</button>
                    </div>`}
             </div>
@@ -5845,8 +5885,7 @@ async function renderBienDetail(el) {
                 </div>`
               : `<div class="sff-empty">
                    <div class="sff-empty__ic">${sfAccIcon('colonne',34)}</div>
-                   <div class="sff-empty__t">Aucune société rattachée</div>
-                   <div class="sff-empty__x">Le rattachement sert à une seule chose, mais elle compte : les loyers encaissés et les charges payées de ce bien alimentent alors le bilan comptable de la société.</div>
+                   <div class="sff-empty__t">Aucune société rattachée${sfAide(`Le rattachement sert à une seule chose, mais elle compte : les loyers encaissés et les charges payées de ce bien alimentent alors le bilan comptable de la société.`, `Aucune société rattachée`)}</div>
                    <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="editBien('${b.id}')">Rattacher une SCI</button>
                  </div>`}
             </div>
@@ -7305,8 +7344,7 @@ function paramsCompteHtml() {
   const email = currentUser?.email || '—';
   const p = currentProfile || {};
   return `
-    <div class="params-section-title">${sfIcon('user',20)} Compte</div>
-    <div class="params-section-sub">Informations de votre compte et déconnexion.</div>
+    <div class="params-section-title">${sfIcon('user',20)} Compte${sfAide('Informations de votre compte et déconnexion.', 'Compte')}</div>
     <div class="params-card">
       <div class="params-card-title">Identité</div>
       <div class="params-field-grid">
@@ -7370,17 +7408,9 @@ async function saveMyProfile() {
 // vert de marque et le vert « valeur positive ».
 function paramsApparenceHtml() {
   return `
-    <div class="params-section-title">${sfIcon('palette', 20)} Apparence</div>
-    <div class="params-section-sub">Le thème de Stonefolio.</div>
+    <div class="params-section-title">${sfIcon('palette', 20)} Apparence${sfAide('Le thème de Stonefolio.', 'Apparence')}</div>
     <div class="params-card">
-      <div class="params-card-title">Thème sombre</div>
-      <p class="sci-form-hint">
-        Stonefolio s'affiche en sombre. Les couleurs ne sont plus modifiables :
-        elles portent du sens — le vert signale une valeur positive, le corail une
-        valeur négative — et un accent choisi librement pouvait entrer en conflit
-        avec cette lecture ou tomber sous le seuil de lisibilité.
-      </p>
-      <p class="sci-form-hint">Un mode clair est prévu, il n'est pas encore activé.</p>
+      <div class="params-card-title">Thème sombre${sfAide('Les couleurs ne sont pas modifiables : elles portent du sens — le vert signale une valeur positive, le corail une valeur négative.', 'le thème')}</div>
     </div>`;
 }
 
@@ -7395,30 +7425,25 @@ function syncAppearanceControls() { /* plus rien a synchroniser */ }
 function paramsMetierHtml() {
   const p = userPrefs || {};
   return `
-    <div class="params-section-title">${sfIcon('sliders',20)} Préférences métier</div>
-    <div class="params-section-sub">Constantes de calcul utilisées dans l'application. Modifient les valeurs par défaut des nouveaux biens et le seuil de rendement considéré comme « bon ».</div>
+    <div class="params-section-title">${sfIcon('sliders',20)} Préférences métier${sfAide('Les constantes de calcul de Stonefolio : elles fixent les valeurs par défaut des nouveaux biens et le seuil de rendement considéré comme « bon ».', 'Préférences métier')}</div>
     <div class="params-card">
       <div class="params-card-title">Valeurs par défaut des nouveaux biens</div>
       <div class="params-field-grid">
         <div class="params-field">
-          <label class="params-field-label">Frais de notaire (%)</label>
+          <span class="sf-tete"><label class="params-field-label" for="pref-notaire">Frais de notaire (%)</label>${sfAide('Appliqués automatiquement au prix d’achat. Par défaut : 7 %.', 'Frais de notaire (%)')}</span>
           <input class="params-input" id="pref-notaire" type="number" step="0.1" min="0" max="30" value="${p.notaire_pct ?? 7}">
-          <div class="params-field-hint">Appliqué automatiquement au prix d'achat (défaut : 7 %)</div>
         </div>
         <div class="params-field">
-          <label class="params-field-label">Durée de crédit (ans)</label>
+          <span class="sf-tete"><label class="params-field-label" for="pref-duree">Durée de crédit (ans)</label>${sfAide('Pré-remplie à la création d’un bien. Par défaut : 20 ans.', 'Durée de crédit (ans)')}</span>
           <input class="params-input" id="pref-duree" type="number" step="1" min="1" max="40" value="${p.duree_credit_ans ?? 20}">
-          <div class="params-field-hint">Pré-rempli à la création d'un bien (défaut : 20 ans)</div>
         </div>
         <div class="params-field">
-          <label class="params-field-label">Assurance propriétaire non occupant (€/mois)</label>
+          <span class="sf-tete"><label class="params-field-label" for="pref-assurance">Assurance propriétaire non occupant (€/mois)</label>${sfAide('Pré-remplie à la création d’un bien. Par défaut : 33 €.', 'Assurance propriétaire non occupant (€/mois)')}</span>
           <input class="params-input" id="pref-assurance" type="number" step="1" min="0" value="${p.assurance_mois ?? 33}">
-          <div class="params-field-hint">Pré-rempli à la création d'un bien (défaut : 33 €)</div>
         </div>
         <div class="params-field">
-          <label class="params-field-label">Seuil de rentabilité (%)</label>
+          <span class="sf-tete"><label class="params-field-label" for="pref-seuil">Seuil de rentabilité (%)</label>${sfAide('Au-dessus, le rendement s’affiche en vert. Par défaut : 5 %.', 'Seuil de rentabilité (%)')}</span>
           <input class="params-input" id="pref-seuil" type="number" step="0.1" min="0" max="100" value="${p.seuil_rentabilite ?? 5}">
-          <div class="params-field-hint">Au-dessus, le rendement s'affiche en vert (défaut : 5 %)</div>
         </div>
       </div>
       ${/* Le taux de crédit n'existe qu'une fois sa colonne ajoutée en base
@@ -7427,10 +7452,9 @@ function paramsMetierHtml() {
       <div class="params-card-title" style="margin-top:18px">Crédit</div>
       <div class="params-field-grid">
         <div class="params-field">
-          <label class="params-field-label" for="pref-taux">Votre taux de crédit (%)</label>
+          <span class="sf-tete"><label class="params-field-label" for="pref-taux">Votre taux de crédit (%)</label>${sfAide('Celui de votre courtier ou de votre banque. Il sert à estimer la mensualité d’une nouvelle fiche et à pré-remplir une simulation. Laissé vide, Stonefolio prend le taux moyen.', 'votre taux de crédit')}</span>
           <input class="params-input" id="pref-taux" type="text" inputmode="decimal" autocomplete="off"
                  value="${esc(sfnFormaterNombre(p.taux_credit))}" placeholder="ex. 3,4">
-          <div class="params-field-hint">Celui de votre courtier ou de votre banque. Il sert à estimer la mensualité d'une nouvelle fiche et à pré-remplir une simulation. Laissé vide, Stonefolio prend le taux moyen ci-dessous.</div>
         </div>
         <div class="params-field">
           <span class="params-field-label">Taux moyen en France</span>
@@ -7496,8 +7520,7 @@ async function saveMyPreferences() {
 // ── Section À PROPOS ──
 function paramsAproposHtml() {
   return `
-    <div class="params-section-title">${sfIcon('info',20)} À propos</div>
-    <div class="params-section-sub">Informations sur l'application.</div>
+    <div class="params-section-title">${sfIcon('info',20)} À propos${sfAide('Informations sur l’application. Vos données personnelles (biens, contacts, documents) sont stockées de manière sécurisée et cloisonnée par compte.', 'À propos')}</div>
     <div class="params-card">
       <div class="params-card-title">Stonefolio</div>
       <div class="settings-row">
@@ -7520,11 +7543,8 @@ function paramsAproposHtml() {
            qu'un de ses trois gestes redevient a faire. Un bouton pour rallumer
            ce qui s'allume tout seul n'a rien a rallumer. -->
       <div class="settings-row">
-        <div><div class="settings-label">Guide de démarrage</div><div class="settings-sub">Les trois gestes à faire s'affichent sur le tableau de bord tant qu'il en reste un.</div></div>
+        <div><div class="settings-label">Guide de démarrage${sfAide('Les trois gestes à faire s’affichent sur le tableau de bord tant qu’il en reste un.', 'le guide de démarrage')}</div></div>
         <button class="btn btn-secondary" style="padding:6px 14px;font-size:12px" onclick="navigate('accueil')">Voir</button>
-      </div>
-      <div style="font-size:11px;color:var(--c-muted);margin-top:10px;line-height:1.5">
-        Vos données personnelles (biens, contacts, documents) sont stockées de manière sécurisée et cloisonnée par compte. Mentions légales et politique de confidentialité à venir.
       </div>
     </div>`;
 }
@@ -7541,22 +7561,21 @@ function paramsAproposHtml() {
    suppression de SES donnees, dans une zone qui s'annonce comme dangereuse. */
 function paramsDonneesHtml() {
   return `
-    <div class="params-section-title">${sfIcon('data',20)} Données</div>
-    <div class="params-section-sub">Exporter ou effacer vos données.</div>
+    <div class="params-section-title">${sfIcon('data',20)} Données${sfAide('Exporter ou effacer vos données.', 'Données')}</div>
     <div class="params-danger">
       <div class="params-danger-header">${sfAccIcon('alerte',15)} Zone de danger</div>
       <div class="params-danger-body">
         <div class="params-danger-row">
           <div>
-            <div class="pdr-label">Supprimer tous vos biens</div>
-            <div class="pdr-sub">Efface vos fiches de bien, et avec elles leurs loyers, charges et actions. Vos locataires, comptes rendus et simulations sont conservés, mais ils ne sont plus rattachés à aucun bien. Irréversible.</div>
+            <div class="pdr-label">Supprimer tous vos biens${sfAide('Efface vos fiches de bien, et avec elles leurs loyers, charges et actions. Vos locataires, comptes rendus et simulations sont conservés, mais ils ne sont plus rattachés à aucun bien.', 'la suppression de vos biens')}</div>
+            <div class="pdr-sub">Irréversible.</div>
           </div>
           <button class="btn-danger-outline" onclick="purgeAllData()">Supprimer</button>
         </div>
         <div class="params-danger-row">
           <div>
-            <div class="pdr-label">Supprimer vos données d'administration</div>
-            <div class="pdr-sub">Efface vos SCI, contacts, échéances et bilans. Vos biens sont conservés, mais ceux qui étaient détenus par une SCI repassent en « mode de détention à renseigner ». Irréversible.</div>
+            <div class="pdr-label">Supprimer vos données d'administration${sfAide('Efface vos SCI, contacts, échéances et bilans. Vos biens sont conservés, mais ceux qui étaient détenus par une SCI repassent en « mode de détention à renseigner ».', 'la suppression des données d’administration')}</div>
+            <div class="pdr-sub">Irréversible.</div>
           </div>
           <button class="btn-danger-outline" onclick="purgeAllAdminData()">Supprimer</button>
         </div>
@@ -7567,8 +7586,7 @@ function paramsDonneesHtml() {
 // ── Section MES SCI ──
 function paramsSciHtml() {
   return `
-    <div class="params-section-title">${sfIcon('bank',20)} Mes SCI</div>
-    <div class="params-section-sub">Vos sociétés civiles immobilières.</div>
+    <div class="params-section-title">${sfIcon('bank',20)} Mes SCI${sfAide('Vos sociétés civiles immobilières.', 'Mes SCI')}</div>
     <div class="params-card">
       <div id="sci-list-container">
         <div class="sci-empty" style="padding:12px 0;text-align:left;font-size:12px;color:var(--c-muted)">Chargement…</div>
@@ -7580,28 +7598,18 @@ function paramsSciHtml() {
 // ── Section MAINTENANCE (admin) ──
 function paramsMaintenanceHtml() {
   return `
-    <div class="params-section-title">${sfIcon('wrench',20)} Maintenance</div>
-    <div class="params-section-sub">Outils techniques d'administration de la plateforme.</div>
+    <div class="params-section-title">${sfIcon('wrench',20)} Maintenance${sfAide('Outils techniques d’administration de la plateforme.', 'Maintenance')}</div>
     <div class="params-card">
-      <div class="params-card-title">Migration du stockage</div>
-      <div style="font-size:12px;color:var(--c-muted);line-height:1.5;margin-bottom:10px">
-        Migration des photos et documents depuis l'ancien stockage (base64 en base de données) vers Supabase Storage. Opération sûre et ré-exécutable : les fichiers déjà migrés sont ignorés, et les données d'origine sont conservées.
-      </div>
+      <div class="params-card-title">Migration du stockage${sfAide('Les photos et documents passent de l’ancien stockage (base64 en base de données) à Supabase Storage. Opération sûre et ré-exécutable : les fichiers déjà migrés sont ignorés, et les données d’origine sont conservées.', 'la migration du stockage')}</div>
       <button id="ti-migration-btn" class="btn btn-primary" style="width:100%;font-size:13px" onclick="tiMigrateToStorage()">${sfAccIcon('echange',14)} Lancer la migration base64 vers Storage</button>
       <div id="ti-migration-log" style="display:none;margin-top:10px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:10px;font-size:11px;font-family:monospace;max-height:200px;overflow-y:auto;line-height:1.6"></div>
     </div>
 
     <div class="params-card">
-      <div class="params-card-title">Données de démonstration</div>
-      <div style="font-size:12px;color:var(--c-muted);line-height:1.5;margin-bottom:10px">
-        Jeux de données factices, pour éprouver les écrans sans saisie. Elles
-        portent la mention « TEST » et n'existent que dans votre compte. Les
-        fiches restent dans la liste des biens, sans entrer dans aucun chiffre.
-      </div>
+      <div class="params-card-title">Données de démonstration${sfAide('Des données factices, pour éprouver les écrans sans saisie. Elles portent la mention « TEST » et n’existent que dans votre compte. Les fiches restent dans la liste des biens, sans entrer dans aucun chiffre.', 'les données de démonstration')}</div>
       <div class="mfs-toggle-row" style="margin-bottom:10px">
         <div>
-          <label for="sf-inclure-tests">Inclure les biens de test</label>
-          <div class="sub">Dans l'accueil, les indicateurs, la gestion locative, les déclarations et les exports.</div>
+          <span class="sf-tete"><label for="sf-inclure-tests">Inclure les biens de test</label>${sfAide('Dans l’accueil, les indicateurs, la gestion locative, les déclarations et les exports.', 'l’inclusion des biens de test')}</span>
         </div>
         <input type="checkbox" id="sf-inclure-tests" ${sfTestsInclus() ? 'checked' : ''}
                onchange="sfInclureTests(this.checked)">
@@ -8186,8 +8194,7 @@ function mfRenderShell() {
   <div class="mf-page"><div class="mfx-wrap">
     <div class="mfx-top">
       <div>
-        <h1 class="mfx-h1">Suivi financier</h1>
-        <p class="mfx-sub">Ce que vos biens ont réellement rapporté et coûté</p>
+        <h1 class="mfx-h1">Suivi financier${sfAide('Ce que vos biens ont réellement rapporté et coûté, sur l’exercice choisi.', 'cette page')}</h1>
       </div>
       <div>
         <span class="mfx-champ-lab">Exercice</span>
@@ -8200,14 +8207,16 @@ function mfRenderShell() {
     ${k.biens.length ? `
     <div class="mfx-kpis">
       <div class="mfx-kpi mfx-kpi--hi">
-        <span class="mfx-kpi__l">Cashflow constaté</span>
+        <span class="mfx-kpi__l">Cashflow constaté${sfAide(`Les loyers encaissés moins les charges et les crédits, sur les ${k.nb} mois écoulé${k.nb > 1 ? 's' : ''} de l’exercice.`, 'Cashflow constaté')}</span>
         <span class="mfx-kpi__v ${k.cashflow >= 0 ? 'mfx-kpi__v--gain' : 'mfx-kpi__v--loss'}">${sfEur(k.cashflow)}</span>
-        <span class="mfx-kpi__s">soit ${sfEur(k.nb ? k.cashflow / k.nb : 0)} par mois sur ${k.nb} mois écoulé${k.nb > 1 ? 's' : ''}</span>
+        <span class="mfx-kpi__s">soit ${sfEur(k.nb ? k.cashflow / k.nb : 0)} par mois</span>
       </div>
       <div class="mfx-kpi">
-        <span class="mfx-kpi__l">Rendement net</span>
+        <span class="mfx-kpi__l">Rendement net${sfAide(rn === null
+          ? 'Il se calcule dès que le coût d’acquisition de vos biens est renseigné.'
+          : 'Les loyers encaissés moins les charges, rapportés au coût d’acquisition, sur l’exercice.', 'Rendement net')}</span>
         <span class="mfx-kpi__v ${rn === null ? 'mfx-kpi__v--none' : (rn >= seuil ? 'mfx-kpi__v--gain' : 'mfx-kpi__v--loss')}">${rn === null ? 'non disponible' : sfPctNum(rn)}</span>
-        <span class="mfx-kpi__s">${rn === null ? "coût d'acquisition non renseigné" : (rn >= seuil ? `au-dessus de votre seuil de ${sfPctNum(seuil, 0)}` : `en dessous de votre seuil de ${sfPctNum(seuil, 0)}`)}</span>
+        ${rn === null ? '' : `<span class="mfx-kpi__s">${rn >= seuil ? `au-dessus de votre seuil de ${sfPctNum(seuil, 0)}` : `en dessous de votre seuil de ${sfPctNum(seuil, 0)}`}</span>`}
       </div>
       <div class="mfx-kpi">
         <span class="mfx-kpi__l">Écart réel − prévisionnel</span>
@@ -8215,9 +8224,8 @@ function mfRenderShell() {
         <span class="mfx-kpi__s">prévu ${k.previsionnel >= 0 ? '+' : ''}${sfEur(k.previsionnel)} · constaté ${sfEur(k.cashflow)}</span>
       </div>
       <div class="mfx-kpi">
-        <span class="mfx-kpi__l">Occupation</span>
+        <span class="mfx-kpi__l">Occupation${sfAide(`${k.loues} bien${k.loues > 1 ? 's' : ''} loué${k.loues > 1 ? 's' : ''} sur ${k.biens.length}.`, 'Occupation')}</span>
         <span class="mfx-kpi__v">${sfPctNum(k.occupation, 0)}</span>
-        <span class="mfx-kpi__s">${k.loues} bien${k.loues > 1 ? 's' : ''} loué${k.loues > 1 ? 's' : ''} sur ${k.biens.length}</span>
       </div>
     </div>
     ${k.vacants ? `
@@ -8310,10 +8318,7 @@ function renderMfPerformance(c) {
       <div class="sff-block"><div class="sff-block__b">
         <div class="sff-empty">
           <div class="sff-empty__ic">${sfAccIcon('graph', 34)}</div>
-          <div class="sff-empty__t">Aucun bien à suivre sur ${annee}</div>
-          <div class="sff-empty__x">La performance consolide les biens passés au statut
-            « Acheté ». Un bien vacant y compte : on sait qu'il ne rapporte rien et que son
-            crédit court.</div>
+          <div class="sff-empty__t">Aucun bien à suivre sur ${annee}${sfAide(`La performance consolide les biens passés au statut « Acheté ». Un bien vacant y compte : on sait qu'il ne rapporte rien et que son crédit court.`, `Aucun bien à suivre sur ${annee}`)}</div>
           <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="navigate('biens')">Aller à Mes biens</button>
         </div>
       </div></div>`;
@@ -8548,11 +8553,7 @@ function mfSectionDeclaration(annee) {
       <div class="sff-block__h"><p class="sff-block__t">${sfLex('declaration-2044', 'Déclaration fiscale')}</p></div>
       <div class="sff-block__b"><div class="sff-empty">
         <div class="sff-empty__ic">${sfAccIcon('balance', 34)}</div>
-        <div class="sff-empty__t">Aucun déclarant</div>
-        <div class="sff-empty__x">Chaque bien acquis se déclare — en votre nom propre ou
-          via une SCI. ${sansMode.length
-            ? `${sfNombreEnLettres(sansMode.length, true)} bien${sansMode.length > 1 ? 's' : ''} ${sansMode.length > 1 ? 'attendent' : 'attend'} encore ce choix.`
-            : 'Créez une SCI ou renseignez le mode de détention de vos biens.'}</div>
+        <div class="sff-empty__t">Aucun déclarant${sfAide(`Chaque bien acquis se déclare — en votre nom propre ou via une SCI. ${sansMode.length ? `${sfNombreEnLettres(sansMode.length, true)} bien${sansMode.length > 1 ? 's' : ''} ${sansMode.length > 1 ? 'attendent' : 'attend'} encore ce choix.` : 'Créez une SCI ou renseignez le mode de détention de vos biens.'}`, `Aucun déclarant`)}</div>
         ${sansMode.length ? `<button class="sf-btn sf-btn--primary sf-btn--sm" onclick="bdOpenMiseEnGestion('${sansMode[0].id}')">Renseigner ${esc(sansMode[0].titre || 'ce bien')}</button>` : ''}
       </div></div>
     </div>`;
@@ -8787,9 +8788,7 @@ function renderMfPortefeuille(c) {
       <div class="sff-block"><div class="sff-block__b">
         <div class="sff-empty">
           <div class="sff-empty__ic">${sfAccIcon('mallette', 34)}</div>
-          <div class="sff-empty__t">Aucun bien dans votre portefeuille</div>
-          <div class="sff-empty__x">Le portefeuille rassemble vos biens passés au statut
-            « Acheté », avec ce que chacun a rapporté et coûté sur l'exercice.</div>
+          <div class="sff-empty__t">Aucun bien dans votre portefeuille${sfAide(`Le portefeuille rassemble vos biens passés au statut « Acheté », avec ce que chacun a rapporté et coûté sur l'exercice.`, `Aucun bien dans votre portefeuille`)}</div>
           <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="navigate('biens')">Aller à Mes biens</button>
         </div>
       </div></div>`;
@@ -8855,8 +8854,7 @@ function renderMfPortefeuille(c) {
     ${liste.length ? `<div class="mfx-cards">${liste.map(b => mfCarteBien(b, annee)).join('')}</div>`
     : `<div class="sff-block"><div class="sff-block__b"><div class="sff-empty">
          <div class="sff-empty__ic">${sfAccIcon('loupe', 34)}</div>
-         <div class="sff-empty__t">Aucun bien avec ce filtre</div>
-         <div class="sff-empty__x">Aucun de vos ${tous.length} biens ne correspond à « ${pastilles.find(p => p[0] === mfBiensFilter)[1]} ».</div>
+         <div class="sff-empty__t">Aucun bien avec ce filtre${sfAide(`Aucun de vos ${tous.length} biens ne correspond à « ${pastilles.find(p => p[0] === mfBiensFilter)[1]} ».`, `Aucun bien avec ce filtre`)}</div>
          <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="setMfBiensFilter('all')">Voir tous les biens</button>
        </div></div></div>`}`;
 }
@@ -9017,10 +9015,7 @@ function renderMfSuivi(c) {
       <div class="sff-block"><div class="sff-block__b">
         <div class="sff-empty">
           <div class="sff-empty__ic">${sfAccIcon('agenda', 34)}</div>
-          <div class="sff-empty__t">Aucun suivi mensuel disponible</div>
-          <div class="sff-empty__x">Le suivi apparaîtra dès qu'un bien aura le statut
-            « Acheté ». Vous pourrez alors pointer ses loyers et enregistrer ses charges,
-            mois par mois.</div>
+          <div class="sff-empty__t">Aucun suivi mensuel disponible${sfAide(`Le suivi apparaîtra dès qu'un bien aura le statut « Acheté ». Vous pourrez alors pointer ses loyers et enregistrer ses charges, mois par mois.`, `Aucun suivi mensuel disponible`)}</div>
           <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="navigate('biens')">Aller à Mes biens</button>
         </div>
       </div></div>`;
@@ -9137,8 +9132,7 @@ function renderMfSuivi(c) {
           ? chargesVues.slice().sort((a, b) => new Date(b.date_charge) - new Date(a.date_charge)).map(mfSuiviCharge).join('')
           : `<div class="sff-empty">
                <div class="sff-empty__ic">${sfAccIcon('doc', 30)}</div>
-               <div class="sff-empty__t">Aucune charge enregistrée</div>
-               <div class="sff-empty__x">Rien n'est saisi pour ${annee}${mfChargesFilter !== 'all' ? ` dans la catégorie « ${esc(mfChargesFilter)} »` : ''}. Un « + » dans la grille enregistre une charge sur le mois où elle est tombée.</div>
+               <div class="sff-empty__t">Aucune charge enregistrée${sfAide(`Rien n'est saisi pour ${annee}${mfChargesFilter !== 'all' ? ` dans la catégorie « ${esc(mfChargesFilter)} »` : ''}. Un « + » dans la grille enregistre une charge sur le mois où elle est tombée.`, `Aucune charge enregistrée`)}</div>
                <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="mfOpenChargeModal(null)">Ajouter une charge</button>
              </div>`}
       </div>
@@ -10253,8 +10247,7 @@ function renderMfLocataires(c) {
           </div>` : `
         <div class="sff-empty">
           <div class="sff-empty__ic">${sfAccIcon('gens', 34)}</div>
-          <div class="sff-empty__t">Aucun locataire</div>
-          <div class="sff-empty__x">Un locataire porte le bail : loyer hors charges, date d'entrée et jour de paiement. C'est de lui que découlent les loyers du suivi mensuel.</div>
+          <div class="sff-empty__t">Aucun locataire${sfAide(`Un locataire porte le bail : loyer hors charges, date d'entrée et jour de paiement. C'est de lui que découlent les loyers du suivi mensuel.`, `Aucun locataire`)}</div>
           <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="openLocataireModal(null)">Créer un locataire</button>
         </div>`}
       </div>
@@ -10293,8 +10286,7 @@ function renderMfLocataires(c) {
                 ${col.total ? `<p class="mfp-mois__f">${sfEur(col.total)} attendus</p>` : ''}`
               : `<div class="sff-empty sff-empty--compact">
                    <div class="sff-empty__ic">${sfAccIcon('agenda', 26)}</div>
-                   <div class="sff-empty__t">Rien à préparer</div>
-                   <div class="sff-empty__x">Aucune échéance ce mois-ci.</div>
+                   <div class="sff-empty__t">Aucune échéance ce mois-ci</div>
                  </div>`}
             </section>`).join('')}
         </div>
@@ -12396,9 +12388,8 @@ function openLocataireModal(id, presetBienId) {
         <input class="sf-input" id="loc-jour-paiement" type="number" min="1" max="31" value="${esc(l?.jour_paiement||5)}"></div>
     </div>
     <div class="locf-grid">
-      <div class="sf-field"><label class="sf-label">Date d'entrée <span class="sf-label__req">*</span></label>
-        <input class="sf-input" id="loc-date-entree" type="date" value="${esc(l?.date_entree||'')}">
-        <div class="sf-hint">Requise dès qu'un locataire actif est rattaché à un bien : c'est elle qui détermine les loyers générés.</div></div>
+      <div class="sf-field"><span class="sf-tete"><label class="sf-label" for="loc-date-entree">Date d'entrée <span class="sf-label__req">*</span></label>${sfAide('Requise dès qu’un locataire actif est rattaché à un bien : c’est elle qui détermine les loyers générés.', 'la date d’entrée')}</span>
+        <input class="sf-input" id="loc-date-entree" type="date" value="${esc(l?.date_entree||'')}"></div>
       ${/* ⚠️ QUELLE DATE ? La question s'est posée dès le premier congé saisi
             (Thomas, 22/08/2026) : la réception du congé, ou la fin du préavis ?
             Le champ ne le disait pas, et tout le calcul dépend de la réponse —
@@ -12406,9 +12397,8 @@ function openLocataireModal(id, presetBienId) {
             du dépôt. Elle vaut donc FIN DE PRÉAVIS, et l'écran le dit.
             Le calcul « réception + 1 ou 3 mois » arrive avec le workflow de
             congé (PLAN-PREAVIS, étape 3) : d'ici là, elle se pose à la main. */''}
-      <div class="sf-field"><label class="sf-label">Date de sortie</label>
-        <input class="sf-input" id="loc-date-sortie" type="date" value="${esc(l?.date_sortie||'')}">
-        <div class="sf-hint">Le <b>dernier jour du bail</b>, pas la date à laquelle le congé a été reçu. C'est elle qui arrête les loyers et fait partir le délai de restitution du dépôt.</div></div>
+      <div class="sf-field"><span class="sf-tete"><label class="sf-label" for="loc-date-sortie">Date de sortie · dernier jour du bail</label>${sfAide('Le <b>dernier jour du bail</b>, pas la date à laquelle le congé a été reçu. C’est elle qui arrête les loyers et fait partir le délai de restitution du dépôt.', 'la date de sortie')}</span>
+        <input class="sf-input" id="loc-date-sortie" type="date" value="${esc(l?.date_sortie||'')}"></div>
     </div>
     <div class="locf-grid">
       <div class="sf-field"><label class="sf-label">Loyer HC (€/mois)</label>
@@ -13009,8 +12999,7 @@ async function renderAdministration(el) {
     <div class="adm-hero">
       <div>
         <div class="adm-hero-label">Gestion administrative</div>
-        <div class="adm-hero-title">Administration</div>
-        <div class="adm-hero-sub">Pilotez vos SCI, vos contacts et vos obligations comptables</div>
+        <div class="adm-hero-title">Administration${sfAide('Vos SCI, vos contacts et vos obligations comptables.', 'cette page')}</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:12px;">
         <div class="adm-hero-kpis" id="adm-kpis">
@@ -13762,8 +13751,7 @@ function renderMarcheRecherche(el) {
     <div class="marche-hero">
       <div class="marche-hero-left">
         <div class="marche-hero-tag">${sfAccIcon('colonne',14)} Données officielles · DGFiP / data.gouv.fr</div>
-        <div class="marche-hero-title">Marché immobilier</div>
-        <div class="marche-hero-sub">Prix au m², évolution, volumes de ventes — données DVF officielles par commune</div>
+        <div class="marche-hero-title">Marché immobilier${sfAide('Prix au m², évolution et volumes de ventes, commune par commune, d’après les données DVF officielles.', 'cette page')}</div>
       </div>
       <div class="marche-hero-badge">
         <div class="marche-hero-badge-val">2010 → 2022</div>
@@ -14856,15 +14844,13 @@ function renderPortails(el) {
   const tagLabels = {general:'Généraliste',aggr:'Agrégateur',luxe:'Luxe',part:'Particuliers'};
   el.innerHTML = `
     <div>
-      <div class="page-title">Portails immobiliers</div>
-      <div class="page-sub">Accédez directement aux principaux sites de recherche et d\'analyse</div>
+      <div class="page-title">Portails immobiliers${sfAide('Les principaux sites de recherche et d’analyse, en accès direct.', 'cette page')}</div>
     </div>
     ${groupes.map(g=>`
       <div>
         <div class="section-header" style="margin-bottom:6px">
           <div>
-            <div class="section-title">${sfAccIcon(g.ic || 'lien', 16)} ${esc(g.label)}</div>
-            <div style="font-size:11px;color:var(--c-muted);margin-top:1px">${g.desc}</div>
+            <div class="section-title">${sfAccIcon(g.ic || 'lien', 16)} ${esc(g.label)}${sfAide(g.desc, g.label)}</div>
           </div>
         </div>
         <div class="portails-grid" style="margin-bottom:8px">
@@ -15049,10 +15035,6 @@ async function renderVisites(el) {
   }
   groupes.sort((a, b) => (a.cle === '') - (b.cle === ''));
 
-  const kpi = (lab, val, sous, none) => `<div class="sff-kpi">
-      <span class="sff-kpi__l">${lab}</span>
-      <span class="sff-kpi__v${none ? ' sff-kpi__v--none' : ''}">${val}</span>
-      <span class="sff-kpi__s">${sous}</span></div>`;
   const nbEdl = ind.parNature.filter(x => sfCrEstEdl(x.k)).reduce((s, x) => s + x.n, 0);
   const nb = k => ind.parNature.find(x => x.k === k)?.n || 0;
   // « 4 », « 3,5 » : une décimale nulle n'apporte rien (même règle que sfPctNum).
@@ -15064,8 +15046,7 @@ async function renderVisites(el) {
     <div class="sff-top">
       <div class="sff-titleline">
         <div class="sff-titleline__id">
-          <h1 class="sff-h1">Comptes rendus</h1>
-          <p class="sff-sub">Visites d'achat, visites locataires et états des lieux.</p>
+          <h1 class="sff-h1">Comptes rendus${sfAide('Vos visites d’achat, vos visites locataires et vos états des lieux, rangés par bien.', 'cette page')}</h1>
         </div>
         <div class="sff-acts">
           <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="openNouvelleVisite()">${sfAccIcon('plus', 15)} Nouveau compte rendu</button>
@@ -15074,18 +15055,17 @@ async function renderVisites(el) {
     </div>
     ${liste.length ? `
     <div class="sff-kpis">
-      ${kpi('Comptes rendus', String(ind.total), 'tous types confondus')}
-      ${kpi('Visites d\'achat', String(nb('achat')), 'avant une acquisition')}
-      ${kpi('Visites locataires', String(nb('locataire')), 'candidats ou occupants')}
-      ${kpi('États des lieux', String(nbEdl), 'entrées et sorties')}
-      ${kpi('Note moyenne', moyenne == null ? 'Non disponible' : esc(moyenne) + '<span class="sfc-sur5">/5</span>',
-            moyenne == null ? 'aucune visite notée' : 'sur les visites notées', moyenne == null)}
+      ${sfKpi({ lab: 'Comptes rendus', val: String(ind.total), aide: 'Tous types confondus. Ceux des biens de test n’entrent pas dans ces chiffres.' })}
+      ${sfKpi({ lab: 'Visites d\'achat', val: String(nb('achat')), aide: 'Les visites faites avant une acquisition.' })}
+      ${sfKpi({ lab: 'Visites locataires', val: String(nb('locataire')), aide: 'Les visites avec un candidat ou un occupant.' })}
+      ${sfKpi({ lab: 'États des lieux', val: String(nbEdl), aide: 'Les états des lieux d’entrée et de sortie.' })}
+      ${sfKpi({ lab: 'Note moyenne', val: moyenne == null ? null : esc(moyenne) + '<span class="sfc-sur5">/5</span>',
+            aide: moyenne == null ? 'Aucune visite n’est notée pour l’instant.' : 'La moyenne des seules visites notées.' })}
     </div>
     ${groupes.map(g => sfcGroupeHtml(g)).join('')}` : `
     <div class="sff-block"><div class="sff-empty">
       <div class="sff-empty__ic">${sfAccIcon('carnet', 34)}</div>
-      <div class="sff-empty__t">Aucun compte rendu</div>
-      <div class="sff-empty__x">Après chaque visite, notez ce que vous avez vu : l'état du bien, la copropriété, le quartier, et ce que vous comptez faire. Les états des lieux d'entrée et de sortie se consignent ici aussi.</div>
+      <div class="sff-empty__t">Aucun compte rendu${sfAide(`Après chaque visite, notez ce que vous avez vu : l'état du bien, la copropriété, le quartier, et ce que vous comptez faire. Les états des lieux d'entrée et de sortie se consignent ici aussi.`, `Aucun compte rendu`)}</div>
       <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="openNouvelleVisite()">Rédiger un compte rendu</button>
     </div></div>`}
   </div>`;
@@ -15214,19 +15194,20 @@ async function sfcRenderLecture(el, v, grilleDispo, jeton) {
   const valeur = k => (g && g[k] !== undefined) ? sfGrilleValeur(champ(k), g[k]) : null;
   // `texte` : une valeur en toutes lettres (un nom, une décision) se lit à la
   // taille du texte courant, et passe à la ligne plutôt que d'être coupée.
-  const kpi = (lab, val, sous, texte) => `<div class="sff-kpi"><span class="sff-kpi__l">${lab}</span>
-      <span class="sff-kpi__v${val ? (texte ? ' sfc-kpi__texte' : '') : ' sff-kpi__v--none'}">${val || 'Non renseigné'}</span><span class="sff-kpi__s">${sous}</span></div>`;
+  const kpi = (lab, val, sous, texte, aide) => sfKpi({ lab, val, sous, aide, vide: 'Non renseigné', clsVal: texte ? ' sfc-kpi__texte' : '' });
   // Les indicateurs suivent la nature : une note pour une visite, un locataire
   // pour ce qui le concerne, un constat pour une sortie, la grille pour un achat.
   const kpis = [];
-  if (!sfCrEstEdl(v.type_visite)) kpis.push(kpi('Note', v.note_sur_5 ? sfNotes(v.note_sur_5, 18) : '', v.note_sur_5 ? v.note_sur_5 + ' sur 5' : 'pas de note'));
-  if (!achat) kpis.push(kpi('Locataire', nomLoc ? esc(nomLoc) : '', sfCrEstEdl(v.type_visite) ? 'concerné par l\'état des lieux' : 'candidat ou occupant', true));
+  // « 4 sur 5 » reste écrit : les étoiles ne se lisent pas sans les voir.
+  if (!sfCrEstEdl(v.type_visite)) kpis.push(kpi('Note', v.note_sur_5 ? sfNotes(v.note_sur_5, 18) : '', v.note_sur_5 ? v.note_sur_5 + ' sur 5' : ''));
+  if (!achat) kpis.push(kpi('Locataire', nomLoc ? esc(nomLoc) : '', '', true,
+    sfCrEstEdl(v.type_visite) ? 'Le locataire concerné par l’état des lieux.' : 'Le candidat ou l’occupant rencontré.'));
   if (v.type_visite === 'edl_sortie') kpis.push(kpi('Constat', v.conforme == null ? '' : v.conforme ? 'Conforme' : 'Non conforme',
-    v.conforme == null ? 'pas encore constaté' : 'à l\'état des lieux d\'entrée', true));
+    v.conforme == null ? '' : 'à l\'état des lieux d\'entrée', true));
   if (achat && grilleDispo) {
-    kpis.push(kpi('Suite à donner', valeur('suite') ? esc(valeur('suite')) : '', 'décision après la visite', true));
-    kpis.push(kpi('DPE', g?.dpe ? esc(g.dpe) : '', 'relevé pendant la visite'));
-    kpis.push(kpi('Travaux à prévoir', g?.travaux ? esc(sfEur(g.travaux)) : '', 'estimation sur place'));
+    kpis.push(kpi('Suite à donner', valeur('suite') ? esc(valeur('suite')) : '', '', true, 'Ce que vous comptez faire après la visite.'));
+    kpis.push(kpi('DPE', g?.dpe ? esc(g.dpe) : '', '', false, 'Relevé pendant la visite.'));
+    kpis.push(kpi('Travaux à prévoir', g?.travaux ? esc(sfEur(g.travaux)) : '', '', false, 'Estimés sur place, pendant la visite.'));
   }
   const bloc = sec => `
     <section class="sff-block">
@@ -15340,8 +15321,8 @@ function sfcRenderSaisie(el, v, grilleDispo) {
       <button type="button" class="sff-back" onclick="sfcQuitter()">${sfAccIcon('retour', 14)} ${creation ? esc(sfcRetourLib(sfcEtat.retour)) : 'Compte rendu'}</button>
       <div class="sff-titleline">
         <div class="sff-titleline__id">
-          <h1 class="sff-h1">${creation ? 'Nouveau compte rendu' : 'Modifier le compte rendu'}</h1>
-          <p class="sff-sub">${creation ? 'Remplissez-le pendant ou juste après la visite : tout se modifie ensuite.' : esc(sfCrLabel(v.type_visite)) + ' · ' + esc(sfcDateLongue(v.date_visite))}</p>
+          <h1 class="sff-h1">${creation ? 'Nouveau compte rendu' : 'Modifier le compte rendu'}${creation ? sfAide('Remplissez-le pendant ou juste après la visite : tout se modifie ensuite.', 'cette page') : ''}</h1>
+          ${creation ? '' : `<p class="sff-sub">${esc(sfCrLabel(v.type_visite)) + ' · ' + esc(sfcDateLongue(v.date_visite))}</p>`}
         </div>
       </div>
     </div>
@@ -15793,12 +15774,72 @@ function sfTauxReference() {
       try {
         const { data, error } = await db.functions.invoke('taux-credit');
         const taux = Number(data?.taux);
-        if (error || !(taux >= 0.1 && taux <= 15) || !/^\d{4}-(0[1-9]|1[0-2])$/.test(String(data?.periode || ''))) return null;
-        return { taux: Math.round(taux * 100) / 100, periode: data.periode };
+        if (error || !(taux >= 0.1 && taux <= 15) || !SF_MOIS_ISO.test(String(data?.periode || ''))) return null;
+        const ref = { taux: Math.round(taux * 100) / 100, periode: data.periode };
+        /* v=100 : la tendance. Chaque partie est FACULTATIVE et vérifiée comme
+           le taux — une partie illisible est écartée, sans priver des autres. */
+        const historique = sfSerieValide(data.historique, 0.1, 15);
+        if (historique.length >= 6) ref.historique = historique;
+        const oat = sfSerieValide(data.oat10?.historique, -2, 15);
+        if (oat.length >= 6) ref.oat10 = oat;
+        const bce = Number(data.bce?.taux);
+        if (data.bce && Number.isFinite(bce) && bce >= -2 && bce <= 10)
+          ref.bce = { taux: Math.round(bce * 100) / 100, depuis: SF_JOUR_ISO.test(String(data.bce.depuis || '')) ? data.bce.depuis : null };
+        return ref;
       } catch (e) { return null; }
     })().then(r => { if (!r) sfTauxRefPromesse = null; return r; });
   }
   return sfTauxRefPromesse;
+}
+
+const SF_MOIS_ISO = /^\d{4}-(0[1-9]|1[0-2])$/;
+const SF_JOUR_ISO = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
+/* Une série mensuelle venue du réseau : seulement des points { periode, taux }
+   au format vérifié, bornés, sans doublon, dans l'ordre, 36 au plus. */
+function sfSerieValide(liste, min, max) {
+  if (!Array.isArray(liste)) return [];
+  const vus = new Set();
+  return liste
+    .map(p => ({ periode: String(p?.periode || ''), taux: Number(p?.taux) }))
+    .filter(p => SF_MOIS_ISO.test(p.periode) && Number.isFinite(p.taux) && p.taux >= min && p.taux <= max
+              && !vus.has(p.periode) && vus.add(p.periode))
+    .sort((a, b) => a.periode < b.periode ? -1 : a.periode > b.periode ? 1 : 0)
+    .slice(-36)
+    .map(p => ({ periode: p.periode, taux: Math.round(p.taux * 100) / 100 }));
+}
+
+/* LA TENDANCE D'UNE SÉRIE DE TAUX (v=100) — ce qu'elle a fait, jamais ce
+   qu'elle fera. `sens` se lit sur trois mois (écart de moins de 0,05 point :
+   stable). `depuis` : une baisse court depuis le PLUS HAUT des douze derniers
+   mois, une hausse depuis le plus bas ; un extrême au bord de la fenêtre veut
+   dire « plus d'un an » (`plusDunAn`). Stable : les mois consécutifs qui
+   bougent de moins de 0,05 point. `ilYaUnAn` : la valeur douze mois plus tôt. */
+function sfTendance(points) {
+  if (!Array.isArray(points) || points.length < 4) return null;
+  const v = points.map(p => p.taux);
+  const n = v.length, dernier = v[n - 1];
+  const ecart3 = dernier - v[n - 4];
+  const sens = Math.abs(ecart3) < 0.05 ? 'stable' : ecart3 < 0 ? 'baisse' : 'hausse';
+  let depuis = 0, plusDunAn = false;
+  if (sens === 'stable') {
+    for (let i = n - 1; i > 0 && Math.abs(v[i] - v[i - 1]) < 0.05; i--) depuis++;
+  } else {
+    const debut = Math.max(0, n - 13);
+    let j = n - 1;
+    for (let i = n - 1; i >= debut; i--) {
+      if (sens === 'baisse' ? v[i] > v[j] : v[i] < v[j]) j = i;
+    }
+    depuis = n - 1 - j;
+    plusDunAn = j === debut && n > 13;
+  }
+  return { sens, depuis, plusDunAn, dernier, periode: points[n - 1].periode, ilYaUnAn: n > 12 ? v[n - 13] : null };
+}
+
+// « août 2026 », depuis « 2026-08 ».
+function sfMoisLong(periode) {
+  const [a, m] = String(periode).split('-').map(Number);
+  return m >= 1 && m <= 12 ? `${MOIS_LONGS[m - 1].toLowerCase()} ${a}` : '';
 }
 
 // « Taux moyen des nouveaux crédits immobiliers en France, août 2026 — Banque de France »
@@ -15860,6 +15901,62 @@ function sfsLigneHtml(s, { surFiche = false } = {}) {
     </button>`;
 }
 
+/* L'ENCART « TENDANCE DES TAUX » (v=100) — l'idée de Thomas : savoir si c'est
+   le moment d'emprunter. Personne ne connaît les taux de demain : l'encart dit
+   D'OÙ L'ON VIENT, jamais où l'on va, et ne conseille rien. Le taux moyen, sa
+   courbe sur 24 mois et une phrase factuelle ; l'OAT 10 ans, que les banques
+   suivent pour fixer leurs taux fixes, et le taux de dépôt de la BCE. Chaque
+   partie absente est simplement tue. Tout ce qui vient du réseau est passé par
+   sfTauxReference (bornes, formats) et s'échappe ici. */
+function sfTendancePhrase(t) {
+  if (!t) return '';
+  const nom = { baisse: 'En baisse', hausse: 'En hausse', stable: 'Stable' }[t.sens];
+  if (t.plusDunAn) return `${nom} depuis plus d’un an`;
+  return t.depuis >= 2 ? `${nom} depuis ${t.depuis} mois` : t.sens === 'stable' ? nom : `${nom} ce mois-ci`;
+}
+function sfTauxCourbeHtml(points) {
+  const v = points.map(p => p.taux);
+  const min = Math.min(...v), max = Math.max(...v), plage = (max - min) || 1;
+  const pts = v.map((x, i) => `${(i / (v.length - 1) * 240).toFixed(1)},${(4 + (max - x) / plage * 48).toFixed(1)}`).join(' ');
+  const debut = points[0], fin = points[points.length - 1];
+  const decrit = `Taux moyen sur ${points.length} mois : ${sfPctNum(debut.taux, 2)} en ${sfMoisLong(debut.periode)}, ${sfPctNum(fin.taux, 2)} en ${sfMoisLong(fin.periode)}`;
+  return `<figure class="sfs-courbe">
+      <svg viewBox="0 0 240 56" preserveAspectRatio="none" role="img" aria-label="${esc(decrit)}">
+        <polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>
+      <figcaption class="sfs-courbe__axe" aria-hidden="true"><span>${esc(sfMoisLong(debut.periode))}</span><span>${esc(sfMoisLong(fin.periode))}</span></figcaption>
+    </figure>`;
+}
+function sfTauxEncartHtml(ref) {
+  const aide = `Le taux moyen des nouveaux crédits immobiliers en France, publié chaque mois par la Banque de France. `
+    + `L’OAT 10 ans est le taux auquel l’État emprunte sur dix ans : les banques s’en servent pour fixer leurs taux fixes, qui la suivent en général avec quelques mois de décalage. `
+    + `Le taux de dépôt de la BCE oriente l’ensemble. Ces courbes disent d’où l’on vient, pas où l’on va : personne ne connaît les taux de demain.`;
+  const tete = `<div class="sff-block__h"><h2 class="sff-block__t">Tendance des taux${sfAide(aide, 'la tendance des taux')}</h2></div>`;
+  if (!ref) return `<section class="sff-block sfs-tendance">${tete}
+      <div class="sff-block__b"><span class="sfs-tendance__v sff-kpi__v--none">Non disponible</span>
+        <em class="sf-source">Source momentanément indisponible</em></div></section>`;
+  const t = sfTendance(ref.historique);
+  const oat = sfTendance(ref.oat10);
+  const autres = [
+    oat ? `OAT 10 ans : <b>${esc(sfPctNum(oat.dernier, 2))}</b>, ${oat.sens === 'stable' ? 'stable' : 'en ' + oat.sens} sur 3 mois` : '',
+    ref.bce ? `Taux de dépôt de la BCE : <b>${esc(sfPctNum(ref.bce.taux, 2))}</b>${ref.bce.depuis ? ` depuis le ${esc(sfsDateLongue(ref.bce.depuis))}` : ''}` : '',
+  ].filter(Boolean);
+  return `<section class="sff-block sfs-tendance">${tete}
+      <div class="sff-block__b sfs-tendance__b">
+        <div class="sfs-tendance__tete">
+          <div class="sfs-tendance__chiffre">
+            <span class="sfs-tendance__v">${esc(sfPctNum(ref.taux, 2))}</span>
+            <span class="sfs-tendance__l">taux moyen, ${esc(sfMoisLong(ref.periode))}</span>
+          </div>
+          ${t ? `<p class="sfs-tendance__phrase"><strong>${esc(sfTendancePhrase(t))}</strong>${t.ilYaUnAn != null ? ` · ${esc(sfPctNum(t.ilYaUnAn, 2))} il y a un an` : ''}</p>` : ''}
+        </div>
+        ${ref.historique ? sfTauxCourbeHtml(ref.historique) : ''}
+        ${autres.length ? `<p class="sfs-tendance__autres">${autres.join('<span aria-hidden="true"> · </span>')}</p>` : ''}
+        <em class="sf-source">${esc(sfTauxMention(ref))}${ref.oat10 || ref.bce ? ' ; OAT et taux de dépôt : BCE' : ''}</em>
+      </div>
+    </section>`;
+}
+
 async function renderSimulateur(el) {
   const jeton = ++sfsJeton;
   el.innerHTML = `<div class="loading"><div class="spinner"></div>Chargement…</div>`;
@@ -15880,16 +15977,14 @@ async function renderSimulateur(el) {
   const comptees = sims.filter(sfSimCompte).map(s => ({ s, c: sfSimDepuisLigne(s) })).filter(x => x.c.calculable);
   const meilleurTaux = comptees.length ? Math.min(...comptees.map(x => Number(x.s.taux_interet) || 0)) : null;
   const plusPetite = comptees.length ? Math.min(...comptees.map(x => x.c.mens)) : null;
-  const kpi = (lab, val, sous, cls = '') => `<div class="sff-kpi${cls}"><span class="sff-kpi__l">${lab}</span>
-      <span class="sff-kpi__v${val == null ? ' sff-kpi__v--none' : ''}">${val == null ? 'Non disponible' : val}</span><span class="sff-kpi__s">${sous}</span></div>`;
+  const kpi = (lab, val, sous, cls = '', aide = '') => sfKpi({ lab, val, sous, cls, aide });
 
   el.innerHTML = `
   <div class="sff-page sfs">
     <div class="sff-top">
       <div class="sff-titleline">
         <div class="sff-titleline__id">
-          <h1 class="sff-h1">Simulations de crédit</h1>
-          <p class="sff-sub">Comparez les offres de prêt, et retenez celle qui finance chaque bien.</p>
+          <h1 class="sff-h1">Simulations de crédit${sfAide('Comparez les offres de prêt, et retenez celle qui finance chaque bien.', 'cette page')}</h1>
         </div>
         <div class="sff-acts">
           <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="openNouvelleSimulation()">${sfAccIcon('plus', 15)} Nouvelle simulation</button>
@@ -15898,12 +15993,12 @@ async function renderSimulateur(el) {
     </div>
 
     <div class="sff-kpis">
-      ${kpi('Simulations', String(comptees.length), comptees.length > 1 ? 'offres à comparer' : 'offre enregistrée')}
-      ${kpi('Meilleur taux', meilleurTaux == null ? null : esc(sfPctNum(meilleurTaux, 2)), 'parmi vos simulations')}
+      ${kpi('Simulations', String(comptees.length), '', '', 'Celles des biens de test sont listées plus bas, sans entrer dans ces chiffres.')}
+      ${kpi('Meilleur taux', meilleurTaux == null ? null : esc(sfPctNum(meilleurTaux, 2)), '', '', 'Le plus bas parmi vos simulations.')}
       ${kpi('Plus petite mensualité', plusPetite == null ? null : esc(sfEur(plusPetite)), 'assurance comprise')}
-      ${kpi('Taux moyen en France', ref ? esc(sfPctNum(ref.taux, 2)) : null,
-        ref ? `<em class="sf-source">${esc(sfTauxMention(ref))}</em>` : 'source momentanément indisponible')}
     </div>
+
+    ${sfTauxEncartHtml(ref)}
 
     ${sims.length ? `
     <section class="sff-block">
@@ -15913,8 +16008,7 @@ async function renderSimulateur(el) {
     <section class="sff-block"><div class="sff-block__b sff-block__b--flush">
       <div class="sff-empty">
         <div class="sff-empty__ic">${sfAccIcon('banque', 34)}</div>
-        <div class="sff-empty__t">Aucune simulation de crédit</div>
-        <div class="sff-empty__x">Une simulation calcule la mensualité, assurance comprise, le coût du crédit et votre taux d'endettement. Rattachée à un bien et retenue, elle alimente sa fiche et le dossier remis à la banque.</div>
+        <div class="sff-empty__t">Aucune simulation de crédit${sfAide(`Une simulation calcule la mensualité, assurance comprise, le coût du crédit et votre taux d'endettement. Rattachée à un bien et retenue, elle alimente sa fiche et le dossier remis à la banque.`, `Aucune simulation de crédit`)}</div>
         <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="openNouvelleSimulation()">Simuler un crédit</button>
       </div>
     </div></section>`}
@@ -16025,8 +16119,7 @@ function sfsRenderLecture(el, s, dispo) {
   const mensFiche = Math.round(parseFloat(bien?.mensualite_credit) || 0);
   const mens = c.calculable ? Math.round(c.mens) : 0;
   const peutRetenir = dispo && bien && !s.retenue && c.calculable;
-  const kpi = (lab, val, sous, cls = '') => `<div class="sff-kpi${cls}"><span class="sff-kpi__l">${lab}</span>
-      <span class="sff-kpi__v${val == null ? ' sff-kpi__v--none' : ''}">${val == null ? 'Non disponible' : val}</span><span class="sff-kpi__s">${sous}</span></div>`;
+  const kpi = (lab, val, sous, cls = '', aide = '') => sfKpi({ lab, val, sous, cls, aide });
   const ligne = (lab, val, cls = '') => `<div class="sff-line${cls}"><span class="sff-line__l">${lab}</span><span class="sff-line__v">${val}</span><span></span></div>`;
 
   el.innerHTML = `
@@ -16052,14 +16145,15 @@ function sfsRenderLecture(el, s, dispo) {
 
     <div class="sff-kpis">
       ${kpi('Mensualité', c.calculable ? esc(sfEur(c.mens)) : null,
-        !c.calculable ? 'montant, taux et durée à renseigner'
-          : c.assuranceConnue ? `dont ${esc(sfEur(c.assurance))} d'assurance` : 'assurance non renseignée', ' sff-kpi--hi')}
+        !c.calculable ? '' : c.assuranceConnue ? `dont ${esc(sfEur(c.assurance))} d'assurance` : 'assurance non renseignée', ' sff-kpi--hi',
+        c.calculable ? '' : 'Elle se calcule dès que le montant, le taux et la durée sont renseignés.')}
       ${kpi('Coût total du crédit', c.calculable ? esc(sfEur(c.coutTotal)) : null,
-        c.calculable ? (c.assuranceConnue ? `intérêts et assurance sur ${esc(String(s.duree_ans))} ans` : `intérêts sur ${esc(String(s.duree_ans))} ans`) : 'non calculable')}
+        c.calculable ? (c.assuranceConnue ? `intérêts et assurance sur ${esc(String(s.duree_ans))} ans` : `intérêts sur ${esc(String(s.duree_ans))} ans`) : '')}
       ${kpi('Taux d\'endettement', c.calculable && c.te !== null ? esc(endet.val) : null,
-        endet.icone ? `${sfAccIcon(endet.icone, 12)} ${esc(endet.texte)}` : esc(endet.texte), endet.etat === 'alerte' ? ' sfs-kpi--alerte' : '')}
+        endet.icone ? `${sfAccIcon(endet.icone, 12)} ${esc(endet.texte)}` : '', endet.etat === 'alerte' ? ' sfs-kpi--alerte' : '',
+        `La mensualité, assurance comprise, rapportée à vos revenus et à ${Math.round(SF_LOYER_RETENU * 100)} % du loyer, comme le font les banques. Le plafond est de ${SF_ENDETTEMENT_MAX} %.${endet.etat === 'none' ? ' Il se calcule dès que vos revenus sont renseignés.' : ''}`)}
       ${kpi('Montant emprunté', s.montant_emprunte ? esc(sfEur(s.montant_emprunte)) : null,
-        s.montant_emprunte ? `sur ${esc(String(s.duree_ans || 20))} ans à ${esc(sfPctNum(s.taux_interet, 2))}` : 'non renseigné')}
+        s.montant_emprunte ? `sur ${esc(String(s.duree_ans || 20))} ans à ${esc(sfPctNum(s.taux_interet, 2))}` : '')}
     </div>
 
     ${bien && dispo ? `
@@ -16119,17 +16213,19 @@ function sfsRenderLecture(el, s, dispo) {
 
 // Un champ de montant, de taux ou de durée : texte, clavier numérique, unité
 // dans le champ, montant aligné à droite (gabarit de la fiche).
-function sfsChampHtml({ id, lab, val, unite, mode = 'decimal', aide = '', requis = false, large = false }) {
-  const aideId = aide ? id + '-aide' : '';
+/* `aide` : l'explication, derrière le « ? » du libellé (v=100). `note` : ce
+   qui doit rester LU sous le champ — la source d'un taux proposé, son lien. */
+function sfsChampHtml({ id, lab, val, unite, mode = 'decimal', aide = '', note = '', requis = false, large = false }) {
+  const aideId = aide || note ? id + '-aide' : '';
   return `<div class="sf-field sfn-f${large ? ' sfn-f--large' : ''}">
-      <label class="sf-label" for="${id}">${esc(lab)}${requis ? '<span class="sf-label__req" aria-hidden="true">*</span>' : ''}</label>
+      <span class="sf-tete"><label class="sf-label" for="${id}">${esc(lab)}${requis ? '<span class="sf-label__req" aria-hidden="true">*</span>' : ''}</label>${note ? '' : sfAide(aide, lab, aideId)}</span>
       <div class="sfn-saisie sfs-saisie">
         <input class="sf-input sfn-nombre" id="${id}" type="text" inputmode="${mode}" autocomplete="off"
                value="${esc(sfnFormaterNombre(val))}" onblur="sfnFormater(this)"
                aria-describedby="${[aideId, id + '-err'].filter(Boolean).join(' ')}"${requis ? ' aria-required="true"' : ''}>
         <span class="sfn-unite" aria-hidden="true">${esc(unite)}</span>
       </div>
-      ${aide ? `<p class="sf-hint" id="${aideId}">${aide}</p>` : ''}
+      ${note ? `<p class="sf-hint" id="${aideId}">${note}</p>` : ''}
       <p class="sf-hint sf-hint--error" id="${id}-err" hidden></p>
     </div>`;
 }
@@ -16148,8 +16244,8 @@ function sfsRenderSaisie(el, s, dispo, taux) {
       <button type="button" class="sff-back" onclick="sfsQuitter()">${sfAccIcon('retour', 14)} ${creation ? esc(sfsRetourLib(sfsEtat.retour)) : 'Simulation'}</button>
       <div class="sff-titleline">
         <div class="sff-titleline__id">
-          <h1 class="sff-h1">${creation ? 'Nouvelle simulation' : 'Modifier la simulation'}</h1>
-          <p class="sff-sub">${creation ? 'Saisissez l\'offre, ou lisez-la depuis son PDF : la mensualité et l\'endettement se calculent au fil de la frappe.' : esc(s.nom_simulation || 'Simulation')}</p>
+          <h1 class="sff-h1">${creation ? 'Nouvelle simulation' : 'Modifier la simulation'}${creation ? sfAide('Saisissez l’offre, ou lisez-la depuis son PDF : la mensualité et l’endettement se calculent au fil de la frappe.', 'cette page') : ''}</h1>
+          ${creation ? '' : `<p class="sff-sub">${esc(s.nom_simulation || 'Simulation')}</p>`}
         </div>
       </div>
     </div>
@@ -16193,11 +16289,11 @@ function sfsRenderSaisie(el, s, dispo, taux) {
             </div>
             <div class="sf-field sfn-f sfn-f--large">
               <div class="sfn-fichiers__h">
-                <span class="sf-label">Offre de la banque (PDF)</span>
+                <span class="sf-tete"><span class="sf-label">Offre de la banque (PDF)</span>${sfAide('Les montants reconnus dans l’offre remplissent les champs encore vides ; vérifiez-les avant d’enregistrer. La lecture se fait sur cet appareil.', 'l’offre de la banque')}</span>
                 <button type="button" class="sf-btn sf-btn--secondary sf-btn--sm" onclick="document.getElementById('pdf-input').click()">${sfAccIcon('trombone', 15)} ${s.pdf_path || s.pdf_data ? 'Remplacer l\'offre' : 'Lire une offre de prêt'}</button>
               </div>
               <input type="file" id="pdf-input" accept="application/pdf" hidden onchange="extractPDF(event)">
-              <p class="sf-hint" id="sfs-pdf-etat" aria-live="polite">${s.pdf_name ? 'Offre jointe : ' + esc(s.pdf_name) + '. ' : ''}Les montants reconnus remplissent les champs vides ; vérifiez-les avant d'enregistrer.</p>
+              <p class="sf-hint" id="sfs-pdf-etat" aria-live="polite">${s.pdf_name ? 'Offre jointe : ' + esc(s.pdf_name) + '.' : ''}</p>
             </div>
           </div></div>
         </section>
@@ -16207,7 +16303,7 @@ function sfsRenderSaisie(el, s, dispo, taux) {
           <div class="sff-block__b"><div class="sfn-grid">
             ${sfsChampHtml({ id: 's-montant', lab: 'Montant emprunté', val: s.montant_emprunte, unite: '€', requis: true,
               aide: creation && s.montant_emprunte ? 'Le coût total de l\'opération, frais et travaux compris : ôtez votre apport.' : '' })}
-            ${sfsChampHtml({ id: 's-taux', lab: 'Taux nominal', val: s.taux_interet, unite: '%', requis: true, aide: aideTaux })}
+            ${sfsChampHtml({ id: 's-taux', lab: 'Taux nominal', val: s.taux_interet, unite: '%', requis: true, note: aideTaux })}
             ${sfsChampHtml({ id: 's-duree', lab: 'Durée', val: s.duree_ans || 20, unite: 'ans', mode: 'numeric', requis: true })}
             ${dispo ? sfsChampHtml({ id: 's-assurance', lab: 'Assurance emprunteur', val: s.assurance_mensuelle, unite: '€/mois',
               aide: 'Le montant mensuel indiqué dans l\'offre, tous emprunteurs confondus.' }) : ''}
@@ -16879,7 +16975,7 @@ function renderAssociesList() {
           <input class="sci-form-input" type="number" min="0" max="100" value="${esc(a.parts_pct||'')}" oninput="updateAssocie(${i},'parts_pct',parseFloat(this.value)||0)" placeholder="50">
         </div>
       </div>
-      <div class="assoc-sub">Situation professionnelle <span>(facultatif — utilisé dans le dossier bancaire)</span></div>
+      <div class="assoc-sub">Situation professionnelle${sfAide('Facultative : elle sert au dossier remis à la banque.', 'la situation professionnelle')}</div>
       <div class="assoc-grid" style="margin-bottom:8px">
         <div>
           <label class="sci-form-label">Profession</label>

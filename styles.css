@@ -3874,3 +3874,92 @@ body[data-densite="compact"] .sfb-t__s{ display:none; }
   .sff-kpi__v, .sfb-kpi__v, .mf-page .mfx-kpi__v{ font-size:clamp(20px, 6vw, 26px); }
   .sff-kpi__s{ white-space:normal; }
 }
+
+/* ── v=100 : l'aide « ? » d'un champ, accolée à son libellé ─────────────────
+   Le « ? » vit HORS du <label> : un bouton dans un label n'est pas du HTML
+   valide, et taper le libellé doit continuer à placer le curseur dans le champ. */
+.sf-tete{ display:flex; align-items:center; gap:var(--sf-space-3); min-width:0; }
+.sfn-mois:empty{ display:none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v=100 — RÉOCCUPER L'ESPACE LIBÉRÉ PAR LES « ? »
+   Les explications passées derrière un « ? », les chiffres clés ont perdu leur
+   sous-ligne : la place va aux titres et aux valeurs, pour que ce qui compte
+   saute aux yeux (Thomas, 16/10). Les tailles restent bornées par des clamp()
+   et le téléphone a sa propre échelle plus bas.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Le « ? » prend la taille de ce qu'il explique. Sa cible au doigt reste de
+   44 px (components.css, pseudo-élément du lexique). */
+.sf-aide{ margin-left:var(--sf-space-3); vertical-align:middle; }
+.sf-tete .sf-aide{ margin-left:0; }
+.sff-h1 .sf-aide, .mf-page .mfx-h1 .sf-aide, .sfb-head h1 .sf-aide, .page-title .sf-aide,
+.adm-hero-title .sf-aide, .marche-hero-title .sf-aide{ margin-left:var(--sf-space-4); }
+.sff-h1 .sf-lex__b, .mf-page .mfx-h1 .sf-lex__b, .sfb-head h1 .sf-lex__b, .page-title .sf-lex__b,
+.adm-hero-title .sf-lex__b, .marche-hero-title .sf-lex__b{ width:22px; height:22px; font-size:13px; }
+.sff-empty__t .sf-lex__b, .sf-empty__title .sf-lex__b, .bd-empty-state h3 .sf-lex__b,
+.acc-verdict__txt .sf-lex__b{ width:18px; height:18px; font-size:11px; }
+
+/* Les titres de page, un cran au-dessus. `.mf-page` : financier.css est
+   chargé APRÈS cette feuille, sa règle l'emporterait à précision égale. */
+.sff-h1, .mf-page .mfx-h1{ font-size:clamp(28px, 2.6vw, 46px); }
+.sfb-head h1{ font-size:clamp(32px, 2.8vw, 50px); }
+.acc-hello h1{ font-size:clamp(32px, 3vw, 48px); }
+
+/* Les chiffres clés : libellé lisible, valeur qui domine. */
+.sff-kpi__l, .sf-kpi__label, .sfb-kpi__l, .mf-page .mfx-kpi__l{ font-size:var(--sf-font-caption); }
+.sff-kpi__v, .mf-page .mfx-kpi__v{ font-size:clamp(28px, 2.3vw, 42px); }
+.sf-kpi__value{ font-size:clamp(30px, 2.4vw, 42px); }
+.sfb-kpi__v{ font-size:clamp(30px, 2.5vw, 44px); }
+
+/* Le tableau des biens : un corps plus grand, le cashflow mis en avant. */
+table.sfb-t{ font-size:clamp(14px, 0.95vw, 16px); }
+.sfb-t .sfb-cf__v{ font-size:1.12em; font-weight:var(--sf-weight-semibold); font-variant-numeric:tabular-nums; }
+.sfb-t .sfb-rend__v{ font-weight:var(--sf-weight-semibold); }
+.sfb-search{ max-width:420px; }
+
+/* La grille mensuelle du Suivi financier : des en-têtes qu'on lit sans plisser. */
+.mf-page .mfx-grille th{ font-size:var(--sf-font-label); }
+
+@media (max-width:560px){
+  .sff-h1, .mf-page .mfx-h1{ font-size:clamp(26px, 7.4vw, 32px); }
+  .sfb-head h1, .acc-hello h1{ font-size:clamp(28px, 8vw, 36px); }
+  .sff-kpi__v, .sfb-kpi__v, .mf-page .mfx-kpi__v, .sf-kpi__value{ font-size:clamp(22px, 6.4vw, 28px); }
+}
+
+/* Le « ? » d'un chiffre clé se tient en haut à droite de sa carte, toujours au
+   même endroit : accolé au libellé, il tombait seul sur une seconde ligne dès
+   que le libellé passait à la ligne (cartes en demi-largeur au téléphone). */
+.sff-kpi__l, .sf-kpi__label, .sfb-kpi__l, .mf-page .mfx-kpi__l{
+  display:flex; align-items:flex-start; gap:var(--sf-space-3); }
+.sff-kpi__l .sf-aide, .sf-kpi__label .sf-aide, .sfb-kpi__l .sf-aide, .mf-page .mfx-kpi__l .sf-aide{
+  margin-left:auto; flex-shrink:0; }
+
+/* ── v=100 : l'encart « Tendance des taux » (Simulations) ────────────────────
+   Neutre : une tendance n'est ni un gain ni une perte, le vert lumineux reste
+   aux valeurs positives. La courbe s'étire en largeur, son trait garde 2 px. */
+.sfs-tendance__b{ display:flex; flex-direction:column; gap:var(--sf-space-5); }
+.sfs-tendance__tete{ display:flex; flex-wrap:wrap; align-items:baseline; gap:var(--sf-space-3) var(--sf-space-7); }
+.sfs-tendance__chiffre{ display:flex; align-items:baseline; gap:var(--sf-space-4); min-width:0; }
+.sfs-tendance__v{ font-family:var(--sf-font-display); font-size:clamp(30px, 2.4vw, 42px);
+  font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight); line-height:var(--sf-lh-tight);
+  font-variant-numeric:tabular-nums; color:var(--sf-text); }
+.sfs-tendance__v.sff-kpi__v--none{ font-family:var(--sf-font-ui); font-size:var(--sf-font-lead);
+  font-weight:var(--sf-weight-regular); color:var(--sf-text-2); }
+.sfs-tendance__l{ font-size:var(--sf-font-caption); color:var(--sf-text-2); }
+.sfs-tendance__phrase{ margin:0; font-size:var(--sf-font-body); color:var(--sf-text-2); }
+.sfs-tendance__phrase strong{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
+.sfs-courbe{ margin:0; color:var(--sf-text-2); }
+.sfs-courbe svg{ display:block; width:100%; height:64px; overflow:visible; }
+.sfs-courbe__axe{ display:flex; justify-content:space-between; margin-top:var(--sf-space-2);
+  font-size:var(--sf-font-caption); color:var(--sf-text-2); }
+.sfs-tendance__autres{ margin:0; font-size:var(--sf-font-body-sm); color:var(--sf-text-2); line-height:var(--sf-lh-normal); }
+.sfs-tendance__autres b{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); font-variant-numeric:tabular-nums; }
+
+/* Mes biens : les quatre chiffres clés sur une ligne dès qu'il y a la place,
+   deux par deux sinon — jamais trois et un orphelin (1024 px, v=100). Le pied
+   de tableau, vide depuis que ses notes vivent dans les « ? », ne réserve plus
+   de hauteur : il creusait un trou entre les chiffres et le tableau. */
+.sfb-kpis{ grid-template-columns:repeat(4, minmax(0,1fr)); }
+@media (max-width:900px){ .sfb-kpis{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+.sfb-foot:empty{ display:none; }

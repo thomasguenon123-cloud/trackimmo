@@ -82,7 +82,8 @@
 - **Charte** : sombre par défaut ; marque verte mais **bouton principal sans
   teinte** ; un seul vert lumineux (`--gain`), réservé aux valeurs positives ;
   la couleur ne porte jamais seule. Pas de plafond de largeur de page. États
-  vides complets (icône, titre, explication, action), jamais une ligne seule.
+  vides complets (icône, titre, explication, action), jamais une ligne seule —
+  l'explication derrière le « ? » du titre depuis la v=100.
 - **Iconographie** : un seul jeu, `SF_ACC_ICONS` via `sfAccIcon(cle, taille)`.
   Plus aucun emoji dans ce qui part en production (garde `emojis.test.js`).
 - **Biens de test** (v=94) : ils restent dans la LISTE des biens, marqués
@@ -151,6 +152,29 @@
 - **Chiffres clés sur téléphone** (v=99) : deux colonnes sous 560 px
   (`.sff-kpis`, `.sfb-kpis`, `.mfx-kpis`, `.acc-kpis`), le dernier impair sur
   toute la largeur. Garde : `mise-en-page.test.js`.
+- **Les aides « ? »** (v=100, arbitrage du 16/10) : l'interface reste épurée.
+  Derrière un « ? » (`sfAide(html, sujet, id)`), les EXPLICATIONS : pourquoi un
+  chiffre manque, ce qu'il couvre, à quoi sert une page, un champ, une section,
+  l'explication d'un état vide. Restent VISIBLES : les chiffres, leur unité ou
+  leur période quand elle en change le sens (« par mois », « assurance
+  comprise », « frais et travaux compris »), les données (ville, surface,
+  dates, « sur 6 200 € dus »), les jugements qui doublent une couleur (« en
+  dessous de votre seuil »), les sources citées (mention en italique), les
+  messages d'erreur et les retours d'action. Le sous-titre descriptif d'une
+  page passe derrière un « ? » accolé au titre ; les actions rapides de
+  l'accueil n'ont plus de sous-ligne. ⚠️ Un « ? » ne vit JAMAIS dans un
+  `<button>`, un lien, un `<label>` ou un `<summary>` : à côté du libellé, dans
+  `.sf-tete`. Dans un chiffre clé, il se tient en haut à droite de la carte.
+  Une aide de champ garde son id (`aria-describedby`). Échap referme la bulle.
+  Une information qui évite une erreur de saisie va dans le LIBELLÉ lui-même
+  (« Date de sortie · dernier jour du bail »). Garde : `aides.test.js`.
+- **Tendance des taux** (v=100, Simulations) : le taux moyen (Banque de
+  France), sa courbe sur 24 mois et UNE phrase factuelle (« En baisse depuis
+  5 mois · 4,02 % il y a un an »), l'OAT 10 ans et le taux de dépôt de la BCE.
+  Elle dit d'où l'on vient, JAMAIS où l'on va : aucun conseil (« c'est le
+  moment »…), aucune couleur de gain ou de perte. Chaque partie de la réponse
+  serveur est facultative et vérifiée (`sfSerieValide`) ; une partie absente se
+  tait. Garde : `simulateur.test.js`.
 - **Choix segmenté** : `.sf-choix` (components.css) — des boutons
   `aria-pressed` pour quelques valeurs visibles ; toucher le choix retenu le
   retire. Le choix retenu se dit par la bordure, le fond ET une pastille.
@@ -201,6 +225,9 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 | Taux de crédit proposé | `sfTauxParDefaut()` · taux officiel : `sfTauxReference()` · sa mention : `sfTauxMention()` |
 | Ligne d'une simulation (liste et Plan de financement de la fiche) | `sfsLigneHtml()` · simulation retenue d'un bien : `sfsCreditRetenu()` |
 | Date du jour, date d'un objet `Date` (YYYY-MM-DD, heure locale) | `sfAujourdhuiIso()` · `sfDateIso()` |
+| Une explication derrière un « ? » | `sfAide()` — jamais un `title=`, jamais une ligne grise sous la valeur |
+| Un chiffre clé des pages à la charte (libellé, « ? », valeur, sous-ligne) | `sfKpi()` |
+| Tendance d'une série de taux · série venue du réseau · « août 2026 » | `sfTendance()` · `sfSerieValide()` · `sfMoisLong()` |
 
 ## Pièges connus — chacun a coûté au moins une fois
 
@@ -213,6 +240,14 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 - **Une réponse réseau ne s'affiche jamais telle quelle** : du taux officiel,
   on ne garde qu'un nombre borné et une période au format vérifié ; le libellé
   est écrit côté client (`sfTauxReference`).
+- **Un écran qu'aucun test ne REND casse en silence** (v=100) : deux
+  ReferenceError — « Mes biens » et la lecture d'une simulation — n'ont été
+  vues qu'au banc, aucun test ne rendant ces écrans. Une garde d'écran appelle
+  la fonction de rendu, elle ne lit pas seulement le source.
+- **app.js écrit U+202F (espace fine) devant `€` et `%`** : une recherche
+  avec une espace ordinaire échoue en silence. Et un script Python qui écrit
+  du JS : `${...}` dans une chaîne non formatée part tel quel dans le code
+  (« ${N} » a cassé une page en v=100) — garde `aides.test.js`.
 - **Une garde contre le double envoi se pose AVANT le premier `await`** :
   posée après, deux appuis rapprochés passent tous les deux (v=96, trouvé au
   banc d'essai).

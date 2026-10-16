@@ -341,7 +341,7 @@ test('la liste : une seule action principale, les biens de test hors des chiffre
   const el = { innerHTML: '' };
   await ctx.renderSimulateur(el);
   assert.equal((el.innerHTML.match(/sf-btn--primary/g) || []).length, 1, 'une seule action principale par écran');
-  assert.match(el.innerHTML, /sff-kpi__l">Meilleur taux<\/span>\s*<span class="sff-kpi__v">3,45 %</,
+  assert.match(el.innerHTML, /sff-kpi__l">Meilleur taux(?:<span class="sf-lex sf-aide">(?:(?!sff-kpi__v).)*)?<\/span><span class="sff-kpi__v">3,45 %</,
     'Le meilleur taux est celui d\'une simulation de bien de test.');
   assert.match(el.innerHTML, /Offre test[\s\S]*?sf-pill--test">Test</, 'la simulation d\'un bien de test reste listée, marquée');
   assert.match(el.innerHTML, /<em class="sf-source">Taux moyen des nouveaux crédits immobiliers en France, août 2026 — Banque de France<\/em>/,
@@ -349,9 +349,12 @@ test('la liste : une seule action principale, les biens de test hors des chiffre
   assert.ok(!/accent-g|linear-gradient/.test(el.innerHTML), 'le bandeau vert plein est revenu');
   dbEnregistreur(ctx, () => ({ data: [] }));
   await ctx.renderSimulateur(el);
-  for (const piece of ['sff-empty__ic', 'sff-empty__t', 'sff-empty__x', 'sf-btn']) {
+  for (const piece of ['sff-empty__ic', 'sff-empty__t', 'sf-btn']) {
     assert.ok(el.innerHTML.includes(piece), `état vide incomplet : ${piece} manque`);
   }
+  // L'explication de l'état vide est rangée derrière le « ? » de son titre (v=100).
+  assert.match(el.innerHTML, /class="sff-empty__t">[^<]+<span class="sf-lex sf-aide">.*?role="tooltip" hidden>[^<]{20,}/s,
+    'état vide incomplet : son explication manque, ou n\'est plus derrière le « ? » du titre');
 });
 
 test('on revient d\'où l\'on vient : la fiche, sur l\'onglet Finances', () => {
@@ -399,3 +402,80 @@ test('le formulaire d\'un bien PROPOSE une mensualité estimée, il ne la pose j
   assert.equal(bloc.hidden, true, 'Une mensualité déjà saisie reçoit encore une proposition.');
   assert.match(corps('sfnUtiliserEstimation'), /sfnPoser\('f-mensualite'/, 'témoin : seul le bouton « Utiliser » la pose');
 });
+
+// ─── La tendance des taux (v=100) ──────────────────────────────────────────
+
+const serie = (debut, valeurs) => valeurs.map((taux, i) => {
+  const d = new Date(Number(debut.slice(0, 4)), Number(debut.slice(5, 7)) - 1 + i, 1);
+  return { periode: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, taux };
+});
+
+test('la tendance dit ce que les taux ont fait, mois par mois', () => {
+  const ctx = app();
+  // 24 mois : hausse jusqu'au 19e, puis cinq mois de baisse (dont un mois quasi plat).
+  const v = [3.6, 3.65, 3.7, 3.75, 3.8, 3.85, 3.9, 3.92, 3.95, 3.97, 4.0, 4.02, 4.03, 4.04, 4.05, 4.06, 4.07, 4.08, 4.10,
+             4.0, 3.9, 3.91, 3.8, 3.7];
+  const t = JSON.parse(JSON.stringify(ctx.sfTendance(serie('2024-09', v))));
+  assert.equal(t.sens, 'baisse');
+  assert.equal(t.depuis, 5, 'cinq mois depuis le plus haut : un mois à +0,01 point n\'interrompt pas la baisse');
+  assert.equal(t.dernier, 3.7);
+  assert.equal(t.periode, '2026-08');
+  assert.equal(t.ilYaUnAn, 4.02, 'la valeur d\'août 2025, douze mois plus tôt');
+  assert.equal(ctx.sfTendancePhrase(t), 'En baisse depuis 5 mois');
+  assert.equal(ctx.sfTendance(serie('2026-01', [3.3, 3.31, 3.32, 3.33])).sens, 'stable', 'moins de 0,05 point sur trois mois : stable');
+  assert.equal(ctx.sfTendance(serie('2026-01', [3.0, 3.1, 3.2, 3.3])).sens, 'hausse');
+  assert.equal(ctx.sfTendance(serie('2026-01', [3.0, 3.1])), null, 'trop court pour dire une tendance');
+  // Une hausse lente n'est pas comptée dans la baisse qui la suit (défaut d'une première version).
+  assert.equal(ctx.sfTendance(serie('2025-01', [3.0, 3.01, 3.02, 3.03, 3.04, 3.05, 3.06, 2.9, 2.8, 2.7])).depuis, 3);
+  // Une baisse continue sur deux ans : « depuis plus d'un an ».
+  const longue = ctx.sfTendance(serie('2024-09', Array.from({ length: 24 }, (_, i) => 4 - i * 0.03)));
+  assert.equal(longue.plusDunAn, true);
+  assert.equal(ctx.sfTendancePhrase(longue), 'En baisse depuis plus d’un an');
+});
+
+test('une série venue du réseau n\'est reprise que contrôlée', async () => {
+  const ctx = app();
+  const propre = ctx.sfSerieValide([
+    { periode: '2026-02', taux: 3.41 }, { periode: '2026-01', taux: '3.5' }, { periode: '2026-02', taux: 9 },
+    { periode: '2026-13', taux: 3 }, { periode: '<b>', taux: 3 }, { periode: '2026-03', taux: 99 }, { periode: '2026-04', taux: 'x' },
+  ], 0.1, 15);
+  assert.deepEqual(JSON.parse(JSON.stringify(propre)), [{ periode: '2026-01', taux: 3.5 }, { periode: '2026-02', taux: 3.41 }],
+    'triée, dédoublonnée, bornée, au format vérifié');
+  assert.equal(ctx.sfSerieValide(serie('2020-01', Array(50).fill(3)), 0.1, 15).length, 36, '36 mois au plus');
+  assert.deepEqual(Array.from(ctx.sfSerieValide('pas une liste', 0, 1)), []);
+  // La réponse entière : chaque partie facultative, vérifiée à part.
+  lire(ctx, 'db').functions = { invoke: async () => ({ error: null, data: {
+    taux: 3.32, periode: '2026-08', historique: serie('2024-09', Array(24).fill(3.4)),
+    oat10: { historique: [{ periode: 'n/a', taux: 3 }] }, bce: { taux: 2, depuis: '2025-06-11<script>' } } }) };
+  const ref = JSON.parse(JSON.stringify(await ctx.sfTauxReference()));
+  assert.equal(ref.historique.length, 24);
+  assert.equal(ref.oat10, undefined, 'une OAT illisible est tue, sans priver du reste');
+  assert.deepEqual(ref.bce, { taux: 2, depuis: null }, 'une date illisible est écartée');
+});
+
+test('l\'encart dit d\'où l\'on vient, sans rien conseiller', () => {
+  const ctx = app();
+  const ref = { taux: 3.7, periode: '2026-08',
+    historique: serie('2024-09', [3.6, 3.65, 3.7, 3.75, 3.8, 3.85, 3.9, 3.92, 3.95, 3.97, 4.0, 4.02, 4.03, 4.04, 4.05, 4.06, 4.07, 4.08, 4.10, 4.0, 3.9, 3.91, 3.8, 3.7]),
+    oat10: serie('2026-03', [3.0, 3.02, 3.05, 3.1, 3.2, 3.25]), bce: { taux: 2, depuis: '2025-06-11' } };
+  const h = ctx.sfTauxEncartHtml(ref);
+  assert.match(h, /<strong>En baisse depuis 5 mois<\/strong> · 4,02\u202f% il y a un an/);
+  assert.match(h, /OAT 10 ans : <b>3,25\u202f%<\/b>, en hausse sur 3 mois/);
+  assert.match(h, /Taux de dépôt de la BCE : <b>2\u202f%<\/b> depuis le 11 juin 2025/);
+  assert.match(h, /role="img" aria-label="Taux moyen sur 24 mois : 3,6\u202f% en septembre 2024, 3,7\u202f% en août 2026"/,
+    'la courbe se lit sans la voir');
+  assert.match(h, /class="sf-source">Taux moyen des nouveaux crédits immobiliers en France, août 2026 — Banque de France ; OAT et taux de dépôt : BCE</);
+  const lu = h.replace(/<span class="sf-lex__x"[\s\S]*?<\/span><\/span>/g, '');
+  assert.doesNotMatch(lu, /moment|empruntez|conseil|opportunit|profitez|attendez/i, 'L\'encart conseille : personne ne connaît les taux de demain.');
+  assert.doesNotMatch(h, /sf-gain|sf-loss|--gain|--loss/, 'une tendance n\'est ni un gain ni une perte : pas de vert ni de corail');
+  assert.match(h, /pas où l’on va/, 'témoin : le « ? » dit la limite de l\'exercice');
+  // Sans source : l'encart le dit, sans chiffre inventé.
+  const vide = ctx.sfTauxEncartHtml(null);
+  assert.match(vide, /Non disponible/);
+  assert.doesNotMatch(vide, /\d\u202f%/);
+  // Le taux seul (fonction d'avant la v=100) : ni courbe ni phrase, mais le taux et sa source.
+  const seul = ctx.sfTauxEncartHtml({ taux: 3.32, periode: '2026-08' });
+  assert.match(seul, /sfs-tendance__v">3,32\u202f%</);
+  assert.doesNotMatch(seul, /<svg|sfs-tendance__phrase/);
+});
+

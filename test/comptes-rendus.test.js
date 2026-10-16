@@ -369,16 +369,19 @@ test('la liste : une seule action principale, les biens de test marqués, un ét
   await ctx.renderVisites(el);
   assert.equal((el.innerHTML.match(/sf-btn--primary/g) || []).length, 1, 'une seule action principale par écran');
   assert.match(el.innerHTML, /T3 Test[^]*?sf-pill sf-pill--test">Test</, 'le groupe d\'un bien de test est marqué « Test »');
-  assert.match(el.innerHTML, /sff-kpi__l">Comptes rendus<\/span>\s*<span class="sff-kpi__v">4</,
+  assert.match(el.innerHTML, /sff-kpi__l">Comptes rendus(?:<span class="sf-lex sf-aide">(?:(?!sff-kpi__v).)*)?<\/span><span class="sff-kpi__v">4</s,
     'Le compteur de la page compte le compte rendu d\'un bien de test.');
   assert.ok(!/accent-g|linear-gradient/.test(el.innerHTML), 'le bandeau vert plein est revenu : un seul vert lumineux, réservé aux valeurs positives');
   assert.ok(el.innerHTML.indexOf('Sans bien rattaché') > el.innerHTML.indexOf('T3 Test'), 'les comptes rendus sans bien viennent en dernier');
 
   dbEnregistreur(ctx, () => ({ data: [] }));
   await ctx.renderVisites(el);
-  for (const piece of ['sff-empty__ic', 'sff-empty__t', 'sff-empty__x', 'sf-btn']) {
+  for (const piece of ['sff-empty__ic', 'sff-empty__t', 'sf-btn']) {
     assert.ok(el.innerHTML.includes(piece), `état vide incomplet : ${piece} manque (icône, titre, explication, action)`);
   }
+  // L'explication de l'état vide est rangée derrière le « ? » de son titre (v=100).
+  assert.match(el.innerHTML, /class="sff-empty__t">[^<]+<span class="sf-lex sf-aide">.*?role="tooltip" hidden>[^<]{20,}/s,
+    'état vide incomplet : son explication manque, ou n\'est plus derrière le « ? » du titre');
 });
 
 test('la fiche du bien et la liste montrent la même ligne de compte rendu', () => {
