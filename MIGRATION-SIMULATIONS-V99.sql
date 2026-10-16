@@ -3,8 +3,14 @@
 -- Le simulateur de crédit : l'assurance emprunteur, la simulation retenue
 -- d'un bien, et votre taux de crédit.
 --
--- STATUT : NON JOUÉ. À jouer par Thomas dans l'éditeur SQL de Supabase,
--- guidé pas à pas ; vérifié ensuite en lecture de notre côté.
+-- STATUT : JOUÉ LE 16/10/2026 par Thomas dans l'éditeur SQL de Supabase
+-- (« Success. No rows returned »). Vérifié en lecture le jour même : les trois
+-- colonnes (assurance_mensuelle numeric nullable, retenue boolean not null
+-- default false, taux_credit numeric nullable), les deux contraintes, l'index
+-- unique partiel, RLS active sur les deux tables avec leurs 8 règles ; données
+-- inchangées (2 simulations, aucune retenue ; 1 ligne de préférences, sans taux).
+-- Ce fichier reprend exactement le bloc joué ; les commentaires de colonnes,
+-- facultatifs, n'en faisaient pas partie (voir en fin de fichier).
 -- ═══════════════════════════════════════════════════════════════════════════
 --
 -- POURQUOI. Depuis la v=99 :
@@ -62,11 +68,12 @@ end $$;
 create unique index if not exists simulations_credit_une_retenue_par_bien
   on public.simulations_credit (bien_id) where retenue;
 
-comment on column public.simulations_credit.assurance_mensuelle is
-  'Assurance emprunteur, en euros par mois (v=99). NULL : non renseignée.';
-comment on column public.simulations_credit.retenue is
-  'Simulation retenue pour financer son bien (v=99) : une seule par bien.';
-comment on column public.user_preferences.taux_credit is
-  'Taux de crédit personnel, en % (v=99). NULL : le taux moyen officiel est proposé.';
-
 notify pgrst, 'reload schema';
+
+-- ── Facultatif, NON JOUÉ : la documentation des colonnes en base ────────────
+-- comment on column public.simulations_credit.assurance_mensuelle is
+--   'Assurance emprunteur, en euros par mois (v=99). NULL : non renseignée.';
+-- comment on column public.simulations_credit.retenue is
+--   'Simulation retenue pour financer son bien (v=99) : une seule par bien.';
+-- comment on column public.user_preferences.taux_credit is
+--   'Taux de crédit personnel, en % (v=99). NULL : le taux moyen officiel est proposé.';
