@@ -4,8 +4,21 @@
 -- validée, ou un compte bloqué, n'a plus accès à rien — en base, pas
 -- seulement à l'écran.
 --
--- STATUT : NON JOUÉ. À jouer par Thomas dans l'éditeur SQL de Supabase,
--- puis à vérifier en lecture.
+-- STATUT : JOUÉ le 17/10/2026 par Thomas dans l'éditeur SQL de Supabase
+-- (« Success. No rows returned »), dans la forme ci-dessous. Vérifié le jour
+-- même : 17 règles `compte_actif` (16 tables + storage.objects), toutes
+-- RESTRICTIVE, pour `authenticated`, FOR ALL, USING et WITH CHECK =
+-- (select sf_compte_actif()) ; fonction en SECURITY INVOKER, STABLE,
+-- search_path vide ; advisor de sécurité sans alerte nouvelle. Éprouvé dans
+-- une transaction ANNULÉE (vérifié après coup) avec le compte administrateur :
+--   actif    → 7 biens, 28 loyers, 2 locataires, 3 comptes rendus,
+--              2 simulations, 1 SCI, 24 fichiers ; écriture : passe la règle ;
+--   pending  → 0 partout, son profil reste lisible (1) ; écriture refusée 42501 ;
+--   disabled → idem ;
+--   actif de nouveau → tout revient.
+-- ⚠️ Une fonction SECURITY DEFINER contourne ces règles par construction :
+-- les préférences (`get_my_preferences`, `update_my_preferences`,
+-- `update_my_appearance`) sont tenues par GARDE-PROFILS-BORNES.sql (étape 3).
 -- ═══════════════════════════════════════════════════════════════════════════
 --
 -- POURQUOI. L'inscription libre reste ouverte (arbitrage du 17/10). Jusqu'ici,

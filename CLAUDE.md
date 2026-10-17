@@ -210,7 +210,8 @@
 - **Inscription libre** (arbitrage du 17/10, v=102) : elle reste ouverte.
   Donc : aucun message ne dit si une adresse a déjà un compte ; un compte non
   validé ou bloqué n'accède à AUCUNE donnée, en base (`sf_compte_actif()`,
-  règle restrictive `compte_actif`, `GARDE-COMPTES-ACTIFS.sql`) et aux
+  règle restrictive `compte_actif` sur 16 tables et le stockage,
+  `GARDE-COMPTES-ACTIFS.sql`, jouée et éprouvée le 17/10) et aux
   fonctions serveur (`compteActif`) ; l'administrateur voit le nombre de
   comptes en attente sur l'icône « Utilisateurs » (`sfMajAttente`) et peut
   Valider / Refuser (en attente), Bloquer (actif), Réactiver / Supprimer
@@ -314,6 +315,11 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
   après un blocage ou une révocation de session (documentation Supabase) : seul
   un contrôle du statut à CHAQUE requête coupe l'accès sur-le-champ —
   `sf_compte_actif()` en base, `compteActif()` dans les fonctions serveur.
+- **Une fonction SECURITY DEFINER contourne TOUTES les règles RLS**, y compris
+  `compte_actif` : elle s'exécute avec les droits de son propriétaire. Les
+  `*_my_*` des préférences sont tenues par un DÉCLENCHEUR
+  (`trg_preferences_compte_actif`, étape 3), qui s'applique quel que soit le
+  chemin. Toute nouvelle fonction SECURITY DEFINER qui écrit : la même question.
 - **La CSP liste chaque service appelé** (`connect-src`) : un nouveau `fetch`
   vers un nouvel hôte casse EN SILENCE tant qu'il n'y est pas ajouté (garde
   `dependances.test.js`, qui relit les hôtes des `fetch` d'app.js).
