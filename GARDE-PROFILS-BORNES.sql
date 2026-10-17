@@ -5,11 +5,18 @@
 -- (2) Un compte non actif n'écrit plus ses préférences, même par les trois
 --     fonctions SECURITY DEFINER qui contournent la règle `compte_actif`.
 --
--- STATUT : NON JOUÉ. Étape 3, à jouer par Thomas APRÈS GARDE-COMPTES-ACTIFS.sql
--- (jouée et vérifiée le 17/10), puis à vérifier en lecture. La partie (2) a
--- été éprouvée AVANT d'être proposée, dans une transaction annulée (rien n'est
--- resté en base, vérifié après coup) : préférences inchangées pour un compte
--- « pending » ou « disabled », écrites pour un compte actif.
+-- STATUT : JOUÉ le 17/10/2026 par Thomas dans l'éditeur SQL de Supabase
+-- (« Success. No rows returned »), dans la forme ci-dessous — étape 3, après
+-- GARDE-COMPTES-ACTIFS.sql. Le bloc avait été éprouvé AVANT d'être proposé,
+-- dans une transaction annulée. Vérifié après coup : deux déclencheurs actifs,
+-- BEFORE INSERT OR UPDATE, FOR EACH ROW ; fonctions en SECURITY INVOKER,
+-- search_path vide ; données inchangées (2 profils, textes de 6 caractères au
+-- plus) ; advisor de sécurité sans alerte nouvelle. Éprouvé sur les VRAIS
+-- déclencheurs dans une transaction ANNULÉE (aucune trace, vérifié) :
+--   bornes → prénom 500 → 80, téléphone 100 → 30 (session) ; prénom et nom
+--            300 → 80 (update_my_profile) ; notes 5 000 → 2 000 (sans session) ;
+--   préférences → inchangées pour « pending » et « disabled », écrites pour
+--            un compte actif (témoin).
 -- ═══════════════════════════════════════════════════════════════════════════
 --
 -- (1) POURQUOI. Une inscription libre peut passer par l'API au lieu de

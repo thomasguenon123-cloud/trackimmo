@@ -318,8 +318,8 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 - **Une fonction SECURITY DEFINER contourne TOUTES les règles RLS**, y compris
   `compte_actif` : elle s'exécute avec les droits de son propriétaire. Les
   `*_my_*` des préférences sont tenues par un DÉCLENCHEUR
-  (`trg_preferences_compte_actif`, étape 3), qui s'applique quel que soit le
-  chemin. Toute nouvelle fonction SECURITY DEFINER qui écrit : la même question.
+  (`trg_preferences_compte_actif`, `GARDE-PROFILS-BORNES.sql`, joué et éprouvé
+  le 17/10), qui s'applique quel que soit le chemin. Toute nouvelle fonction SECURITY DEFINER qui écrit : la même question.
 - **La CSP liste chaque service appelé** (`connect-src`) : un nouveau `fetch`
   vers un nouvel hôte casse EN SILENCE tant qu'il n'y est pas ajouté (garde
   `dependances.test.js`, qui relit les hôtes des `fetch` d'app.js).
