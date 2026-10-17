@@ -283,3 +283,22 @@ test('« Pour démarrer » : sur téléphone, le texte reste à côté de sa pas
   assert.ok(texte && /flex\s*:\s*1 1 calc\(100% - 26px/.test(texte.corps),
     'Le texte d\'une étape n\'a pas de base de flex : il passe sous la pastille, le bouton reste en retrait.');
 });
+
+/* v=102 — UN TITRE SEUL SE CENTRE SUR SA PASTILLE. Depuis que l'explication
+   passe derrière le « ? » (v=100), les étapes de « Pour démarrer » et les
+   points de « À traiter » n'ont souvent plus qu'une ligne : alignées en haut,
+   elles restaient 4 et 8 px au-dessus du centre de leur numéro ou de leur
+   icône (capture de Thomas du 17/10). Mesuré au banc sur 56 écrans × 2
+   largeurs : ces deux composants seulement. */
+test('les lignes à pastille de l’accueil centrent leur titre', () => {
+  const regle = sel => {
+    const m = CSS['components.css'].match(new RegExp('(^|\\})\\s*' + sel.replace('.', '\\.') + '\\{([^}]*)\\}', 'm'));
+    assert.ok(m, `témoin : la règle ${sel} existe`);
+    return m[2];
+  };
+  for (const sel of ['.acc-pas', '.sf-alert']) {
+    const r = regle(sel);
+    assert.match(r, /display:\s*flex/, `témoin : ${sel} est bien une ligne flex`);
+    assert.match(r, /align-items:\s*center/, `${sel} : un titre seul doit se centrer sur sa pastille`);
+  }
+});

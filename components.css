@@ -306,8 +306,13 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
    c'est un probleme, et porte l'action qui le resout. Un point d'attention
    sans action est une inquietude sans issue : on ne l'affiche pas.          */
 
+/* v=102 : centré, plus aligné en haut. L'alignement en haut allait avec un
+   titre suivi d'une ligne d'explication ; depuis que l'explication passe
+   derrière le « ? » (v=100), un titre seul restait collé au haut de son
+   icône, 8 px au-dessus de son centre. Centré, il tombe juste sur une ligne
+   comme sur deux (titre + chiffre). */
 .sf-alert{
-  display:flex; align-items:flex-start; gap:var(--sf-space-5);
+  display:flex; align-items:center; gap:var(--sf-space-5);
   padding:var(--sf-space-5) var(--sf-space-6);
   border-bottom:var(--sf-border-width) solid var(--sf-border);
   transition:background-color var(--sf-dur) var(--sf-ease);
@@ -582,6 +587,19 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
    usages statiques. Les deux doivent rendre la meme chose. */
 .sf-topnav__act--active,
 .sf-topnav__act.active{ background:var(--sf-brand-wash-2); color:var(--sf-brand-vivid); }
+
+/* v=102 : le nombre de comptes en attente de validation, sur l'icône
+   « Utilisateurs ». Un chiffre, pas une simple pastille : la couleur ne porte
+   jamais seule ; le libellé du bouton le dit aussi aux lecteurs d'écran. */
+#nav-admin-users{ position:relative; }
+.sf-topnav__n{
+  position:absolute; top:2px; right:2px; min-width:18px; height:18px; padding:0 5px;
+  border-radius:var(--sf-radius-full); display:grid; place-items:center;
+  background:var(--sf-alert); color:var(--sf-bg);
+  font-family:var(--sf-font-display); font-size:11px; font-weight:var(--sf-weight-bold);
+  font-variant-numeric:tabular-nums; line-height:1; pointer-events:none;
+}
+.sf-topnav__n[hidden]{ display:none; }
 
 /* Avatar : les initiales en repli tant qu'aucune photo n'est chargee. */
 .sf-topnav__avatar{
@@ -862,8 +880,10 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
    sans bail, pas de loyer à pointer — et non un simple décompte.
    Il réutilise la carte et les jetons des points d'attention : c'est le même
    véhicule, montré à un moment où il n'y a encore rien à signaler. */
+/* v=102 : centré, pour la même raison que `.sf-alert` — le titre seul était
+   4 px au-dessus du centre de sa pastille numérotée. */
 .acc-pas{
-  display:flex; align-items:flex-start; gap:var(--sf-space-5);
+  display:flex; align-items:center; gap:var(--sf-space-5);
   padding:var(--sf-space-6) var(--sf-space-7);
   border-top:var(--sf-border-width) solid var(--sf-border);
 }
@@ -1033,6 +1053,10 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
    pas par la garde statique — qui vérifie désormais la spécificité. */
 .modal-overlay.sf-confirm{ z-index:var(--sf-z-confirm); }
 .modal-overlay.sf-confirm .modal{ max-width:480px; }
+/* v=102 : la saisie de contrôle d'un acte irréversible (sfConfirmer saisie). */
+.modal-overlay.sf-confirm .sf-confirm__lab{ display:block; margin:var(--sf-space-5) 0 var(--sf-space-2);
+  font-size:var(--sf-font-caption); font-weight:var(--sf-weight-semibold); color:var(--sf-text-2); overflow-wrap:anywhere; }
+.modal-overlay.sf-confirm .sf-confirm__saisie{ width:100%; }
 
 /* ── Bulle au toucher — le `title` rendu lisible sur un écran tactile (v=93) ─
    Posée par sfBulleMontrer, au-dessus de tout, y compris de la confirmation :

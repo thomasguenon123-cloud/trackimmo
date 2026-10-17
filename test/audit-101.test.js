@@ -52,7 +52,11 @@ function dbEnregistreur(ctx, repondre = () => []) {
     } });
     return q;
   };
-  db.storage = { from: (bucket) => ({ remove: async (chemins) => { journal.push({ stockage: bucket, chemins }); return { error: null }; } }) };
+  db.storage = { from: (bucket) => ({
+    remove: async (chemins) => { journal.push({ stockage: bucket, chemins }); return { error: null }; },
+    // v=102 : le dossier de la SCI contient aussi un fichier sans ligne (déposé deux fois).
+    list: async (dossier) => ({ data: [{ id: 'f1', name: 'orphelin.pdf' }, { id: null, name: 'sous-dossier' }], error: null }),
+  }) };
   return journal;
 }
 const op = (appel, nom) => appel.ops.find(o => o[0] === nom);
@@ -132,7 +136,8 @@ test('la purge des données d\'administration de test ne vise que ce que le gén
   const iFichiers = journal.findIndex(j => j.stockage === 'sci-documents');
   const iSuppr = journal.indexOf(supprSci);
   assert.ok(iFichiers > iSuppr, 'les fichiers partent après la ligne de la SCI');
-  assert.deepEqual(Array.from(journal[iFichiers].chemins), ['u1/s-test/statuts.pdf']);
+  assert.deepEqual(Array.from(journal[iFichiers].chemins), ['u1/s-test/statuts.pdf', 'u1/s-test/orphelin.pdf'],
+    'le document ET le fichier sans ligne de son dossier');
 });
 
 test('supprimer une SCI efface aussi ses PDF du stockage, après sa ligne', async () => {
@@ -152,7 +157,8 @@ test('supprimer une SCI efface aussi ses PDF du stockage, après sa ligne', asyn
   const iFichiers = journal.findIndex(j => j.stockage === 'sci-documents');
   assert.ok(iSuppr >= 0, 'témoin : la SCI est supprimée');
   assert.ok(iFichiers > iSuppr, 'ses fichiers partent, après elle');
-  assert.deepEqual(Array.from(journal[iFichiers].chemins), ['u1/s1/kbis.pdf']);
+  assert.deepEqual(Array.from(journal[iFichiers].chemins), ['u1/s1/kbis.pdf', 'u1/s1/orphelin.pdf'],
+    'v=102 : tout le dossier de la SCI, pas seulement ses documents enregistrés');
 });
 
 test('une suppression refusée par la base ne s\'annonce pas réussie', async () => {
@@ -181,8 +187,9 @@ test('une suppression refusée par la base ne s\'annonce pas réussie', async ()
 // ─── Dépendances ───────────────────────────────────────────────────────────
 
 test('supabase-js est épinglé à une version exacte', () => {
-  const m = INDEX.match(/<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js@([^"/]+)/);
-  assert.ok(m, 'témoin : le script de supabase-js est chargé');
+  // v=102 : hébergé dans vendor/, la version est dans le nom du dossier.
+  const m = INDEX.match(/<script src="vendor\/supabase-js-([^"/]+)\/supabase\.js"/);
+  assert.ok(m, 'témoin : le script de supabase-js est chargé depuis vendor/');
   assert.match(m[1], /^\d+\.\d+\.\d+$/, `version flottante « ${m[1]} » : une sortie de la veille part en production sans test`);
 });
 

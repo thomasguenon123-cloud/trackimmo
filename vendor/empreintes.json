@@ -1,0 +1,15 @@
+{
+ "vendor/chart.js-4.4.0/chart.umd.js": "sha384-FcQlsUOd0TJjROrBxhJdUhXTUgNJQxTMcxZe6nHbaEfFL1zjQ+bq/uRoBQxb0KMo",
+ "vendor/html2canvas-1.4.1/html2canvas.min.js": "sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H",
+ "vendor/jspdf-2.5.1/jspdf.umd.min.js": "sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk",
+ "vendor/montserrat-5.0.19/montserrat-latin-300-normal.woff2": "sha384-yJbBqyQhhFGsWHbALNQ8RH5WvjUSXEubA8NWuIjii50Oyhhnq25Tw0m4aL3h51DK",
+ "vendor/montserrat-5.0.19/montserrat-latin-500-italic.woff2": "sha384-lIILJXurIheMLK9CkNzx9/VpZE1ltHLDEFyoVuFr843VklIXVkV55wwtDdU7Y/gi",
+ "vendor/montserrat-5.0.19/montserrat-latin-500-normal.woff2": "sha384-X3G0JV6MMLp5JPL+lfDMduAeYt6yIw5abTzi5xgL2kbTMTcfKKcpfS0E1GlBuFuy",
+ "vendor/montserrat-5.0.19/montserrat-latin-600-normal.woff2": "sha384-hb8izXehVT4tezM355sCVNbjlDdZKOFSvd/lsgV/B9lZIbpFAKB7OahlAx19zAzp",
+ "vendor/montserrat-5.0.19/montserrat-latin-800-normal.woff2": "sha384-3ZokoRGvnhQp/n3ly88LS6+l0diUjKA+WN5gmAKaiHsTHG9N0ip6fyD7NAPvdmZk",
+ "vendor/montserrat-5.0.19/montserrat.css": "sha384-K67lRBYmsUgXmU8uqA0pyt5HMyZig4nN8gbr/Nl7B4GCmRmO4Lf07pvxZd/PORnh",
+ "vendor/pdf-lib-1.17.1/pdf-lib.min.js": "sha384-weMABwrltA6jWR8DDe9Jp5blk+tZQh7ugpCsF3JwSA53WZM9/14PjS5LAJNHNjAI",
+ "vendor/pdfjs-3.11.174/pdf.min.js": "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e",
+ "vendor/pdfjs-3.11.174/pdf.worker.min.js": "sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2",
+ "vendor/supabase-js-2.117.3/supabase.js": "sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R"
+}

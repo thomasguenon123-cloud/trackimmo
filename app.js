@@ -168,14 +168,28 @@ function checkPwdStrength() {
 }
 
 // ── Erreurs Supabase → messages humains ──
+/* v=102 — 12 caractères au moins pour tout mot de passe CHOISI (inscription,
+   invitation, réinitialisation). Sans second facteur, un mot de passe est la
+   seule barrière : la norme américaine NIST SP 800-63B-4 (2025) en demande 15
+   dans ce cas, 8 seulement avec un second facteur ; l'OWASP recommande d'aller
+   au-delà de 8. 12 est le pas retenu, avec la vérification contre les mots de
+   passe fuités. Les comptes existants ne sont pas bloqués : la règle porte sur
+   le choix, la connexion ne la relit pas. Le même seuil se règle dans
+   Supabase (Authentication › Providers › Email). */
+const SF_MDP_MIN = 12;
+
 function authErrorToFr(error) {
   const msg = (error?.message||'').toLowerCase();
   if(msg.includes('invalid login') || msg.includes('invalid credentials') || msg.includes('invalid email or password'))
     return 'Email ou mot de passe incorrect. Vérifiez vos identifiants.';
   if(msg.includes('email not confirmed'))
     return 'Email non confirmé. Vérifiez votre boîte mail.';
+  /* v=102 : aucun message ne dit si une adresse a un compte (OWASP, « account
+     enumeration ») — l'inscription libre permettrait sinon de tester une liste
+     d'adresses. Même réponse qu'une inscription réussie, même réponse pour un
+     mot de passe oublié. */
   if(msg.includes('user already registered') || msg.includes('already been registered'))
-    return 'Un compte existe déjà avec cet email. Connectez-vous.';
+    return 'Si cette adresse peut être utilisée, un e-mail de confirmation vient de lui être envoyé. Vous avez déjà un compte ? Connectez-vous, ou utilisez « Mot de passe oublié ».';
   /* ⚠️ TOUTE ERREUR DE MOT DE PASSE SE LISAIT « au moins 8 caractères »,
      même quand Supabase refusait pour une autre raison. Un mot de passe de 12
      caractères refusé faute de chiffre aurait reçu un message faux — c'est ce
@@ -197,7 +211,7 @@ function authErrorToFr(error) {
   if(msg.includes('network') || msg.includes('fetch'))
     return 'Problème de connexion. Vérifiez votre accès internet.';
   if(msg.includes('user not found') || msg.includes('no user found'))
-    return 'Aucun compte trouvé avec cet email.';
+    return 'Si un compte existe pour cette adresse, un e-mail vient de lui être envoyé.';
   // Le texte brut du serveur part dans `showAuthAlert`, qui écrit du HTML.
   return esc(error?.message || 'Une erreur est survenue. Réessayez.');
 }
@@ -389,7 +403,7 @@ async function doSignup() {
   const pwd2 = document.getElementById('signup-pwd2').value;
   clearAuthAlert();
   if(!email || !/\S+@\S+\.\S+/.test(email)) { showAuthAlert('Email invalide.'); return; }
-  if(pwd.length < 8) { showAuthAlert('Le mot de passe doit faire au moins 8 caractères.'); return; }
+  if(pwd.length < SF_MDP_MIN) { showAuthAlert(`Le mot de passe doit faire au moins ${SF_MDP_MIN} caractères.`); return; }
   if(pwd !== pwd2) { showAuthAlert('Les mots de passe ne correspondent pas.'); return; }
 
   setBtnLoading('btn-signup','btn-signup-label',true,'');
@@ -466,7 +480,7 @@ async function doSetNewPwd() {
   const pwd = document.getElementById('newpwd').value;
   const pwd2 = document.getElementById('newpwd2').value;
   clearAuthAlert();
-  if(pwd.length < 8) { showAuthAlert('Le mot de passe doit faire au moins 8 caractères.'); return; }
+  if(pwd.length < SF_MDP_MIN) { showAuthAlert(`Le mot de passe doit faire au moins ${SF_MDP_MIN} caractères.`); return; }
   if(pwd !== pwd2) { showAuthAlert('Les mots de passe ne correspondent pas.'); return; }
 
   setBtnLoading('btn-newpwd','btn-newpwd-label',true,'');
@@ -928,13 +942,16 @@ let sciOui = false;
 let currentProfile = null;
 // Préférences métier (chargées depuis la DB, valeurs par défaut en fallback)
 let userPrefs = { notaire_pct: 7.0, duree_credit_ans: 20, assurance_mois: 33, seuil_rentabilite: 5.0 };
-const ADMIN_EMAIL = 'thomasguenon123@gmail.com';
-
 /* QUI EST ADMINISTRATEUR — une seule lecture, là où il y en avait cinq,
    recopiées à l'identique. Côté client ce n'est qu'un confort d'affichage :
-   la vraie barrière est en base (RLS, et le rôle porté par le jeton). */
+   la vraie barrière est en base (RLS, et le rôle porté par le jeton).
+   ⚠️ v=102 : plus aucune adresse e-mail ici. Le repli comparait l'adresse du
+   compte à celle du propriétaire, écrite en clair dans ce fichier — servi à
+   TOUT visiteur du site, connecté ou non, et publié dans le dépôt. Le rôle
+   admin est porté par le jeton (app_metadata), que l'utilisateur ne peut pas
+   modifier : c'est la même source que les règles de la base. */
 function sfEstAdmin() {
-  return currentProfile?.role === 'admin' || currentUser?.email === ADMIN_EMAIL;
+  return currentProfile?.role === 'admin' || currentUser?.app_metadata?.role === 'admin';
 }
 
 /* LE NOM DE L'UTILISATEUR — une lecture, aux clés que la base rend vraiment.
@@ -1002,6 +1019,7 @@ function sfRefreshTopnav() {
   const sep = document.getElementById('sf-sep-admin');
   if(btnUsers) btnUsers.style.display = isAdmin ? '' : 'none';
   if(sep) sep.style.display = isAdmin ? '' : 'none';
+  sfMajAttente();
   // Tant que les biens de test sont comptés, le bandeau le dit : un chiffre
   // gonflé de données factices ne doit jamais passer pour un vrai.
   const rappel = document.getElementById('sf-tests-inclus');
@@ -1020,6 +1038,31 @@ function sfRefreshTopnav() {
   // Le panneau des reglages depend du role : il se reconstruit ici, apres que
   // le profil est connu, et jamais avant.
   sfBuildParamsMenu();
+}
+
+/* v=102 — LES COMPTES EN ATTENTE SE VOIENT. L'inscription libre reste
+   ouverte (arbitrage du 17/10) : une inscription attend une validation, et
+   sans signal l'administrateur ne la découvrait qu'en ouvrant la page des
+   utilisateurs. Le nombre s'affiche sur l'icône du bandeau. Lecture réservée
+   à l'administrateur par la base (policy de profiles) ; un compteur muet ne
+   bloque rien. */
+async function sfMajAttente() {
+  const btn = document.getElementById('nav-admin-users');
+  const pastille = document.getElementById('sf-attente-n');
+  if (!btn || !pastille) return;
+  let n = 0;
+  if (sfEstAdmin()) {
+    try {
+      const { count, error } = await db.from('profiles')
+        .select('id', { count: 'exact', head: true }).eq('status', 'pending');
+      if (!error && typeof count === 'number') n = count;
+    } catch (e) { /* compteur indisponible : rien ne s'affiche */ }
+  }
+  pastille.hidden = !n;
+  pastille.textContent = n > 99 ? '99+' : String(n);
+  btn.setAttribute('aria-label', n
+    ? `Utilisateurs : ${n} compte${n > 1 ? 's' : ''} en attente de validation`
+    : 'Utilisateurs, comptes et invitations');
 }
 
 // Raccourci vers la section Compte des Parametres. renderParametres lit le
@@ -1065,6 +1108,14 @@ function sfBuildParamsMenu() {
 // ───────────────────────────────────────────────────────
 let adminUsersFilter = 'all'; // 'all' | 'active' | 'pending' | 'disabled'
 
+/* v=102 — Le bouton de suppression définitive d'un compte. Jamais sur un
+   administrateur ni sur soi (la fonction serveur le refuse aussi). */
+function btnSupprimer(u, libelle) {
+  return '<button class="admin-action-btn is-delete admin-delete-btn" data-id="'+esc(u.id)+'" data-email="'+esc(u.email)+'"'
+    + ' aria-label="'+esc(libelle)+' : supprimer définitivement ce compte" title="Supprimer définitivement"><span class="ic">'
+    + sfAccIcon("poubelle",14)+'</span> '+esc(libelle)+'</button>';
+}
+
 // Génère les lignes du tableau utilisateurs
 function buildUserRowsHtml(users, myEmail) {
   if(!users || !users.length) {
@@ -1076,7 +1127,7 @@ function buildUserRowsHtml(users, myEmail) {
     var statusCls = u.status === 'active' ? 'active' : u.status === 'pending' ? 'pending' : 'disabled';
     var statusLabel = u.status === 'active' ? sfAccIcon("ok",13)+' Actif'
       : u.status === 'pending' ? sfAccIcon("horloge",13)+' En attente'
-      : sfAccIcon("interdit",13)+' Archivé';
+      : sfAccIcon("interdit",13)+' Bloqué';
     var meBadge = isMe ? '<span style="font-size:9px;background:var(--accent);color:white;padding:1px 6px;border-radius:4px;font-weight:700;margin-left:6px">MOI</span>' : '';
     var roleLabel = u.role === 'admin' ? sfAccIcon("couronne",13)+' Admin' : sfAccIcon("user",13)+' Utilisateur';
     var roleCls = u.role === 'admin' ? 'role-badge admin' : 'role-badge user';
@@ -1096,13 +1147,16 @@ function buildUserRowsHtml(users, myEmail) {
          (3) n'envoyait aucun e-mail (generateLink fabrique un lien sans
          l'expédier). Valider est le seul geste utile ici. */
       actions.push('<button class="admin-action-btn is-validate admin-validate-btn" data-id="'+esc(u.id)+'" data-email="'+esc(u.email)+'" aria-label="Valider l\'accès" title="Activer le compte"><span class="ic">'+sfAccIcon("check",14)+'</span> Valider</button>');
+      // v=102 : une inscription suspecte se refuse — c'est une suppression définitive.
+      if(u.role !== 'admin') actions.push(btnSupprimer(u, 'Refuser'));
     } else if(u.status === 'active') {
-      // Actif : envoyer reset password OU archiver
+      // Actif : envoyer reset password OU bloquer
       actions.push('<button class="admin-action-btn is-reset admin-resetpwd-btn" data-email="'+esc(u.email)+'" aria-label="Envoyer un email de réinitialisation de mot de passe" title="Envoyer un email de réinitialisation"><span class="ic">'+sfAccIcon("cle",14)+'</span> Reset</button>');
-      actions.push('<button class="admin-action-btn is-disable admin-disable-btn" data-id="'+u.id+'" aria-label="Archiver l\'utilisateur" title="Archiver"><span class="ic">'+sfAccIcon("interdit",14)+'</span> Archiver</button>');
+      actions.push('<button class="admin-action-btn is-disable admin-disable-btn" data-id="'+esc(u.id)+'" aria-label="Bloquer l\'accès de ce compte" title="Bloquer"><span class="ic">'+sfAccIcon("interdit",14)+'</span> Bloquer</button>');
     } else if(u.status === 'disabled') {
-      // Archivé : réactiver
-      actions.push('<button class="admin-action-btn is-enable admin-enable-btn" data-id="'+u.id+'" aria-label="Réactiver le compte" title="Réactiver le compte"><span class="ic">'+sfAccIcon("ok",14)+'</span> Réactiver</button>');
+      // Bloqué : réactiver, ou supprimer pour de bon
+      actions.push('<button class="admin-action-btn is-enable admin-enable-btn" data-id="'+esc(u.id)+'" aria-label="Réactiver le compte" title="Réactiver le compte"><span class="ic">'+sfAccIcon("ok",14)+'</span> Réactiver</button>');
+      if(u.role !== 'admin') actions.push(btnSupprimer(u, 'Supprimer'));
     }
     var actionHtml = '<div class="admin-actions-cell">' + actions.join('') + '</div>';
 
@@ -1124,6 +1178,8 @@ document.addEventListener('click', function(e) {
   var enBtn       = e.target.closest('.admin-enable-btn');
   var validateBtn = e.target.closest('.admin-validate-btn');
   var resetBtn    = e.target.closest('.admin-resetpwd-btn');
+  var delBtn      = e.target.closest('.admin-delete-btn');
+  if(delBtn) adminDeleteUser(delBtn.dataset.id, delBtn.dataset.email);
   if(disBtn) adminDisableUser(disBtn.dataset.id);
   if(enBtn) adminEnableUser(enBtn.dataset.id);
   if(validateBtn) adminValidateUser(validateBtn.dataset.id, validateBtn.dataset.email);
@@ -1146,6 +1202,7 @@ async function renderAdmin(el) {
     const { data, error } = await db.from('profiles').select('*').order('created_at', { ascending: true });
     if(error) throw error;
     users = data || [];
+    sfMajAttente();   // une validation ou une suppression change le compte du bandeau
   } catch(e) {
     el.innerHTML = `<div class="empty-state"><h3>Erreur de chargement</h3><p>${esc(e.message)}</p><p style="font-size:11px;color:var(--c-muted);margin-top:8px">Reconnectez-vous pour rafraîchir votre session.</p></div>`;
     return;
@@ -1194,7 +1251,7 @@ async function renderAdmin(el) {
         </div>
         <div class="form-group">
           <label class="form-label">Adresse email <span style="color:var(--sf-loss)">*</span></label>
-          <input class="form-input" id="invite-email" type="email" placeholder="marie.dupont@gmail.com" autocomplete="off">
+          <input class="form-input" id="invite-email" type="email" placeholder="marie.dupont@exemple.fr" autocomplete="off">
         </div>
         <div class="form-group">
           <label class="form-label">Rôle</label>
@@ -1230,7 +1287,7 @@ async function renderAdmin(el) {
             ${sfAccIcon('horloge',13)} En attente <span class="count">${pending}</span>
           </button>
           <button class="mf-filter-pill ${adminUsersFilter==='disabled'?'active':''}" onclick="setAdminUsersFilter('disabled')">
-            ${sfAccIcon('interdit',13)} Archivés <span class="count">${disabled}</span>
+            ${sfAccIcon('interdit',13)} Bloqués <span class="count">${disabled}</span>
           </button>
         </div>
       </div>
@@ -1345,14 +1402,54 @@ async function adminValidateUser(profileId, email) {
 
 // ── Désactiver un user ──
 async function adminDisableUser(profileId) {
-  if(!(await sfConfirmer({ titre: "Archiver l'utilisateur", question: 'Archiver cet utilisateur ?',
-    detail: 'Il ne pourra plus se connecter. Son compte reste réactivable depuis cette liste.',
-    ok: 'Archiver', danger: true }))) return;
+  if(!(await sfConfirmer({ titre: "Bloquer l'accès", question: "Bloquer l'accès de ce compte ?",
+    detail: 'Il ne peut plus se connecter, et une session déjà ouverte perd l\u2019accès à ses données. '
+          + 'Ses données sont conservées : le compte reste réactivable, ou supprimable définitivement, depuis cette liste.',
+    ok: 'Bloquer', danger: true }))) return;
   try {
     const { error } = await db.rpc('admin_disable_user', { p_profile_id: profileId });
     if(error) throw error;
-    showNotif('Utilisateur archivé');
+    showNotif('Compte bloqué');
     renderAdmin(document.getElementById('content'));
+  } catch(e) {
+    showNotif('Erreur : ' + e.message, true);
+  }
+}
+
+/* v=102 — SUPPRIMER UN COMPTE, POUR DE BON. Par la fonction serveur
+   `admin-delete-user` (le site n'a pas, et ne doit pas avoir, le droit de
+   supprimer un compte d'authentification) : elle vérifie que l'appelant est
+   administrateur, refuse un administrateur ou soi-même, efface les fichiers
+   du compte dans le stockage, puis le compte — ses biens, loyers, locataires
+   et documents partent avec lui, en cascade. Saisie de contrôle : l'adresse
+   du compte, vérifiée aussi par le serveur. */
+async function adminDeleteUser(profileId, email) {
+  if(!profileId || !email) return;
+  const ok = await sfConfirmer({
+    titre: 'Supprimer le compte définitivement',
+    question: `Supprimer définitivement le compte ${email} ?`,
+    detail: 'Son accès, ses biens, loyers, locataires, comptes rendus, documents et photos sont effacés. '
+          + 'Cette action est <strong>irréversible</strong>.',
+    ok: 'Supprimer définitivement', danger: true,
+    saisie: { attendu: email, libelle: `Pour confirmer, saisissez l'adresse ${email}` } });
+  if(!ok) return;
+  try {
+    const { data, error } = await db.functions.invoke('admin-delete-user', {
+      body: { profileId, confirmation: email }
+    });
+    if(error) {
+      let msg = error.message || 'Erreur inconnue';
+      try {
+        const ctx = error.context || {};
+        const corps = typeof ctx.json === 'function' ? await ctx.json() : (ctx.body && typeof ctx.body === 'string' ? JSON.parse(ctx.body) : ctx.body);
+        if(corps?.error) msg = corps.error;
+      } catch {}
+      throw new Error(msg);
+    }
+    if(data?.error) throw new Error(data.error);
+    showNotif('Compte supprimé définitivement');
+    renderAdmin(document.getElementById('content'));
+    sfMajAttente();
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
   }
@@ -5960,8 +6057,13 @@ function bdEtapesGestion(b) {
    ⚠️ `question` est ÉCHAPPÉE (elle porte souvent un titre de bien saisi par
    l'utilisateur). `detail` ne l'est PAS : elle accepte du balisage pour mettre
    en avant un nom de section — à l'appelant d'échapper ce qu'il y interpole. */
+/* `saisie` (v=102) : pour un acte IRRÉVERSIBLE, une saisie de contrôle —
+   { attendu, libelle }. Le bouton reste fermé tant que le texte tapé n'est
+   pas `attendu` (casse et espaces ignorés). C'est la pratique des services
+   qui suppriment pour de bon (GitHub, Supabase) : un clic réflexe ne suffit
+   pas, il faut avoir lu ce qu'on supprime. */
 function sfConfirmer({ titre, question, detail, ok = 'Confirmer',
-                       annuler = 'Annuler', danger = false }) {
+                       annuler = 'Annuler', danger = false, saisie = null }) {
   return new Promise(resolve => {
     // Une seule question à la fois : une précédente encore ouverte est refusée.
     document.getElementById('sf-confirm')?.__refuser?.();
@@ -5981,6 +6083,8 @@ function sfConfirmer({ titre, question, detail, ok = 'Confirmer',
             <div>
               <p class="bd-acq__qt">${esc(question)}</p>
               ${detail ? `<p class="bd-acq__qx">${detail}</p>` : ''}
+              ${saisie ? `<label class="sf-confirm__lab" for="sf-conf-saisie">${esc(saisie.libelle || 'Saisissez pour confirmer')}</label>
+              <input class="sf-input sf-confirm__saisie" id="sf-conf-saisie" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">` : ''}
             </div>
           </div>
           <div class="bd-step-pied">
@@ -6009,13 +6113,22 @@ function sfConfirmer({ titre, question, detail, ok = 'Confirmer',
     };
     o.__refuser = () => repondre(false);
     o.addEventListener('click', e => { if(e.target === o) repondre(false); });
-    o.querySelector('[data-rep="oui"]').onclick = () => repondre(true);
+    const btnOui = o.querySelector('[data-rep="oui"]');
+    const champ = o.querySelector('#sf-conf-saisie');
+    const norme = t => String(t || '').trim().toLowerCase();
+    const saisieOk = () => !saisie || norme(champ?.value) === norme(saisie.attendu);
+    if (saisie) {
+      btnOui.disabled = true;
+      champ.addEventListener('input', () => { btnOui.disabled = !saisieOk(); });
+    }
+    btnOui.onclick = () => { if (saisieOk()) repondre(true); };
     o.querySelector('[data-rep="non"]').onclick = () => repondre(false);
     document.addEventListener('keydown', surTouche, true);
     document.body.appendChild(o);
     /* Le focus va au bouton SÛR quand l'acte est destructeur : une touche
-       Entrée réflexe ne doit pas supprimer. Sinon, à l'action proposée. */
-    o.querySelector(danger ? '[data-rep="non"]' : '[data-rep="oui"]').focus();
+       Entrée réflexe ne doit pas supprimer. Sinon, à l'action proposée.
+       Avec une saisie de contrôle, au champ à remplir. */
+    (champ || o.querySelector(danger ? '[data-rep="non"]' : '[data-rep="oui"]')).focus();
   });
 }
 
@@ -6652,13 +6765,15 @@ function bkdocEnsureLibs(){
       if(!document.getElementById('bkdoc-font')){
         const l = document.createElement('link');
         l.id = 'bkdoc-font'; l.rel = 'stylesheet';
-        l.href = 'https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,500;0,600;0,800;1,500&display=swap';
+        // v=102 : hébergée ici, plus chez Google Fonts (adresse IP des visiteurs).
+        l.href = 'vendor/montserrat-5.0.19/montserrat.css';
         document.head.appendChild(l);
       }
       const jobs = [];
-      if(!window.html2canvas) jobs.push(bkdocLoadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'));
-      if(!(window.jspdf && window.jspdf.jsPDF)) jobs.push(bkdocLoadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'));
-      if(!window.PDFLib) jobs.push(bkdocLoadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js'));
+      // v=102 : hébergées ici (vendor/), mêmes versions exactes qu'avant chez cdnjs.
+      if(!window.html2canvas) jobs.push(bkdocLoadScript('vendor/html2canvas-1.4.1/html2canvas.min.js'));
+      if(!(window.jspdf && window.jspdf.jsPDF)) jobs.push(bkdocLoadScript('vendor/jspdf-2.5.1/jspdf.umd.min.js'));
+      if(!window.PDFLib) jobs.push(bkdocLoadScript('vendor/pdf-lib-1.17.1/pdf-lib.min.js'));
       await Promise.all(jobs);
     })();
     bkdocLibsPromise.catch(() => { bkdocLibsPromise = null; }); // permet un retry si échec réseau
@@ -16550,7 +16665,7 @@ async function extractPDF(evt) {
   const dit = html => { if (etat) etat.innerHTML = html; };
   dit('Lecture de l’offre…');
   try {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs-3.11.174/pdf.worker.min.js';
     /* v=101 : pdf.js 3.11 compile certaines polices en code exécutable
        (CVE-2024-4367) : un PDF piégé exécutait du script sur la plateforme.
        `isEvalSupported: false` coupe ce chemin ; on ne lit ici que le texte. */
@@ -17081,7 +17196,18 @@ async function sciFichiers(sciIds) {
   const { data, error } = await db.from('sci_documents')
     .select('pdf_path').in('sci_id', ids).eq('user_id', currentUser.id);
   if (error) throw error;
-  return (data || []).map(d => d.pdf_path).filter(Boolean);
+  const chemins = new Set((data || []).map(d => d.pdf_path).filter(Boolean));
+  /* v=102 : ET TOUT LE DOSSIER DE LA SCI. Un document déposé deux fois, ou
+     remplacé, n'a plus de ligne mais reste rangé sous `uid/<id de la SCI>/` :
+     c'est le cas du fichier « orphelin » de l'audit du 16/10, dans le dossier
+     de la SCI de test. Le dossier lui appartient, il part avec elle. */
+  for (const id of ids) {
+    const dossier = `${currentUser.id}/${id}`;
+    const { data: liste, error: eListe } = await db.storage.from('sci-documents').list(dossier, { limit: 1000 });
+    if (eListe) throw eListe;
+    for (const f of liste || []) if (f && f.id) chemins.add(`${dossier}/${f.name}`);
+  }
+  return [...chemins];
 }
 
 /* Une écriture Supabase ne LÈVE pas : elle rend { error }. Un Promise.all de

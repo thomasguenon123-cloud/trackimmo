@@ -4,7 +4,7 @@
 //
 // Sécurité :
 //  1. Vérifie que l'appelant est authentifié (JWT)
-//  2. Vérifie que l'appelant a le rôle admin (en DB ou par email superadmin)
+//  2. Vérifie que l'appelant a le rôle admin (en base ou dans son jeton)
 //  3. Utilise service_role uniquement côté serveur, jamais exposé au client
 //
 // Param entrée : { email, firstName, lastName, role: 'admin'|'user', notes? }
@@ -26,7 +26,6 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const SUPERADMIN_EMAIL = 'thomasguenon123@gmail.com'
 const REDIRECT_URL = 'https://thomasguenon123-cloud.github.io/trackimmo/'
 
 Deno.serve(async (req: Request) => {
@@ -54,9 +53,10 @@ Deno.serve(async (req: Request) => {
       .select('role')
       .eq('user_id', caller.id)
       .single()
+    // v=102 : plus de repli par adresse e-mail (elle était écrite ici en clair,
+    // dans un dépôt public). Le rôle admin est porté par le jeton et la base.
     const isAdmin = callerProfile?.role === 'admin'
       || caller.app_metadata?.role === 'admin'
-      || caller.email === SUPERADMIN_EMAIL
     if (!isAdmin) throw new Error('Accès refusé : rôle admin requis')
 
     // 3. Validation des paramètres
@@ -82,6 +82,14 @@ Deno.serve(async (req: Request) => {
 
     if (existingUser) {
       // Cas 1 : l'utilisateur existe déjà → renvoyer un mail de récupération
+      // v=102 : sauf s'il est BLOQUÉ. L'invitation repassait son profil en
+      // « active » alors que son compte restait banni : un état incohérent, et
+      // un déblocage qui ne disait pas son nom. On réactive d'abord, en clair.
+      const { data: profilExistant } = await supabaseAdmin.from('profiles')
+        .select('status').eq('user_id', existingUser.id).maybeSingle()
+      if (profilExistant?.status === 'disabled') {
+        throw new Error('Ce compte est bloqué : réactivez-le dans la liste avant de lui renvoyer un accès.')
+      }
       alreadyRegistered = true
       userId = existingUser.id
       // ⚠️ v=101 (audit du 16/10/2026) : generateLink() FABRIQUE le lien sans

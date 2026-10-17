@@ -12,6 +12,7 @@
 // Chaque partie est verifiee (bornes, periodes) et FACULTATIVE : une serie
 // muette n'empeche pas les autres. Le tout est garde en memoire quelques
 // heures : les series sont mensuelles, le taux BCE change quelques fois par an.
+// v=102 : reservee aux comptes actifs (compteActif), comme news-proxy.
 // @ts-nocheck
 
 const corsHeaders = {
@@ -147,9 +148,35 @@ function reponse(corps, statut = 200, extra = {}) {
   });
 }
 
+
+// v=102 : réservé aux comptes ACTIFS. verify_jwt prouve seulement que
+// l'appelant est connecté — une inscription pas encore validée, ou un compte
+// bloqué dont le jeton court encore (jusqu'à une heure), l'est aussi. Le
+// statut se lit en base à chaque appel. La signature du jeton est déjà
+// vérifiée par la passerelle (verify_jwt) : on n'en lit que l'identifiant.
+async function compteActif(req) {
+  const jeton = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+  const url = Deno.env.get('SUPABASE_URL'), cle = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!jeton || !url || !cle) return false;
+  try {
+    const charge = jeton.split('.')[1] || '';
+    const sub = JSON.parse(atob(charge.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(charge.length / 4) * 4, '=')))?.sub;
+    if (!/^[0-9a-f-]{36}$/i.test(String(sub || ''))) return false;
+    const r = await fetch(`${url}/rest/v1/profiles?select=status&user_id=eq.${sub}`, {
+      headers: { apikey: cle, Authorization: `Bearer ${cle}` },
+    });
+    if (!r.ok) return false;
+    const lignes = await r.json();
+    return Array.isArray(lignes) && lignes.length === 1 && lignes[0]?.status === 'active';
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'GET' && req.method !== 'POST') return reponse({ error: 'Methode non autorisee' }, 405);
+  if (!(await compteActif(req))) return reponse({ error: 'Compte non actif' }, 403);
 
   if (cache && Date.now() - cache.a < DUREE_CACHE_MS) {
     return reponse({ ...cache.donnees, cache: true }, 200, { 'Cache-Control': 'private, max-age=21600' });

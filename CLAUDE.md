@@ -15,11 +15,21 @@
   (et le `REDIRECT_URL` du lien d'invitation). À faire d'un seul tenant, plus tard.
 - **Production** : https://thomasguenon123-cloud.github.io/trackimmo/
 - **Front 100 % statique**, sans build, déployé tel quel sur GitHub Pages.
-  `app.js` est un script unique (~15 000 lignes) ; CSS en couches :
+  `app.js` est un script unique (~17 500 lignes) ; CSS en couches :
   `tokens.css` → `components.css` → `styles.css` → `financier.css` → `tactile.css`.
+- **Bibliothèques hébergées dans `vendor/`** depuis la v=102 (supabase-js,
+  Chart.js, pdf.js et son travailleur, html2canvas, jsPDF, pdf-lib, police
+  Montserrat), versions exactes prises sur npm, licences jointes, empreintes
+  dans `vendor/empreintes.json` et dans les `integrity` d'`index.html`.
+  **Aucun CDN, aucune police Google.** Une politique de sécurité (CSP, balise
+  meta d'`index.html`) refuse tout script venu d'ailleurs et liste les seuls
+  services appelés. Monter de version : `npm pack`, remplacer le fichier, ses
+  deux empreintes, passer au banc (garde `dependances.test.js`).
 - **Supabase** (projet `immo-pipeline`, eu-west-1) : Postgres + RLS sur toutes
   les tables, Storage, Auth (mot de passe + Google restreint aux comptes
-  connus), Edge Functions (`admin-invite-user`, `news-proxy`, `taux-credit`).
+  connus), Edge Functions (`admin-invite-user`, `admin-delete-user`,
+  `news-proxy`, `taux-credit`) — sources dans `supabase/functions/`, seule
+  source de vérité, testées hors ligne par `test/fonctions-serveur.mjs`.
 - Le premier testeur extérieur est sur **iPad** : pas de survol, `title=`
   invisible, glisser-déposer au doigt.
 
@@ -181,13 +191,38 @@
 - **Confirmation** : `sfConfirmer({...})`, jamais `confirm()` natif (garde
   `impasses.test.js`). Elle a sa propre fenêtre, au-dessus de tout
   (`--sf-z-confirm`). ⚠️ son `question` est échappé, son `detail` ne l'est PAS.
-  Sur un acte destructeur (`danger: true`), le focus va à « Annuler ».
+  Sur un acte destructeur (`danger: true`), le focus va à « Annuler ». Un acte
+  IRRÉVERSIBLE ajoute `saisie: { attendu, libelle }` : le bouton reste fermé
+  tant que le texte attendu n'est pas tapé (v=102).
+- **Ligne à pastille** (numéro ou icône + titre, `.acc-pas`, `.sf-alert`) :
+  centrée (`align-items: center`). Depuis que l'explication passe derrière le
+  « ? », un titre est souvent seul : aligné en haut, il restait 4 à 8 px
+  au-dessus du centre de sa pastille (capture du 17/10). Mesuré sur 56 écrans
+  par la sonde d'alignement du banc ; garde `mise-en-page.test.js`.
 - **Écran tactile** : un `title` ne s'affiche jamais au doigt. Toucher un
   élément NON interactif titré l'affiche dans une bulle (`sfBulleCible`) ; une
   information indispensable doit rester visible, pas seulement titrée.
 - **Mots de passe** : vérifiés contre Have I Been Pwned (5 caractères de
   l'empreinte, jamais le mot de passe) ; un service muet ne bloque personne.
-  Les erreurs disent la vraie raison du refus (`authErrorToFr`).
+  Les erreurs disent la vraie raison du refus d'un MOT DE PASSE
+  (`authErrorToFr`). **12 caractères au moins** pour tout mot de passe choisi
+  (`SF_MDP_MIN`, v=102 ; NIST SP 800-63B-4 en demande 15 sans second facteur).
+- **Inscription libre** (arbitrage du 17/10, v=102) : elle reste ouverte.
+  Donc : aucun message ne dit si une adresse a déjà un compte ; un compte non
+  validé ou bloqué n'accède à AUCUNE donnée, en base (`sf_compte_actif()`,
+  règle restrictive `compte_actif`, `GARDE-COMPTES-ACTIFS.sql`) et aux
+  fonctions serveur (`compteActif`) ; l'administrateur voit le nombre de
+  comptes en attente sur l'icône « Utilisateurs » (`sfMajAttente`) et peut
+  Valider / Refuser (en attente), Bloquer (actif), Réactiver / Supprimer
+  (bloqué). Supprimer = fonction `admin-delete-user` : saisie de contrôle de
+  l'adresse (`sfConfirmer({ saisie })`), jamais un administrateur ni soi-même,
+  compte bloqué → fichiers effacés → compte supprimé (cascade). Garde :
+  `comptes.test.js`, `fonctions-serveur.test.js`.
+- **L'adresse personnelle du propriétaire n'est JAMAIS publique** (consigne du
+  17/10) : ni dans le code, ni dans le dépôt, ni dans ce qu'un utilisateur
+  reçoit. Le rôle admin se lit dans le profil ou le jeton (`app_metadata`),
+  jamais par une adresse. Les exemples s'écrivent en `@exemple.fr`. Garde :
+  `vie-privee.test.js` (aucune adresse d'un fournisseur personnel dans le dépôt).
 - **Pas d'entrée « Bientôt »** : une section non construite n'est pas affichée
   (`sfParamPropose`) ; elle réapparaît quand son statut passe à `'ready'`.
 - **Ne jamais recopier une énumération en dur** : tout passe par `TI_BIENS`
@@ -230,9 +265,14 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 | Un chiffre clé des pages à la charte (libellé, « ? », valeur, sous-ligne) | `sfKpi()` |
 | Tendance d'une série de taux · série venue du réseau · « août 2026 » | `sfTendance()` · `sfSerieValide()` · `sfMoisLong()` |
 | Lire une table qui grandit (loyers, charges) au-delà de 1 000 lignes | `sfLireTout()` — ordre total, l'id départage |
-| Fichiers d'une SCI à effacer avec elle (chemins lus AVANT, effacés APRÈS la ligne) | `sciFichiers()` |
+| Fichiers d'une SCI à effacer avec elle (ses documents ET tout son dossier `uid/<sci>/` ; lus AVANT, effacés APRÈS la ligne) | `sciFichiers()` |
 | Erreur d'un lot d'écritures Supabase (qui ne lèvent pas) | `sfPremiereErreur()` |
 | Ce que le générateur de données d'administration de test écrit, et la seule chose que sa purge reconnaît | `SF_TEST_ADMIN` |
+| Un compte est-il actif ? (base · fonctions serveur) | `sf_compte_actif()` · `compteActif(req)` |
+| Nombre de comptes en attente sur l'icône du bandeau | `sfMajAttente()` |
+| Bouton de suppression définitive d'un compte | `btnSupprimer()` → `adminDeleteUser()` → fonction `admin-delete-user` |
+| Longueur minimale d'un mot de passe choisi | `SF_MDP_MIN` |
+| Bibliothèques et leurs empreintes | `vendor/` · `vendor/empreintes.json` |
 
 ## Pièges connus — chacun a coûté au moins une fois
 
@@ -270,6 +310,17 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
   registre `TI_BIENS`. Lancer, sur une copie d'app.js :
   `/opt/node-tools/node_modules/.bin/eslint` avec `no-undef` et les globales
   du navigateur (méthode dans le rapport d'audit du 16/10).
+- **Un jeton de connexion reste valable jusqu'à son expiration** (1 h), même
+  après un blocage ou une révocation de session (documentation Supabase) : seul
+  un contrôle du statut à CHAQUE requête coupe l'accès sur-le-champ —
+  `sf_compte_actif()` en base, `compteActif()` dans les fonctions serveur.
+- **La CSP liste chaque service appelé** (`connect-src`) : un nouveau `fetch`
+  vers un nouvel hôte casse EN SILENCE tant qu'il n'y est pas ajouté (garde
+  `dependances.test.js`, qui relit les hôtes des `fetch` d'app.js).
+- **Le banc substitue un faux Supabase** : son serveur retire les `integrity`
+  d'`index.html`, sinon le navigateur refuse — à juste titre — le fichier
+  substitué. Le démarrage avec les VRAIS fichiers se vérifie à part
+  (`sbjs-essai.js` du 17/10 : empreintes acceptées, un octet modifié refusé).
 - **Un écran qu'aucun test ne REND casse en silence** (v=100) : deux
   ReferenceError — « Mes biens » et la lecture d'une simulation — n'ont été
   vues qu'au banc, aucun test ne rendant ces écrans. Une garde d'écran appelle
@@ -390,7 +441,8 @@ garder le canari qui vérifie que le masquage n'efface pas de code.
 - Au dépôt : `CARTOGRAPHIE-AVANT-TEST.md` (état détaillé avant ouverture au
   testeur), `AVANT-INVITATION.md`, `REVUE-2026-08-13.md` (dont les trois
   options sur le découpage d'`app.js`), `AUDIT-2026-08-0{3,5}.md`, et les
-  `MIGRATION-*.sql` (chacun dit s'il a été joué). `BRIEF-REPRISE.md` est
+  `MIGRATION-*.sql` et `GARDE-*.sql` (chacun dit s'il a été joué). L'audit
+  complet du 16/10/2026 est publié en artefact (lien dans le backlog). `BRIEF-REPRISE.md` est
   **périmé** (v=61) : historique seulement.
 
 ### Décisions encore ouvertes, à poser à Thomas plutôt qu'à trancher
@@ -402,7 +454,10 @@ garder le canari qui vérifie que le masquage n'efface pas de code.
   de drapeau en base : elles restent visibles dans Administration.
 - Vocabulaire Cerfa : `CERFA_MAPPING` suit la 2044 (personne physique), alors
   qu'une SCI à l'IR dépose une 2072 — à voir avec un comptable.
-- L'inscription libre reste-t-elle ouverte (avec `GARDE-PROFILS.sql`), ou
-  passe-t-on à l'invitation seule ? (audit du 16/10/2026)
-- Empreintes SRI sur les scripts de CDN : elles supposent que Thomas recharge
-  la page juste après le déploiement (une empreinte fausse = page blanche).
+- Réécrire l'historique git pour en effacer l'adresse personnelle (force-push
+  sur `main`, irréversible) et/ou passer le dépôt en privé (GitHub Pro pour
+  garder Pages) — à décider par Thomas, guidé.
+- CAPTCHA Cloudflare Turnstile sur inscription, connexion et mot de passe
+  oublié : il faut d'abord le compte Cloudflare de Thomas (clé de site).
+- Second facteur (TOTP) pour le compte administrateur — le compte qui peut
+  tout ; à construire.

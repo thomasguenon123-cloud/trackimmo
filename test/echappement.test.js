@@ -179,6 +179,8 @@ const TOLERES = new Map([
    'rendu par bdAcqRender via textContent, pas innerHTML : le texte reste du texte.'],
   ["photo${bdPhotos.length>1?'s':''} — ${b?.titre || 'Bien'}",
    'affecté à detail-titre.textContent à la ligne précédente : pas de HTML.'],
+  ['chemins.add(`${dossier}/${f.name}`)',
+   'v=102 : chemin d\'un fichier dans le stockage (sciFichiers), passé à remove() — jamais affiché.'],
 ]);
 
 test('aucun champ de texte libre n\'est interpolé nu dans du HTML', () => {

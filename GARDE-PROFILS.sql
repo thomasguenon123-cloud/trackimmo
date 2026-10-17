@@ -3,8 +3,14 @@
 -- Un utilisateur ne peut plus changer lui-même son statut, son rôle, son
 -- e-mail ou les notes de l'administrateur sur son profil.
 --
--- STATUT : NON JOUÉ. À jouer par Thomas dans l'éditeur SQL de Supabase,
--- puis à vérifier en lecture.
+-- STATUT : JOUÉ le 17/10/2026 par Thomas dans l'éditeur SQL de Supabase
+-- (« Success. No rows returned »), dans la forme ci-dessous. Vérifié le jour
+-- même : déclencheur actif (BEFORE UPDATE), fonction en SECURITY INVOKER avec
+-- search_path vide, 2 profils actifs inchangés. Éprouvé dans des transactions
+-- ANNULÉES (rien d'enregistré, vérifié après coup) : passer son statut à
+-- « pending » sans rôle admin dans le jeton → refusé (42501) ; changer prénom
+-- et téléphone sans rôle admin → accepté ; changer les notes avec le rôle
+-- admin → accepté ; sans jeton (serveur Auth, service_role) → accepté.
 -- ═══════════════════════════════════════════════════════════════════════════
 --
 -- POURQUOI. Une inscription libre crée un profil « pending » : l'écran

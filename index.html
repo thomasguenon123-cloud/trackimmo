@@ -23,9 +23,9 @@
      l'icône Apple l'ajout à l'écran d'accueil sur iPhone. Les trois portent
      `?v=` comme le reste : une favicon est mise en cache très agressivement,
      et sans la version le changement peut rester invisible des semaines. -->
-<link rel="icon" type="image/svg+xml" href="favicon.svg?v=101">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=101">
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=101">
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=102">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=102">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=102">
 <meta name="theme-color" content="#0A100C" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#F5F8F6" media="(prefers-color-scheme: light)">
 <!-- ⚠️ Le chargement de Google Fonts a été retiré le 13/08/2026 : « Inter » n'est
@@ -35,32 +35,37 @@
      auto-hébergées dans /fonts depuis la phase 1, via 4 @font-face de
      tokens.css. Ce <link> ne servait donc qu'à télécharger une police inutilisée
      — et à transmettre l'adresse IP de chaque visiteur à un tiers. -->
-<!-- v=101 : supabase-js est épinglé. « @2 » servait la dernière version sortie,
-     sans test : le 15/10/2026, la production a pris une version publiée la
-     veille, dans la page même où vit la session. 2.117.3 est celle que la
-     production a servie du 07 au 15/10, sous laquelle les v=98 à v=100 ont été
-     éprouvées. Monter de version = un geste délibéré, testé au banc. -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- v=102 : les bibliothèques sont HÉBERGÉES ICI (dossier vendor/), plus chez
+     jsDelivr ni cdnjs. Versions exactes, prises sur npm, licences jointes.
+     Trois raisons : (1) aucun serveur tiers ne peut changer le code exécuté
+     dans la page où vit la session ; (2) aucun tiers ne reçoit l'adresse IP
+     de chaque visiteur ; (3) la politique de sécurité ci-dessous peut alors
+     refuser TOUT script venu d'ailleurs. L'empreinte `integrity` est vérifiée
+     par le navigateur ; un test (vie-privee.test.js) vérifie qu'elle
+     correspond au fichier — monter de version = remplacer le fichier, son
+     empreinte et vendor/empreintes.json, puis passer au banc. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://dizkljqobgiywxsbsdkd.supabase.co wss://dizkljqobgiywxsbsdkd.supabase.co https://geo.api.gouv.fr https://api.insee.fr https://data.ademe.fr https://api.pwnedpasswords.com; worker-src 'self' blob:; frame-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<script src="vendor/supabase-js-2.117.3/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R"></script>
+<script src="vendor/chart.js-4.4.0/chart.umd.js" integrity="sha384-FcQlsUOd0TJjROrBxhJdUhXTUgNJQxTMcxZe6nHbaEfFL1zjQ+bq/uRoBQxb0KMo"></script>
+<script src="vendor/pdfjs-3.11.174/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e"></script>
 <!-- ?v= : cache-busting — incrémenter à chaque déploiement modifiant CSS/JS.
      Depuis le 05/09/2026, les trois icônes le portent aussi : 8 références en tout. -->
 <!-- Socle de jetons Stonefolio (phase 2). Ne declare que des variables : aucun
      effet visuel tant qu'aucun composant ne les consomme. Charge AVANT
      styles.css pour que la migration puisse s'appuyer dessus. -->
-<link rel="stylesheet" href="tokens.css?v=101">
-<link rel="stylesheet" href="components.css?v=101">
-<link rel="stylesheet" href="styles.css?v=101">
+<link rel="stylesheet" href="tokens.css?v=102">
+<link rel="stylesheet" href="components.css?v=102">
+<link rel="stylesheet" href="styles.css?v=102">
 <!-- Suivi financier : chargé APRÈS styles.css, c'est ce qui permet aux deux
      surcharges de géométrie (`.sff-line` à 2 colonnes au lieu de 5) de gagner
      dans le seul périmètre `.mf-page`, sans toucher à la fiche bien. -->
-<link rel="stylesheet" href="financier.css?v=101">
+<link rel="stylesheet" href="financier.css?v=102">
 <!-- Tactile : chargée EN DERNIER, et c'est ce qui la fait fonctionner. Elle ne
      contient que des surcharges sous requête média (`any-pointer: coarse`) qui
      doivent gagner contre les quatre feuilles précédentes ; à spécificité égale,
      c'est l'ordre de chargement qui tranche. Aucun effet sur un poste sans
      pointeur tactile. -->
-<link rel="stylesheet" href="tactile.css?v=101">
+<link rel="stylesheet" href="tactile.css?v=102">
 </head>
 <body>
 
@@ -192,6 +197,7 @@
         <circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c0-3.4 2.9-5.2 6.5-5.2s6.5 1.8 6.5 5.2"/>
         <path d="M16.5 5.2a3.4 3.4 0 0 1 0 6.6M18 14.4c2.2.5 3.5 2 3.5 4.3"/>
       </svg>
+      <span class="sf-topnav__n" id="sf-attente-n" aria-hidden="true" hidden></span>
     </button>
 
     <span class="sf-topnav__sep" id="sf-sep-admin" style="display:none" aria-hidden="true"></span>
@@ -240,7 +246,7 @@
 
 <div class="notif" id="notif"></div>
 
-<script src="app.js?v=101"></script>
+<script src="app.js?v=102"></script>
 
 <!-- LIGHTBOX -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
@@ -325,7 +331,7 @@
         </div>
         <div class="auth-field">
           <label>Mot de passe</label>
-          <input type="password" id="signup-pwd" placeholder="Min. 8 caractères" autocomplete="new-password"
+          <input type="password" id="signup-pwd" placeholder="12 caractères au moins" autocomplete="new-password"
             oninput="checkPwdStrength()">
           <div class="pwd-strength" id="pwd-bars">
             <div class="pwd-bar" id="bar1"></div>
@@ -367,7 +373,7 @@
         <div class="auth-recovery-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10.5" width="16" height="10" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg> Lien de récupération détecté — définissez votre nouveau mot de passe</div>
         <div class="auth-field">
           <label>Nouveau mot de passe</label>
-          <input type="password" id="newpwd" placeholder="Min. 8 caractères">
+          <input type="password" id="newpwd" placeholder="12 caractères au moins">
         </div>
         <div class="auth-field">
           <label>Confirmer le nouveau mot de passe</label>

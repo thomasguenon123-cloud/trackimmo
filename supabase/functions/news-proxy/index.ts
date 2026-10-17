@@ -14,6 +14,31 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+
+// v=102 : réservé aux comptes ACTIFS. verify_jwt prouve seulement que
+// l'appelant est connecté — une inscription pas encore validée, ou un compte
+// bloqué dont le jeton court encore (jusqu'à une heure), l'est aussi. Le
+// statut se lit en base à chaque appel. La signature du jeton est déjà
+// vérifiée par la passerelle (verify_jwt) : on n'en lit que l'identifiant.
+async function compteActif(req) {
+  const jeton = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+  const url = Deno.env.get('SUPABASE_URL'), cle = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!jeton || !url || !cle) return false;
+  try {
+    const charge = jeton.split('.')[1] || '';
+    const sub = JSON.parse(atob(charge.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(charge.length / 4) * 4, '=')))?.sub;
+    if (!/^[0-9a-f-]{36}$/i.test(String(sub || ''))) return false;
+    const r = await fetch(`${url}/rest/v1/profiles?select=status&user_id=eq.${sub}`, {
+      headers: { apikey: cle, Authorization: `Bearer ${cle}` },
+    });
+    if (!r.ok) return false;
+    const lignes = await r.json();
+    return Array.isArray(lignes) && lignes.length === 1 && lignes[0]?.status === 'active';
+  } catch {
+    return false;
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -22,6 +47,14 @@ serve(async (req) => {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Le quota NewsAPI (100 requêtes par jour) ne se partage qu'entre comptes validés.
+  if (!(await compteActif(req))) {
+    return new Response(JSON.stringify({ error: 'Compte non actif' }), {
+      status: 403,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

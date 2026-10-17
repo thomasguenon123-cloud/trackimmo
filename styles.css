@@ -1696,6 +1696,9 @@ html, body{ overflow-x:clip; }
 
 .admin-action-btn.is-disable{background:rgba(220,38,38,0.06);color:var(--sf-loss);border-color:rgba(220,38,38,0.18);}
 .admin-action-btn.is-disable:hover{background:rgba(220,38,38,0.13);border-color:rgba(220,38,38,0.4);}
+/* v=102 : la suppression définitive se distingue du blocage par la forme (bordure pleine), pas seulement par la teinte. */
+.admin-action-btn.is-delete{background:transparent;color:var(--sf-loss);border:1px solid var(--sf-loss);}
+.admin-action-btn.is-delete:hover{background:var(--sf-loss-wash);}
 
 .admin-action-btn.is-enable{background:rgba(22,163,74,0.08);color:var(--sf-gain);border-color:rgba(22,163,74,0.2);}
 .admin-action-btn.is-enable:hover{background:rgba(22,163,74,0.15);border-color:rgba(22,163,74,0.4);}
