@@ -185,11 +185,42 @@
   taux moyen officiel (fonction `taux-credit` : BCE, série Banque de France,
   mention en italique `.sf-source`), sinon celui de la dernière simulation,
   sinon rien. Le formulaire d'un bien PROPOSE une mensualité estimée
-  (« Utiliser cette estimation »), il ne la pose jamais seul. L'offre PDF se lit
-  sur l'appareil, par motifs (aucune IA), et ne remplit que les champs vides.
+  (« Utiliser cette estimation »), il ne la pose jamais seul. Le PDF de la
+  banque : voir « Import du PDF de la banque » (v=105).
   Tant que les colonnes de la v=99 n'existent pas (`sfsColonnesDispo`), ni
   assurance, ni « Retenir », ni taux personnel, et rien n'est envoyé pour eux.
   Garde : `simulateur.test.js`.
+- **Import du PDF de la banque** (v=105, demande du 18/10 : « ces données sont
+  sensibles… protégées et sécurisées avec une attention toute particulière »).
+  Deux portes partout où l'on crée une simulation (page, état vide, fiche) :
+  « Importer un PDF de la banque » (principal) et « Saisir une simulation »
+  (`sfsBoutonsCreer`). L'import ouvre une fenêtre (`sfsImporter`) : déposer
+  sur ordinateur, choisir dans Fichiers au doigt (iPhone, iPad), un PDF lâché
+  n'importe où sur la fenêtre est lu. Le PDF est lu SUR L'APPAREIL, par motifs
+  (aucune IA) : lignes reconstruites d'après la position des mots
+  (`sfPdfLignes`), tableau des prêts puis libellés (`sfsLireOffre`) — jamais un
+  TAEG pour le taux, ni une durée de validité ou de carence pour la durée ; la
+  mensualité annoncée contrôle le calcul (±2 %). Le formulaire s'ouvre
+  prérempli : un champ vide ou une valeur PROPOSÉE (`data-propose` : taux
+  moyen, durée par défaut, coût du bien, revenus de la dernière simulation) se
+  remplit, une SAISIE se garde et le PDF la propose (« Prendre les valeurs du
+  PDF ») ; une valeur lue dans un premier PDF, pas retouchée, reste une
+  proposition (un second PDF la remplace, nom et notes compris) ; un champ
+  repris se dit « PDF » jusqu'à la première frappe ; un
+  récapitulatif dit repris / non trouvés / gardés / plusieurs prêts / durée
+  arrondie / mensualité discordante ; TAEG, mensualité annoncée et autres prêts
+  vont dans des notes vides. **Sécurité** : signature `%PDF-`, 20 Mo
+  (`SF_PDF_MAX` = limite du stockage), 40 pages, `isEvalSupported: false`,
+  `disableFontFace`, travailleur libéré ; le TEXTE ne sort jamais de
+  `sfsLirePdf` (ni journal — le nom d'une erreur seulement —, ni base, ni
+  réseau : seuls des chiffres) ; rien n'est envoyé avant « Enregistrer », et
+  seulement si « Garder ce PDF dans mon espace privé » (coché par défaut) ;
+  envoi APRÈS la ligne, nom neutre (`SF_PDF_NOM`, jamais le nom du fichier de
+  l'appareil), `cacheControl: '0'`, type imposé ; ouverture par un lien de 60 s
+  sans cache (`TI_STORAGE.lienCourt`), fenêtre sans `opener` ; « Retirer le
+  PDF » sur la lecture ; un PDF ne se duplique pas avec sa simulation. Bucket
+  `simulations-pdf` privé, règle `storage_owns_path` + `compte_actif`, aucune
+  règle administrateur (vérifié en base le 18/10). Garde : `import-pdf.test.js`.
 - **Chiffres clés sur téléphone** (v=99) : deux colonnes sous 560 px
   (`.sff-kpis`, `.sfb-kpis`, `.mfx-kpis`, `.acc-kpis`), le dernier impair sur
   toute la largeur. Garde : `mise-en-page.test.js`.
@@ -374,6 +405,11 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 | Calcul d'un crédit (mensualité assurance comprise, coût, endettement) | `sfSimCalcul()` · depuis une ligne en base : `sfSimDepuisLigne()` · jugement : `sfSimEndettement()` |
 | Taux de crédit proposé | `sfTauxParDefaut()` · taux officiel : `sfTauxReference()` · sa mention : `sfTauxMention()` |
 | Ligne d'une simulation (liste et Plan de financement de la fiche) | `sfsLigneHtml()` · simulation retenue d'un bien : `sfsCreditRetenu()` |
+| Boutons pour créer une simulation (page, état vide, fiche) | `sfsBoutonsCreer(bienId)` |
+| Lire le PDF de la banque (fichier → chiffres) · lignes d'une page · chiffres d'un texte | `sfsLirePdf()` · `sfPdfLignes()` · `sfsLireOffre()` — vérifier un fichier : `sfsVerifierPdf()` |
+| Ce que le PDF change dans la saisie (vide ou proposé : rempli ; saisi : gardé) | `sfsPlanLecture()` · appliqué par `sfsAppliquerLecture()` |
+| Envoyer le PDF gardé · l'ouvrir · le retirer | `sfsEnvoyerPdf()` · `openPdfSim()` · `sfsRetirerPdf()` |
+| Lien d'un document sensible (60 s, sans cache) | `TI_STORAGE.lienCourt()` |
 | Date du jour, date d'un objet `Date` (YYYY-MM-DD, heure locale) | `sfAujourdhuiIso()` · `sfDateIso()` |
 | Une explication derrière un « ? » | `sfAide()` — jamais un `title=`, jamais une ligne grise sous la valeur |
 | Un chiffre clé des pages à la charte (libellé, « ? », valeur, sous-ligne) | `sfKpi()` |
@@ -426,6 +462,19 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
   lignes, pas les fichiers qu'elles désignent (un PDF de SCI orphelin trouvé
   à l'audit du 16/10). Lire les chemins avant, effacer les fichiers après la
   ligne — jamais avant, ou un refus laisse des documents sans fichier.
+  **Exception assumée, le PDF de la banque** (v=105) : supprimer la simulation
+  ou « Retirer le PDF » efface le FICHIER d'abord, et son échec arrête tout. Un
+  document qui porte revenus et adresse, orphelin, ne se voit plus ni ne
+  s'efface ; l'inverse laisse au pire une simulation sans PDF, qu'on supprime
+  de nouveau. `TI_STORAGE.remove()` rend son erreur depuis la v=105 (elle
+  était seulement journalisée : l'échec passait pour un succès).
+- **pdf.js transfère le tampon qu'on lui donne à son travailleur, et le
+  laisse VIDE** : une copie du fichier à envoyer se prend AVANT
+  `getDocument` (`sfsLirePdf`), sinon on enverrait un PDF de zéro octet.
+- **Le texte d'un PDF n'est pas dans l'ordre de lecture** : pdf.js rend ses
+  morceaux dans l'ordre du flux (souvent colonne par colonne). Les coller
+  bout à bout rendait un tableau illisible — c'est pourquoi l'import « ne
+  marchait plus ». Reconstruire les lignes par la position (`sfPdfLignes`).
 - **`auth.admin.generateLink()` n'envoie RIEN** : il fabrique un lien pour qui
   expédie ses propres e-mails. Pour envoyer : `resetPasswordForEmail()`,
   `inviteUserByEmail()` (v=101, l'écran annonçait un mail jamais parti).

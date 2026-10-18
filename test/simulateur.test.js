@@ -130,8 +130,13 @@ test('un seul calcul pour la liste, la lecture, la saisie, la fiche et le dossie
   assert.match(corps('saveSim'), /sfSimCalcul\(/);
   assert.match(corps('renderBienDetail'), /sims\.map\(s => sfsLigneHtml\(s, \{ surFiche: true \}\)\)/,
     'La fiche réécrit sa propre ligne de simulation : les deux affichages divergeront.');
-  assert.match(corps('renderBienDetail'), /openNouvelleSimulation\(\$\{escJs\(b\.id\)\}\)/,
-    '« Simuler ce crédit » ouvre la liste vide au lieu d\'une simulation pré-remplie pour ce bien.');
+  // v=105 : la fiche propose les deux portes de la liste — saisir, importer —, pour CE bien.
+  assert.equal((corps('renderBienDetail').match(/sfsBoutonsCreer\(b\.id\)/g) || []).length, 2,
+    'La fiche réécrit ses propres boutons de création (sous la liste, ou dans l\'état vide) : ils divergeront de ceux de la page.');
+  const portes = app().sfsBoutonsCreer('b-reel');
+  assert.match(portes, /onclick="openNouvelleSimulation\(&quot;b-reel&quot;\)"/,
+    '« Saisir une simulation » ouvre la liste vide au lieu d\'une simulation pré-remplie pour ce bien.');
+  assert.match(portes, /onclick="sfsImporter\(\{ bienId: &quot;b-reel&quot; \}\)"/, 'l\'import depuis la fiche oublie son bien');
 });
 
 // ─── La saisie ─────────────────────────────────────────────────────────────
@@ -304,9 +309,12 @@ test('l\'offre lue en PDF : des montants reconnus, aucune saisie écrasée, aucu
   assert.equal(r.revenus, 3200);
   assert.equal(r.date, '2026-10-02');
   // Un taux d'assurance invalidité (66 %) n'est pas un taux d'intérêt.
-  assert.equal(ctx.sfsLireOffre('taux d\'intérêt garanti invalidité 66,00 %').taux, null);
-  assert.match(corps('extractPDF'), /if \(sfLireNombre\(el\.value\) > 0\) \{ gardes\.push\(lab\); continue; \}/,
-    'L\'offre lue écrase un champ déjà saisi.');
+  assert.equal(ctx.sfsLireOffre('taux d\'intérêt garanti invalidité 66,00 %').taux ?? null, null);
+  // v=105 : une saisie est gardée (le PDF la propose), une valeur proposée par Stonefolio est remplacée.
+  const plan = JSON.parse(JSON.stringify(ctx.sfsPlanLecture(r, {
+    's-montant': { valeur: '150 000', propose: false }, 's-taux': { valeur: '3,32', propose: true }, 's-duree': { valeur: '', propose: false } })));
+  assert.deepEqual(plan.gardes, [{ id: 's-montant', lab: 'montant', valeur: 170000 }], 'L\'offre lue écrase un champ déjà saisi.');
+  assert.deepEqual(plan.remplir, { 's-taux': 3.45, 's-duree': 25 }, 'témoin : le taux proposé et le champ vide sont remplis');
   const masque = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
   assert.doesNotMatch(masque, /Claude extraira/, 'La lecture par motifs s\'annonce comme une IA.');
 });

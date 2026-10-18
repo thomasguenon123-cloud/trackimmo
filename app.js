@@ -105,11 +105,13 @@ const TI_STORAGE = {
     for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
     return new Blob([arr], { type: mime });
   },
-  async upload(bucket, recordId, fileOrBlob, originalName) {
+  // `cacheControl` (v=105) : '0' pour un document sensible — ni le CDN ni le
+  // navigateur n'ont à en garder une copie.
+  async upload(bucket, recordId, fileOrBlob, originalName, { cacheControl = '3600' } = {}) {
     const name = originalName || fileOrBlob.name || 'file';
     const path = this._buildPath(recordId, name);
     const { error } = await db.storage.from(bucket).upload(path, fileOrBlob, {
-      cacheControl: '3600', upsert: false, contentType: fileOrBlob.type || undefined,
+      cacheControl, upsert: false, contentType: fileOrBlob.type || undefined,
     });
     if (error) throw error;
     return { path, name, type: fileOrBlob.type || null, size: fileOrBlob.size || null };
@@ -131,6 +133,15 @@ const TI_STORAGE = {
     }
     this._urlCache[cacheKey] = { url: data.signedUrl, exp: now + this.SIGNED_TTL * 1000 };
     return data.signedUrl;
+  },
+  /* v=105 — UN LIEN COURT, pour un document sensible (le PDF de la banque :
+     revenus, adresse, coordonnées bancaires). Il sert à l'instant, à
+     l'ouverture : 60 secondes suffisent, et il n'est pas gardé en cache — un
+     lien d'une heure resterait valable dans l'historique du navigateur. */
+  async lienCourt(bucket, path, secondes = 60) {
+    if (!path) return null;
+    const { data, error } = await db.storage.from(bucket).createSignedUrl(path, secondes);
+    return !error && data?.signedUrl ? data.signedUrl : null;
   },
   /* v=103 — PLUSIEURS LIENS EN UNE SEULE REQUÊTE. Une galerie demandait ses
      liens un par un, chaque demande attendant la précédente : 13 photos, 13
@@ -165,10 +176,13 @@ const TI_STORAGE = {
   async remove(bucket, paths) {
     const arr = Array.isArray(paths) ? paths : [paths];
     const clean = arr.filter(Boolean);
-    if (!clean.length) return;
+    if (!clean.length) return { error: null };
     const { error } = await db.storage.from(bucket).remove(clean);
     if (error) console.warn(`remove échec [${bucket}]:`, error.message);
     clean.forEach(p => delete this._urlCache[`${bucket}:${p}`]);
+    // v=105 : l'erreur est RENDUE — effacer un document sensible doit pouvoir
+    // dire qu'on n'y est pas arrivé (elle était seulement journalisée).
+    return { error: error || null };
   },
 };
 
@@ -6025,12 +6039,12 @@ async function renderBienDetail(el) {
                 ? `<div class="sff-list">${sims.map(s => sfsLigneHtml(s, { surFiche: true })).join('')}</div>
                    <div class="sff-cta">
                      <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="openDossierModal(${escJs(b.id)})">${sfAccIcon('doc',15)} Générer le dossier banque</button>
-                     <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="openNouvelleSimulation(${escJs(b.id)})">${sfAccIcon('banque',15)} Nouvelle simulation</button>
+                     ${sfsBoutonsCreer(b.id)}
                    </div>`
                 : `<div class="sff-empty">
                      <div class="sff-empty__ic">${sfAccIcon('banque',34)}</div>
                      <div class="sff-empty__t">Aucune simulation de crédit${sfAide(`${mensu ? `La mensualité de ${sfEur(mensu)} renseignée plus haut est une hypothèse. Une` : 'Une'} simulation calcule la mensualité réelle, assurance comprise, à partir du taux et de la durée. Retenue, elle passe sur cette fiche et alimente le dossier remis à la banque.`, `Aucune simulation de crédit`)}</div>
-                     <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="openNouvelleSimulation(${escJs(b.id)})">Simuler ce crédit</button>
+                     <div class="sff-cta sfs-creer">${sfsBoutonsCreer(b.id)}</div>
                    </div>`}
             </div>
           </div>
@@ -7472,7 +7486,8 @@ async function bkdocGenerate(){
     if(sim && sim.pdf_path){
       bkdocProgress('Fusion de la simulation en annexe…');
       try {
-        const url = await TI_STORAGE.signedUrl('simulations-pdf', sim.pdf_path);
+        // v=105 : un lien court, sans cache — c'est le PDF de la banque (revenus, adresse).
+        const url = await TI_STORAGE.lienCourt('simulations-pdf', sim.pdf_path);
         const annexBuf = await (await fetch(url)).arrayBuffer();
         const main = await PDFLib.PDFDocument.load(pdf.output('arraybuffer'));
         const annex = await PDFLib.PDFDocument.load(annexBuf, { ignoreEncryption: true });
@@ -16264,7 +16279,7 @@ function sfsLigneHtml(s, { surFiche = false } = {}) {
     s.retenue && bien ? `<span class="sf-pill sf-pill--brand">${sfAccIcon('check', 11)} ${sfDetenu(bien) ? 'Votre prêt' : 'Retenue'}</span>` : '',
     !surFiche && bien && sfBienDeTest(bien) ? '<span class="sf-pill sf-pill--test">Test</span>' : '',
     endet.etat === 'alerte' ? `<span class="sf-pill sf-pill--alert">${sfAccIcon('alerte', 11)} Endettement ${esc(endet.val)}</span>` : '',
-    (s.pdf_path || s.pdf_data) ? `<span class="sfs-row__doc" title="Offre jointe">${sfAccIcon('trombone', 13)}<span class="sf-sr-only">Offre jointe</span></span>` : '',
+    s.pdf_path ? `<span class="sf-pill sfs-row__doc">${sfAccIcon('trombone', 11)} PDF<span class="sf-sr-only"> de la banque joint</span></span>` : '',
   ].filter(Boolean).join('');
   return `
     <button type="button" class="sff-row sfs-row" onclick="openReadSimulation(${escJs(s.id)})">
@@ -16364,10 +16379,10 @@ async function renderSimulateur(el) {
     <div class="sff-top">
       <div class="sff-titleline">
         <div class="sff-titleline__id">
-          <h1 class="sff-h1">Simulations de crédit${sfAide('Comparez les offres de prêt, et retenez celle qui finance chaque bien.', 'cette page')}</h1>
+          <h1 class="sff-h1">Simulations de crédit${sfAide('Comparez les offres de prêt, et retenez celle qui finance chaque bien. Le PDF d’une banque se lit sur cet appareil et remplit la simulation.', 'cette page')}</h1>
         </div>
-        <div class="sff-acts">
-          <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="openNouvelleSimulation()">${sfAccIcon('plus', 15)} Nouvelle simulation</button>
+        <div class="sff-acts sfs-creer">
+          ${sfsBoutonsCreer()}
         </div>
       </div>
     </div>
@@ -16388,11 +16403,21 @@ async function renderSimulateur(el) {
     <section class="sff-block"><div class="sff-block__b sff-block__b--flush">
       <div class="sff-empty">
         <div class="sff-empty__ic">${sfAccIcon('banque', 34)}</div>
-        <div class="sff-empty__t">Aucune simulation de crédit${sfAide(`Une simulation calcule la mensualité, assurance comprise, le coût du crédit et votre taux d'endettement. Rattachée à un bien et retenue, elle alimente sa fiche et le dossier remis à la banque.`, `Aucune simulation de crédit`)}</div>
-        <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="openNouvelleSimulation()">Simuler un crédit</button>
+        <div class="sff-empty__t">Aucune simulation de crédit${sfAide(`Une simulation calcule la mensualité, assurance comprise, le coût du crédit et votre taux d'endettement. Importez le PDF de votre banque, ou saisissez les chiffres. Rattachée à un bien et retenue, elle alimente sa fiche et le dossier remis à la banque.`, `Aucune simulation de crédit`)}</div>
+        <div class="sff-cta sfs-creer">${sfsBoutonsCreer()}</div>
       </div>
     </div></section>`}
   </div>`;
+}
+
+/* CRÉER UNE SIMULATION (v=105) : deux portes, côte à côte, partout où l'on
+   en crée une — la page Simulations, son état vide, la fiche d'un bien.
+   Importer le PDF de la banque d'abord (le plus rapide quand on l'a reçu),
+   saisir à la main sinon. */
+function sfsBoutonsCreer(bienId = null) {
+  const arg = bienId ? escJs(bienId) : '';
+  return `<button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="openNouvelleSimulation(${arg})">${sfAccIcon('crayon', 15)} Saisir une simulation</button>`
+       + `<button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="sfsImporter(${bienId ? `{ bienId: ${arg} }` : ''})">${sfAccIcon('envoi', 15)} Importer un PDF de la banque</button>`;
 }
 
 // ─── La page d'une simulation : lecture ou saisie ─────────────────────────
@@ -16402,7 +16427,8 @@ let sfsJeton = 0;
 let sfsModifie = false;
 let sfsEnvoi = false;
 let sfsSimulation = null;   // la simulation chargée
-let sfsPdf = null;          // { nom, data } : une offre lue, en attente d'enregistrement
+let sfsPdf = null;          // { fichier, pages, garder } : un PDF lu, en attente d'enregistrement
+let sfsLu = null;           // ce qu'on y a lu : des CHIFFRES, jamais le texte du document
 
 function sfsRetourDepuis(page) {
   if (page === 'bien-detail' && currentBienId) return { page: 'bien-detail', id: currentBienId, back: bienDetailBack };
@@ -16481,8 +16507,14 @@ async function renderSimulation(el) {
     if (jeton !== sfsJeton || currentPage !== 'simulation') return;
   }
   sfsSimulation = s;
-  if (etat.mode === 'lecture') sfsRenderLecture(el, s, dispo);
-  else sfsRenderSaisie(el, s, dispo, taux);
+  if (etat.mode === 'lecture') { sfsRenderLecture(el, s, dispo); return; }
+  sfsRenderSaisie(el, s, dispo, taux);
+  // Arrivée depuis la fenêtre d'import : le PDF est lu, ses chiffres remplissent
+  // la saisie. Une seule fois — revenir sur la page ne relit rien.
+  const arrivee = etat.lecture, importer = etat.importer;
+  etat.lecture = null; etat.importer = false;
+  if (arrivee) { sfsPdf = { fichier: arrivee.fichier, pages: arrivee.pages, garder: true }; sfsMajDoc(); sfsAppliquerLecture(arrivee.lu); }
+  else if (importer) sfsImporterDansLaSaisie();
 }
 
 function sfsDateLongue(d) {
@@ -16509,7 +16541,7 @@ function sfsRenderLecture(el, s, dispo) {
       <div class="sff-titleline">
         <div class="sff-titleline__id">
           <h1 class="sff-h1">${esc(s.nom_simulation || 'Simulation')}</h1>
-          <p class="sff-sub">${[s.date_document ? 'Offre du ' + esc(sfsDateLongue(s.date_document)) : '',
+          <p class="sff-sub">${[s.date_document ? 'Document du ' + esc(sfsDateLongue(s.date_document)) : '',
             bien ? esc(bien.titre || 'Bien') + (bien.ville ? ', ' + esc(bien.ville) : '') : 'Rattachée à aucun bien'].filter(Boolean).join(' · ')}
             ${s.retenue && bien ? ` <span class="sf-pill sf-pill--brand">${sfAccIcon('check', 11)} ${detenu ? 'Votre prêt' : 'Retenue pour ce bien'}</span>` : ''}</p>
         </div>
@@ -16577,10 +16609,14 @@ function sfsRenderLecture(el, s, dispo) {
     </div>
 
     <section class="sff-block">
-      <div class="sff-block__h"><h2 class="sff-block__t">L'offre de la banque</h2></div>
-      <div class="sff-block__b">${(s.pdf_path || s.pdf_data)
-        ? `<button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="openPdfSim(${escJs(s.id)})">${sfAccIcon('trombone', 15)} Ouvrir l'offre${s.pdf_name ? ' — ' + esc(s.pdf_name) : ''}</button>`
-        : `<p class="sfs-vide">Aucune offre jointe. Elle se joint depuis « Modifier ».</p>`}</div>
+      <div class="sff-block__h"><h2 class="sff-block__t">Le PDF de la banque</h2></div>
+      <div class="sff-block__b">${s.pdf_path
+        ? `<div class="sff-cta sfs-doc-acts">
+             <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="openPdfSim(${escJs(s.id)})">${sfAccIcon('doc', 15)} Ouvrir le PDF</button>
+             <button class="sf-btn sf-btn--ghost sf-btn--sm" type="button" onclick="sfsRetirerPdf(${escJs(s.id)})">${sfAccIcon('poubelle', 15)} Retirer le PDF</button>
+           </div>`
+        : `<p class="sfs-vide">Aucun PDF joint.</p>
+           <div class="sff-cta sfs-doc-acts"><button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="sfsOuvrir({ mode: 'saisie', id: ${escJs(s.id)}, importer: true, retour: sfsEtat.retour })">${sfAccIcon('envoi', 15)} Joindre le PDF de la banque</button></div>`}</div>
     </section>
 
     ${s.notes ? `
@@ -16595,13 +16631,21 @@ function sfsRenderLecture(el, s, dispo) {
 // dans le champ, montant aligné à droite (gabarit de la fiche).
 /* `aide` : l'explication, derrière le « ? » du libellé (v=100). `note` : ce
    qui doit rester LU sous le champ — la source d'un taux proposé, son lien. */
-function sfsChampHtml({ id, lab, val, unite, mode = 'decimal', aide = '', note = '', requis = false, large = false }) {
+/* `propose` (v=105) : la valeur vient de Stonefolio (taux moyen, durée par
+   défaut, coût du bien, revenus de la dernière simulation), pas d'une saisie —
+   le PDF de la banque peut la remplacer. Une frappe la fait sienne. */
+// L'unité « €/mois » est plus large que « € » : le champ lui réserve sa place
+// (« 2 501 » passait sous « €/mois », capture du 18/10).
+const SFS_UNITE_CLASSE = { '€/mois': 'euro_mois', '€/an': 'euro_an' };
+function sfsChampHtml({ id, lab, val, unite, mode = 'decimal', aide = '', note = '', requis = false, large = false, propose = false }) {
   const aideId = aide || note ? id + '-aide' : '';
+  const valeur = sfnFormaterNombre(val);
+  const mod = SFS_UNITE_CLASSE[unite];
   return `<div class="sf-field sfn-f${large ? ' sfn-f--large' : ''}">
       <span class="sf-tete"><label class="sf-label" for="${id}">${esc(lab)}${requis ? '<span class="sf-label__req" aria-hidden="true">*</span>' : ''}</label>${note ? '' : sfAide(aide, lab, aideId)}</span>
-      <div class="sfn-saisie sfs-saisie">
+      <div class="sfn-saisie sfs-saisie${mod ? ' sfn-saisie--' + mod : ''}">
         <input class="sf-input sfn-nombre" id="${id}" type="text" inputmode="${mode}" autocomplete="off"
-               value="${esc(sfnFormaterNombre(val))}" onblur="sfnFormater(this)"
+               value="${esc(valeur)}" onblur="sfnFormater(this)"${propose && valeur ? ' data-propose="1"' : ''}
                aria-describedby="${[aideId, id + '-err'].filter(Boolean).join(' ')}"${requis ? ' aria-required="true"' : ''}>
         <span class="sfn-unite" aria-hidden="true">${esc(unite)}</span>
       </div>
@@ -16624,7 +16668,7 @@ function sfsRenderSaisie(el, s, dispo, taux) {
       <button type="button" class="sff-back" onclick="sfsQuitter()">${sfAccIcon('retour', 14)} ${creation ? esc(sfsRetourLib(sfsEtat.retour)) : 'Simulation'}</button>
       <div class="sff-titleline">
         <div class="sff-titleline__id">
-          <h1 class="sff-h1">${creation ? 'Nouvelle simulation' : 'Modifier la simulation'}${creation ? sfAide('Saisissez l’offre, ou lisez-la depuis son PDF : la mensualité et l’endettement se calculent au fil de la frappe.', 'cette page') : ''}</h1>
+          <h1 class="sff-h1">${creation ? 'Nouvelle simulation' : 'Modifier la simulation'}${creation ? sfAide('Saisissez les chiffres de l’offre, ou importez le PDF de la banque : la mensualité et l’endettement se calculent au fil de la frappe.', 'cette page') : ''}</h1>
           ${creation ? '' : `<p class="sff-sub">${esc(s.nom_simulation || 'Simulation')}</p>`}
         </div>
       </div>
@@ -16650,13 +16694,14 @@ function sfsRenderSaisie(el, s, dispo, taux) {
       </aside>
 
       <div class="sfn-main">
+        <div class="sfs-lecture" id="sfs-lecture" role="status" hidden></div>
         <section class="sff-block">
-          <div class="sff-block__h"><h2 class="sff-block__t">L'offre</h2>
+          <div class="sff-block__h"><h2 class="sff-block__t">La simulation</h2>
             <span class="sfn-sec__resume"><span class="sf-label__req" aria-hidden="true">*</span> obligatoire</span></div>
           <div class="sff-block__b"><div class="sfn-grid">
             <div class="sf-field sfn-f sfn-f--large">
               <label class="sf-label" for="s-nom">Nom de la simulation<span class="sf-label__req" aria-hidden="true">*</span></label>
-              <input class="sf-input" type="text" id="s-nom" maxlength="120" value="${esc(s.nom_simulation || '')}" placeholder="ex. Offre Crédit Agricole 20 ans" aria-required="true" aria-describedby="s-nom-err">
+              <input class="sf-input" type="text" id="s-nom" maxlength="120" value="${esc(s.nom_simulation || '')}" placeholder="ex. Offre Crédit Agricole 20 ans" aria-required="true" aria-describedby="s-nom-err"${creation && s.nom_simulation ? ' data-propose="1"' : ''}>
               <p class="sf-hint sf-hint--error" id="s-nom-err" hidden></p>
             </div>
             <div class="sf-field sfn-f">
@@ -16664,16 +16709,12 @@ function sfsRenderSaisie(el, s, dispo, taux) {
               <select class="sf-input sf-select" id="s-bien"><option value="">— Aucun bien rattaché —</option>${bienOptions}</select>
             </div>
             <div class="sf-field sfn-f">
-              <label class="sf-label" for="s-date-doc">Date de l'offre</label>
+              <label class="sf-label" for="s-date-doc">Date du document</label>
               <input class="sf-input" type="date" id="s-date-doc" value="${esc(s.date_document || '')}">
             </div>
             <div class="sf-field sfn-f sfn-f--large">
-              <div class="sfn-fichiers__h">
-                <span class="sf-tete"><span class="sf-label">Offre de la banque (PDF)</span>${sfAide('Les montants reconnus dans l’offre remplissent les champs encore vides ; vérifiez-les avant d’enregistrer. La lecture se fait sur cet appareil.', 'l’offre de la banque')}</span>
-                <button type="button" class="sf-btn sf-btn--secondary sf-btn--sm" onclick="document.getElementById('pdf-input').click()">${sfAccIcon('trombone', 15)} ${s.pdf_path || s.pdf_data ? 'Remplacer l\'offre' : 'Lire une offre de prêt'}</button>
-              </div>
-              <input type="file" id="pdf-input" accept="application/pdf" hidden onchange="extractPDF(event)">
-              <p class="sf-hint" id="sfs-pdf-etat" aria-live="polite">${s.pdf_name ? 'Offre jointe : ' + esc(s.pdf_name) + '.' : ''}</p>
+              <span class="sf-tete"><span class="sf-label">PDF de la banque</span>${sfAide('Les chiffres reconnus remplissent la simulation : vérifiez-les avant d’enregistrer. Le PDF est lu sur cet appareil ; son texte n’est envoyé nulle part.', 'le PDF de la banque')}</span>
+              <div id="sfs-doc">${sfsDocHtml(s)}</div>
             </div>
           </div></div>
         </section>
@@ -16681,10 +16722,10 @@ function sfsRenderSaisie(el, s, dispo, taux) {
         <section class="sff-block">
           <div class="sff-block__h"><h2 class="sff-block__t">Le prêt</h2></div>
           <div class="sff-block__b"><div class="sfn-grid">
-            ${sfsChampHtml({ id: 's-montant', lab: 'Montant emprunté', val: s.montant_emprunte, unite: '€', requis: true,
+            ${sfsChampHtml({ propose: creation, id: 's-montant', lab: 'Montant emprunté', val: s.montant_emprunte, unite: '€', requis: true,
               aide: creation && s.montant_emprunte ? 'Le coût total de l\'opération, frais et travaux compris : ôtez votre apport.' : '' })}
-            ${sfsChampHtml({ id: 's-taux', lab: 'Taux nominal', val: s.taux_interet, unite: '%', requis: true, note: aideTaux })}
-            ${sfsChampHtml({ id: 's-duree', lab: 'Durée', val: s.duree_ans || 20, unite: 'ans', mode: 'numeric', requis: true })}
+            ${sfsChampHtml({ propose: creation, id: 's-taux', lab: 'Taux nominal', val: s.taux_interet, unite: '%', requis: true, note: aideTaux })}
+            ${sfsChampHtml({ propose: creation, id: 's-duree', lab: 'Durée', val: s.duree_ans || 20, unite: 'ans', mode: 'numeric', requis: true })}
             ${dispo ? sfsChampHtml({ id: 's-assurance', lab: 'Assurance emprunteur', val: s.assurance_mensuelle, unite: '€/mois',
               aide: 'Le montant mensuel indiqué dans l\'offre, tous emprunteurs confondus.' }) : ''}
           </div></div>
@@ -16693,9 +16734,9 @@ function sfsRenderSaisie(el, s, dispo, taux) {
         <section class="sff-block">
           <div class="sff-block__h"><h2 class="sff-block__t">Votre situation</h2></div>
           <div class="sff-block__b"><div class="sfn-grid">
-            ${sfsChampHtml({ id: 's-revenus', lab: 'Revenus mensuels nets', val: s.revenus_mensuels, unite: '€/mois',
+            ${sfsChampHtml({ propose: creation, id: 's-revenus', lab: 'Revenus mensuels nets', val: s.revenus_mensuels, unite: '€/mois',
               aide: 'Les vôtres, ou ceux de tous les emprunteurs.' })}
-            ${sfsChampHtml({ id: 's-loyer-banque', lab: 'Loyer du bien', val: s.loyer_exige_banque, unite: '€/mois',
+            ${sfsChampHtml({ propose: creation, id: 's-loyer-banque', lab: 'Loyer du bien', val: s.loyer_exige_banque, unite: '€/mois',
               aide: `La banque en compte ${Math.round(SF_LOYER_RETENU * 100)} % dans vos revenus.` })}
           </div></div>
         </section>
@@ -16736,7 +16777,12 @@ function sfsRenderSaisie(el, s, dispo, taux) {
 }
 
 function sfsSaisie(e) {
-  if (e?.target?.id === 'pdf-input') return;
+  const t = e?.target;
+  if (t?.type === 'file') return;
+  // Garder ou non le PDF lu : une décision sur le fichier, pas une saisie.
+  if (t?.id === 's-garder-pdf') { if (sfsPdf) sfsPdf.garder = !!t.checked; return; }
+  // Une frappe fait de la valeur une saisie : ni proposée, ni lue dans le PDF.
+  if (e.type === 'input' && t?.dataset) { delete t.dataset.propose; delete t.dataset.lu; }
   sfsModifie = true;
   sfsMaj();
 }
@@ -16803,6 +16849,7 @@ async function sfsQuitter() {
     detail: 'Ce que vous avez saisi depuis l’ouverture de la simulation sera perdu.',
     ok: 'Quitter sans enregistrer', danger: true }))) return;
   sfsModifie = false;
+  sfsPdf = null; sfsLu = null;
   if (sfsEtat.id) { sfsEtat.mode = 'lecture'; navigate('simulation'); }
   else sfsAller(sfsEtat.retour);
 }
@@ -16832,7 +16879,6 @@ async function saveSim() {
       // Changer de bien, c'est cesser d'être la simulation retenue de l'ancien.
       if (avant.id && avant.retenue && avant.bien_id !== payload.bien_id) payload.retenue = false;
     }
-    if (sfsPdf) payload.pdf_name = sfsPdf.nom;
     let id = avant.id || null;
     if (id) {
       const { error } = await db.from('simulations_credit').update(payload).eq('id', id).eq('user_id', currentUser.id);
@@ -16841,12 +16887,12 @@ async function saveSim() {
       const { data, error } = await db.from('simulations_credit').insert(payload).select('id').single();
       if (error) throw error;
       id = data.id;
+      // ⚠️ La ligne existe désormais : si l'envoi du PDF échoue, un second
+      // appui doit la METTRE À JOUR, pas en créer une seconde.
+      sfsSimulation = { ...avant, ...payload, id };
     }
-    if (sfsPdf?.data?.startsWith('data:')) {
-      const up = await TI_STORAGE.uploadDataURL('simulations-pdf', id, sfsPdf.data, sfsPdf.nom || 'offre.pdf');
-      const { error } = await db.from('simulations_credit').update({ pdf_path: up.path, pdf_data: null }).eq('id', id);
-      if (error) throw error;
-    }
+    if (sfsPdf?.fichier && sfsPdf.garder && !(await sfsEnvoyerPdf(id, avant.pdf_path))) return;
+    sfsPdf = null;
     sfsModifie = false;
     showNotif(avant.id ? 'Simulation mise à jour' : 'Simulation enregistrée');
     // La simulation retenue a changé de mensualité : la fiche le suit, sur accord.
@@ -16860,6 +16906,36 @@ async function saveSim() {
     sfsEnvoi = false;
     if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = avant.id ? 'Enregistrer' : 'Enregistrer la simulation'; }
   }
+}
+
+/* Envoyer le PDF gardé — à l'enregistrement, jamais avant : un import
+   abandonné ne laisse rien sur le serveur. Nom neutre (SF_PDF_NOM), type
+   imposé (le stockage n'accepte que application/pdf), dossier du compte
+   (règle storage_owns_path), aucune copie en cache. Le précédent est effacé
+   APRÈS que la ligne désigne le nouveau. Rend false sur un échec, en le
+   disant : la simulation, elle, est enregistrée. */
+async function sfsEnvoyerPdf(id, ancien) {
+  let up;
+  try {
+    up = await TI_STORAGE.upload('simulations-pdf', id, sfsPdf.fichier, SF_PDF_NOM, { cacheControl: '0' });
+  } catch (err) {
+    showNotif('Simulation enregistrée, mais le PDF n’a pas pu être envoyé : ' + err.message, true);
+    return false;
+  }
+  const { error } = await db.from('simulations_credit').update({ pdf_path: up.path, pdf_name: null, pdf_data: null })
+    .eq('id', id).eq('user_id', currentUser.id);
+  if (error) {
+    // Pas de fichier sans ligne qui le désigne : il ne se verrait plus, ne s'effacerait plus.
+    await TI_STORAGE.remove('simulations-pdf', [up.path]);
+    showNotif('Simulation enregistrée, mais le PDF n’a pas pu être joint : ' + error.message, true);
+    return false;
+  }
+  if (sfsSimulation) sfsSimulation.pdf_path = up.path;
+  if (ancien && ancien !== up.path) {
+    const r = await TI_STORAGE.remove('simulations-pdf', [ancien]);
+    if (r?.error) showNotif('Le nouveau PDF est joint, mais l’ancien n’a pas pu être effacé : ' + r.error.message, true);
+  }
+  return true;
 }
 
 // Reporter la mensualité (assurance comprise) et la durée d'une simulation
@@ -16920,8 +16996,9 @@ async function sfsRetenir(id) {
   }
 }
 
-// Dupliquer pour comparer : la copie s'ouvre en modification. Ni l'offre
-// jointe ni le statut de simulation retenue ne la suivent.
+// Dupliquer pour comparer : la copie s'ouvre en modification. Ni le PDF joint
+// (un document sensible ne se multiplie pas) ni le statut de simulation
+// retenue ne la suivent.
 async function sfsDupliquer(id) {
   if (sfsEnvoi) return;
   sfsEnvoi = true;
@@ -16943,10 +17020,21 @@ async function sfsDupliquer(id) {
 }
 
 async function deleteSim(id) {
+  const avecPdf = sfsSimulation?.id === id && !!sfsSimulation.pdf_path;
   if (!(await sfConfirmer({ titre: 'Supprimer la simulation', question: 'Supprimer cette simulation ?',
-    detail: 'Elle disparaît avec son offre jointe. La fiche du bien garde sa mensualité.', ok: 'Supprimer', danger: true }))) return;
-  const { data: s } = await db.from('simulations_credit').select('pdf_path').eq('id', id).maybeSingle();
-  if (s?.pdf_path) { try { await TI_STORAGE.remove('simulations-pdf', [s.pdf_path]); } catch (e) { /* le fichier orphelin ne bloque rien */ } }
+    detail: (avecPdf ? 'Son PDF est effacé de votre espace. ' : '') + 'La fiche du bien garde sa mensualité.', ok: 'Supprimer', danger: true }))) return;
+  /* ⚠️ LE PDF D'ABORD, puis la ligne — l'inverse des SCI, à dessein (v=105).
+     Ce document porte des revenus et une adresse : un fichier dont la ligne a
+     disparu ne se voit plus, ne s'efface plus, et resterait. Effacé d'abord,
+     un échec de la ligne laisse au pire une simulation sans son PDF, qu'on
+     supprime de nouveau. Un échec du fichier arrête tout, et le dit — il
+     était avalé (« le fichier orphelin ne bloque rien »). */
+  const { data: s, error: lu } = await db.from('simulations_credit').select('pdf_path').eq('id', id).eq('user_id', currentUser.id).maybeSingle();
+  if (lu) { showNotif('Erreur : ' + lu.message, true); return; }
+  if (s?.pdf_path) {
+    const { error } = await TI_STORAGE.remove('simulations-pdf', [s.pdf_path]);
+    if (error) { showNotif('Le PDF n’a pas pu être effacé : la simulation est gardée. ' + error.message, true); return; }
+  }
   const { error } = await db.from('simulations_credit').delete().eq('id', id).eq('user_id', currentUser.id);
   if (error) { showNotif('Erreur : ' + error.message, true); return; }
   sfsModifie = false;
@@ -16954,95 +17042,544 @@ async function deleteSim(id) {
   sfsAller(sfsEtat.retour);
 }
 
-/* LIRE UNE OFFRE DE PRÊT (PDF) — par motifs, sur l'appareil, sans IA : le
-   texte du document ne quitte pas le navigateur avant l'enregistrement, où
-   le fichier rejoint votre espace de stockage. Comme « Coller l'annonce »,
-   seuls les champs VIDES sont remplis : une saisie n'est jamais remplacée. */
+/* LE PDF DE LA BANQUE (v=105) — lu sur l'appareil, par motifs, sans IA.
+
+   ⚠️ CE QUI ÉTAIT CASSÉ (capture de Thomas, 18/10 : « je ne peux plus
+   importer de document PDF »). Le lecteur existait, caché au milieu du
+   formulaire, et ne remplissait presque rien :
+   · il collait le texte de chaque page en UNE ligne, quand le document d'une
+     banque est un tableau — une ligne par prêt : montant, taux, durée,
+     mensualités ;
+   · il ne remplissait que les champs vides, or le taux proposé, la durée par
+     défaut et les revenus de la dernière simulation occupaient les leurs ;
+   · l'assurance d'un tableau n'a pas de libellé : elle se lit par l'écart
+     entre les deux mensualités.
+
+   LA RÈGLE. Le texte est remis en lignes d'après la position des mots
+   (`sfPdfLignes`), puis lu en deux temps (`sfsLireOffre`) : le tableau des
+   prêts d'abord — le plus gros est le principal, les autres sont notés —,
+   les libellés ensuite (fiche d'information standardisée européenne, autres
+   banques), sans jamais prendre un TAEG pour un taux nominal, ni une durée de
+   validité pour une durée de prêt. La mensualité annoncée contrôle le calcul.
+
+   ⚠️ DONNÉES SENSIBLES : revenus, adresse, coordonnées bancaires. Le texte ne
+   sort jamais de `sfsLirePdf` — ni journal, ni base, ni réseau : seuls des
+   chiffres en sortent. Le fichier ne part qu'à l'enregistrement, et seulement
+   si l'utilisateur le garde (`sfsEnvoyerPdf`). */
+
+// La limite du stockage `simulations-pdf` (file_size_limit, 20 Mo) : au-delà,
+// le serveur refuserait le fichier après la lecture.
+const SF_PDF_MAX = 20 * 1024 * 1024;
+// Les chiffres du prêt sont au début ; au-delà, ce sont les conditions générales.
+const SF_PDF_PAGES = 40;
+// Le nom du fichier dans le stockage : neutre. Celui de l'appareil porte
+// souvent le nom de l'emprunteur (« Simulation_DUPONT.pdf »).
+const SF_PDF_NOM = 'document-banque.pdf';
+
+/* Les lignes d'une page, d'après les morceaux de texte que rend pdf.js
+   ({ s, x, y }, origine en bas à gauche) : de haut en bas, de gauche à
+   droite ; deux morceaux à moins de 2 points de hauteur sont sur la même
+   ligne. */
+function sfPdfLignes(items) {
+  const tri = (items || []).filter(i => i && typeof i.s === 'string' && i.s.trim())
+    .map(i => ({ s: i.s.trim(), x: Number(i.x) || 0, y: Number(i.y) || 0 }));
+  tri.sort((a, b) => b.y - a.y || a.x - b.x);
+  const lignes = [];
+  for (const it of tri) {
+    const l = lignes[lignes.length - 1];
+    if (l && Math.abs(l.y - it.y) <= 2) l.parts.push(it); else lignes.push({ y: it.y, parts: [it] });
+  }
+  return lignes.map(l => l.parts.sort((a, b) => a.x - b.x).map(p => p.s).join(' ')).join('\n');
+}
+
+// Les banques reconnues dans l'en-tête du document : la première nommée.
+const SF_BANQUES = [
+  ['Crédit Agricole', /cr[ée]dit\s+agricole/i], ['LCL', /\bLCL\b|cr[ée]dit\s+lyonnais/i],
+  ['Hello bank!', /hello\s*bank/i], ['BNP Paribas', /\bBNP\b/i], ['Société Générale', /soci[ée]t[ée]\s+g[ée]n[ée]rale/i],
+  ['Caisse d’Épargne', /caisse\s+d['’]\s?[ée]pargne/i], ['Banque Populaire', /banque\s+populaire/i], ['CIC', /\bCIC\b/],
+  ['Crédit Mutuel', /cr[ée]dit\s+mutuel/i], ['La Banque Postale', /banque\s+postale/i], ['BoursoBank', /boursorama|boursobank/i],
+  ['Fortuneo', /fortuneo/i], ['HSBC', /\bHSBC\b/], ['Crédit du Nord', /cr[ée]dit\s+du\s+nord/i], ['Monabanq', /monabanq/i],
+  ['ING', /\bING\b/], ['AXA Banque', /axa\s+banque/i], ['Milleis', /milleis/i], ['Banque Palatine', /palatine/i],
+];
+
+// Un montant à centimes (« 203 444,00 »), une mensualité, un montant en euros,
+// un pourcentage. Les espaces insécables sont ramenées à l'espace ordinaire
+// avant toute lecture.
+const SFS_MONT = String.raw`(\d{1,3}(?:[ .]\d{3})+,\d{2}|\d{4,7},\d{2})`;
+const SFS_MENS = String.raw`(\d{1,3}(?:[ .]\d{3})*,\d{2})`;
+const SFS_EUR = String.raw`(\d{1,3}(?:[ .]\d{3})+(?:,\d{1,2})?|\d+(?:,\d{1,2})?)\s?€`;
+const SFS_PCT = String.raw`(\d{1,2}(?:[,.]\d{1,3})?)\s?%`;
+// Une ligne du tableau des prêts : libellé, montant, taux, durée en mois,
+// mensualité hors assurance, mensualité assurance comprise, [coût], [TAEG].
+const SFS_LIGNE_PRET = new RegExp(String.raw`^(.{0,80}?)\s*${SFS_MONT}\s+${SFS_PCT}\s+(\d{2,3})(?:\s+\d{1,3})??\s+${SFS_MENS}\s+${SFS_MENS}(?:\s+${SFS_MENS})?(?:\s+${SFS_PCT})?`);
+
+function sfsMensualiteTheorique(capital, tauxAn, mois) {
+  const r = tauxAn / 1200;
+  return r ? capital * r / (1 - Math.pow(1 + r, -mois)) : capital / mois;
+}
+
+/* Les chiffres d'un document de banque. Rend { montant, taux, mois, duree,
+   dureeArrondie, mensualiteHors, mensualite, assurance, taeg, revenus,
+   loyer, date, banque, prets, autres, coherent, mensualiteCalculee } ; un
+   chiffre introuvable reste absent — jamais inventé. */
 function sfsLireOffre(texte) {
-  const nombre = brut => sfLireNombre(String(brut).replace(/\s/g, ''));
-  const premier = (motifs, ok) => { for (const p of motifs) { const m = texte.match(p); const v = m && nombre(m[1]); if (Number.isFinite(v) && ok(v)) return v; } return null; };
-  const r = {};
-  r.montant = premier([/total des prêts[^\n]{0,60}?([\d\s]{5,}[\d,]*)\s*€?/i, /total du financement[^\n]{0,60}?([\d\s]{5,}[\d,]*)\s*€/i,
-    /montant[^\n]{0,10}emprunté[^\d€]{0,30}([\d\s]{5,}[\d,]*)\s*€/i], v => v > 10000 && v < 10000000);
-  r.taux = premier([/PTH[^\n]{0,80}?(\d+[,.]\d+)\s*%/i, /taux[^\n]{0,20}nominal[^\n]{0,30}?(\d+[,.]\d+)\s*%/i,
-    /taux[^\n]{0,15}intérêt[^\n]{0,20}?(\d+[,.]\d+)\s*%/i], v => v >= 0.5 && v <= 15);
-  const mois = premier([/PTH[^\n]{0,80}?(\d{3})\s*mois/i, /durée[^\n]{0,30}?(\d{2,3})\s*mois/i], v => v >= 12 && v <= 480);
-  if (mois) r.duree = Math.round(mois / 12);
-  else { const ans = premier([/durée[^\n]{0,30}?(\d{1,2})\s*ans/i], v => v >= 1 && v <= 40); if (ans) r.duree = ans; }
-  r.assurance = premier([/assurance[^\n€]{0,60}?([\d\s]+[\d,]*)\s*€\s*(?:par mois|\/\s*mois|mensuel)/i,
-    /cotisation mensuelle[^\n€]{0,40}?assurance[^\d€\n]{0,20}([\d\s]+[\d,]*)\s*€/i], v => v > 0 && v <= 2000);
-  r.loyer = premier([/loyer[^\n]{0,20}mensuel[^€\d]{0,20}([\d\s]+[\d,]*)\s*€/i], v => v >= 100 && v <= 20000);
-  r.revenus = premier([/revenus\s+mensuels?[^\d€]{0,20}([\d\s]+[\d,]*)\s*€/i], v => v >= 500 && v <= 50000);
-  if (!r.revenus) { const an = premier([/revenus?\s+annuels?[^\d€]{0,20}([\d\s]+[\d,]*)\s*€/i], v => v >= 6000 && v <= 600000); if (an) r.revenus = Math.round(an / 12); }
-  for (const p of [/valable à compter du\s+(\d{2})\/(\d{2})\/(\d{4})/i, /fiche remise le\s*:\s*(\d{2})\/(\d{2})\/(\d{4})/i]) {
-    const m = texte.match(p);
-    if (m) { r.date = `${m[3]}-${m[2]}-${m[1]}`; break; }
+  const lignes = String(texte || '').replace(/[  ]/g, ' ').split('\n')
+    .map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const nb = s => sfLireNombre(String(s).replace(/[. ](?=\d{3}\b)/g, ''));
+  const r = { prets: 0, autres: [] };
+  const garde = (cle, v) => { if (r[cle] == null && v != null && Number.isFinite(v)) r[cle] = v; };
+
+  // 1. Le tableau des prêts, une ligne par prêt ; le plus gros est le principal.
+  const prets = [];
+  for (const l of lignes) {
+    const m = l.replace(/\s?€/g, '').match(SFS_LIGNE_PRET);
+    if (!m) continue;
+    const p = { montant: nb(m[2]), taux: nb(m[3]), mois: +m[4], hors: nb(m[5]), avec: nb(m[6]), taeg: m[8] ? nb(m[8]) : null };
+    if (p.montant >= 1000 && p.montant < 1e8 && p.taux >= 0 && p.taux <= 15 && p.mois >= 12 && p.mois <= 480
+        && p.hors > 0 && p.avec >= p.hors) prets.push(p);
+  }
+  if (prets.length) {
+    const p = prets.reduce((a, b) => (b.montant > a.montant ? b : a));
+    r.prets = prets.length;
+    r.autres = prets.filter(x => x !== p).map(x => ({ montant: x.montant, taux: x.taux, mois: x.mois, mensualite: x.avec }));
+    garde('montant', p.montant); garde('taux', p.taux); garde('mois', p.mois);
+    garde('mensualiteHors', p.hors); garde('mensualite', p.avec);
+    garde('taeg', p.taeg);
+  }
+
+  // 2. Les libellés : le premier qui convient, dans l'ordre du document. La
+  //    valeur suit le libellé sur sa ligne, ou commence la ligne suivante.
+  const premier = (filtre, motif, ok, exclu) => {
+    for (let i = 0; i < lignes.length; i++) {
+      const l = lignes[i];
+      if (!filtre.test(l) || (exclu && exclu.test(l))) continue;
+      const m = l.slice(l.search(filtre)).match(motif) || (lignes[i + 1] && lignes[i + 1].match(new RegExp('^' + motif.source, motif.flags)));
+      if (!m) continue;
+      const v = nb(m[1]);
+      if (Number.isFinite(v) && ok(v)) return v;
+    }
+    return null;
+  };
+  garde('montant', premier(/total\s+des\s+pr[êe]ts|montant\s+(total\s+)?(et\s+monnaie\s+)?(du\s+|de\s+votre\s+)?(cr[ée]dit|pr[êe]t|emprunt)|montant\s+emprunt[ée]|capital\s+emprunt[ée]/i,
+    new RegExp(String.raw`[^\d]*?${SFS_MONT.replace(',\\d{2}', '(?:,\\d{2})?')}`), v => v >= 1000 && v < 1e8,
+    /co[uû]t|frais|int[ée]r[êe]ts|assurance|garantie|apport|projet/i));
+  // Le taux NOMINAL : jamais le TAEG, le taux de l'assurance, ni le taux d'usure.
+  garde('taux', premier(/taux\s+(d[ée]biteur|nominal|d['’]int[ée]r[êe]t|du\s+(pr[êe]t|cr[ée]dit)|fixe|annuel\s+fixe)/i,
+    new RegExp(String.raw`[^\d]*?${SFS_PCT}`), v => v > 0 && v <= 15, /TAEG|TAEA|effectif|usure|assurance/i));
+  if (r.mois == null) {
+    const d = (() => {
+      for (const l of lignes) {
+        let m = l.match(/dur[ée]e(?:\s+(?:du\s+(?:pr[êe]t|cr[ée]dit)|totale|de\s+remboursement|d['’]amortissement))?\s*:?\s*(\d{1,3})\s*(mois|ans?)\b/i);
+        // Une durée de validité, de franchise ou de carence n'est pas celle du prêt.
+        if (m && !/questionnaire|validit|franchise|car[ea]nce|examen/i.test(l)) return m[2].toLowerCase().startsWith('an') ? +m[1] * 12 : +m[1];
+        m = l.match(/\b1\s*°?\s*(?:er)?\s*à\s*(\d{2,3})\s*°?\s*(?:e\s*)?mois/i); if (m) return +m[1];
+        m = l.match(/\b(\d{2,3})\s+(?:échéances|mensualités)\b/i); if (m) return +m[1];
+      }
+      return null;
+    })();
+    if (d >= 12 && d <= 480) garde('mois', d);
+  }
+  garde('mensualiteHors', premier(/(mensualit[ée]|[ée]ch[ée]ance)s?(\s+mensuelles?)?\s+hors\s+assurances?/i,
+    new RegExp(String.raw`[^\d]*?${SFS_MENS}`), v => v > 0 && v < 1e5));
+  garde('mensualite', premier(/(mensualit[ée]|[ée]ch[ée]ance)s?(\s+mensuelles?)?\s+(avec|y\s+compris|assurances?\s+compris)|\b1\s*°?\s*à\s*\d{2,3}\s*°?\s*mois/i,
+    new RegExp(String.raw`(?:à\s*\d{2,3}\s*°?\s*mois)?[^\d]*?${SFS_MENS}`), v => v > 0 && v < 1e5));
+  garde('assurance', premier(/(co[uû]t|cotisation|prime|montant)\s+mensuel(le)?\s+(estim[ée]e?\s+)?(de\s+l['’]\s?|d['’]\s?)?assurance|assurance\s+(emprunteur\s+)?mensuelle/i,
+    new RegExp(String.raw`[^\d]*?${SFS_MENS}`), v => v > 0 && v < 2000));
+  // « Assurance emprunteur : 30,50 € par mois » — jamais un taux d'assurance (TAEA).
+  if (r.assurance == null) {
+    for (const l of lignes) {
+      if (/taux|TAEA|total/i.test(l)) continue;
+      const m = l.match(new RegExp(String.raw`assurance[^€\d]{0,60}?${SFS_MENS}\s?€\s*(?:par\s+mois|\/\s*mois|mensuel)`, 'i'));
+      const v = m && nb(m[1]);
+      if (v > 0 && v < 2000) { garde('assurance', v); break; }
+    }
+  }
+  // Sans libellé (un tableau), l'assurance est l'écart entre les deux mensualités.
+  if (r.assurance == null && r.mensualite > r.mensualiteHors && r.mensualite - r.mensualiteHors < 1000)
+    garde('assurance', Math.round((r.mensualite - r.mensualiteHors) * 100) / 100);
+  garde('taeg', premier(/\bTAEG\b|taux\s+annuel\s+effectif\s+global/i, new RegExp(String.raw`[^\d]*?${SFS_PCT}`), v => v > 0 && v <= 20));
+  garde('revenus', premier(/revenus?\s+(nets?\s+)?mensuels?/i, new RegExp(String.raw`[^\d]*?${SFS_EUR}`), v => v >= 300 && v <= 100000));
+  if (r.revenus == null) {
+    const an = premier(/revenus?\s+(nets?\s+)?annuels?/i, new RegExp(String.raw`[^\d]*?${SFS_EUR}`), v => v >= 3000 && v <= 1200000);
+    if (an) garde('revenus', Math.round(an / 12));
+  }
+  // Le loyer : « Loyer mensuel : … », ou un bloc « Loyer » suivi de « Montant mensuel : … ».
+  for (let i = 0; i < lignes.length && r.loyer == null; i++) {
+    const l = lignes[i];
+    let m = l.match(new RegExp(String.raw`loyer\s+(?:mensuel|par\s+mois|attendu|estim[ée])[^\d\n]{0,20}${SFS_EUR}`, 'i'));
+    if (!m && /^loyers?\b/i.test(l)) for (const s of lignes.slice(i + 1, i + 3)) { m = s.match(new RegExp(String.raw`^montant\s+mensuel[^\d]{0,10}${SFS_EUR}`, 'i')); if (m) break; }
+    if (m) { const v = nb(m[1]); if (v >= 100 && v <= 30000) garde('loyer', v); }
+  }
+  for (const l of lignes) {
+    const m = l.match(/valable\s+(?:à\s+compter\s+)?du\s+(\d{2})\/(\d{2})\/(\d{4})/i)
+      || l.match(/(?:édit[ée]e?|[ée]tablie?|remise?|fait|simulation)\s+le\s*:?\s*(\d{2})\/(\d{2})\/(\d{4})/i)
+      || l.match(/date\s+(?:d['’][ée]dition|de\s+(?:la\s+)?simulation|du\s+document)\s*:?\s*(\d{2})\/(\d{2})\/(\d{4})/i);
+    if (m && +m[2] >= 1 && +m[2] <= 12 && +m[1] >= 1 && +m[1] <= 31) { r.date = `${m[3]}-${m[2]}-${m[1]}`; break; }
+  }
+  const tete = lignes.slice(0, 40).join('\n');
+  let pos = Infinity;
+  for (const [nom, re] of SF_BANQUES) { const i = tete.search(re); if (i >= 0 && i < pos) { pos = i; r.banque = nom; } }
+
+  // La durée se saisit en années : 243 mois font 20 ans, et l'écran le dit.
+  if (r.mois != null) { r.duree = Math.round(r.mois / 12); r.dureeArrondie = r.mois % 12 !== 0; }
+  // Le contrôle croisé : la mensualité annoncée, à 2 % près de celle qu'on calcule.
+  r.coherent = null;
+  if (r.montant && r.taux != null && r.mois && r.mensualiteHors) {
+    const calc = sfsMensualiteTheorique(r.montant, r.taux, r.mois);
+    r.coherent = Math.abs(calc - r.mensualiteHors) / r.mensualiteHors <= 0.02;
+    r.mensualiteCalculee = Math.round(calc * 100) / 100;
   }
   return r;
 }
 
-async function extractPDF(evt) {
-  const file = evt.target.files[0];
-  if (!file) return;
-  const etat = document.getElementById('sfs-pdf-etat');
-  const dit = html => { if (etat) etat.innerHTML = html; };
-  dit('Lecture de l’offre…');
+// Les octets d'un PDF ? Rend null, ou la raison du refus à montrer.
+function sfsVerifierPdf(octets) {
+  if (!octets || !octets.length) return 'Ce fichier est vide.';
+  if (octets.length > SF_PDF_MAX) return 'Ce PDF dépasse 20 Mo : il ne peut pas être importé.';
+  // La signature « %PDF- », dans les 1 024 premiers octets (norme ISO 32000).
+  const sig = [0x25, 0x50, 0x44, 0x46, 0x2D];
+  const fin = Math.min(octets.length - sig.length, 1024 - sig.length);
+  for (let i = 0; i <= fin; i++) if (sig.every((c, j) => octets[i + j] === c)) return null;
+  return 'Ce fichier n’est pas un PDF.';
+}
+
+/* Lire un PDF choisi sur l'appareil : octets vérifiés, texte remis en lignes,
+   chiffres reconnus. Rend { lu, pages, fichier }. `fichier` est une copie des
+   octets prise AVANT pdf.js, qui transfère le tampon à son travailleur et le
+   laisse vide. Une erreur porte un message à montrer tel quel. */
+async function sfsLirePdf(choisi, progres) {
+  if (!choisi) throw new Error('Aucun fichier choisi.');
+  if (choisi.size > SF_PDF_MAX) throw new Error(sfsVerifierPdf({ length: choisi.size }));
+  const octets = new Uint8Array(await choisi.arrayBuffer());
+  const refus = sfsVerifierPdf(octets);
+  if (refus) throw new Error(refus);
+  const fichier = new Blob([octets], { type: 'application/pdf' });
   try {
-    await sfChargerBiblio('pdfjs');   // v=103 : chargée à la première offre lue
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs-3.11.174/pdf.worker.min.js';
-    /* v=101 : pdf.js 3.11 compile certaines polices en code exécutable
-       (CVE-2024-4367) : un PDF piégé exécutait du script sur la plateforme.
-       `isEvalSupported: false` coupe ce chemin ; on ne lit ici que le texte. */
-    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
-    let texte = '';
-    for (let i = 1; i <= pdf.numPages; i++) {
+    await sfChargerBiblio('pdfjs');   // v=103 : chargée à la première lecture
+  } catch (e) {
+    throw new Error('Le lecteur de PDF n’a pas pu être chargé : vérifiez la connexion, puis réessayez.');
+  }
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs-3.11.174/pdf.worker.min.js';
+  /* v=101 : pdf.js 3.11 compile certaines polices en code exécutable
+     (CVE-2024-4367) : un PDF piégé exécutait du script sur la plateforme.
+     `isEvalSupported: false` coupe ce chemin ; `disableFontFace` n'installe
+     aucune de ses polices dans la page — on n'en lit que le texte. */
+  const tache = pdfjsLib.getDocument({ data: octets, isEvalSupported: false, disableFontFace: true, enableXfa: false });
+  try {
+    const pdf = await tache.promise;
+    const n = Math.min(pdf.numPages, SF_PDF_PAGES);
+    const pages = [];
+    for (let i = 1; i <= n; i++) {
       const page = await pdf.getPage(i);
-      texte += (await page.getTextContent()).items.map(x => x.str).join(' ') + '\n';
+      const contenu = await page.getTextContent();
+      pages.push(sfPdfLignes(contenu.items.map(it => ({ s: it.str, x: it.transform?.[4], y: it.transform?.[5] }))));
+      page.cleanup();
+      if (progres) progres(i, n);
     }
-    const lu = sfsLireOffre(texte);
-    const champs = [['montant', 's-montant', 'montant'], ['taux', 's-taux', 'taux'], ['duree', 's-duree', 'durée'],
-      ['assurance', 's-assurance', 'assurance'], ['revenus', 's-revenus', 'revenus'], ['loyer', 's-loyer-banque', 'loyer']];
-    const repris = [], gardes = [];
-    for (const [k, id, lab] of champs) {
-      const el = document.getElementById(id);
-      if (!el || lu[k] == null) continue;
-      if (sfLireNombre(el.value) > 0) { gardes.push(lab); continue; }
-      el.value = sfnFormaterNombre(lu[k]); repris.push(lab);
-    }
-    const date = document.getElementById('s-date-doc');
-    if (date && lu.date && !date.value) { date.value = lu.date; repris.push('date'); }
-    sfsPdf = { nom: file.name, data: await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(file); }) };
-    sfsModifie = true;
-    sfsMaj();
-    // Le nom du fichier vient de l'appareil : il s'échappe comme tout texte libre.
-    dit('« ' + esc(file.name) + ' » sera jointe à l’enregistrement. '
-      + (repris.length ? 'Repris : ' + repris.join(', ') + '. ' : 'Aucun montant reconnu : complétez à la main. ')
-      + (gardes.length ? 'Déjà saisis, gardés : ' + gardes.join(', ') + '.' : ''));
-  } catch (err) {
-    dit('Ce PDF n’a pas pu être lu : complétez à la main, ou essayez un autre fichier.');
-    console.warn('lecture offre :', err.message);
+    return { lu: sfsLireOffre(pages.join('\n')), pages: pdf.numPages, fichier };
+  } catch (e) {
+    // Le NOM de l'erreur seulement : jamais un morceau du document.
+    console.warn('lecture du PDF :', e?.name || 'erreur');
+    if (e?.name === 'PasswordException') throw new Error('Ce PDF est protégé par un mot de passe. Enregistrez-en une copie sans mot de passe, ou saisissez la simulation.');
+    if (e?.name === 'InvalidPDFException') throw new Error('Ce PDF est endommagé : il n’a pas pu être lu.');
+    throw new Error('Ce PDF n’a pas pu être lu.');
   } finally {
-    evt.target.value = '';
+    Promise.resolve(tache.destroy?.()).catch(() => {});
   }
 }
 
-/* Ouvrir l'offre jointe. ⚠️ La fenêtre s'ouvre AU CLIC, avant toute attente :
-   Safari refuse une fenêtre ouverte après une requête (bloqueur de fenêtres),
-   et l'offre restait inaccessible sur iPhone et iPad. */
+// Un document dont on n'a tiré aucun chiffre de prêt (scan, mauvais fichier).
+function sfsLectureUtile(lu) {
+  return !!lu && ['montant', 'taux', 'mois', 'mensualite', 'mensualiteHors', 'assurance', 'revenus', 'loyer'].some(k => lu[k] != null);
+}
+
+// Les champs que remplit le PDF, dans l'ordre du formulaire.
+const SFS_CHAMPS_LUS = [
+  ['montant', 's-montant', 'montant'], ['taux', 's-taux', 'taux'], ['duree', 's-duree', 'durée'],
+  ['assurance', 's-assurance', 'assurance'], ['revenus', 's-revenus', 'revenus'], ['loyer', 's-loyer-banque', 'loyer'],
+];
+
+/* Ce que le PDF change dans la saisie. L'assistance ne remplace JAMAIS une
+   saisie : elle remplit un champ vide, ou une valeur PROPOSÉE par Stonefolio
+   (`propose` : taux moyen, durée par défaut, coût du bien, revenus de la
+   dernière simulation) ; une valeur saisie est gardée, et le PDF la propose
+   (`gardes`). `forcer` : « Prendre les valeurs du PDF », à la demande.
+   `champs` : { id: { valeur, propose } }. */
+function sfsPlanLecture(lu, champs, forcer = false) {
+  const plan = { remplir: {}, repris: [], gardes: [] };
+  for (const [cle, id, lab] of SFS_CHAMPS_LUS) {
+    const c = champs[id];
+    if (!c || lu[cle] == null) continue;
+    const actuel = sfLireNombre(c.valeur);
+    if (forcer || c.propose || actuel === null || actuel === lu[cle]) { plan.remplir[id] = lu[cle]; plan.repris.push(lab); }
+    else plan.gardes.push({ id, lab, valeur: lu[cle] });
+  }
+  return plan;
+}
+
+const sfsEurCts = v => sfNombre(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+
+// « Crédit Agricole · 203 444 € · 20 ans » : de quoi distinguer deux offres.
+function sfsNomDepuisLecture(lu) {
+  if (!lu || (!lu.banque && !lu.montant)) return '';
+  return [lu.banque || 'Offre de prêt', lu.montant ? sfEur(lu.montant) : '', lu.duree ? `${lu.duree} ans` : '']
+    .filter(Boolean).join(' · ').slice(0, 120);
+}
+
+// Ce que la simulation n'a pas de case pour garder : le TAEG (le chiffre qui
+// compare deux offres), la mensualité annoncée, la durée exacte, les autres prêts.
+function sfsNotesDepuisLecture(lu) {
+  const l = [];
+  if (lu.taeg != null) l.push(`TAEG indiqué par la banque : ${sfPctNum(lu.taeg, 2)}.`);
+  if (lu.mensualite != null) l.push(`Mensualité indiquée par la banque : ${sfsEurCts(lu.mensualite)}, assurance comprise.`);
+  else if (lu.mensualiteHors != null) l.push(`Mensualité indiquée par la banque : ${sfsEurCts(lu.mensualiteHors)}, hors assurance.`);
+  if (lu.dureeArrondie) l.push(`Durée exacte : ${lu.mois} mois.`);
+  for (const p of lu.autres || []) l.push(`Autre prêt du document : ${sfEur(p.montant)} à ${sfPctNum(p.taux, 2)} sur ${p.mois} mois, ${sfsEurCts(p.mensualite)} par mois.`);
+  return l.join('\n');
+}
+
+/* Remplir la saisie avec ce qu'on a lu, marquer les champs repris (« PDF »
+   à côté du libellé, jusqu'à la première frappe), et dire ce qui a été
+   repris, gardé, ou n'a pas été trouvé. Une valeur lue dans un premier PDF,
+   et pas retouchée, reste une proposition : un second PDF la remplace —
+   nom et notes compris, quand ils venaient du premier. */
+function sfsAppliquerLecture(lu, { forcer = false } = {}) {
+  sfsLu = lu;
+  const $ = id => document.getElementById(id);
+  const champs = {};
+  for (const [, id] of SFS_CHAMPS_LUS) {
+    const el = $(id);
+    if (el) champs[id] = { valeur: el.value, propose: el.dataset.propose === '1' || el.dataset.lu === '1' };
+  }
+  const plan = sfsPlanLecture(lu, champs, forcer);
+  for (const [id, v] of Object.entries(plan.remplir)) {
+    const el = $(id);
+    el.value = id === 's-duree' ? String(v) : sfnFormaterNombre(v);
+    delete el.dataset.propose;
+    el.dataset.lu = '1';
+  }
+  // Le taux vient du document : la mention du taux moyen officiel ne vaut plus.
+  if (plan.remplir['s-taux'] != null) { const n = $('s-taux-aide'); if (n) n.innerHTML = sfsLienTauxParDuree(); }
+  // Le montant aussi : l'aide « coût de l'opération, ôtez votre apport » ne vaut plus.
+  if (plan.remplir['s-montant'] != null) $('s-montant-aide')?.closest('.sf-aide')?.remove();
+  const date = $('s-date-doc');
+  if (date && lu.date && (!date.value || forcer || date.dataset.lu === '1')) { date.value = lu.date; date.dataset.lu = '1'; plan.repris.push('date'); }
+  const nom = $('s-nom');
+  if (nom && (!nom.value.trim() || nom.dataset.propose === '1')) {
+    const v = sfsNomDepuisLecture(lu);
+    if (v) { nom.value = v; nom.dataset.propose = '1'; }
+  }
+  const notes = $('s-notes');
+  if (notes && (!notes.value.trim() || notes.dataset.propose === '1')) {
+    notes.value = sfsNotesDepuisLecture(lu);
+    notes.dataset.propose = '1';
+  }
+  sfsAfficherLecture(lu, plan);
+  sfsModifie = true;
+  sfsMaj();
+  return plan;
+}
+
+// Le récapitulatif en tête de la saisie : des chiffres et des libellés écrits
+// ici — aucun texte du document n'y entre.
+function sfsAfficherLecture(lu, plan) {
+  const el = document.getElementById('sfs-lecture');
+  if (!el) return;
+  const absents = [['montant', 'montant'], ['taux', 'taux'], ['mois', 'durée'], ['revenus', 'revenus']]
+    .filter(([cle]) => lu[cle] == null).map(([, lab]) => lab);
+  const li = (txt, icone = '') => `<li class="sfs-lecture__l">${icone ? sfAccIcon(icone, 14) + ' ' : ''}<span>${txt}</span></li>`;
+  const lignes = [];
+  lignes.push(li(plan.repris.length
+    ? `Repris : ${esc(plan.repris.join(', '))}. Vérifiez-les avant d’enregistrer.`
+    : 'Aucun chiffre de prêt reconnu : complétez la simulation.'));
+  if (plan.repris.length && absents.length) lignes.push(li(`Non trouvés dans le PDF : ${esc(absents.join(', '))}.`));
+  if (plan.gardes.length) lignes.push(li(`Gardés, car déjà saisis : ${plan.gardes.map(g => `${esc(g.lab)} (le PDF indique ${esc(g.id === 's-taux' ? sfPctNum(g.valeur, 3) : g.id === 's-duree' ? g.valeur + ' ans' : sfEur(g.valeur))})`).join(', ')}.`
+    + ` <button type="button" class="sf-btn sf-btn--ghost sf-btn--sm sfs-lecture__b" onclick="sfsAppliquerLecture(sfsLu, { forcer: true })">Prendre les valeurs du PDF</button>`));
+  if (lu.prets > 1) lignes.push(li(`Le document compte ${lu.prets} prêts : seul le principal est repris (${esc(sfEur(lu.montant))}). Les autres sont dans les notes.`, 'info'));
+  if (lu.dureeArrondie) lignes.push(li(`Durée de ${esc(String(lu.mois))} mois, arrondie à ${esc(String(lu.duree))} ans.`, 'info'));
+  if (lu.coherent === false) lignes.push(li(`La mensualité de la banque (${esc(sfsEurCts(lu.mensualiteHors))} hors assurance) ne correspond pas au calcul (${esc(sfsEurCts(lu.mensualiteCalculee))}) : vérifiez le taux et la durée.`, 'alerte'));
+  el.innerHTML = `<p class="sfs-lecture__t">${sfAccIcon('doc', 16)} Chiffres lus dans le PDF de la banque</p><ul class="sfs-lecture__ls">${lignes.join('')}</ul>`;
+  el.hidden = false;
+}
+
+// Le champ « PDF de la banque » de la saisie : le PDF lu et le choix de le
+// garder ; le PDF déjà joint ; ou l'import.
+function sfsDocHtml(s) {
+  const joint = !!s?.pdf_path;
+  if (sfsPdf) return `
+    <div class="sfn-doc sfs-doc">
+      <span class="sfs-doc__ic">${sfAccIcon('doc', 16)}</span>
+      <span class="sfn-doc__n">PDF lu${sfsPdf.pages ? ` · ${sfsPdf.pages} page${sfsPdf.pages > 1 ? 's' : ''}` : ''}</span>
+      <button type="button" class="sf-btn sf-btn--ghost sf-btn--sm" onclick="sfsImporterDansLaSaisie()">Lire un autre PDF</button>
+    </div>
+    <div class="sfs-garder">
+      <input type="checkbox" id="s-garder-pdf"${sfsPdf.garder ? ' checked' : ''}>
+      <span class="sf-tete"><label for="s-garder-pdf">${joint ? 'Le garder dans mon espace privé, à la place du PDF joint' : 'Garder ce PDF dans mon espace privé'}</label>${sfAide('Il est rangé dans un espace de stockage privé, à votre seul nom : aucun autre compte, administrateur compris, ne peut l’ouvrir depuis Stonefolio. Décoché, il n’est pas envoyé : seuls les chiffres sont enregistrés.', 'le PDF gardé')}</span>
+    </div>`;
+  if (joint) return `
+    <div class="sfn-doc sfs-doc">
+      <span class="sfs-doc__ic">${sfAccIcon('trombone', 16)}</span>
+      <span class="sfn-doc__n">Un PDF est joint</span>
+      <button type="button" class="sf-btn sf-btn--ghost sf-btn--sm" onclick="sfsImporterDansLaSaisie()">Remplacer le PDF</button>
+    </div>`;
+  return `<button type="button" class="sf-btn sf-btn--secondary sf-btn--sm" onclick="sfsImporterDansLaSaisie()">${sfAccIcon('envoi', 15)} Importer un PDF de la banque</button>`;
+}
+function sfsMajDoc() { const el = document.getElementById('sfs-doc'); if (el) el.innerHTML = sfsDocHtml(sfsSimulation); }
+
+// Depuis la saisie : la même fenêtre ; les chiffres lus restent dans la page.
+function sfsImporterDansLaSaisie() {
+  sfsImporter({ surLecture: r => {
+    sfsPdf = { fichier: r.fichier, pages: r.pages, garder: true };
+    sfsMajDoc();
+    sfsAppliquerLecture(r.lu);
+  } });
+}
+
+/* IMPORTER UN PDF DE LA BANQUE (v=105) — une fenêtre : glisser-déposer sur
+   ordinateur ; sur iPhone et iPad, le choix dans Fichiers (iCloud Drive,
+   téléchargements). Sur iPad, un PDF glissé depuis Fichiers en écran partagé
+   est accepté aussi. Rien n'est envoyé : la lecture se fait ici, et le
+   fichier attend l'enregistrement.
+   `surLecture(r)` : où vont les chiffres lus — une nouvelle simulation par
+   défaut, la saisie ouverte quand on importe depuis elle. */
+function sfsImporter({ bienId = null, surLecture = null } = {}) {
+  document.getElementById('sfs-import')?.__fermer?.();
+  const retour = document.activeElement;
+  const tactile = !!window.matchMedia?.(SF_SANS_SURVOL)?.matches;
+  const o = document.createElement('div');
+  o.id = 'sfs-import';
+  o.className = 'modal-overlay modal-overlay--acq sfs-import open';
+  o.setAttribute('role', 'dialog');
+  o.setAttribute('aria-modal', 'true');
+  o.setAttribute('aria-labelledby', 'sfs-import-titre');
+  o.innerHTML = `
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="sfs-import-titre">Importer un PDF de la banque</div>
+        <button type="button" class="btn-close" data-fermer aria-label="Fermer">${sfAccIcon('croix', 14)}</button>
+      </div>
+      <div class="bd-acq">
+        <button type="button" class="sfs-depot" id="sfs-depot" aria-describedby="sfs-import-note">
+          <span class="sfs-depot__ic">${sfAccIcon('doc', 28)}</span>
+          <span class="sfs-depot__t">${tactile ? 'Choisir le PDF' : 'Déposez le PDF ici'}</span>
+          <span class="sfs-depot__x">${tactile ? 'dans Fichiers, iCloud Drive ou vos téléchargements' : 'ou cliquez pour le choisir'}</span>
+        </button>
+        <input type="file" id="sfs-import-fichier" accept="application/pdf,.pdf" hidden>
+        <p class="sfs-import__note" id="sfs-import-note">${sfAccIcon('lock', 13)} Lu sur cet appareil : rien n’est envoyé avant l’enregistrement.</p>
+        <div class="sfs-import__etat" id="sfs-import-etat" aria-live="polite"></div>
+        <div class="bd-step-pied">
+          <button type="button" class="sf-btn sf-btn--ghost" data-fermer>Annuler</button>
+          ${surLecture ? '' : '<button type="button" class="sf-btn sf-btn--secondary" data-saisir>Saisir à la main</button>'}
+        </div>
+      </div>
+    </div>`;
+
+  const depot = o.querySelector('#sfs-depot');
+  const champ = o.querySelector('#sfs-import-fichier');
+  const etat = o.querySelector('#sfs-import-etat');
+  let enCours = false, ferme = false;
+  const surTouche = e => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    fermer();
+  };
+  // Fermée pendant une lecture, la fenêtre l'abandonne : rien ne s'ouvre ensuite.
+  const fermer = () => {
+    if (ferme) return;
+    ferme = true;
+    document.removeEventListener('keydown', surTouche, true);
+    o.remove();
+    if (retour && typeof retour.focus === 'function' && document.contains(retour)) retour.focus();
+  };
+  o.__fermer = fermer;
+  const aller = r => (surLecture ? surLecture(r) : sfsOuvrir({ mode: 'saisie', id: null, bienId, lecture: r }));
+  const dire = html => { etat.innerHTML = html; };
+  const lire = async choisi => {
+    // ⚠️ La garde contre une seconde lecture se pose AVANT le premier await.
+    if (enCours || !choisi) return;
+    enCours = true;
+    depot.disabled = true;
+    dire('<p class="sfs-import__prog">Lecture du PDF…</p>');
+    try {
+      const r = await sfsLirePdf(choisi, (i, n) => { if (!ferme) dire(`<p class="sfs-import__prog">Lecture du PDF… page ${i} sur ${n}</p>`); });
+      if (ferme) return;
+      if (!sfsLectureUtile(r.lu)) {
+        dire(`<p class="sf-hint sf-hint--error" role="alert">Aucun chiffre de prêt reconnu dans ce PDF. Un document scanné ne contient pas de texte lisible.</p>
+          <button type="button" class="sf-btn sf-btn--secondary sf-btn--sm" data-continuer>Continuer avec ce PDF</button>`);
+        etat.querySelector('[data-continuer]').onclick = () => { fermer(); aller(r); };
+        return;
+      }
+      fermer();
+      aller(r);
+    } catch (err) {
+      if (!ferme) dire(`<p class="sf-hint sf-hint--error" role="alert">${esc(err.message)}</p>`);
+    } finally {
+      enCours = false;
+      depot.disabled = false;
+    }
+  };
+
+  depot.onclick = () => champ.click();
+  champ.onchange = () => { const f = champ.files?.[0]; champ.value = ''; lire(f); };
+  o.querySelectorAll('[data-fermer]').forEach(b => { b.onclick = fermer; });
+  const saisir = o.querySelector('[data-saisir]');
+  if (saisir) saisir.onclick = () => { fermer(); openNouvelleSimulation(bienId); };
+  o.addEventListener('click', e => { if (e.target === o) fermer(); });
+  // Un PDF lâché n'importe où sur la fenêtre est lu ; jamais ouvert par le
+  // navigateur à la place de l'application.
+  o.addEventListener('dragover', e => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; depot.classList.add('sfs-depot--survol'); });
+  o.addEventListener('dragleave', e => { if (!o.contains(e.relatedTarget)) depot.classList.remove('sfs-depot--survol'); });
+  o.addEventListener('drop', e => { e.preventDefault(); depot.classList.remove('sfs-depot--survol'); lire(e.dataTransfer?.files?.[0]); });
+  document.addEventListener('keydown', surTouche, true);
+  document.body.appendChild(o);
+  depot.focus();
+}
+
+/* Ouvrir le PDF de la banque. ⚠️ La fenêtre s'ouvre AU CLIC, avant toute
+   attente : Safari refuse une fenêtre ouverte après une requête (bloqueur de
+   fenêtres), et le PDF restait inaccessible sur iPhone et iPad.
+   v=105 : un lien de 60 secondes, sans cache (`TI_STORAGE.lienCourt`), et la
+   nouvelle fenêtre ne garde pas la main sur celle-ci (`opener`). L'ancien
+   stockage en base64 n'a plus aucune ligne (vérifié en base le 18/10). */
 async function openPdfSim(id) {
   const w = window.open('', '_blank');
-  const { data, error } = await db.from('simulations_credit').select('pdf_data,pdf_name,pdf_path').eq('id', id).maybeSingle();
-  let src = null;
-  if (!error && data?.pdf_path) { try { src = await TI_STORAGE.signedUrl('simulations-pdf', data.pdf_path); } catch (e) { src = null; } }
-  if (!src || (!data?.pdf_path && data?.pdf_data)) {
-    // Ancien stockage en base64 : une adresse data: ne s'ouvre pas en page.
-    if (data?.pdf_data && w) { w.document.write(`<iframe src="${esc(data.pdf_data)}" style="width:100%;height:100vh;border:none"></iframe>`); w.document.close(); return; }
+  if (w) w.opener = null;
+  const { data, error } = await db.from('simulations_credit').select('pdf_path').eq('id', id).eq('user_id', currentUser.id).maybeSingle();
+  const src = !error && data?.pdf_path ? await TI_STORAGE.lienCourt('simulations-pdf', data.pdf_path) : null;
+  if (!src) {
     if (w) w.close();
-    showNotif('Offre non disponible', true);
+    showNotif('PDF non disponible', true);
     return;
   }
   if (w) w.location.href = src;
   else window.location.href = src;
+}
+
+/* Retirer le PDF d'une simulation : il est effacé de l'espace de stockage, les
+   chiffres restent. Le fichier d'abord, comme pour la suppression, et pour
+   la même raison (deleteSim). */
+async function sfsRetirerPdf(id) {
+  // ⚠️ La garde contre le double envoi se pose AVANT le premier await.
+  if (sfsEnvoi) return;
+  sfsEnvoi = true;
+  try {
+    if (!(await sfConfirmer({ titre: 'Retirer le PDF', question: 'Retirer le PDF de cette simulation ?',
+      detail: 'Il est effacé de votre espace. Les chiffres de la simulation restent.', ok: 'Retirer le PDF', danger: true }))) return;
+    const { data: s, error: lu } = await db.from('simulations_credit').select('pdf_path').eq('id', id).eq('user_id', currentUser.id).maybeSingle();
+    if (lu) throw lu;
+    if (s?.pdf_path) {
+      const { error } = await TI_STORAGE.remove('simulations-pdf', [s.pdf_path]);
+      if (error) throw error;
+    }
+    const { error } = await db.from('simulations_credit').update({ pdf_path: null, pdf_name: null, pdf_data: null }).eq('id', id).eq('user_id', currentUser.id);
+    if (error) throw error;
+    showNotif('PDF retiré');
+    navigate('simulation');
+  } catch (err) {
+    showNotif('Le PDF n’a pas pu être retiré : ' + err.message, true);
+  } finally {
+    sfsEnvoi = false;
+  }
 }
 
 // La simulation retenue d'un bien, s'il en a une (achat, dossier banque).

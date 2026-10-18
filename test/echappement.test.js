@@ -184,6 +184,9 @@ const TOLERES = new Map([
   ["titre: `Loyer attendu — ${bien?.titre || 'Bien'}`",
    'v=104 : donnée BRUTE de sfLoyersAttendus, échappée à l\'affichage par renderAccueil (esc(a.titre)) — '
    + 'l\'échapper ici l\'échappait deux fois (« & » lu « &amp; »).'],
+  ["new RegExp('^' + motif.source, motif.flags)",
+   'v=105 : la source d\'une expression régulière du lecteur de PDF (sfsLireOffre), pas la source '
+   + 'd\'une annonce — jamais du HTML.'],
 ]);
 
 test('aucun champ de texte libre n\'est interpolé nu dans du HTML', () => {

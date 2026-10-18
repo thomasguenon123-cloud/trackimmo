@@ -1227,6 +1227,67 @@ html, body{ overflow-x:clip; }
 .sfs-saisie .sfn-nombre{ text-align:right; }
 .sfs-pref-ref{ display:flex; flex-direction:column; gap:var(--sf-space-2); padding-top:var(--sf-space-3); }
 .sfs-pref-ref b{ font-family:var(--sf-font-display); font-size:var(--sf-font-lead); color:var(--sf-text); }
+
+/* ── Le PDF de la banque (v=105) ────────────────────────────────────────────
+   Deux portes pour créer une simulation : importer le PDF, saisir à la main. */
+.sff-empty .sfs-creer{ justify-content:center; margin-top:var(--sf-space-4); }
+/* Sur téléphone, l'une sous l'autre, pleine largeur, l'import d'abord. */
+@media (max-width: 560px){
+  .sfs-creer{ flex-direction:column-reverse; align-items:stretch; width:100%; }
+  .sfs-creer .sf-btn{ justify-content:center; }
+}
+.sff-block__b > .sfs-doc-acts:first-child{ margin-top:0; }
+.sfs-doc-acts{ margin-top:var(--sf-space-4); }
+
+/* La fenêtre d'import : une grande zone, cible du doigt comme du fichier
+   lâché. Au-dessus de la page et de sa barre collante, sous les messages. */
+.modal-overlay.sfs-import{ z-index:var(--sf-z-modal); }
+.modal-overlay.sfs-import .modal{ max-width:520px; }
+.sfs-depot{ display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:var(--sf-space-3); width:100%; min-height:200px; padding:var(--sf-space-9) var(--sf-space-7);
+  border:2px dashed var(--sf-border-strong); border-radius:var(--sf-radius-md);
+  background:var(--sf-surface-2); color:var(--sf-text); font:inherit; text-align:center; cursor:pointer;
+  transition:border-color var(--sf-dur-fast) var(--sf-ease), background var(--sf-dur-fast) var(--sf-ease); }
+.sfs-depot:hover, .sfs-depot.sfs-depot--survol{ border-color:var(--sf-text-2); background:var(--sf-surface-3); }
+.sfs-depot:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus); outline-offset:var(--sf-focus-offset); }
+.sfs-depot:disabled{ cursor:progress; opacity:.72; }
+.sfs-depot__ic{ display:inline-flex; color:var(--sf-text-2); margin-bottom:var(--sf-space-2); }
+.sfs-depot__t{ font-size:var(--sf-font-lead); font-weight:var(--sf-weight-semibold); }
+.sfs-depot__x{ font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
+.sfs-import__note{ display:flex; align-items:center; gap:var(--sf-space-3); margin:var(--sf-space-5) 0 0;
+  font-size:var(--sf-font-caption); color:var(--sf-text-2); }
+.sfs-import__note svg{ flex-shrink:0; }
+.sfs-import__etat{ display:flex; flex-direction:column; align-items:flex-start; gap:var(--sf-space-4);
+  margin-top:var(--sf-space-5); }
+.sfs-import__etat:empty{ display:none; }
+.sfs-import__etat .sf-hint{ margin:0; }
+.sfs-import__prog{ margin:0; font-size:var(--sf-font-body-sm); color:var(--sf-text); }
+.sfs-import .bd-step-pied{ margin-top:var(--sf-space-7); }
+
+/* Ce qu'on a lu, en tête de la saisie : repris, non trouvé, à vérifier. */
+.sfs-lecture{ margin-bottom:var(--sf-rythme-bloc); padding:var(--sf-pad-carte);
+  border:var(--sf-border-width) solid var(--sf-border-strong); border-radius:var(--sf-radius-md);
+  background:var(--sf-surface-2); }
+.sfs-lecture[hidden]{ display:none; }
+.sfs-lecture__t{ display:flex; align-items:center; gap:var(--sf-space-3); margin:0 0 var(--sf-space-4);
+  font-weight:var(--sf-weight-semibold); color:var(--sf-text); }
+.sfs-lecture__ls{ display:flex; flex-direction:column; gap:var(--sf-space-3); margin:0; padding:0; list-style:none;
+  font-size:var(--sf-font-body-sm); color:var(--sf-text-2); line-height:var(--sf-lh-normal); }
+.sfs-lecture__l{ display:flex; align-items:flex-start; gap:var(--sf-space-3); }
+.sfs-lecture__l > svg{ flex-shrink:0; margin-top:3px; }
+.sfs-lecture__b{ margin-top:var(--sf-space-3); }
+/* Un champ rempli par le PDF le dit, à côté de son libellé, jusqu'à la
+   première frappe (sfsSaisie retire data-lu). */
+.sfs .sf-field:has(input[data-lu="1"]) .sf-label::after{ content:'PDF'; display:inline-block; margin-left:var(--sf-space-3);
+  padding:0 var(--sf-space-3); border:var(--sf-border-width) solid var(--sf-border-strong); border-radius:var(--sf-radius-full);
+  font-size:var(--sf-font-caption); font-weight:var(--sf-weight-semibold); line-height:1.5; color:var(--sf-text-2);
+  vertical-align:1px; }
+/* Le PDF lu, et le choix de le garder. */
+.sfs-doc .sfn-doc__n{ white-space:normal; }
+.sfs-doc__ic{ display:inline-flex; flex-shrink:0; }
+.sfs-garder{ display:flex; align-items:center; gap:var(--sf-space-4); margin-top:var(--sf-space-4); }
+.sfs-garder input{ width:20px; height:20px; flex-shrink:0; margin:0; cursor:pointer; accent-color:var(--sf-text); }
+.sfs-garder label{ padding-block:var(--sf-space-3); font-size:var(--sf-font-body-sm); color:var(--sf-text); cursor:pointer; }
 /* L'estimation de mensualité sous le champ du formulaire d'un bien. */
 .sfn-estim{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--sf-space-3) var(--sf-space-4);
   margin-top:var(--sf-space-3); padding:var(--sf-space-4) var(--sf-space-5);
