@@ -17,6 +17,18 @@
 - **Front 100 % statique**, sans build, déployé tel quel sur GitHub Pages.
   `app.js` est un script unique (~17 500 lignes) ; CSS en couches :
   `tokens.css` → `components.css` → `styles.css` → `financier.css` → `tactile.css`.
+- **Dépôt rangé** (v=103) : le site à la racine ; `docs/` (audits, cadrages,
+  notes) ; `supabase/sql/` (scripts joués à la main) ; `supabase/functions/` ;
+  `maquettes/` (HTML de référence, non chargés par le site) ; `scripts/`.
+- **Publication minifiée préparée** (v=103, approuvée le 17/10) :
+  `scripts/construire.mjs` copie dans `_site/` ce que le site charge, minifie
+  app.js et les feuilles SANS renommer (les `onclick` appellent les fonctions
+  par leur nom), revérifie les empreintes ; `.github/workflows/publication.yml`
+  lance `npm test` puis la construction. Gain mesuré : 507 → 332 Ko,
+  Lighthouse 95 → 98. ⚠️ **Manuelle tant que Thomas n'a pas passé Settings ›
+  Pages › Source à « GitHub Actions »** ; d'ici là, Pages publie la branche
+  telle quelle. Un fichier ajouté au site doit l'être au script (garde
+  `publication.test.js`).
 - **Bibliothèques hébergées dans `vendor/`** depuis la v=102 (supabase-js,
   Chart.js, pdf.js et son travailleur, html2canvas, jsPDF, pdf-lib, police
   Montserrat), versions exactes prises sur npm, licences jointes, empreintes
@@ -534,16 +546,18 @@ garder le canari qui vérifie que le masquage n'efface pas de code.
 
 - **Le backlog** est tenu dans un artefact claude.ai de Thomas (« Backlog
   Stonefolio ») — demander le lien. Ses chiffres se re-mesurent avant d'être cités.
-- Au dépôt : `CARTOGRAPHIE-AVANT-TEST.md` (état détaillé avant ouverture au
-  testeur), `AVANT-INVITATION.md`, `REVUE-2026-08-13.md` (dont les trois
-  options sur le découpage d'`app.js`), `AUDIT-2026-08-0{3,5}.md`, et les
-  `MIGRATION-*.sql` et `GARDE-*.sql` (chacun dit s'il a été joué). L'audit
-  complet du 16/10/2026 est publié en artefact (lien dans le backlog). `BRIEF-REPRISE.md` est
-  **périmé** (v=61) : historique seulement.
+- Au dépôt, dans `docs/` : `CARTOGRAPHIE-AVANT-TEST.md` (état détaillé avant
+  ouverture au testeur), `AVANT-INVITATION.md`, `REVUE-2026-08-13.md` (dont
+  les trois options sur le découpage d'`app.js`), `AUDIT-2026-08-0{3,5}.md` ;
+  dans `supabase/sql/`, les `MIGRATION-*.sql` et `GARDE-*.sql` (chacun dit
+  s'il a été joué). L'audit complet du 16/10/2026 et le rapport « vitesse et
+  parcours » du 17/10 sont publiés en artefacts (liens dans le backlog).
+  `docs/BRIEF-REPRISE.md` est **périmé** (v=61) : historique seulement.
 
 ### Décisions encore ouvertes, à poser à Thomas plutôt qu'à trancher
 
-- Découper `app.js` suppose d'accepter une étape de build — non tranché.
+- Découper `app.js` : une étape de construction existe désormais (la
+  publication minifiée, v=103) ; le découpage lui-même reste à décider.
 - L'arbitrage fiscal des provisions de charges dans la déclaration (une garde
   de test empêche de le faire par réflexe).
 - Les données d'ADMINISTRATION de test (SCI, contacts, échéances) n'ont pas

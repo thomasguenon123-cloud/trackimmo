@@ -28,3 +28,7 @@ _banc-picklist.html
 
 node_modules/
 _banc-locataires.html
+
+# Publication construite localement (node scripts/construire.mjs) : la
+# publication GitHub Actions la fabrique elle-meme, elle ne se versionne pas.
+_site/

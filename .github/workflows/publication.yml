@@ -1,0 +1,52 @@
+# PUBLICATION DU SITE — tests, construction (minification), mise en ligne.
+#
+# Remplace la publication « depuis la branche » de GitHub Pages, qui servait
+# TOUT le dépôt tel quel : audits, SQL, tests, maquettes, et un app.js dont les
+# commentaires pèsent plus que le code.
+#
+# ⚠️ ACTIVATION EN DEUX TEMPS (le réglage est dans GitHub, pas dans le dépôt) :
+#   1. Settings › Pages › Build and deployment › Source : « GitHub Actions ».
+#   2. Lancer cette publication une première fois à la main (onglet Actions),
+#      vérifier le site, puis seulement ajouter le déclenchement sur `main`.
+# Tant que la source est « Deploy from a branch », ce fichier ne fait rien
+# tout seul : il ne se lance qu'à la main.
+name: Publication
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  construire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tests
+        run: npm test
+      - name: Construction (minification, vérifications)
+        run: node scripts/construire.mjs
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  publier:
+    needs: construire
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - id: deploiement
+        uses: actions/deploy-pages@v4
