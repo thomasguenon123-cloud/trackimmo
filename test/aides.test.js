@@ -107,7 +107,7 @@ test('l\'accueil : les explications derrière les « ? », les unités et les ch
   assert.doesNotMatch(visible(h), /loyers moins charges et crédit|mois loués sur|sans loyer estimé|les dates qui coûtent cher/,
     'Une explication de l\'accueil est réaffichée en petit.');
   assert.match(h, /sf-kpi__sub">par mois</, 'témoin : l\'unité du cashflow reste visible');
-  assert.match(h, /les dates qui coûtent cher/, 'témoin : l\'explication existe toujours, dans sa bulle');
+  assert.match(h, /mois loués sur/, 'témoin : l\'explication existe toujours, dans sa bulle');
 });
 
 test('Mes biens : les chiffres clés se rendent, chacun avec son « ? »', () => {
@@ -142,6 +142,17 @@ test('la lecture d\'une simulation se rend, l\'endettement expliqué derrière s
   assert.doesNotMatch(h, /\$\{/, 'un gabarit non interprété est passé à l\'écran');
   assert.match(visible(h), /dans la limite de 35/, 'témoin : le jugement reste visible');
   assert.deepEqual(aidesMalPlacees(h), []);
+  /* v=104 : sans revenus, l'endettement est « Non disponible » — en pastille
+     calme dans les chiffres clés, en texte calme dans les lignes (sfAbsent),
+     plus en chasse fixe et en gras comme un montant. */
+  const el2 = { innerHTML: '' };
+  ctx.sfsRenderLecture(el2, { ...s, id: 's2', revenus_mensuels: null, loyer_exige_banque: null }, true);
+  const h2 = el2.innerHTML;
+  assert.match(h2, /sff-kpi__v sff-kpi__v--none">Non disponible</, 'la valeur absente d’un chiffre clé porte sa pastille');
+  assert.match(h2, /sff-line__l">Taux d'endettement<\/span><span class="sff-line__v"><span class="sf-nd">Non disponible<\/span>/,
+    'une valeur absente dans une ligne s’écrit en texte calme');
+  assert.match(h2, /<span class="sf-nd">Non renseignés<\/span>/, 'témoin : des revenus non renseignés le disent');
+  assert.doesNotMatch(h2, /sff-line__v">Non /, 'une valeur absente est écrite nue dans la colonne des montants');
 });
 
 test('Préférences métier : chaque champ a son « ? », hors du libellé', () => {

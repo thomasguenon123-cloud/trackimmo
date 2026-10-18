@@ -377,3 +377,100 @@ test('aucune liste de sélecteurs interrompue, aucun bloc sans sélecteur', () =
   assert.ok(vide && /width\s*:\s*18px/.test(vide.corps), 'le « ? » d’un état vide a perdu sa taille');
   assert.ok(!vide.sel.includes('.sff-h1'), 'la règle du « ? » des états vides est recollée à celle des titres');
 });
+
+// v=104 — UN COMMENTAIRE QUI SE FERME TROP TÔT. Un commentaire de styles.css
+// énumérait « .bd-step*/.bd-link » : cet astérisque suivi d'une barre FERMAIT
+// le commentaire. La suite, lue comme du CSS, se collait au sélecteur de la
+// règle suivante — `.bd-link{…}` — qui devenait invalide et disparaissait en
+// entier (vérifié dans Chromium : plus de marge ni de coins arrondis). esbuild
+// l'a signalé à la première publication construite ; aucun test ne le voyait.
+// (Ce bloc est en commentaires de ligne : le même piège fermait le sien.)
+function fermeturesOrphelines(css) {
+  const lignes = []; let dans = false, n = 1;
+  for (let i = 0; i < css.length; i++) {
+    if (css[i] === '\n') { n++; continue; }
+    if (!dans && css[i] === '/' && css[i + 1] === '*') { dans = true; i++; }
+    else if (css[i] === '*' && css[i + 1] === '/') { if (!dans) lignes.push(n); dans = false; i++; }
+  }
+  return { lignes, ouvert: dans };
+}
+test('tout « */ » ferme un commentaire ouvert : aucun commentaire ne se ferme trop tôt', () => {
+  const fautes = [];
+  for (const f of FEUILLES) {
+    const r = fermeturesOrphelines(lire(f));
+    r.lignes.forEach(l => fautes.push(`${f}:${l}`));
+    if (r.ouvert) fautes.push(`${f} : un commentaire n’est jamais fermé`);
+  }
+  for (const f of ['index.html', '404.html'])
+    for (const m of lire(f).matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g))
+      fermeturesOrphelines(m[1]).lignes.forEach(l => fautes.push(`${f} (<style>):${l}`));
+  assert.deepEqual(fautes, [], '« */ » sans « /* » : le commentaire s’est fermé plus tôt, la suite est lue comme du CSS');
+  // Témoin : le détecteur reconnaît le défaut d'origine.
+  assert.deepEqual(fermeturesOrphelines('/* .bd-step*/.bd-link → x */ .a{}').lignes, [1]);
+  // Et la règle qu'il faisait perdre est entière, sous son propre sélecteur.
+  const lien = REGLES.find(r => r.sel === '.bd-link' && !r.media);
+  assert.ok(lien && /padding\s*:/.test(lien.corps), 'la règle .bd-link a perdu son sélecteur ou ses déclarations');
+});
+
+/* v=104 — UNE VALEUR ABSENTE NE SE MET PAS EN SCÈNE. « Les labels "non
+   disponible" sont beaucoup trop proéminents » (Thomas, 18/10). Chaque famille
+   de chiffres clés avait sa règle `--none` (16 px), et les règles de taille de
+   la v=100, plus loin dans styles.css, les écrasaient toutes à précision égale :
+   « non disponible » s'affichait à 30-42 px, la taille d'un chiffre. Une seule
+   règle désormais, à double classe, APRÈS ces tailles. */
+test('une valeur absente : une règle pour toutes les familles, placée après les tailles qu’elle doit battre', () => {
+  const FAMILLES = ['.sf-kpi__value.sf-kpi__value--none', '.sff-kpi__v.sff-kpi__v--none', '.mfx-kpi__v.mfx-kpi__v--none',
+    '.sfn-r__v.sfn-r__v--none', '.sfn-barre__v.sfn-barre__v--none', '.sfs-tendance__v.sff-kpi__v--none'];
+  const commune = REGLES.filter(r => r.f === 'styles.css' && !r.media && r.sel.includes(FAMILLES[0]));
+  assert.equal(commune.length, 1, 'la règle commune des valeurs absentes a disparu (ou s’est dédoublée)');
+  const sels = commune[0].sel.split(',').map(s => s.trim());
+  for (const f of FAMILLES) assert.ok(sels.includes(f), `${f} n’est plus dans la règle commune`);
+  assert.match(commune[0].corps, /font-size\s*:\s*var\(--sf-font-caption\)/, 'témoin : la pastille garde sa taille de légende');
+  // Placée APRÈS toutes les tailles de valeur de styles.css, médias compris.
+  const css = CSS['styles.css'];
+  const iCommune = css.indexOf(FAMILLES[0] + ',');
+  const iTailles = Math.max(css.lastIndexOf('--sf-v-taille:clamp(22px, 6.4vw, 28px)'), css.lastIndexOf('.sf-kpi__value{ --sf-v-taille'));
+  assert.ok(iTailles > 0 && iCommune > iTailles, 'la règle commune précède une règle de taille, qui l’écrasera');
+  // Nulle part ailleurs une valeur absente ne reçoit de taille.
+  const autres = REGLES.filter(r => r !== commune[0] && /--none\b/.test(r.sel) && /__v(alue)?\b|__v--none|value--none/.test(r.sel) && /font-size/.test(r.corps));
+  assert.deepEqual(autres.map(r => `${r.f} ${r.sel}`), [], 'une seconde règle donne une taille à une valeur absente');
+  // Et aucune feuille chargée après styles.css ne regrossit une valeur de chiffre clé à double classe.
+  const apres = REGLES.filter(r => ['financier.css', 'tactile.css'].includes(r.f) && /font-size/.test(r.corps)
+    && r.sel.split(',').some(s => /\S+\s+\.(mfx|sff)-kpi__v\b|\.(mfx|sff)-kpi__v\.\S/.test(s.trim())));
+  assert.deepEqual(apres.map(r => `${r.f} ${r.sel}`), [], 'une feuille chargée après styles.css surcharge la taille des valeurs');
+});
+
+/* v=104 — LAISSER DE L'AIR. Mesuré au banc sur 55 écrans : des cartes
+   empilées à 12 px, les onglets du Suivi financier collés à la bande des
+   chiffres clés (aucune marge sans bien vacant), des lignes de liste à 12 px.
+   Cinq distances, qui grandissent avec l'écran, et les blocs qui structurent
+   une page les emploient — pas une distance brute posée au cas par cas. */
+test('le rythme : les jetons existent, et les blocs qui structurent une page les emploient', () => {
+  const racine = regles(CSS['tokens.css']).find(r => r.sel === ':root' && /--sf-rythme-section/.test(r.corps));
+  assert.ok(racine, 'les jetons du rythme ont disparu de tokens.css');
+  for (const j of ['--sf-rythme-section', '--sf-rythme-bloc', '--sf-rythme-titre', '--sf-pad-carte', '--sf-pad-ligne-y', '--sf-pad-ligne-x'])
+    assert.match(racine.corps, new RegExp(`${j}\\s*:\\s*clamp\\(`), `${j} doit grandir avec l’écran (clamp)`);
+  const attendu = [
+    ['.acc-bloc', /margin-bottom\s*:\s*var\(--sf-rythme-section\)/],
+    ['.sff-block', /margin-bottom\s*:\s*var\(--sf-rythme-bloc\)/],
+    ['.sff-kpis', /margin-bottom\s*:\s*var\(--sf-rythme-bloc\)/],
+    ['.mfx-kpis', /margin-bottom\s*:\s*var\(--sf-rythme-bloc\)/],
+    ['.sff-tabs', /margin-bottom\s*:\s*var\(--sf-rythme-bloc\)/],
+    ['.mfx-tabs', /margin-bottom\s*:\s*var\(--sf-rythme-bloc\)/],
+    ['.sfb-tabs', /margin-bottom\s*:\s*var\(--sf-rythme-bloc\)/],
+    ['.sff-grid2', /gap\s*:\s*var\(--sf-rythme-bloc\)/],
+    ['.sf-kpi', /padding\s*:\s*var\(--sf-pad-carte\)/],
+    ['.sff-kpi', /padding\s*:\s*var\(--sf-pad-carte\)/],
+    ['.mfx-kpi', /padding\s*:\s*var\(--sf-pad-carte\)/],
+    ['.sf-ag', /padding\s*:\s*var\(--sf-pad-ligne-y\)\s+var\(--sf-pad-ligne-x\)/],
+    ['.acc-pipe', /padding\s*:\s*var\(--sf-pad-ligne-y\)\s+var\(--sf-pad-ligne-x\)/],
+    ['.sf-alert', /padding\s*:\s*var\(--sf-pad-ligne-y\)\s+var\(--sf-pad-ligne-x\)/],
+  ];
+  const fautes = [];
+  for (const [sel, motif] of attendu) {
+    const r = regle(sel);
+    if (!r.length) { fautes.push(`${sel} : règle introuvable`); continue; }
+    if (!r.some(x => motif.test(x.corps))) fautes.push(`${sel} : ${motif}`);
+  }
+  assert.deepEqual(fautes, []);
+});

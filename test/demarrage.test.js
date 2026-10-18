@@ -50,7 +50,8 @@ test('profil, préférences et données partent ensemble, avant la réponse du p
   const { ctx, journal, entrees, libererProfil } = banc('active');
   const entree = ctx.sfEntrer({ id: 'u1' });
   // Le profil n'a pas encore répondu : tout doit déjà être parti.
-  for (const attendu of ['rpc:get_my_profile', 'rpc:get_my_preferences', 'from:biens', 'from:locataires', 'from:loyers_mensuels', 'from:charges_reelles']) {
+  // v=104 : les échéances administratives partent aussi — l'accueil les annonce.
+  for (const attendu of ['rpc:get_my_profile', 'rpc:get_my_preferences', 'from:biens', 'from:locataires', 'from:loyers_mensuels', 'from:charges_reelles', 'from:sci_echeances']) {
     assert.ok(journal.includes(attendu), `${attendu} attend la réponse du profil : une vague de plus au démarrage`);
   }
   libererProfil();
@@ -73,6 +74,7 @@ for (const statut of ['pending', 'disabled']) {
     assert.equal(lire(ctx, 'currentUser'), null, 'la session reste ouverte côté écran');
     assert.ok(journal.includes('signOut'), 'le compte est déconnecté');
     assert.equal(Array.from(lire(ctx, 'allBiens')).length, 0, 'des données ont été appliquées pour un compte non actif');
+    assert.equal(Array.from(lire(ctx, 'allEcheances')).length, 0, 'des échéances ont été gardées pour un compte non actif');
   });
 }
 

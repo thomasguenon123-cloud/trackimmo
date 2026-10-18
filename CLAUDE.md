@@ -14,21 +14,24 @@
 - Le dépôt garde le nom **`trackimmo`** : le renommer changerait l'URL Pages
   (et le `REDIRECT_URL` du lien d'invitation). À faire d'un seul tenant, plus tard.
 - **Production** : https://thomasguenon123-cloud.github.io/trackimmo/
-- **Front 100 % statique**, sans build, déployé tel quel sur GitHub Pages.
+- **Front 100 % statique**, sans framework. Depuis le 18/10 (v=104), publié
+  par GitHub Actions : tests, puis version minifiée (voir Publication).
   `app.js` est un script unique (~17 500 lignes) ; CSS en couches :
   `tokens.css` → `components.css` → `styles.css` → `financier.css` → `tactile.css`.
 - **Dépôt rangé** (v=103) : le site à la racine ; `docs/` (audits, cadrages,
   notes) ; `supabase/sql/` (scripts joués à la main) ; `supabase/functions/` ;
   `maquettes/` (HTML de référence, non chargés par le site) ; `scripts/`.
-- **Publication minifiée préparée** (v=103, approuvée le 17/10) :
-  `scripts/construire.mjs` copie dans `_site/` ce que le site charge, minifie
-  app.js et les feuilles SANS renommer (les `onclick` appellent les fonctions
-  par leur nom), revérifie les empreintes ; `.github/workflows/publication.yml`
-  lance `npm test` puis la construction. Gain mesuré : 507 → 332 Ko,
-  Lighthouse 95 → 98. ⚠️ **Manuelle tant que Thomas n'a pas passé Settings ›
-  Pages › Source à « GitHub Actions »** ; d'ici là, Pages publie la branche
-  telle quelle. Un fichier ajouté au site doit l'être au script (garde
-  `publication.test.js`).
+- **Publication** (activée le 18/10, v=104) : Settings › Pages › Source est
+  sur « GitHub Actions ». Chaque push sur `main` lance
+  `.github/workflows/publication.yml` : `npm test` (rouge = rien ne part, le
+  site reste celui d'avant), puis `scripts/construire.mjs`, qui copie dans
+  `_site/` ce que le site charge, minifie app.js et les feuilles SANS renommer
+  (les `onclick` appellent les fonctions par leur nom), revérifie les
+  empreintes, et seul `_site/` part en ligne. Gain mesuré : 507 → 332 Ko à
+  l'ouverture, Lighthouse 95 → 98 ; la construction affiche les tailles (app.js
+  979 → 604 Ko au 18/10). Un fichier ajouté au site doit l'être au script
+  (garde `publication.test.js`). Revenir en arrière : remettre la source sur
+  « Deploy from a branch ». esbuild signale les erreurs CSS : les lire.
 - **Bibliothèques hébergées dans `vendor/`** depuis la v=102 (supabase-js,
   Chart.js, pdf.js et son travailleur, html2canvas, jsPDF, pdf-lib, police
   Montserrat), versions exactes prises sur npm, licences jointes, empreintes
@@ -55,9 +58,11 @@
 1. **Incrémenter `?v=N` dans `index.html` AVANT de tester** toute modification
    de CSS ou de JS — sinon le navigateur mêle nouvel HTML et anciens assets.
 2. Branche de travail → commit détaillé → fusion dans `main` → push →
-   **attendre la fin de « pages build and deployment »** avant d'annoncer que
-   c'est en ligne. En session cloud, `github.io` est bloqué par le proxy :
-   suivre le déploiement par l'API GitHub Actions.
+   **attendre la fin du workflow « Publication »** (ses deux jobs, construire
+   et publier) avant d'annoncer que c'est en ligne. En session cloud,
+   `github.io` et le stockage des artefacts sont bloqués par le proxy : suivre
+   par l'API GitHub Actions, et lire le journal de la construction (tailles,
+   avertissements).
 3. **`npm test` avant tout commit** (`node --test`, aucune dépendance).
 4. ⚠️ **Toute garde de régression se valide PAR MUTATION** : réintroduire
    l'ancien code et vérifier que le test TOMBE. Vérifier d'abord que la
@@ -266,12 +271,48 @@
   l'onglet du champ manquant (plusieurs biens : la liste filtrée). Chaque
   destination est écrite une fois (`sfAller*`, `sfOuvrirFiche`,
   `sfOuvrirBiens`) ; un onglet demandé est une clé de `TAB_DEFS`.
-- **Accueil** (v=103) : plus de bandeau « verdict ». Ordre : le patrimoine
-  (dès qu'un bien est acquis), « À traiter » (l'argent passe avant le
-  démarrage), « Pour démarrer », six actions rapides, l'agenda. « Tout est à
-  jour » ne se dit jamais pendant le démarrage ; le point « À traiter » qui
-  promet le prochain geste du parcours s'efface devant lui (le parcours
-  reprend son chiffre). Garde : `parcours.test.js`.
+- **Accueil** (v=103, v=104) : plus de bandeau « verdict ». Ordre : « Votre
+  patrimoine » (SEULEMENT avec un bien acquis — avant, ses cartes disaient
+  trois fois « non disponible » : le parcours dit ce qui les fera naître),
+  « À traiter » (l'argent passe avant le démarrage), « Pour démarrer »,
+  « Actions rapides », puis « Prochaines échéances » et « En prospection ».
+  « Tout est à jour » ne se dit jamais pendant le démarrage ; le point « À
+  traiter » qui promet le prochain geste du parcours s'efface devant lui.
+  **Prochaines échéances** (v=104, ex-Agenda) : loyers attendus ET échéances
+  administratives (`sci_echeances`, lues dans la vague du démarrage) des
+  60 jours, de la plus proche à la plus lointaine, l'horizon dit en date
+  (« d'ici le 17 décembre ») ; une échéance faite sort, dépassée elle reste
+  « En retard » ; celle du générateur de test suit l'interrupteur des biens de
+  test ; une échéance mène à Administration › Échéances (`sfAllerEcheances`),
+  « Programmer une échéance » y ouvre la saisie ; « aucune » ne se dit que si
+  elles ont été lues (`sfEcheancesLues`). **En prospection** : deux lignes par
+  fiche (titre, puis statut et ville), un vrai bouton, « Tout voir dans Mes
+  biens ». Le cashflow s'appelle « Cashflow réel » comme sur la fiche (plus
+  « Ce que ça rapporte »). Gardes : `parcours.test.js`, `accueil.test.js`.
+- **Laisser de l'air** (v=104, demande du 18/10) : cinq distances dans
+  `tokens.css`, qui grandissent avec l'écran — `--sf-rythme-section` (entre
+  sections titrées, 36-56 px), `--sf-rythme-bloc` (entre cartes, empilées ou
+  voisines, 20-28 px), `--sf-rythme-titre` (titre → contenu), `--sf-pad-carte`
+  (intérieur d'une carte, d'un chiffre clé), `--sf-pad-ligne-y/x` (une ligne
+  de liste). Un bloc qui structure une page les emploie, jamais une distance
+  brute. Mesuré au banc (sonde d'espacement, 55 écrans) : lignes 12 → 15,5 px,
+  cartes voisines 12 → 23 px, hauteur des pages + 4 à 7 %. Garde :
+  `mise-en-page.test.js`.
+- **Une valeur absente se dit, calmement** (v=104) : dans un chiffre clé, une
+  PASTILLE « Non disponible » (dessin des pastilles de statut, 12 px, centrée
+  sur la ligne qu'occuperait le chiffre grâce à `--sf-v-taille`), par UNE règle
+  commune en fin de styles.css, à double classe, APRÈS les tailles qu'elle doit
+  battre ; dans une ligne de détail, `sfAbsent()` (texte calme, police de
+  l'interface). « Non disponible » toujours avec sa majuscule en valeur.
+  Garde : `mise-en-page.test.js`, `aides.test.js`.
+- **Chasse fixe et milliers** (v=104) : toute règle en `--sf-font-num` pose
+  `word-spacing:var(--sf-num-espace)` (-0,3 em) — l'espace U+00A0 y valait la
+  largeur d'un chiffre (« 168  000 € ») — et seulement elle : ailleurs, il
+  écrase les espaces. Un sous-titre en texte (« 5 fiches sur 5 », « d'ici
+  le… ») est en police d'interface, sans `sf-num`. Garde : `typographie.test.js`.
+- **L'action principale vit dans l'en-tête de la page** (Mes biens « Ajouter
+  un bien », v=104, comme Simulations et Comptes rendus) : en fin de barre
+  d'outils, elle tombait seule sur une seconde ligne.
 - **Chiffres clés sans case vide** (v=103) : `.acc-kpis`, `.sfb-kpis`,
   `.sff-kpis`, `.mfx-kpis` se règlent sur leur NOMBRE (`:has`) : 4 → deux par
   deux puis une ligne dès 900 px ; 5 → « 3 + 2 » puis une ligne dès 1 180 px.
@@ -348,7 +389,12 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 | Bibliothèques et leurs empreintes | `vendor/` · `vendor/empreintes.json` · chargement à la demande : `SF_BIBLIOS`, `sfChargerBiblio()` |
 | Mettre en forme un nombre (milliers U+00A0) | `sfNombre()` — `fmt()`, `sfEur()`, `sfPctNum()` passent par elle |
 | Valeur initiale d'un champ de montant (0 reste 0) | `sfValeurChamp()` |
-| Où mène une action (accueil et ailleurs) | `sfAllerPointer()`, `sfAllerSaisirCharge()`, `sfAllerAjouterLocataire()`, `sfAllerCompleter()`, `sfAllerMensualite()` · `sfOuvrirFiche(id, onglet)` · `sfOuvrirBiens({ onglet, etat })` |
+| Où mène une action (accueil et ailleurs) | `sfAllerPointer()`, `sfAllerSaisirCharge()`, `sfAllerAjouterLocataire()`, `sfAllerCompleter()`, `sfAllerMensualite()`, `sfAllerEcheances({ nouvelle })` · `sfOuvrirFiche(id, onglet)` · `sfOuvrirBiens({ onglet, etat })` |
+| Prochaines échéances de l'accueil · échéances administratives proches | `sfAgenda60j()` · `sfEcheancesProches()` (`SF_AGENDA_JOURS`, `SF_MOIS_COURTS`) |
+| Lire les échéances administratives (démarrage et Administration) | `sfLireEcheances()` / `sfPrendreEcheances()` · lues ? `sfEcheancesLues` |
+| Distances de mise en page | `--sf-rythme-section`, `--sf-rythme-bloc`, `--sf-rythme-titre`, `--sf-pad-carte`, `--sf-pad-ligne-y/x` (tokens.css) |
+| Valeur absente : chiffre clé · ligne de détail | règle « UNE VALEUR ABSENTE » (fin de styles.css, classes `--none`) · `sfAbsent()` |
+| Espace des milliers en chasse fixe | `--sf-num-espace` (tokens.css), posé avec chaque `--sf-font-num` |
 | Entrer dans l'application (une vague) | `sfEntrer()` · `sfChargerDonnees()` / `sfAppliquerDonnees()` |
 | Liens signés de plusieurs fichiers · vignettes | `TI_STORAGE.signedUrls()` · `sfUrlsVignettes()` |
 | Réduire une photo avant l'envoi | `sfReduirePhoto()` · `sfDimensionsReduites()` |
@@ -426,6 +472,24 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
   suivante — le « ? » des états vides a pris la taille d'un titre de page. Et
   un bloc sans sélecteur (`{display:flex…}`) traînait depuis des mois. Garde :
   `mise-en-page.test.js` (liste interrompue, bloc sans sélecteur).
+- **Un astérisque collé à une barre oblique FERME un commentaire** (CSS comme
+  JS) : un commentaire de styles.css énumérait des classes à joker
+  (`.bd-step` + astérisque + barre + `.bd-link`) ; la suite, lue comme du CSS,
+  s'est collée au sélecteur de `.bd-link{…}`, qui a disparu en entier — depuis
+  des mois, jusqu'à ce qu'esbuild le signale à la première publication
+  construite (v=104). Le même piège a fermé deux commentaires en l'écrivant.
+  Garde : `mise-en-page.test.js` (tout « fin de commentaire » ferme un
+  commentaire ouvert).
+- **Une règle de taille plus loin dans la feuille écrase un modificateur**
+  (v=104) : les règles `--none` (16 px) de chaque famille perdaient contre les
+  tailles de la v=100, posées plus bas à précision égale — « non disponible »
+  s'affichait à 30-42 px. Un modificateur qui doit gagner se place APRÈS, ou
+  porte une classe de plus ; le vérifier dans un vrai navigateur.
+- **`word-spacing` négatif hors chasse fixe efface les espaces** (« 5fichessur5 »,
+  v=104, une classe `sf-num` restée sur un texte passé en police d'interface).
+- **Une sonde suppose des distances** : celle des grilles tolérait des écarts
+  de 24 px au plus et a vu des « cases vides » quand le rythme les a portés à
+  28 px. Lire l'écart calculé (`columnGap`), pas une constante.
 - **`auto-fit` ne regarde pas combien d'éléments porte la grille** : 4 chiffres
   tombent en « 3 + 1 » et la case vide laisse voir le fond des séparateurs.
   Régler par le nombre (`:has(> :nth-child(4):last-child)`) ; une annulation

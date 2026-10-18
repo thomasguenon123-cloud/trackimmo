@@ -50,4 +50,7 @@ test('la publication passe les tests avant de construire, et ne publie que _site
   assert.ok(iTests > 0 && iConstruire > iTests, 'les tests doivent passer AVANT la construction');
   assert.match(FLUX, /upload-pages-artifact@v\d[\s\S]*?path:\s*_site/, 'seul _site part en ligne');
   assert.match(lire('.gitignore'), /^_site\/$/m, 'la publication construite ne se versionne pas');
+  // Activée le 18/10 : chaque push sur main se publie par ce fichier (et lui seul).
+  assert.match(FLUX, /\non:\s*\n\s+push:\s*\n\s+branches:\s*\[main\]/, 'la publication ne se déclenche plus sur main');
+  assert.match(FLUX, /workflow_dispatch/, 'la relance à la main a disparu');
 });

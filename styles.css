@@ -1205,7 +1205,7 @@ html, body{ overflow-x:clip; }
 .sfs-row__doc{ display:inline-flex; color:var(--sf-text-2); }
 .sfs-row__a{ margin-left:auto; flex-shrink:0; text-align:right; font-family:var(--sf-font-num);
   font-variant-numeric:tabular-nums; font-size:var(--sf-font-lead); font-weight:var(--sf-weight-semibold);
-  color:var(--sf-text); white-space:nowrap; }
+  color:var(--sf-text); white-space:nowrap; word-spacing:var(--sf-num-espace); }
 .sfs-row__a small{ font-family:var(--sf-font-ui); font-size:var(--sf-font-caption); font-weight:var(--sf-weight-regular); color:var(--sf-text-2); }
 /* La source d'un taux : en italique, en clair, sous ce qu'elle justifie. */
 .sf-source{ display:block; font-style:italic; font-size:var(--sf-font-caption);
@@ -1870,7 +1870,7 @@ html, body{ overflow-x:clip; }
 .sff-page{ margin:0 auto; width:100%; }   /* même arbitrage que .mf-page */
 
 /* ── Bandeau de titre ─────────────────────────────────────────────────────── */
-.sff-top{ margin-bottom:var(--sf-space-7); }
+.sff-top{ margin-bottom:var(--sf-rythme-bloc); }
 
 /* Le retour etait un libelle nu precede d'une fleche : rien ne le donnait pour
    cliquable. Pastille a la meme hauteur de controle que les autres boutons,
@@ -1903,8 +1903,8 @@ html, body{ overflow-x:clip; }
 /* ── Bandeau d'indicateurs ────────────────────────────────────────────────── */
 .sff-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
   gap:1px; background:var(--sf-border); border:var(--sf-border-width) solid var(--sf-border);
-  border-radius:var(--sf-radius-md); overflow:hidden; margin-bottom:var(--sf-space-7); }
-.sff-kpi{ background:var(--sf-surface); padding:clamp(14px,1.2vw,22px);
+  border-radius:var(--sf-radius-md); overflow:hidden; margin-bottom:var(--sf-rythme-bloc); }
+.sff-kpi{ background:var(--sf-surface); padding:var(--sf-pad-carte);
   display:flex; flex-direction:column; gap:var(--sf-space-2); min-width:0; position:relative; }
 .sff-kpi--hi{ background:var(--sf-brand-wash); }
 .sff-kpi--hi::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
@@ -1922,10 +1922,6 @@ html, body{ overflow-x:clip; }
   font-variant-numeric:tabular-nums; white-space:nowrap; }
 .sff-kpi__v--gain{ color:var(--sf-gain); }
 .sff-kpi__v--loss{ color:var(--sf-loss); }
-/* Une valeur absente n'est pas une valeur nulle : elle se dit, elle ne
-   s'invente pas. Regle issue de l'audit Marche. */
-.sff-kpi__v--none{ color:var(--sf-text-3); font-family:var(--sf-font-ui);
-  font-size:var(--sf-font-lead); font-weight:var(--sf-weight-regular); }
 .sff-kpi__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
@@ -1983,7 +1979,7 @@ html, body{ overflow-x:clip; }
 
 /* ── Onglets ──────────────────────────────────────────────────────────────── */
 .sff-tabs{ display:flex; gap:var(--sf-space-2); overflow-x:auto;
-  border-bottom:var(--sf-border-width) solid var(--sf-border); margin-bottom:var(--sf-space-6);
+  border-bottom:var(--sf-border-width) solid var(--sf-border); margin-bottom:var(--sf-rythme-bloc);
   scrollbar-width:none;
   /* Le retour sur un onglet y fait défiler (bdDefilerVersOnglets) : sans
      cette marge, le bandeau collant recouvrirait la barre d'onglets. */
@@ -2003,7 +1999,7 @@ html, body{ overflow-x:clip; }
 .sff-tab__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
   font-weight:var(--sf-weight-semibold); color:var(--sf-text-3);
   background:var(--sf-surface-2); border-radius:var(--sf-radius-full); padding:1px 7px;
-  display:inline-flex; align-items:center; }
+  display:inline-flex; align-items:center; word-spacing:var(--sf-num-espace); }
 .sff-tab[aria-selected="true"] .sff-tab__n{ background:var(--sf-brand-wash-2); color:var(--sf-brand-vivid); }
 .sff-tab__n.on{ background:var(--sf-gain-wash); color:var(--sf-gain); }
 .sff-pane[hidden]{ display:none; }
@@ -2019,22 +2015,26 @@ html, body{ overflow-x:clip; }
    `display:flex` sur la carte et `flex:1` sur le corps : sans cela, deux
    cartes voisines d'une meme rangee se terminent a des hauteurs differentes. */
 .sff-block{ background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
-  border-radius:var(--sf-radius-md); margin-bottom:var(--sf-space-5); min-width:0;
+  border-radius:var(--sf-radius-md); margin-bottom:var(--sf-rythme-bloc); min-width:0;
   overflow:hidden; display:flex; flex-direction:column; }
 .sff-block:last-child{ margin-bottom:0; }
 .sff-block__h{ display:flex; align-items:center; gap:var(--sf-space-5);
-  min-height:52px; padding:0 var(--sf-space-7); flex-shrink:0;
+  min-height:52px; padding:0 var(--sf-pad-carte); flex-shrink:0;
   border-bottom:var(--sf-border-width) solid var(--sf-border); }
 .sff-block__t{ font-size:var(--sf-font-label); font-weight:var(--sf-weight-semibold);
   letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-3); margin:0; }
 .sff-block__n{ margin-left:auto; font-size:var(--sf-font-caption); color:var(--sf-text-3);
   font-variant-numeric:tabular-nums; }
 .sff-block__a{ margin-left:auto; display:flex; gap:var(--sf-space-4); }
-.sff-block__b{ padding:var(--sf-space-7); flex:1; display:flex; flex-direction:column; }
+.sff-block__b{ padding:var(--sf-pad-carte); flex:1; display:flex; flex-direction:column; }
 .sff-block__b--flush{ padding:0; }
 
-.sff-grid2{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:var(--sf-space-5); align-items:stretch; }
-.sff-grid2 > .sff-block{ margin-bottom:var(--sf-space-5); }
+/* v=104 : deux cartes voisines s'écartent du rythme de bloc, en largeur comme
+   en hauteur ; la grille porte la marge du dessous, plus ses cartes. */
+.sff-grid2{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:var(--sf-rythme-bloc);
+  align-items:stretch; margin-bottom:var(--sf-rythme-bloc); }
+.sff-grid2:last-child{ margin-bottom:0; }
+.sff-grid2 > .sff-block{ margin-bottom:0; }
 .sff-cta{ display:flex; gap:var(--sf-space-4); flex-wrap:wrap; margin-top:var(--sf-space-6); }
 .sff-inline{ font-size:var(--sf-font-body-sm); color:var(--sf-text-3); margin:0;
   display:flex; flex-wrap:wrap; align-items:center; gap:var(--sf-space-4);
@@ -2061,7 +2061,7 @@ html, body{ overflow-x:clip; }
 
 .sff-lines{ display:flex; flex-direction:column; }
 .sff-line{ display:grid; grid-template-columns:11px minmax(0,1fr) auto 16px 42px;
-  gap:var(--sf-space-4); align-items:center; padding:var(--sf-space-4) 0;
+  gap:var(--sf-space-4); align-items:center; padding:clamp(8px, 0.8vw, 12px) 0;
   border-bottom:var(--sf-border-width) solid var(--sf-border); }
 .sff-line:last-of-type{ border-bottom:0; padding-bottom:0; }
 .sff-line__d{ width:9px; height:9px; border-radius:2px; }
@@ -2069,9 +2069,9 @@ html, body{ overflow-x:clip; }
 .sff-line__l small{ font-size:var(--sf-font-caption); color:var(--sf-text-3); }
 .sff-line__v{ font-family:var(--sf-font-num); font-size:var(--sf-font-body);
   font-variant-numeric:tabular-nums; color:var(--sf-text);
-  display:flex; justify-content:flex-end; white-space:nowrap; }
+  display:flex; justify-content:flex-end; white-space:nowrap; word-spacing:var(--sf-num-espace); }
 .sff-line__p{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
-  color:var(--sf-text-3); text-align:right; white-space:nowrap; }
+  color:var(--sf-text-3); text-align:right; white-space:nowrap; word-spacing:var(--sf-num-espace); }
 .sff-line--tot{ border-top:2px solid var(--sf-border-strong); border-bottom:0;
   margin-top:var(--sf-space-4); padding-top:var(--sf-space-5); }
 .sff-line--tot .sff-line__l{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
@@ -2112,7 +2112,7 @@ html, body{ overflow-x:clip; }
 .sff-g__f{ height:100%; border-radius:var(--sf-radius-full); min-width:2px; }
 .sff-g__v{ font-family:var(--sf-font-num); font-size:var(--sf-font-body);
   font-variant-numeric:tabular-nums; color:var(--sf-text);
-  display:flex; justify-content:flex-end; white-space:nowrap; }
+  display:flex; justify-content:flex-end; white-space:nowrap; word-spacing:var(--sf-num-espace); }
 .sff-solde{ display:flex; align-items:baseline; gap:var(--sf-space-5); flex-wrap:wrap;
   margin-top:var(--sf-space-6); padding-top:var(--sf-space-5);
   border-top:2px solid var(--sf-border-strong); }
@@ -2142,6 +2142,12 @@ html, body{ overflow-x:clip; }
   letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-3);
   margin-bottom:var(--sf-space-3); }
 .sff-f__v{ font-size:var(--sf-font-body); color:var(--sf-text); min-width:0; }
+/* v=104 : une valeur éditable s'aligne sur son libellé. Sa marge intérieure
+   (le cadre qui paraît au survol) la décalait de 7 px vers la droite — « T3 »
+   ne tombait pas sous « TYPE ». Le cadre déborde à gauche, le texte reste au
+   bord, comme les lignes survolables de la fiche. */
+.sff-f__v > .inline-edit:first-child,
+.sff-rail__b > .sff-rail__l + .inline-edit{ margin-left:calc(-6px - var(--sf-border-width)); }
 .sff-f__v--dual{ display:flex; align-items:center; gap:var(--sf-space-5); }
 .sff-f--wide{ grid-column:1/-1; }
 .sff-notes .inline-edit{ display:block; }
@@ -2151,20 +2157,20 @@ html, body{ overflow-x:clip; }
 
 /* ── Listes ───────────────────────────────────────────────────────────────── */
 .sff-list{ display:flex; flex-direction:column; }
-.sff-row{ display:flex; align-items:center; gap:var(--sf-space-5);
-  padding:var(--sf-space-5) var(--sf-space-4); margin:0 calc(-1 * var(--sf-space-4));
+.sff-row{ display:flex; align-items:center; gap:var(--sf-space-6);
+  padding:var(--sf-pad-ligne-y) var(--sf-space-4); margin:0 calc(-1 * var(--sf-space-4));
   border-bottom:var(--sf-border-width) solid var(--sf-border);
   border-radius:var(--sf-radius-sm); cursor:pointer;
   transition:background var(--sf-dur) var(--sf-ease); }
 .sff-row:last-child{ border-bottom:0; }
 .sff-row:hover{ background:var(--sf-surface-2); }
 .sff-row__d{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
-  color:var(--sf-text-3); white-space:nowrap; min-width:92px; flex-shrink:0; }
+  color:var(--sf-text-3); white-space:nowrap; min-width:92px; flex-shrink:0; word-spacing:var(--sf-num-espace); }
 .sff-row__m{ flex:1; min-width:0; font-size:var(--sf-font-body); color:var(--sf-text); }
 .sff-row__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px;
   overflow:hidden; text-overflow:ellipsis; }
 .sff-row__a{ font-family:var(--sf-font-num); font-size:var(--sf-font-body);
-  color:var(--sf-text); white-space:nowrap; font-variant-numeric:tabular-nums; }
+  color:var(--sf-text); white-space:nowrap; font-variant-numeric:tabular-nums; word-spacing:var(--sf-num-espace); }
 /* `.sff-stars` a ete retiree le 27/09/2026 : la fiche bien etait le TROISIEME
    endroit qui dessinait une note sur cinq a sa facon — et le seul qui affichait
    N etoiles VIDES au lieu de N pleines sur cinq. Les trois passent desormais
@@ -2234,15 +2240,12 @@ html, body{ overflow-x:clip; }
   gap:1px; background:var(--sf-border); border:var(--sf-border-width) solid var(--sf-border);
   border-radius:var(--sf-radius-md); overflow:hidden; }
 .sfn-r{ gap:var(--sf-space-2); }
-.sfn-r__v{ font-family:var(--sf-font-display); font-size:clamp(22px,1.8vw,28px);
+.sfn-r__v{ --sf-v-taille:clamp(22px,1.8vw,28px); font-family:var(--sf-font-display); font-size:var(--sf-v-taille);
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight);
   line-height:var(--sf-lh-tight); color:var(--sf-text);
   font-variant-numeric:tabular-nums; white-space:nowrap; }
 .sfn-r__v--gain{ color:var(--sf-gain); }
 .sfn-r__v--loss{ color:var(--sf-loss); }
-/* Une valeur absente se dit, en texte courant — elle ne se met pas en scène. */
-.sfn-r__v--none{ font-family:var(--sf-font-ui); font-size:var(--sf-font-lead);
-  font-weight:var(--sf-weight-regular); color:var(--sf-text-2); }
 .sfn-r .sff-rail__s{ color:var(--sf-text-2); }
 .sfn-ess{ list-style:none; margin:var(--sf-space-2) 0 var(--sf-space-3); padding:0;
   display:flex; flex-wrap:wrap; gap:var(--sf-space-3); }
@@ -2362,8 +2365,6 @@ details.sfn-sec[open] .sfn-sec__chev{ transform:rotate(180deg); }
   font-variant-numeric:tabular-nums; white-space:nowrap; color:var(--sf-text); }
 .sfn-barre__v--gain{ color:var(--sf-gain); }
 .sfn-barre__v--loss{ color:var(--sf-loss); }
-.sfn-barre__v--none{ font-family:var(--sf-font-ui); font-size:var(--sf-font-body);
-  font-weight:var(--sf-weight-regular); color:var(--sf-text-2); }
 /* Le rappel « Biens de test inclus » se pose en bas d'écran sur téléphone :
    il remonte au-dessus de la barre plutôt que de la masquer. */
 body:has(.sfn-barre) .sf-topnav__tests{ bottom:calc(84px + env(safe-area-inset-bottom, 0px)); }
@@ -2431,7 +2432,7 @@ body:has(.sfn-barre) .sf-topnav__tests{ bottom:calc(84px + env(safe-area-inset-b
 .sfc-row__a{ display:inline-flex; align-items:center; gap:var(--sf-space-5); flex-shrink:0; }
 .sfc-row__ph{ display:inline-flex; align-items:center; gap:var(--sf-space-2);
   font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
-  font-variant-numeric:tabular-nums; color:var(--sf-text-2); }
+  font-variant-numeric:tabular-nums; color:var(--sf-text-2); word-spacing:var(--sf-num-espace); }
 
 /* La note moyenne : « 4,5/5 », le dénominateur en retrait. */
 .sfc-sur5{ font-size:.55em; font-weight:var(--sf-weight-medium); color:var(--sf-text-2); margin-left:2px; }
@@ -2462,11 +2463,16 @@ body:has(.sfn-barre) .sf-topnav__tests{ bottom:calc(84px + env(safe-area-inset-b
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   REGLES `.bd-*` CONSERVEES — encore produites ailleurs, verifie :
+   REGLES .bd- CONSERVEES — encore produites ailleurs, verifie :
      .bd-empty-state   → renderBiens (« Mes biens »)
-     .bd-note/.bd-steps/.bd-step*/.bd-link → modal de mise en gestion, Marche
-     .bd-loc*/.bd-occ/.bd-hist*/.bd-month* → onglet Locatif de la fiche, qui
+     .bd-note, .bd-steps, .bd-step…, .bd-link → modal de mise en gestion, Marche
+     .bd-loc…, .bd-occ, .bd-hist…, .bd-month… → onglet Locatif de la fiche, qui
         reutilise ces composants specialises a l'interieur du nouveau gabarit
+   ⚠️ v=104 : cette liste collait un astérisque et une barre oblique entre
+   « .bd-step » et « .bd-link » — ce qui FERME un commentaire. La suite, lue
+   comme du CSS, se collait au sélecteur de la règle suivante et l'invalidait :
+   `.bd-link` n'avait plus ni marge ni coins arrondis (vérifié dans Chromium).
+   Garde : mise-en-page.test.js.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .bd-link{
@@ -2990,7 +2996,7 @@ body:has(.sfn-barre) .sf-topnav__tests{ bottom:calc(84px + env(safe-area-inset-b
   .mfb-grid{grid-template-columns:minmax(0,1fr);}
   .mfb-toolbar{flex-direction:column;align-items:stretch;}
 }
-.adm-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+.adm-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sf-rythme-titre);}
 .btn-sm{padding:7px 14px;font-size:12px;}
 .adm-empty{text-align:center;padding:48px 24px;color:var(--c-muted);}
 .adm-group{margin-bottom:24px;}
@@ -3018,7 +3024,7 @@ body:has(.sfn-barre) .sf-topnav__tests{ bottom:calc(84px + env(safe-area-inset-b
 .contact-name{font-size:13px;font-weight:700;color:var(--c-text);}
 .contact-sub{font-size:11px;color:var(--c-muted);margin-top:2px;}
 .contact-info{min-width:0;}
-.ech-list{display:flex;flex-direction:column;gap:8px;}
+.ech-list{display:flex;flex-direction:column;gap:var(--sf-space-5);}
 .ech-item{background:var(--c-surface);border:1px solid var(--c-border);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:border-color .15s;}
 .ech-item:hover{border-color:var(--accent);}
 .ech-item-done{opacity:.55;}
@@ -3226,13 +3232,13 @@ body:has(.sfn-barre) .sf-topnav__tests{ bottom:calc(84px + env(safe-area-inset-b
 .params-nav-item .pni-icon{width:20px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
 .params-nav-item .pni-icon svg{display:block;}
 .params-content{flex:1;min-width:0;scroll-margin-top:calc(var(--sf-nav-h) + var(--sf-space-4));}
-.params-section-title{font-size:22px;font-weight:700;color:var(--c-text);margin-bottom:4px;
+.params-section-title{font-size:22px;font-weight:700;color:var(--c-text);margin-bottom:var(--sf-rythme-titre);
   display:flex;align-items:center;gap:10px;}
 .params-section-title svg{flex-shrink:0;color:var(--accent);}
 .params-section-sub{font-size:13px;color:var(--c-muted);margin-bottom:20px;}
 .params-card{
   background:var(--c-surface);border:1px solid var(--c-border);border-radius:12px;
-  padding:20px;margin-bottom:16px;
+  padding:var(--sf-pad-carte);margin-bottom:var(--sf-rythme-bloc);
 }
 .params-card-title{font-size:15px;font-weight:700;color:var(--c-text);margin-bottom:14px;}
 /* Champs de formulaire Compte */
@@ -3481,12 +3487,14 @@ body:has(.sfn-barre) .sf-topnav__tests{ bottom:calc(84px + env(safe-area-inset-b
    ═══════════════════════════════════════════════════════════════════════════ */
 
 
-.sfb-head{ display:flex; align-items:baseline; gap:var(--sf-space-5); margin-bottom:var(--sf-space-6); flex-wrap:wrap; }
+.sfb-head{ display:flex; align-items:baseline; gap:var(--sf-space-5); margin-bottom:var(--sf-rythme-bloc); flex-wrap:wrap; }
 
 .sfb-head h1{ font-family:var(--sf-font-display); font-size:clamp(30px, 2.6vw, 46px);
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight); margin:0; line-height:1; }
 
-.sfb-head__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); color:var(--sf-text-3); }
+/* Une donnée en texte courant (« 5 fiches sur 5 ») : police de l'interface (v=104). */
+.sfb-head__n{ font-family:var(--sf-font-ui); font-size:var(--sf-font-body-sm); color:var(--sf-text-3); word-spacing:normal; }
+.sfb-head__a{ margin-left:auto; align-self:center; }
 
 
 /* ── ONGLETS ──────────────────────────────────────────────────────────────────
@@ -3495,7 +3503,7 @@ body:has(.sfn-barre) .sf-topnav__tests{ bottom:calc(84px + env(safe-area-inset-b
    onglets, chaque ensemble occupe l'ecran a son tour. La prospection est en
    premier : c'est la qu'on agit au quotidien. */
 .sfb-tabs{ display:flex; gap:var(--sf-space-2); border-bottom:var(--sf-border-width) solid var(--sf-border);
-  margin-bottom:var(--sf-space-6); }
+  margin-bottom:var(--sf-rythme-bloc); }
 
 .sfb-tab{ position:relative; display:inline-flex; align-items:center; gap:var(--sf-space-4);
   padding:var(--sf-space-5) var(--sf-space-6); border:0; background:transparent; cursor:pointer;
@@ -3511,7 +3519,7 @@ body:has(.sfn-barre) .sf-topnav__tests{ bottom:calc(84px + env(safe-area-inset-b
 
 .sfb-tab__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
   font-weight:var(--sf-weight-semibold); color:var(--sf-text-3);
-  background:var(--sf-surface-2); border-radius:var(--sf-radius-full); padding:1px 8px; }
+  background:var(--sf-surface-2); border-radius:var(--sf-radius-full); padding:1px 8px; word-spacing:var(--sf-num-espace); }
 
 .sfb-tab[aria-selected="true"] .sfb-tab__n{ background:var(--sf-brand-wash-2); color:var(--sf-brand-vivid); }
 
@@ -3520,10 +3528,10 @@ body:has(.sfn-barre) .sf-topnav__tests{ bottom:calc(84px + env(safe-area-inset-b
 
 /* ── KPI — compacts, pour que la liste commence haut ──────────────────────── */
 .sfb-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-  gap:clamp(10px, 0.9vw, 18px); margin-bottom:var(--sf-space-5); }
+  gap:var(--sf-rythme-bloc); margin-bottom:var(--sf-rythme-bloc); }
 
 .sfb-kpi{ border:var(--sf-border-width) solid var(--sf-border); background:var(--sf-surface);
-  border-radius:var(--sf-radius-md); padding:clamp(14px, 1.2vw, 24px); }
+  border-radius:var(--sf-radius-md); padding:var(--sf-pad-carte); }
 
 .sfb-kpi__l{ display:block; font-size:var(--sf-font-caption); text-transform:uppercase;
   letter-spacing:var(--sf-track-caps); color:var(--sf-text-3); font-weight:var(--sf-weight-semibold);
@@ -3550,7 +3558,7 @@ body:has(.sfn-barre) .sf-topnav__tests{ bottom:calc(84px + env(safe-area-inset-b
 
 /* ── Barre d'outils ───────────────────────────────────────────────────────── */
 .sfb-tools{ display:flex; gap:var(--sf-space-4); align-items:center; flex-wrap:wrap;
-  margin-bottom:var(--sf-space-6); }
+  margin-bottom:var(--sf-rythme-bloc); }
 
 .sfb-search{ position:relative; flex:1; min-width:200px; max-width:320px; }
 
@@ -3632,7 +3640,7 @@ table.sfb-t{ width:100%; border-collapse:collapse; font-size:clamp(13px, 0.85vw,
 
 .sfb-t tbody tr:last-child td{ border-bottom:0; }
 
-.sfb-t .num{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.sfb-t .num{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums; white-space:nowrap; word-spacing:var(--sf-num-espace); }
 
 /* ── MONTANTS ALIGNÉS À DROITE (arbitrage de Thomas, 05/08/2026) ─────────────
    Sur une colonne d'argent, c'est l'unité qui doit s'aligner, pas la première
@@ -3728,7 +3736,7 @@ table.sfb-t{ width:100%; border-collapse:collapse; font-size:clamp(13px, 0.85vw,
 
 .sfb-card__cfv{ font-family:var(--sf-font-num); font-size:clamp(17px, 1.2vw, 22px);
   font-weight:var(--sf-weight-bold); font-variant-numeric:tabular-nums; margin-left:auto;
-  white-space:nowrap; }
+  white-space:nowrap; word-spacing:var(--sf-num-espace); }
 
 /* 2x2 et non 1x4 : sur une rangee de quatre cartes, un quart de carte ne
    suffit pas a un prix a sept chiffres, qui se coupait (« 1 250 0… »).
@@ -3752,7 +3760,7 @@ table.sfb-t{ width:100%; border-collapse:collapse; font-size:clamp(13px, 0.85vw,
    dessous. La cellule prefere deborder en ellipse plutot que casser. */
 .sfb-card__cv{ display:block; font-family:var(--sf-font-num); font-size:clamp(13px, 0.88vw, 15px);
   font-weight:var(--sf-weight-semibold); font-variant-numeric:tabular-nums;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; word-spacing:var(--sf-num-espace); }
 
 
 /* ── VUE KANBAN — reservee a la prospection ───────────────────────────────── */
@@ -3773,9 +3781,9 @@ table.sfb-t{ width:100%; border-collapse:collapse; font-size:clamp(13px, 0.85vw,
 
 .sfb-kbh__t{ font-size:var(--sf-font-body-sm); font-weight:var(--sf-weight-semibold); }
 
-.sfb-kbh__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-left:auto; }
+.sfb-kbh__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-left:auto; word-spacing:var(--sf-num-espace); }
 
-.sfb-kbh__sum{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); margin-top:var(--sf-space-2); display:block; }
+.sfb-kbh__sum{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption); margin-top:var(--sf-space-2); display:block; word-spacing:var(--sf-num-espace); }
 
 .sfb-kbb{ padding:var(--sf-space-4); display:flex; flex-direction:column; gap:var(--sf-space-4); overflow-y:auto; }
 
@@ -3791,7 +3799,7 @@ table.sfb-t{ width:100%; border-collapse:collapse; font-size:clamp(13px, 0.85vw,
 .sfb-kc__m{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin:0 0 var(--sf-space-4); }
 
 .sfb-kc__cf{ font-family:var(--sf-font-num); font-size:var(--sf-font-body-sm);
-  font-weight:var(--sf-weight-semibold); font-variant-numeric:tabular-nums; }
+  font-weight:var(--sf-weight-semibold); font-variant-numeric:tabular-nums; word-spacing:var(--sf-num-espace); }
 
 .sfb-legend{ margin-top:var(--sf-space-6); font-size:var(--sf-font-caption); color:var(--sf-text-3);
   display:flex; gap:var(--sf-space-6); flex-wrap:wrap; align-items:center; }
@@ -3902,9 +3910,10 @@ body[data-densite="compact"] .sfb-t__s{ display:none; }
 
 /* Les chiffres clés : libellé lisible, valeur qui domine. */
 .sff-kpi__l, .sf-kpi__label, .sfb-kpi__l, .mf-page .mfx-kpi__l{ font-size:var(--sf-font-caption); }
-.sff-kpi__v, .mf-page .mfx-kpi__v{ font-size:clamp(28px, 2.3vw, 42px); }
-.sf-kpi__value{ font-size:clamp(30px, 2.4vw, 42px); }
-.sfb-kpi__v{ font-size:clamp(30px, 2.5vw, 44px); }
+.sff-kpi__v, .mf-page .mfx-kpi__v{ --sf-v-taille:clamp(28px, 2.3vw, 42px); }
+.sf-kpi__value{ --sf-v-taille:clamp(30px, 2.4vw, 42px); }
+.sfb-kpi__v{ --sf-v-taille:clamp(30px, 2.5vw, 44px); }
+.sff-kpi__v, .mf-page .mfx-kpi__v, .sf-kpi__value, .sfb-kpi__v{ font-size:var(--sf-v-taille); }
 
 /* Le tableau des biens : un corps plus grand, le cashflow mis en avant. */
 table.sfb-t{ font-size:clamp(14px, 0.95vw, 16px); }
@@ -3918,7 +3927,7 @@ table.sfb-t{ font-size:clamp(14px, 0.95vw, 16px); }
 @media (max-width:560px){
   .sff-h1, .mf-page .mfx-h1{ font-size:clamp(26px, 7.4vw, 32px); }
   .sfb-head h1, .acc-hello h1{ font-size:clamp(28px, 8vw, 36px); }
-  .sff-kpi__v, .sfb-kpi__v, .mf-page .mfx-kpi__v, .sf-kpi__value{ font-size:clamp(22px, 6.4vw, 28px); }
+  .sff-kpi__v, .sfb-kpi__v, .mf-page .mfx-kpi__v, .sf-kpi__value{ --sf-v-taille:clamp(22px, 6.4vw, 28px); }
 }
 
 /* Le « ? » d'un chiffre clé se tient en haut à droite de sa carte, toujours au
@@ -3935,11 +3944,9 @@ table.sfb-t{ font-size:clamp(14px, 0.95vw, 16px); }
 .sfs-tendance__b{ display:flex; flex-direction:column; gap:var(--sf-space-5); }
 .sfs-tendance__tete{ display:flex; flex-wrap:wrap; align-items:baseline; gap:var(--sf-space-3) var(--sf-space-7); }
 .sfs-tendance__chiffre{ display:flex; align-items:baseline; gap:var(--sf-space-4); min-width:0; }
-.sfs-tendance__v{ font-family:var(--sf-font-display); font-size:clamp(30px, 2.4vw, 42px);
+.sfs-tendance__v{ --sf-v-taille:clamp(30px, 2.4vw, 42px); font-family:var(--sf-font-display); font-size:var(--sf-v-taille);
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight); line-height:var(--sf-lh-tight);
   font-variant-numeric:tabular-nums; color:var(--sf-text); }
-.sfs-tendance__v.sff-kpi__v--none{ font-family:var(--sf-font-ui); font-size:var(--sf-font-lead);
-  font-weight:var(--sf-weight-regular); color:var(--sf-text-2); }
 .sfs-tendance__l{ font-size:var(--sf-font-caption); color:var(--sf-text-2); }
 .sfs-tendance__phrase{ margin:0; font-size:var(--sf-font-body); color:var(--sf-text-2); }
 .sfs-tendance__phrase strong{ color:var(--sf-text); font-weight:var(--sf-weight-semibold); }
@@ -3992,3 +3999,35 @@ table.sfb-t{ font-size:clamp(14px, 0.95vw, 16px); }
 .sfb-kpis{ grid-template-columns:repeat(4, minmax(0,1fr)); }
 @media (max-width:900px){ .sfb-kpis{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
 .sfb-foot:empty{ display:none; }
+
+/* ═══ UNE VALEUR ABSENTE (v=104) ══════════════════════════════════════════════
+   « Les labels "non disponible" sont beaucoup trop proéminents et pas stylisés
+   à la DA » (Thomas, 18/10, capture de l'accueil). Mesuré : ils s'affichaient
+   à 30-42 px, la taille d'un chiffre — chaque famille avait sa règle `--none`
+   (16 px), et les règles de taille de la v=100, plus loin dans cette feuille,
+   les écrasaient toutes à précision égale.
+   UNE règle, pour toutes les familles, placée APRÈS ces tailles et à double
+   classe : une pastille calme, au dessin des pastilles de statut — ce n'est
+   pas une valeur, c'est l'état d'une valeur. Sans couleur de gain ni de perte.
+   Elle se centre sur la ligne qu'occuperait le chiffre (`--sf-v-taille`) :
+   dans une rangée, elle tombe à la hauteur des chiffres voisins. Le texte
+   reste « Non disponible » (règle produit) ; l'explication, derrière le « ? »
+   du libellé. */
+.sf-kpi__value.sf-kpi__value--none,
+.sff-kpi__v.sff-kpi__v--none,
+.mfx-kpi__v.mfx-kpi__v--none,
+.sfn-r__v.sfn-r__v--none,
+.sfn-barre__v.sfn-barre__v--none,
+.sfs-tendance__v.sff-kpi__v--none{
+  --sf-nd-h:26px;
+  display:inline-flex; align-items:center; align-self:flex-start;
+  height:var(--sf-nd-h); padding:0 var(--sf-space-5); max-width:100%;
+  margin-block:max(0px, calc((var(--sf-v-taille, var(--sf-nd-h)) * var(--sf-lh-tight) - var(--sf-nd-h)) / 2));
+  border:var(--sf-border-width) solid var(--sf-border-strong); border-radius:var(--sf-radius-full);
+  background:var(--sf-surface-2); color:var(--sf-text-2);
+  font-family:var(--sf-font-ui); font-size:var(--sf-font-caption);
+  font-weight:var(--sf-weight-semibold); letter-spacing:0; line-height:1;
+  font-variant-numeric:normal; white-space:nowrap;
+}
+/* Dans la barre collante du formulaire, la pastille garde la hauteur de la ligne. */
+.sfn-barre__v.sfn-barre__v--none{ --sf-nd-h:22px; }

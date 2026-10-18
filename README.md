@@ -29,7 +29,10 @@ npm test          # node --test, aucune dépendance à installer
 
 1. Incrémenter `?v=N` dans `index.html` avant de tester une modification de
    CSS ou de JS.
-2. Branche de travail → commit → fusion dans `main` → GitHub Pages publie.
+2. Branche de travail → commit → fusion dans `main` → la publication
+   (GitHub Actions, `.github/workflows/publication.yml`) lance les tests,
+   construit la version minifiée et la met en ligne. Des tests rouges
+   arrêtent la publication : le site reste celui d'avant.
 3. Toute garde de régression se valide par mutation (réintroduire l'ancien
    code, vérifier que le test tombe).
 

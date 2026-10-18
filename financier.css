@@ -122,13 +122,13 @@
    du 05/08 : `--sf-text-3` tient sur le fond de page, pas sur une surface plus
    claire. On corrige localement, le jeton lui-même reste juste ailleurs. */
 .mfp-mois__a{ font-family:var(--sf-font-num); font-size:var(--sf-font-label);
-  color:var(--sf-text-2); }
+  color:var(--sf-text-2); word-spacing:var(--sf-num-espace); }
 .mfp-mois__l{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column;
   gap:var(--sf-space-4); }
 .mfp-mois__f{ margin:auto 0 0; padding-top:var(--sf-space-4);
   border-top:1px solid var(--sf-border); text-align:right;
   font-family:var(--sf-font-num); font-size:var(--sf-font-body-sm);
-  color:var(--sf-text-2); font-variant-numeric:tabular-nums; }
+  color:var(--sf-text-2); font-variant-numeric:tabular-nums; word-spacing:var(--sf-num-espace); }
 /* ⚠️ Un mois vide emprunte le MÊME état vide que le reste de la plateforme —
    icône, titre, explication — plutôt qu'une ligne de texte centrée. Demandé par
    Thomas le 16/08/2026 : « il est important d'avoir un design commun sur ce
@@ -166,7 +166,7 @@
   font-size:var(--sf-font-label); color:var(--sf-text-2);
   background:var(--sf-surface); border:1px solid var(--sf-border);
   border-radius:var(--sf-radius-full); padding:1px var(--sf-space-4);
-  font-variant-numeric:tabular-nums; }
+  font-variant-numeric:tabular-nums; word-spacing:var(--sf-num-espace); }
 .mfk-col__b{ display:flex; flex-direction:column; gap:var(--sf-space-4);
   padding:var(--sf-space-5); min-width:0; }
 .mfk-col__vide{ margin:var(--sf-space-4) 0; text-align:center;
@@ -198,14 +198,14 @@
   min-width:26px; padding:2px 0; border-radius:var(--sf-radius-xs);
   background:var(--sf-surface); border:1px solid var(--sf-border);
   font-family:var(--sf-font-num); font-size:var(--sf-font-label);
-  color:var(--sf-text-2); font-variant-numeric:tabular-nums; }
+  color:var(--sf-text-2); font-variant-numeric:tabular-nums; word-spacing:var(--sf-num-espace); }
 .mfp-jour__c{ display:flex; flex-direction:column; gap:1px; min-width:0; }
 .mfp-jour__t{ font-size:var(--sf-font-body-sm); color:var(--sf-text);
   overflow:hidden; text-overflow:ellipsis; }
 .mfp-jour__s{ font-size:var(--sf-font-label); color:var(--sf-text-3);
   overflow:hidden; text-overflow:ellipsis; }
 .mfp-jour__v{ font-family:var(--sf-font-num); font-size:var(--sf-font-body-sm);
-  color:var(--sf-text); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  color:var(--sf-text); font-variant-numeric:tabular-nums; white-space:nowrap; word-spacing:var(--sf-num-espace); }
 
 /* Les dates de bail se distinguent des loyers par leur pastille : elles n'ont
    pas de montant, et ce ne sont pas les mêmes gestes qu'elles appellent. */
@@ -241,7 +241,7 @@
 
 /* ═══ BANDEAU ════════════════════════════════════════════════════════════════ */
 .mfx-top{ display:flex; align-items:flex-end; justify-content:space-between;
-  gap:var(--sf-space-6); flex-wrap:wrap; margin-bottom:var(--sf-space-7); }
+  gap:var(--sf-space-6); flex-wrap:wrap; margin-bottom:var(--sf-rythme-bloc); }
 .mfx-h1{ font-family:var(--sf-font-display); font-size:clamp(26px, 2.3vw, 42px);
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight);
   line-height:var(--sf-lh-tight); margin:0; }
@@ -253,8 +253,10 @@
 /* ═══ INDICATEURS ════════════════════════════════════════════════════════════ */
 .mfx-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
   gap:1px; background:var(--sf-border); border:var(--sf-border-width) solid var(--sf-border);
-  border-radius:var(--sf-radius-md); overflow:hidden; }
-.mfx-kpi{ background:var(--sf-surface); padding:clamp(14px,1.2vw,22px);
+  border-radius:var(--sf-radius-md); overflow:hidden;
+  /* v=104 : les onglets collaient à la bande (aucune marge sans bien vacant). */
+  margin-bottom:var(--sf-rythme-bloc); }
+.mfx-kpi{ background:var(--sf-surface); padding:var(--sf-pad-carte);
   display:flex; flex-direction:column; gap:var(--sf-space-2); min-width:0; position:relative; }
 .mfx-kpi--hi{ background:var(--sf-brand-wash); }
 .mfx-kpi--hi::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
@@ -262,15 +264,14 @@
 .mfx-kpi--hi .mfx-kpi__l, .mfx-kpi--hi .mfx-kpi__s{ color:var(--sf-text-2); }
 .mfx-kpi__l{ font-size:var(--sf-font-label); font-weight:var(--sf-weight-semibold);
   letter-spacing:var(--sf-track-caps); text-transform:uppercase; color:var(--sf-text-3); }
-.mfx-kpi__v{ font-family:var(--sf-font-display); font-size:clamp(24px,1.9vw,34px);
+.mfx-kpi__v{ --sf-v-taille:clamp(24px,1.9vw,34px); font-family:var(--sf-font-display); font-size:var(--sf-v-taille);
   font-weight:var(--sf-weight-bold); letter-spacing:var(--sf-track-tight);
   line-height:var(--sf-lh-tight); font-variant-numeric:tabular-nums; white-space:nowrap; }
 .mfx-kpi__v--gain{ color:var(--sf-gain); }
 .mfx-kpi__v--loss{ color:var(--sf-loss); }
-.mfx-kpi__v--none{ color:var(--sf-text-3); }
 .mfx-kpi__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); }
 .mfx-fait{ display:flex; align-items:flex-start; gap:var(--sf-space-4);
-  margin:var(--sf-space-5) 0 var(--sf-space-7); font-size:var(--sf-font-body-sm);
+  margin:0 0 var(--sf-rythme-bloc); font-size:var(--sf-font-body-sm);
   color:var(--sf-text-3); line-height:var(--sf-lh-normal); }
 .mfx-fait svg{ flex-shrink:0; margin-top:1px; }
 /* `--sf-text` et non `--sf-alert` : c'est un fait, pas une alarme permanente. */
@@ -278,7 +279,7 @@
 
 /* ═══ ONGLETS ════════════════════════════════════════════════════════════════ */
 .mfx-tabs{ display:flex; gap:var(--sf-space-2); overflow-x:auto;
-  border-bottom:var(--sf-border-width) solid var(--sf-border); margin-bottom:var(--sf-space-6); }
+  border-bottom:var(--sf-border-width) solid var(--sf-border); margin-bottom:var(--sf-rythme-bloc); }
 .mfx-tabs::-webkit-scrollbar{ display:none; }
 .mfx-tab{ position:relative; display:inline-flex; align-items:center; gap:var(--sf-space-3);
   padding:var(--sf-space-5) var(--sf-space-5); border:0; background:transparent; cursor:pointer;
@@ -291,7 +292,7 @@
   right:var(--sf-space-5); bottom:-1px; height:2px; background:var(--sf-brand-vivid); border-radius:1px; }
 .mfx-tab__n{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
   font-weight:var(--sf-weight-semibold); color:var(--sf-text-3);
-  background:var(--sf-surface-2); border-radius:var(--sf-radius-full); padding:1px 7px; }
+  background:var(--sf-surface-2); border-radius:var(--sf-radius-full); padding:1px 7px; word-spacing:var(--sf-num-espace); }
 /* ⚠️ `--sf-brand-vivid` sur `--sf-brand-wash-2` ne tient que 4,16:1. Le fond
    teinté suffit à signaler l'état, le texte prend `--sf-text`. */
 .mfx-tab[aria-selected="true"] .mfx-tab__n{ background:var(--sf-brand-wash-2); color:var(--sf-text); }
@@ -302,7 +303,7 @@
 
 /* ═══ BARRE D'OUTILS ═════════════════════════════════════════════════════════ */
 .mfx-tools{ display:flex; gap:var(--sf-space-5); align-items:flex-end; flex-wrap:wrap;
-  margin-bottom:var(--sf-space-6); }
+  margin-bottom:var(--sf-rythme-bloc); }
 .mfx-pills{ display:flex; gap:var(--sf-space-3); flex-wrap:wrap; }
 .mfx-pill{ display:inline-flex; align-items:center; gap:var(--sf-space-3);
   height:var(--sf-control-h-sm); padding:0 var(--sf-space-5);
@@ -314,13 +315,13 @@
 .mfx-pill:hover{ background:var(--sf-surface-2); color:var(--sf-text); }
 .mfx-pill[aria-pressed="true"]{ background:var(--sf-brand-wash-2); border-color:transparent;
   color:var(--sf-text); }
-.mfx-pill__n{ font-family:var(--sf-font-num); font-size:11px; color:var(--sf-text-3); }
+.mfx-pill__n{ font-family:var(--sf-font-num); font-size:11px; color:var(--sf-text-3); word-spacing:var(--sf-num-espace); }
 .mfx-pill[aria-pressed="true"] .mfx-pill__n{ color:var(--sf-text-2); }
 .mfx-tools__fin{ margin-left:auto; display:flex; align-items:flex-end; gap:var(--sf-space-5); }
 
 /* ═══ CARTES DE BIEN (Portefeuille) ══════════════════════════════════════════ */
 .mfx-cards{ display:grid; grid-template-columns:repeat(auto-fill,minmax(min(370px,100%),1fr));
-  gap:var(--sf-space-5); }
+  gap:var(--sf-rythme-bloc); }
 .mfx-card{ background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
   border-radius:var(--sf-radius-md); overflow:hidden; display:flex; flex-direction:column;
   cursor:pointer; transition:border-color var(--sf-dur) var(--sf-ease); }
@@ -350,7 +351,7 @@
   letter-spacing:var(--sf-track-caps); color:var(--sf-text-3);
   font-weight:var(--sf-weight-semibold); }
 .mfx-stat__v{ font-family:var(--sf-font-num); font-size:var(--sf-font-lead);
-  font-variant-numeric:tabular-nums; color:var(--sf-text); margin-top:var(--sf-space-2); }
+  font-variant-numeric:tabular-nums; color:var(--sf-text); margin-top:var(--sf-space-2); word-spacing:var(--sf-num-espace); }
 .mfx-stat__s{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
 /* Une SEULE mention de période pour les quatre statistiques, plutôt que répétée
    dans quatre sous-titres. Elle lève l'ambiguïté relevée par Thomas : la carte
@@ -367,7 +368,7 @@
    des colonnes. Seul le montant la garde ; le mois reste en police d'interface. */
 .mfx-spark__d{ margin-left:auto; color:var(--sf-text-2); }
 .mfx-spark__d b{ font-family:var(--sf-font-num); font-weight:var(--sf-weight-semibold);
-  color:var(--sf-text); }
+  color:var(--sf-text); word-spacing:var(--sf-num-espace); }
 
 /* ═══ MINI-GRAPHIQUE MENSUEL DES CARTES ══════════════════════════════════════
    Remplace la sparkline, qui cumulait trois défauts :
@@ -389,7 +390,7 @@
 .mfx-mini__b--gain{ background:var(--sf-gain); }
 .mfx-mini__x{ margin-top:var(--sf-space-3); }
 .mfx-mini__x span{ font-family:var(--sf-font-num); font-size:10px;
-  color:var(--sf-text-3); text-align:center; }
+  color:var(--sf-text-3); text-align:center; word-spacing:var(--sf-num-espace); }
 /* « La couleur ne porte jamais seule » : le mois non encaissé est aussi en gras. */
 .mfx-mini__x .ko{ color:var(--sf-alert); font-weight:var(--sf-weight-semibold); }
 .mfx-mini__lg{ display:flex; align-items:center; gap:var(--sf-space-3);
@@ -411,7 +412,7 @@
 .mfx-col__b--gain{ background:var(--sf-gain); }
 .mfx-col__b--loss{ background:var(--sf-loss); }
 .mfx-col__b--vide{ background:transparent; border:1px dashed var(--sf-border-strong); }
-.mfx-col__l{ font-size:10px; color:var(--sf-text-3); font-family:var(--sf-font-num); }
+.mfx-col__l{ font-size:10px; color:var(--sf-text-3); font-family:var(--sf-font-num); word-spacing:var(--sf-num-espace); }
 .mfx-legend{ display:flex; gap:var(--sf-space-7); flex-wrap:wrap; margin-top:var(--sf-space-6);
   font-size:var(--sf-font-caption); color:var(--sf-text-3); }
 .mfx-legend span{ display:inline-flex; align-items:center; gap:var(--sf-space-3); }
@@ -423,7 +424,7 @@
 .mfx-legend i.trait{ height:0; border-top:2px dashed var(--sf-text-3); border-radius:0; width:16px; }
 .mfx-svg{ display:block; width:100%; }
 .mfx-mois{ display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); margin-top:var(--sf-space-4);
-  font-size:10px; color:var(--sf-text-3); font-family:var(--sf-font-num); text-align:center; }
+  font-size:10px; color:var(--sf-text-3); font-family:var(--sf-font-num); text-align:center; word-spacing:var(--sf-num-espace); }
 /* Le cumul est en demi-largeur à côté d'une carte nettement plus haute : le
    graphique grandit pour remplir, sinon la carte voisine imposerait sa hauteur
    et celle-ci finirait en blanc. */
@@ -449,11 +450,11 @@
 .mfx-tot{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
   text-align:right; padding:var(--sf-space-4) var(--sf-space-6); white-space:nowrap;
   font-weight:var(--sf-weight-semibold); color:var(--sf-text);
-  border-left:2px solid var(--sf-border); }
+  border-left:2px solid var(--sf-border); word-spacing:var(--sf-num-espace); }
 .mfx-cell{ border-radius:var(--sf-radius-xs); padding:var(--sf-space-4) var(--sf-space-3);
   text-align:center; font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
   cursor:pointer; min-width:56px; line-height:1.35; position:relative;
-  transition:filter var(--sf-dur) var(--sf-ease), background var(--sf-dur) var(--sf-ease); }
+  transition:filter var(--sf-dur) var(--sf-ease), background var(--sf-dur) var(--sf-ease); word-spacing:var(--sf-num-espace); }
 .mfx-cell:hover{ filter:brightness(1.3); }
 .mfx-cell__ic{ display:block; line-height:0; margin-bottom:2px; }
 .mfx-cell--ok{ background:var(--sf-gain-wash); color:var(--sf-gain); }
@@ -497,7 +498,7 @@
   border-bottom:var(--sf-border-width) solid var(--sf-border); }
 .mfx-charge:last-child{ border-bottom:0; }
 .mfx-charge__d{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
-  color:var(--sf-text-3); }
+  color:var(--sf-text-3); word-spacing:var(--sf-num-espace); }
 .mfx-charge__c{ font-size:var(--sf-font-body-sm); color:var(--sf-text); }
 .mfx-charge__l{ font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-top:2px; }
 /* Le numéro de ligne Cerfa 2044 — c'est le fil entre cet écran de saisie et la
@@ -505,13 +506,13 @@
 .mfx-charge__cerfa{ font-family:var(--sf-font-num); font-size:10px;
   color:var(--sf-text-2); background:var(--sf-surface-2);
   padding:1px 6px; border-radius:var(--sf-radius-full); margin-left:var(--sf-space-3);
-  white-space:nowrap; }
+  white-space:nowrap; word-spacing:var(--sf-num-espace); }
 .mfx-charge__tag{ font-size:10px; font-weight:var(--sf-weight-semibold);
   text-transform:uppercase; letter-spacing:var(--sf-track-caps);
   padding:2px var(--sf-space-4); border-radius:var(--sf-radius-full);
   background:var(--sf-surface-3); color:var(--sf-text-2); white-space:nowrap; }
 .mfx-charge__v{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
-  text-align:right; min-width:88px; white-space:nowrap; }
+  text-align:right; min-width:88px; white-space:nowrap; word-spacing:var(--sf-num-espace); }
 .mfx-charge__a{ display:flex; gap:var(--sf-space-3); opacity:0;
   transition:opacity var(--sf-dur) var(--sf-ease); }
 .mfx-charge:hover .mfx-charge__a{ opacity:1; }
@@ -568,7 +569,7 @@
 .mfx-champ input{ width:100%; height:var(--sf-control-h); padding:0 var(--sf-space-5);
   background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
   border-radius:var(--sf-radius-sm); color:var(--sf-text); font-family:var(--sf-font-num);
-  font-size:var(--sf-font-body); }
+  font-size:var(--sf-font-body); word-spacing:var(--sf-num-espace); }
 .mfx-prorata{ display:flex; gap:var(--sf-space-4); align-items:flex-start;
   font-size:var(--sf-font-caption); color:var(--sf-text-3); margin-bottom:var(--sf-space-5);
   line-height:var(--sf-lh-normal); }
@@ -631,10 +632,10 @@
   border-bottom:var(--sf-border-width) solid var(--sf-border); }
 .mfx-ech:last-child{ border-bottom:0; }
 .mfx-ech__d{ font-family:var(--sf-font-num); font-size:var(--sf-font-caption);
-  color:var(--sf-text-3); min-width:96px; white-space:nowrap; }
+  color:var(--sf-text-3); min-width:96px; white-space:nowrap; word-spacing:var(--sf-num-espace); }
 .mfx-ech__l{ font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
 .mfx-ech__v{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
-  text-align:right; white-space:nowrap; }
+  text-align:right; white-space:nowrap; word-spacing:var(--sf-num-espace); }
 .mfx-relance{ display:flex; align-items:center; gap:var(--sf-space-5); flex-wrap:wrap;
   background:var(--sf-loss-wash); border-left:3px solid var(--sf-loss);
   border-radius:var(--sf-radius-sm); padding:var(--sf-space-5) var(--sf-space-6);
@@ -665,7 +666,7 @@
 .mfx-imp__m{ font-size:var(--sf-font-body-sm); color:var(--sf-text); }
 .mfx-imp__l{ font-size:var(--sf-font-caption); color:var(--sf-text-3); }
 .mfx-imp__v{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
-  text-align:right; white-space:nowrap; }
+  text-align:right; white-space:nowrap; word-spacing:var(--sf-num-espace); }
 @media (max-width:720px){
   .mfx-imp{ grid-template-columns:minmax(0,1fr) auto; row-gap:var(--sf-space-3); }
   .mfx-imp__m{ grid-column:1; grid-row:1; }

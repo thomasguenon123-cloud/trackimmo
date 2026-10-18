@@ -152,8 +152,12 @@ test('compte neuf : le parcours, jamais « Tout est à jour », jamais une liste
   assert.doesNotMatch(h, /Tout est à jour/, 'l’état vide se félicite devant un compte qui n’a rien');
   assert.doesNotMatch(h, />À traiter</, 'une liste « À traiter » vide ne s’affiche pas pendant le démarrage');
   assert.doesNotMatch(h, /acc-verdict/, 'le bandeau verdict est revenu');
-  // Sans bien acquis, le parcours passe avant les chiffres (trois « non disponible »).
-  assert.ok(pos(h, /Pour démarrer/) < pos(h, /Votre patrimoine/), 'un compte neuf voit d’abord le parcours');
+  /* v=104 : sans bien acquis, pas de patrimoine du tout. Ses cartes disaient
+     trois fois « non disponible » et redisaient le nombre de fiches en
+     prospection — un état vide déguisé en tableau de bord. */
+  assert.doesNotMatch(h, /Votre patrimoine/, 'un compte sans bien acquis voit un patrimoine vide');
+  assert.doesNotMatch(h, /disponible/i, '« non disponible » s’affiche à un compte qui démarre');
+  assert.match(h, /En prospection/, 'témoin : le reste de l’accueil est rendu');
 });
 
 test('RÉGRESSION — l’argent passe avant le démarrage, et le même geste ne s’affiche qu’une fois', () => {

@@ -1,18 +1,21 @@
 # PUBLICATION DU SITE — tests, construction (minification), mise en ligne.
 #
 # Remplace la publication « depuis la branche » de GitHub Pages, qui servait
-# TOUT le dépôt tel quel : audits, SQL, tests, maquettes, et un app.js dont les
-# commentaires pèsent plus que le code.
+# TOUT le dépôt tel quel : audits, SQL, tests, maquettes, et un app.js dont
+# plus d'un quart du poids est fait de commentaires (973 Ko, 602 une fois
+# minifié — tailles affichées par la construction à chaque publication).
 #
-# ⚠️ ACTIVATION EN DEUX TEMPS (le réglage est dans GitHub, pas dans le dépôt) :
-#   1. Settings › Pages › Build and deployment › Source : « GitHub Actions ».
-#   2. Lancer cette publication une première fois à la main (onglet Actions),
-#      vérifier le site, puis seulement ajouter le déclenchement sur `main`.
-# Tant que la source est « Deploy from a branch », ce fichier ne fait rien
-# tout seul : il ne se lance qu'à la main.
+# ACTIVÉE LE 18/10/2026 : Thomas a passé Settings › Pages › Source sur
+# « GitHub Actions » ; première publication lancée à la main et vérifiée
+# (tests, construction, mise en ligne), puis le déclenchement sur `main`.
+# Revenir en arrière : remettre la source sur « Deploy from a branch ».
+# ⚠️ Un push sur `main` ne se publie QUE par ce fichier : des tests rouges
+# arrêtent la publication, et le site reste celui d'avant.
 name: Publication
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:

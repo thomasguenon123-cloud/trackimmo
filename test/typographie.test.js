@@ -105,3 +105,34 @@ test('aucun nombre affiché par toFixed : la décimale s’écrit avec une virgu
   assert.equal(ctx.mfFmtSize(2.5 * 1024 * 1024), '2,5\u202fMo', 'taille d’un document en unités françaises');
   assert.equal(ctx.mfFmtSize(1536), '2\u202fKo');
 });
+
+test('en chasse fixe, l’espace des milliers est resserré — et seulement là', () => {
+  /* v=104. L'espace insécable U+00A0 (milliers, v=103) est aussi large qu'un
+     chiffre dans une police à chasse fixe : « 168 000 € » s'y lisait
+     « 168  000 € », sur chaque montant de la plateforme. Toute règle qui pose
+     --sf-font-num pose donc le resserrement --sf-num-espace. Et lui ne vit
+     QU'AVEC elle : dans la police de l'interface, il écrase les espaces
+     (« 5fichessur5 », vu au banc en déplaçant une classe). */
+  const fs2 = require('node:fs'), path2 = require('node:path');
+  const FEUILLES = ['components.css', 'styles.css', 'financier.css', 'tactile.css'];
+  const sansCom = css => css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const oublis = [], intrus = [];
+  let mono = 0;
+  for (const f of FEUILLES) {
+    const css = sansCom(fs2.readFileSync(path2.join(__dirname, '..', f), 'utf8'));
+    for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const sel = m[1].trim().split('\n').pop().trim(), corps = m[2];
+      const estMono = /font-family\s*:\s*var\(--sf-font-num\)/.test(corps);
+      const serre = /word-spacing\s*:\s*var\(--sf-num-espace\)/.test(corps);
+      if (estMono) mono++;
+      if (estMono && !serre) oublis.push(`${f} ${sel}`);
+      if (serre && !estMono) intrus.push(`${f} ${sel}`);
+    }
+  }
+  assert.ok(mono >= 30, `témoin : ${mono} règles en chasse fixe relevées`);
+  assert.deepEqual(oublis, [], 'Montant en chasse fixe sans resserrement (« 168  000 ») : ajouter word-spacing:var(--sf-num-espace)');
+  assert.deepEqual(intrus, [], 'Resserrement hors chasse fixe : les espaces y disparaissent');
+  const jeton = fs2.readFileSync(path2.join(__dirname, '..', 'tokens.css'), 'utf8').match(/--sf-num-espace\s*:\s*(-?[\d.]+)em/);
+  assert.ok(jeton && Number(jeton[1]) < 0 && Number(jeton[1]) >= -0.35,
+    'le resserrement ramène l’espace de chasse fixe (0,6 em) vers une demi-chasse, sans l’annuler');
+});

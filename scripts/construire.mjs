@@ -2,8 +2,9 @@
    après `npm test`.
 
    POURQUOI. app.js est écrit pour être relu : ses commentaires racontent chaque
-   défaut corrigé, et pèsent plus que le code. Le navigateur, lui, n'en a que
-   faire : ils doublaient le poids à télécharger et à analyser sur un téléphone.
+   défaut corrigé — plus d'un quart de son poids. Le navigateur, lui, n'en a que
+   faire : minifié, app.js passe de 973 à 602 Ko (première publication, 18/10 ;
+   ce script affiche les tailles à chaque construction).
    Et GitHub Pages servait TOUT le dépôt (audits, SQL, tests, maquettes) : seul
    ce que le navigateur charge part désormais en ligne.
 

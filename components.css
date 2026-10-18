@@ -165,7 +165,7 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 .sf-kpi{
   display:flex; flex-direction:column; gap:var(--sf-space-2);
   background:var(--sf-surface); border:var(--sf-border-width) solid var(--sf-border);
-  border-radius:var(--sf-radius-md); padding:var(--sf-space-6);
+  border-radius:var(--sf-radius-md); padding:var(--sf-pad-carte);
 }
 .sf-kpi__label{
   font-size:var(--sf-font-label); font-weight:var(--sf-weight-semibold);
@@ -179,10 +179,8 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 }
 .sf-kpi__value--gain{ color:var(--sf-gain); }
 .sf-kpi__value--loss{ color:var(--sf-loss); }
-/* Une valeur absente n'est pas une valeur nulle : elle se dit, elle ne
-   s'invente pas. Regle issue de l'audit Marche. */
-.sf-kpi__value--none{ color:var(--sf-text-3); font-family:var(--sf-font-ui);
-                      font-size:var(--sf-font-lead); font-weight:var(--sf-weight-regular); }
+/* Une valeur absente (`--none`) : règle commune à toutes les familles de
+   chiffres clés, en fin de styles.css (« UNE VALEUR ABSENTE », v=104). */
 .sf-kpi__sub{ font-size:var(--sf-font-caption); color:var(--sf-text-3);
               line-height:var(--sf-lh-snug); }
 
@@ -238,7 +236,7 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 .sf-table tbody tr:last-child td{ border-bottom:0; }
 .sf-table tbody tr:hover td{ background:var(--sf-surface-2); }
 .sf-table__num{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums;
-                text-align:right; white-space:nowrap; }
+                text-align:right; white-space:nowrap; word-spacing:var(--sf-num-espace); }
 .sf-table__num--gain{ color:var(--sf-gain); }
 .sf-table__num--loss{ color:var(--sf-loss); }
 .sf-table--compact td,.sf-table--compact th{ padding:var(--sf-space-3) var(--sf-space-4); }
@@ -313,7 +311,7 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
    comme sur deux (titre + chiffre). */
 .sf-alert{
   display:flex; align-items:center; gap:var(--sf-space-5);
-  padding:var(--sf-space-5) var(--sf-space-6);
+  padding:var(--sf-pad-ligne-y) var(--sf-pad-ligne-x);
   border-bottom:var(--sf-border-width) solid var(--sf-border);
   transition:background-color var(--sf-dur) var(--sf-ease);
 }
@@ -377,12 +375,23 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 
 .sf-agenda{ display:flex; flex-direction:column; }
 .sf-ag{
-  display:flex; align-items:flex-start; gap:var(--sf-space-5);
-  padding:var(--sf-space-5) var(--sf-space-6);
+  display:flex; align-items:flex-start; gap:var(--sf-space-6);
+  padding:var(--sf-pad-ligne-y) var(--sf-pad-ligne-x);
   border-bottom:var(--sf-border-width) solid var(--sf-border);
   position:relative;
 }
 .sf-ag:last-child{ border-bottom:0; }
+/* v=104 : une échéance administrative est une ligne qui MÈNE (Administration
+   › Échéances) — un vrai bouton, atteignable au clavier, à la même géométrie
+   qu'une ligne de loyer. */
+.sf-ag--lien{ width:100%; margin:0; text-align:left; cursor:pointer;
+  background:transparent; border:0; border-bottom:var(--sf-border-width) solid var(--sf-border);
+  font:inherit; color:inherit;
+  transition:background-color var(--sf-dur) var(--sf-ease); }
+.sf-ag--lien:hover{ background:var(--sf-surface-2); }
+.sf-ag--lien:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus); outline-offset:-2px; }
+.sf-ag--lien .sf-ag__title, .sf-ag--lien .sf-ag__meta{ display:block; }
+.sf-ag__go{ flex-shrink:0; align-self:center; display:inline-flex; color:var(--sf-text-3); }
 .sf-ag__date{
   flex-shrink:0; width:46px; text-align:center;
   border-radius:var(--sf-radius-sm); padding:var(--sf-space-3) 0;
@@ -408,7 +417,7 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
               margin:var(--sf-space-2) 0 0; }
 .sf-ag__amount{ flex-shrink:0; align-self:center; font-family:var(--sf-font-num);
                 font-size:var(--sf-font-body); font-variant-numeric:tabular-nums;
-                color:var(--sf-text-2); }
+                color:var(--sf-text-2); word-spacing:var(--sf-num-espace); }
 
 /* Mention « En retard » posee dans la ligne de meta. La couleur ne porte pas
    seule l'information (regle 4 de la charte) : le mot est ecrit. */
@@ -692,30 +701,34 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
    temps que la phase 5 traite tous les ecrans. Les composants, eux, sont deja
    entierement en --sf-*.                                                     */
 
-.acc-hello{ display:flex; align-items:flex-end; gap:var(--sf-space-6);
-            flex-wrap:wrap; margin-bottom:var(--sf-space-6); }
+.acc-hello{ display:flex; align-items:flex-end; gap:var(--sf-space-4) var(--sf-space-6);
+            flex-wrap:wrap; margin-bottom:var(--sf-rythme-bloc); }
 .acc-hello h1{
   font-family:var(--sf-font-display); font-size:var(--sf-font-h1);
   font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-hero);
   line-height:var(--sf-lh-tight); color:var(--c-text); margin:0;
 }
-.acc-date{ font-size:var(--sf-font-caption); color:var(--c-muted); padding-bottom:var(--sf-space-2); }
+.acc-date{ font-family:var(--sf-font-ui); font-size:var(--sf-font-body-sm); color:var(--sf-text-3);
+            padding-bottom:var(--sf-space-3); }
 
 /* v=103 : le bandeau « verdict » (.acc-verdict) est retiré — il redisait le
    titre « À traiter » et poussait le patrimoine sous la ligne de flottaison.
    Chaque bloc de l'accueil est une section empilée, à son rang. */
-.acc-bloc{ margin-bottom:var(--sf-space-7); min-width:0; }
+/* v=104 : « laisser de l'air » — une section se sépare de la suivante par
+   le rythme de section (36 à 56 px selon l'écran), au lieu de 20 px. */
+.acc-bloc{ margin-bottom:var(--sf-rythme-section); min-width:0; }
 
 /* Grille asymetrique : l'essentiel a gauche, les raccourcis a droite. */
 .acc-bento{
   display:grid; grid-template-columns:minmax(0,2fr) minmax(290px,1fr);
-  gap:var(--sf-space-6); margin-bottom:var(--sf-space-7); align-items:start;
+  gap:var(--sf-rythme-section) clamp(20px, 2.4vw, 40px); align-items:start;
 }
+.acc-bento > .acc-bloc{ margin-bottom:0; }
 @media (max-width:1000px){ .acc-bento{ grid-template-columns:minmax(0,1fr); } }
 
 .acc-kpis{
   display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
-  gap:var(--sf-space-6); margin-bottom:var(--sf-space-7);
+  gap:var(--sf-rythme-bloc);
 }
 /* v=103 : les actions rapides en rangée compacte (trois par ligne sur iPad,
    six sur grand écran, deux au téléphone) au lieu de cinq tuiles pleine
@@ -723,39 +736,63 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 /* Six actions : trois par ligne (deux lignes égales), six sur très grand
    écran, deux au téléphone. Une grille « auto-fill » en mettait cinq puis
    une seule, et faisait passer un libellé sur deux lignes à 1 280 px. */
-.acc-quick{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--sf-space-4); }
+.acc-quick{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--sf-space-5); }
 @media (min-width:1400px){ .acc-quick{ grid-template-columns:repeat(6,minmax(0,1fr)); } }
 @media (max-width:560px){ .acc-quick{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
 .acc-sec{
   font-family:var(--sf-font-display); font-size:var(--sf-font-h3);
   font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-snug);
-  color:var(--c-text); margin:0 0 var(--sf-space-5);
+  color:var(--c-text); margin:0 0 var(--sf-rythme-titre);
   display:flex; align-items:baseline; gap:var(--sf-space-1) var(--sf-space-4);
   /* v=103 : sur téléphone, le sous-titre passe SOUS le titre plutôt que de le
      couper en deux (« Votre / patrimoine » à 390 px). */
   flex-wrap:wrap;
 }
-.acc-sec__n{ font-size:var(--sf-font-caption); color:var(--c-muted);
+/* Le sous-titre d'une section est une donnée en texte courant (« 2 biens
+   acquis · 12 derniers mois », « d'ici le 17 décembre ») : police de
+   l'interface, plus la police à chasse fixe des montants (v=104). */
+.acc-sec__n{ font-family:var(--sf-font-ui); font-size:var(--sf-font-body-sm); color:var(--sf-text-3);
              font-weight:var(--sf-weight-regular); letter-spacing:0; }
 
+/* v=104 — UNE FICHE EN PROSPECTION SUR DEUX LIGNES. Statut, titre et prix
+   tenaient sur une seule dans un tiers de page : le titre y était coupé dès
+   vingt caractères (« Appartement T2 Lyon Cr… »). Le titre a sa ligne, le
+   statut et la ville la suivante ; le prix reste aligné à droite. Un vrai
+   bouton, atteignable au clavier. */
 .acc-pipe{
-  display:flex; align-items:center; gap:var(--sf-space-4);
-  padding:var(--sf-space-5) var(--sf-space-6);
-  border-bottom:var(--sf-border-width) solid var(--sf-border); cursor:pointer;
+  display:flex; align-items:center; gap:var(--sf-space-6); width:100%; margin:0;
+  padding:var(--sf-pad-ligne-y) var(--sf-pad-ligne-x); text-align:left; cursor:pointer;
+  background:transparent; border:0; border-bottom:var(--sf-border-width) solid var(--sf-border);
+  font:inherit; color:inherit;
+  transition:background-color var(--sf-dur) var(--sf-ease);
 }
 .acc-pipe:last-of-type{ border-bottom:0; }
 .acc-pipe:hover{ background:var(--sf-surface-2); }
-.acc-pipe__t{ flex:1; min-width:0; font-size:var(--sf-font-body-sm);
-              overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.acc-pipe__c{ font-size:var(--sf-font-body-sm); color:var(--sf-text-3); white-space:nowrap; }
+.acc-pipe:focus-visible{ outline:var(--sf-focus-width) solid var(--sf-focus); outline-offset:-2px; }
+.acc-pipe__id{ flex:1; min-width:0; display:flex; flex-direction:column; gap:var(--sf-space-3); }
+.acc-pipe__t{ font-size:var(--sf-font-body); font-weight:var(--sf-weight-semibold);
+              color:var(--sf-text); line-height:var(--sf-lh-snug);
+              display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2;
+              overflow:hidden; overflow-wrap:anywhere; }
+.acc-pipe__m{ display:flex; align-items:center; gap:var(--sf-space-4); min-width:0;
+              font-size:var(--sf-font-caption); color:var(--sf-text-2); }
+.acc-pipe__m .sf-pill{ flex-shrink:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.acc-pipe__v{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.acc-pipe__c{ flex-shrink:0; font-size:var(--sf-font-body); color:var(--sf-text-2); white-space:nowrap; }
+/* Le pied d'une carte de liste : une action, séparée des lignes. */
+.acc-pied{ padding:var(--sf-space-5) var(--sf-pad-ligne-x);
+           border-top:var(--sf-border-width) solid var(--sf-border); }
 
 
 /* ───────────────────────────────────────────────────────────────────────────
    UTILITAIRES MINIMAUX
    ─────────────────────────────────────────────────────────────────────────── */
 
-.sf-num{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums; }
+.sf-num{ font-family:var(--sf-font-num); font-variant-numeric:tabular-nums; word-spacing:var(--sf-num-espace); }
+/* Une valeur absente dans une ligne de détail (sfAbsent, v=104). */
+.sf-nd{ font-family:var(--sf-font-ui); font-size:var(--sf-font-body-sm); font-weight:var(--sf-weight-regular);
+        font-style:normal; letter-spacing:0; word-spacing:normal; color:var(--sf-text-2); }
 .sf-gain{ color:var(--sf-gain); }
 .sf-loss{ color:var(--sf-loss); }
 .sf-muted{ color:var(--sf-text-3); }
@@ -869,7 +906,7 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
    4 px au-dessus du centre de sa pastille numérotée. */
 .acc-pas{
   display:flex; align-items:center; gap:var(--sf-space-5);
-  padding:var(--sf-space-6) var(--sf-space-7);
+  padding:var(--sf-pad-ligne-y) var(--sf-pad-ligne-x);
   border-top:var(--sf-border-width) solid var(--sf-border);
 }
 .acc-pas:first-child{ border-top:0; }

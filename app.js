@@ -1808,13 +1808,14 @@ async function loadBiens() {
    test : les biens d'abord, puis ce qui se rattache à eux. */
 function sfChargerDonnees() {
   if (!currentUser) return Promise.resolve(null);
-  return Promise.all([sfLireBiens(), sfLireLocataires(), sfLireLoyers(), sfLireCharges()])
-    .then(([biens, locataires, loyers, charges]) => ({ biens, locataires, loyers, charges }));
+  return Promise.all([sfLireBiens(), sfLireLocataires(), sfLireLoyers(), sfLireCharges(), sfLireEcheances()])
+    .then(([biens, locataires, loyers, charges, echeances]) => ({ biens, locataires, loyers, charges, echeances }));
 }
 function sfAppliquerDonnees(res) {
   if (!res || !sfPrendreBiens(res.biens)) return false;
   sfPrendreLocataires(res.locataires);
   sfPrendreFinances(res.loyers, res.charges);
+  sfPrendreEcheances(res.echeances);
   return true;
 }
 
@@ -2197,6 +2198,12 @@ function sfKpi({ lab, val, sous = '', aide = '', vide = 'Non disponible', cls = 
        + `${sous ? `<span class="sff-kpi__s">${sous}</span>` : ''}</div>`;
 }
 
+/* UNE VALEUR ABSENTE DANS UNE LIGNE DE DÉTAIL (v=104) — en texte calme, dans
+   la police de l'interface. Placée dans la colonne des montants, elle prenait
+   leur chasse fixe, et le gras de la ligne de total : « Non disponible »
+   s'y affichait comme un chiffre. */
+function sfAbsent(texte = 'Non disponible') { return `<span class="sf-nd">${esc(texte)}</span>`; }
+
 /* Une seule explication ouverte à la fois : deux bulles superposées sur un
    écran de tablette se recouvrent et deviennent illisibles. */
 function sfLexOuvrir(btn) {
@@ -2392,6 +2399,15 @@ function sfAllerMensualite() {
   const sansMensu = sfBiensComptes().filter(b => sfDetenu(b) && !((parseFloat(b.mensualite_credit) || 0) > 0));
   if (sansMensu.length === 1) return sfOuvrirFiche(sansMensu[0].id, 'finances');
   sfOuvrirBiens({ onglet: 'detenus' });
+}
+// Administration sur l'onglet Échéances — et la fenêtre de saisie quand on
+// vient en programmer une. « Programmer une échéance » ouvrait la page sur
+// l'onglet Mes SCI, et laissait chercher le reste (v=104).
+let sfEcheanceDemandee = false;
+function sfAllerEcheances({ nouvelle = false } = {}) {
+  adminTab = 'echeances';
+  sfEcheanceDemandee = !!nouvelle;
+  navigate('administration');
 }
 // Après une écriture lancée depuis l'accueil (charge, locataire), l'accueil se
 // redessine : son point « À traiter » doit disparaître sous les yeux.
@@ -2613,7 +2629,6 @@ function sfLoyersAttendus() {
   const now = new Date();
   const aujourdhui = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const fin = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 60);
-  const MOIS = ['janv','févr','mars','avr','mai','juin','juil','août','sept','oct','nov','déc'];
 
   for (const loc of allLocataires) {
     // Preavis compris : le conge donne ne suspend pas le loyer, il en annonce
@@ -2654,8 +2669,9 @@ function sfLoyersAttendus() {
 
       out.push({
         bienId: loc.bien_id, locataireId: loc.id, mois, annee,
-        jour: d.getDate(), moisCourt: MOIS[d.getMonth()], tri: d.getTime(),
-        titre: `Loyer attendu — ${esc(bien?.titre || 'Bien')}`,
+        jour: d.getDate(), moisCourt: SF_MOIS_COURTS[d.getMonth()], tri: d.getTime(),
+        // Texte BRUT, échappé à l'affichage (il l'était deux fois : « & » s'y lisait « &amp; »).
+        titre: `Loyer attendu — ${bien?.titre || 'Bien'}`,
         meta: `${esc([loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Locataire')} · le ${jourBail} de chaque mois`,
         // Le montant du fait foi quand la ligne existe : il peut porter un
         // prorata loi 1989 que le loyer de bail ne reflete pas. Quand elle
@@ -2669,8 +2685,33 @@ function sfLoyersAttendus() {
   return out.sort((a, b) => a.tri - b.tri);
 }
 
+/* LES PROCHAINES ÉCHÉANCES DE L'ACCUEIL (v=104) — les loyers attendus ET les
+   échéances administratives des 60 prochains jours, de la plus proche à la
+   plus lointaine. Même règle que pour un loyer : une échéance faite sort, une
+   échéance dépassée et non faite reste, en retard. Celle du générateur de
+   données de test (reconnue par SF_TEST_ADMIN, égalité exacte) suit les biens
+   de test : elle ne s'affiche que s'ils sont inclus. */
+const SF_AGENDA_JOURS = 60;
+const SF_MOIS_COURTS = ['janv','févr','mars','avr','mai','juin','juil','août','sept','oct','nov','déc'];
+function sfEcheancesProches() {
+  const out = [];
+  for (const e of allEcheances) {
+    if (e.est_faite || (e.notes === SF_TEST_ADMIN.echeance && !sfTestsInclus())) continue;
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(e.date_echeance || ''));
+    const j = sfJoursJusqua(e.date_echeance);
+    if (!m || !(j <= SF_AGENDA_JOURS)) continue;
+    const quand = j < 0 ? null : j === 0 ? 'aujourd’hui' : j === 1 ? 'demain' : `dans ${j} jours`;
+    out.push({
+      type: 'echeance', id: e.id, enRetard: j < 0,
+      jour: +m[3], moisCourt: SF_MOIS_COURTS[+m[2] - 1], tri: new Date(+m[1], +m[2] - 1, +m[3]).getTime(),
+      titre: e.titre || 'Échéance',
+      meta: [esc(e.type_echeance || 'Échéance administrative'), quand].filter(Boolean).join(' · '),
+    });
+  }
+  return out;
+}
 function sfAgenda60j() {
-  return sfLoyersAttendus().slice(0, 6);
+  return [...sfLoyersAttendus(), ...sfEcheancesProches()].sort((a, b) => a.tri - b.tri).slice(0, 6);
 }
 
 // Pointer un loyer directement depuis l'agenda.
@@ -2790,32 +2831,30 @@ function renderAccueil(el) {
   const lie = prochain && pts.find(p => p.cle && p.cle === prochain.cle) || null;
   const ptsVus = lie ? pts.filter(p => p !== lie) : pts;
 
+  /* v=104 — LE PATRIMOINE NE S'AFFICHE QU'AVEC UN BIEN ACQUIS. Avant le
+     premier achat, ses quatre cartes disaient trois fois « non disponible » et
+     redisaient le nombre de fiches que la section « En prospection » donne
+     déjà : un état vide déguisé en tableau de bord. Le parcours « Pour
+     démarrer » dit, lui, ce qui fera naître ces chiffres. */
   const blocPatrimoine = `
+    <section class="acc-bloc">
     <h2 class="acc-sec">Votre patrimoine
-      <span class="acc-sec__n sf-num">${acquis.length} bien${acquis.length>1?'s':''} acquis · 12 derniers mois</span></h2>
+      <span class="acc-sec__n">${acquis.length} bien${acquis.length>1?'s':''} acquis · 12 derniers mois</span></h2>
     <div class="acc-kpis">
       <div class="sf-kpi">
-        <span class="sf-kpi__label">Ce que ça rapporte${sfAide(acquis.length
-          ? 'Les loyers encaissés moins les charges et le crédit, en moyenne par mois sur les 12 derniers mois.'
-          : 'Aucun bien acquis pour l’instant : ce chiffre apparaîtra avec votre premier achat.', 'Ce que ça rapporte')}</span>
-        ${acquis.length
-          ? `<span class="sf-kpi__value ${patCF>=0?'sf-kpi__value--gain':'sf-kpi__value--loss'}">${patCF>=0?'+':'−'}${fmt(Math.abs(patCF/12))} €</span>
-             <span class="sf-kpi__sub">par mois</span>`
-          : `<span class="sf-kpi__value sf-kpi__value--none">non disponible</span>`}
+        <span class="sf-kpi__label">Cashflow réel${sfAide('Ce qui est réellement entré et sorti : les loyers encaissés, moins les charges et le crédit, en moyenne par mois sur les 12 derniers mois.', 'Cashflow réel')}</span>
+        <span class="sf-kpi__value ${patCF>=0?'sf-kpi__value--gain':'sf-kpi__value--loss'}">${patCF>=0?'+':'−'}${sfEur(Math.abs(patCF/12))}</span>
+        <span class="sf-kpi__sub">par mois</span>
       </div>
       <div class="sf-kpi">
         <span class="sf-kpi__label">Loyers encaissés${sfAide('Les loyers pointés comme encaissés sur les 12 derniers mois, charges comprises.', 'Loyers encaissés')}</span>
-        <span class="sf-kpi__value">${fmt(patLoyers)} €</span>
+        <span class="sf-kpi__value">${sfEur(patLoyers)}</span>
         <span class="sf-kpi__sub">sur 12 mois</span>
       </div>
       <div class="sf-kpi">
-        <span class="sf-kpi__label">Turnover${sfAide(tauxLoue === null
-          ? 'Aucun bien acquis pour l’instant : ce chiffre apparaîtra avec votre premier achat.'
-          : `La part du temps où vos biens ont été loués sur les 12 derniers mois : ${bmLoues} mois loués sur ${bmTotal} mois de détention.`, 'Turnover')}</span>
-        ${tauxLoue === null
-          ? `<span class="sf-kpi__value sf-kpi__value--none">non disponible</span>`
-          : `<span class="sf-kpi__value ${tauxLoue>=70?'sf-kpi__value--gain':'sf-kpi__value--loss'}">${tauxLoue} %</span>
-             <span class="sf-kpi__sub">${tauxLoue>=70 ? 'au-dessus du seuil de 70 %' : 'sous le seuil de 70 %'}</span>`}
+        <span class="sf-kpi__label">Turnover${sfAide(`La part du temps où vos biens ont été loués sur les 12 derniers mois : ${bmLoues} mois loués sur ${bmTotal} mois de détention.`, 'Turnover')}</span>
+        <span class="sf-kpi__value ${tauxLoue>=70?'sf-kpi__value--gain':'sf-kpi__value--loss'}">${sfPct(tauxLoue)}</span>
+        <span class="sf-kpi__sub">${tauxLoue>=70 ? 'au-dessus du seuil de 70 %' : 'sous le seuil de 70 %'}</span>
       </div>
       <div class="sf-kpi">
         <span class="sf-kpi__label">Fiches en prospection${sfAide(prospection.length
@@ -2824,10 +2863,11 @@ function renderAccueil(el) {
         <span class="sf-kpi__value">${prospection.length}</span>
       </div>
     </div>
+    </section>
   `;
   const blocATraiter = (ptsVus.length || !demarrage) ? `
     <section class="acc-bloc">
-        <h2 class="acc-sec">À traiter <span class="acc-sec__n sf-num">${ptsVus.length} point${ptsVus.length>1?'s':''}</span>${ptsVus.length > 1 ? sfAide('Ce qui vous coûte de l’argent vient en premier, puis ce qui fausse vos chiffres.', 'À traiter') : ''}</h2>
+        <h2 class="acc-sec">À traiter <span class="acc-sec__n">${ptsVus.length} point${ptsVus.length>1?'s':''}</span>${ptsVus.length > 1 ? sfAide('Ce qui vous coûte de l’argent vient en premier, puis ce qui fausse vos chiffres.', 'À traiter') : ''}</h2>
         <div class="sf-card sf-card--flat">
           ${ptsVus.length ? ptsVus.map(p => `
             <div class="sf-alert${p.type ? ' sf-alert--' + p.type : ''}">
@@ -2855,14 +2895,14 @@ function renderAccueil(el) {
     </section>` : '';
   const blocDemarrage = demarrage ? `
     <section class="acc-bloc">
-      <h2 class="acc-sec">Pour démarrer <span class="acc-sec__n sf-num">${3 - reste} sur 3</span></h2>
+      <h2 class="acc-sec">Pour démarrer <span class="acc-sec__n">${3 - reste} sur 3</span></h2>
       <div class="sf-card sf-card--flat">
         ${sfParcoursHtml(parcours, lie)}
       </div>
     </section>` : '';
   const blocActions = `
     <section class="acc-bloc">
-    <h2 class="acc-sec">Actions</h2>
+    <h2 class="acc-sec">Actions rapides</h2>
     <div class="acc-quick">
       ${[
         ['plus',      'Ajouter un bien',      "navigate('nouveau')"],
@@ -2879,27 +2919,23 @@ function renderAccueil(el) {
     </div>
     </section>`;
 
-  /* Un compte qui possède un bien voit d'abord ce qu'il rapporte. Un compte
-     qui n'en a pas encore commence par le parcours : trois « non disponible »
-     en tête de page ne lui diraient rien. */
-  el.innerHTML = `
-    <div class="acc-hello">
-      <h1>Bonjour${prenom ? ' ' + esc(prenom) : ''}</h1>
-      <span class="acc-date sf-num">${dateJour}</span>
-    </div>
-
-    ${acquis.length ? blocPatrimoine : ''}
-    ${blocATraiter}
-    ${blocDemarrage}
-    ${acquis.length ? '' : blocPatrimoine}
-    ${blocActions}
-
-    <div class="acc-bento">
-      <section>
-        <h2 class="acc-sec">Agenda <span class="acc-sec__n sf-num">60 prochains jours</span></h2>
-        <div class="sf-card sf-card--flat">
-          <div class="sf-agenda">
-            ${agenda.map(a => `
+  /* LES PROCHAINES ÉCHÉANCES (v=104, « Agenda » jusque-là) : loyers attendus
+     et échéances administratives mêlés, du plus proche au plus lointain. Le
+     sous-titre dit l'horizon en date, pas en durée. Une échéance mène à
+     Administration › Échéances ; « Programmer » y ouvre la saisie. */
+  const horizon = new Date(); horizon.setDate(horizon.getDate() + SF_AGENDA_JOURS);
+  const horizonTxt = horizon.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+  const ligneAgenda = a => a.type === 'echeance' ? `
+              <button type="button" class="sf-ag sf-ag--lien${a.enRetard ? ' sf-ag--retard' : ''}" onclick="sfAllerEcheances()">
+                <span class="sf-ag__date"><span class="sf-ag__day">${a.jour}</span><span class="sf-ag__mon">${a.moisCourt}</span></span>
+                <span class="sf-ag__body">
+                  <span class="sf-ag__title">${esc(a.titre)}</span>
+                  <span class="sf-ag__meta">${a.enRetard
+                    ? `<span class="sf-ag__retard">En retard</span> · prévue le ${a.jour} ${a.moisCourt}`
+                    : a.meta}</span>
+                </span>
+                <span class="sf-ag__go" aria-hidden="true">${sfAccIcon('chevron', 14)}</span>
+              </button>` : `
               <div class="sf-ag${a.enRetard ? ' sf-ag--retard' : ''}${a.pointe ? ' sf-ag--pointe' : ''}">
                 <span class="sf-ag__date"><span class="sf-ag__day">${a.jour}</span><span class="sf-ag__mon">${a.moisCourt}</span></span>
                 <div class="sf-ag__body">
@@ -2908,37 +2944,50 @@ function renderAccueil(el) {
                     ? `<span class="sf-ag__retard">En retard</span> · échu le ${a.jour} ${a.moisCourt}`
                     : a.meta}</p>
                 </div>
-                <span class="sf-ag__amount">${fmt(a.montant)} €</span>
+                <span class="sf-ag__amount">${sfEur(a.montant)}</span>
                 <label class="sf-ag__check" title="${esc(a.pointe ? 'Annuler le pointage' : 'Pointer ce loyer comme encaissé')}">
                   <input type="checkbox" ${a.pointe ? 'checked' : ''}
                          onchange="sfPointerLoyer('${a.bienId}', ${a.mois}, ${a.annee}, this)">
                   <span class="sf-ag__box">${sfAccIcon('check', 12)}</span>
                   <span class="sr-only">Pointer le loyer de ${a.moisCourt}</span>
                 </label>
-              </div>`).join('')}
-            <div class="sf-empty" style="padding:var(--sf-space-8) var(--sf-space-7)">
-              <div class="sf-empty__icon">${sfAccIcon('agenda', 20)}</div>
-              <h3 class="sf-empty__title">Aucune échéance administrative programmée${sfAide('Assurance PNO, assemblée générale de copropriété, déclaration 2044&nbsp;: les dates qui coûtent cher quand on les oublie.', 'les échéances')}</h3>
-              <div class="sf-empty__actions">
-                <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="navigate('administration')">Programmer une échéance</button>
-              </div>
+              </div>`;
+  const blocEcheances = `
+      <section class="acc-bloc">
+        <h2 class="acc-sec">Prochaines échéances <span class="acc-sec__n">d’ici le ${horizonTxt}</span></h2>
+        <div class="sf-card sf-card--flat">
+          ${agenda.length ? `
+          <div class="sf-agenda">${agenda.map(ligneAgenda).join('')}</div>
+          <div class="acc-pied">
+            <button class="sf-btn sf-btn--ghost sf-btn--sm sf-btn--block" type="button" onclick="sfAllerEcheances({ nouvelle: true })">
+              ${sfAccIcon('plus', 13)} Programmer une échéance
+            </button>
+          </div>` : `
+          <div class="sf-empty">
+            <div class="sf-empty__icon">${sfAccIcon('agenda', 20)}</div>
+            <h3 class="sf-empty__title">${sfEcheancesLues ? 'Aucune échéance' : 'Aucun loyer attendu'} d’ici le ${horizonTxt}${sfAide('Les loyers attendus de vos baux et vos échéances administratives — assurance PNO, assemblée générale de copropriété, déclaration 2044 — s’affichent ici, de la plus proche à la plus lointaine.', 'les échéances')}</h3>
+            <div class="sf-empty__actions">
+              <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="sfAllerEcheances({ nouvelle: true })">Programmer une échéance</button>
             </div>
-          </div>
+          </div>`}
         </div>
-      </section>
+      </section>`;
 
-      <section>
-        <h2 class="acc-sec">Prospection <span class="acc-sec__n sf-num">${prospection.length} fiche${prospection.length>1?'s':''}</span></h2>
+  const blocProspection = `
+      <section class="acc-bloc">
+        <h2 class="acc-sec">En prospection <span class="acc-sec__n">${prospection.length} fiche${prospection.length>1?'s':''}</span></h2>
         <div class="sf-card sf-card--flat">
           ${prospection.length ? prospection.slice(0, 5).map(b => `
-            <div class="acc-pipe" onclick="openDetail('${b.id}')">
-              <span class="sf-pill">${esc(b.statut || '—')}</span>
-              <span class="acc-pipe__t">${esc(b.titre || 'Sans titre')}</span>
-              <span class="acc-pipe__c sf-num">${b.prix_affiche ? fmt(b.prix_affiche) + ' €' : '—'}</span>
-            </div>`).join('') + `
-            <div style="padding:var(--sf-space-5) var(--sf-space-6)">
-              <button class="sf-btn sf-btn--ghost sf-btn--sm sf-btn--block" type="button" onclick="navigate('biens')">
-                Ouvrir le pipeline ${sfAccIcon('chevron', 13)}
+            <button type="button" class="acc-pipe" onclick="openDetail(${escJs(b.id)})">
+              <span class="acc-pipe__id">
+                <span class="acc-pipe__t">${esc(b.titre || 'Sans titre')}</span>
+                <span class="acc-pipe__m"><span class="sf-pill">${esc(b.statut || '—')}</span>${b.ville ? `<span class="acc-pipe__v">${esc(b.ville)}</span>` : ''}</span>
+              </span>
+              <span class="acc-pipe__c sf-num">${b.prix_affiche ? sfEur(b.prix_affiche) : '—'}</span>
+            </button>`).join('') + `
+            <div class="acc-pied">
+              <button class="sf-btn sf-btn--ghost sf-btn--sm sf-btn--block" type="button" onclick="sfOuvrirBiens({ onglet: 'prospect' })">
+                Tout voir dans Mes biens ${sfAccIcon('chevron', 13)}
               </button>
             </div>` : `
             <div class="sf-empty">
@@ -2949,7 +2998,24 @@ function renderAccueil(el) {
               </div>
             </div>`}
         </div>
-      </section>
+      </section>`;
+
+  /* Un compte qui possède un bien voit d'abord ce qu'il rapporte. Un compte
+     qui n'en a pas encore commence par le parcours, sans le patrimoine. */
+  el.innerHTML = `
+    <div class="acc-hello">
+      <h1>Bonjour${prenom ? ' ' + esc(prenom) : ''}</h1>
+      <span class="acc-date">${dateJour}</span>
+    </div>
+
+    ${acquis.length ? blocPatrimoine : ''}
+    ${blocATraiter}
+    ${blocDemarrage}
+    ${blocActions}
+
+    <div class="acc-bento">
+      ${blocEcheances}
+      ${blocProspection}
     </div>
   `;
 }
@@ -3027,7 +3093,12 @@ function renderBiens(el) {
   el.innerHTML = `
     <div class="sfb-head">
       <h1>Mes biens</h1>
-      <span class="sfb-head__n sf-num" id="sfb-cpt"></span>
+      <span class="sfb-head__n" id="sfb-cpt"></span>
+      ${/* v=104 : l'action principale dans l'en-tête, comme « Nouvelle simulation »
+            ou « Nouveau compte rendu ». En fin de barre d'outils, elle tombait
+            seule sur une seconde ligne dès 1 280 px. */''}
+      <button class="sf-btn sf-btn--primary sfb-head__a" type="button" onclick="navigate('nouveau')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter un bien</button>
     </div>
 
     <div class="sfb-tabs" role="tablist">
@@ -3074,8 +3145,6 @@ function renderBiens(el) {
       <button class="sf-btn sf-btn--secondary sf-btn--sm" type="button" onclick="exportBiensCSV()"
               title="Exporte les biens actuellement affichés, filtres compris">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg> CSV</button>
-      <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="navigate('nouveau')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter</button>
     </div>
 
     <div class="sfb-kpis" id="sfb-kpis"></div>
@@ -8479,21 +8548,21 @@ function mfRenderShell() {
     ${k.biens.length ? `
     <div class="mfx-kpis">
       <div class="mfx-kpi mfx-kpi--hi">
-        <span class="mfx-kpi__l">Cashflow constaté${sfAide(`Les loyers encaissés moins les charges et les crédits, sur les ${k.nb} mois écoulé${k.nb > 1 ? 's' : ''} de l’exercice.`, 'Cashflow constaté')}</span>
+        <span class="mfx-kpi__l">Cashflow réel${sfAide(`Les loyers encaissés moins les charges et les crédits, sur les ${k.nb} mois écoulé${k.nb > 1 ? 's' : ''} de l’exercice.`, 'Cashflow réel')}</span>
         <span class="mfx-kpi__v ${k.cashflow >= 0 ? 'mfx-kpi__v--gain' : 'mfx-kpi__v--loss'}">${sfEur(k.cashflow)}</span>
-        <span class="mfx-kpi__s">soit ${sfEur(k.nb ? k.cashflow / k.nb : 0)} par mois</span>
+        <span class="mfx-kpi__s">sur l’exercice · soit ${sfEur(k.nb ? k.cashflow / k.nb : 0)} par mois</span>
       </div>
       <div class="mfx-kpi">
         <span class="mfx-kpi__l">Rendement net${sfAide(rn === null
           ? 'Il se calcule dès que le coût d’acquisition de vos biens est renseigné.'
           : 'Les loyers encaissés moins les charges, rapportés au coût d’acquisition, sur l’exercice.', 'Rendement net')}</span>
-        <span class="mfx-kpi__v ${rn === null ? 'mfx-kpi__v--none' : (rn >= seuil ? 'mfx-kpi__v--gain' : 'mfx-kpi__v--loss')}">${rn === null ? 'non disponible' : sfPctNum(rn)}</span>
+        <span class="mfx-kpi__v ${rn === null ? 'mfx-kpi__v--none' : (rn >= seuil ? 'mfx-kpi__v--gain' : 'mfx-kpi__v--loss')}">${rn === null ? 'Non disponible' : sfPctNum(rn)}</span>
         ${rn === null ? '' : `<span class="mfx-kpi__s">${rn >= seuil ? `au-dessus de votre seuil de ${sfPctNum(seuil, 0)}` : `en dessous de votre seuil de ${sfPctNum(seuil, 0)}`}</span>`}
       </div>
       <div class="mfx-kpi">
         <span class="mfx-kpi__l">Écart réel − prévisionnel</span>
         <span class="mfx-kpi__v ${k.ecart >= 0 ? 'mfx-kpi__v--gain' : 'mfx-kpi__v--loss'}">${sfEur(k.ecart)}</span>
-        <span class="mfx-kpi__s">prévu ${k.previsionnel >= 0 ? '+' : ''}${sfEur(k.previsionnel)} · constaté ${sfEur(k.cashflow)}</span>
+        <span class="mfx-kpi__s">prévisionnel ${k.previsionnel >= 0 ? '+' : ''}${sfEur(k.previsionnel)} · réel ${sfEur(k.cashflow)}</span>
       </div>
       <div class="mfx-kpi">
         <span class="mfx-kpi__l">Occupation${sfAide(`${k.loues} bien${k.loues > 1 ? 's' : ''} loué${k.loues > 1 ? 's' : ''} sur ${k.biens.length}.`, 'Occupation')}</span>
@@ -8761,7 +8830,7 @@ function renderMfPerformance(c) {
               <span class="mfx-imp__v sf-loss">${sfEur(-x.reste)}</span>
             </button>`).join('')
           : `<p class="sff-line__l">Aucun loyer échu ne reste à encaisser sur ${annee}.</p>`}
-          <p class="sff-sep">Composition du constaté</p>
+          <p class="sff-sep">Composition du cashflow réel</p>
           <div class="sff-lines">
             <div class="sff-line"><span class="sff-line__l">Loyers encaissés</span><span class="sff-line__v">${sfEur(encaisse)}</span></div>
             <div class="sff-line"><span class="sff-line__l">Charges payées</span><span class="sff-line__v">${sfEur(charges)}</span></div>
@@ -9206,9 +9275,9 @@ function mfCarteBien(b, annee) {
         <div class="mfx-stat__s">${nbCharges ? `${nbCharges} charge${nbCharges > 1 ? 's' : ''} enregistrée${nbCharges > 1 ? 's' : ''}` : 'aucune charge enregistrée'}</div>
       </div>
       <div class="mfx-stat">
-        <div class="mfx-stat__l">Cashflow constaté</div>
+        <div class="mfx-stat__l">Cashflow réel</div>
         <div class="mfx-stat__v ${r.cashflow >= 0 ? 'sf-gain' : 'sf-loss'}">${sfEur(r.cashflow)}</div>
-        <div class="mfx-stat__s">prévu ${prev >= 0 ? '+' : ''}${sfEur(prev)}</div>
+        <div class="mfx-stat__s">prévisionnel ${prev >= 0 ? '+' : ''}${sfEur(prev)}</div>
       </div>
       <div class="mfx-stat">
         <div class="mfx-stat__l">Rendement net</div>
@@ -9442,7 +9511,7 @@ function renderMfSuivi(c) {
           <div class="sff-line"><span class="sff-line__l">Loyers encaissés</span><span class="sff-line__v sf-gain">${sfEur(encaisse)}</span></div>
           <div class="sff-line"><span class="sff-line__l">Charges payées</span><span class="sff-line__v">${sfEur(chargesPayees)}</span></div>
           <div class="sff-line"><span class="sff-line__l">Mensualités de crédit <small>· ${nb} mois écoulé${nb > 1 ? 's' : ''}</small></span><span class="sff-line__v">${sfEur(mensualites)}</span></div>
-          <div class="sff-line sff-line--tot"><span class="sff-line__l">Cashflow constaté</span><span class="sff-line__v ${cashflow >= 0 ? 'sf-gain' : 'sf-loss'}">${sfEur(cashflow)}</span></div>
+          <div class="sff-line sff-line--tot"><span class="sff-line__l">Cashflow réel</span><span class="sff-line__v ${cashflow >= 0 ? 'sf-gain' : 'sf-loss'}">${sfEur(cashflow)}</span></div>
         </div>
         ${(echusNb || avenirNb) ? `
         <p class="sff-sep">Reste à encaisser</p>
@@ -10493,7 +10562,7 @@ function renderMfLocataires(c) {
 
     <div class="sff-block">
       <div class="sff-block__h">
-        <p class="sff-block__t">Annuaire</p>
+        <p class="sff-block__t">Vos locataires</p>
         <span class="sff-block__n">${cnt.all} locataire${cnt.all > 1 ? 's' : ''} · ${cnt['Actif']} actif${cnt['Actif'] > 1 ? 's' : ''} · ${cnt['Candidat']} candidat${cnt['Candidat'] > 1 ? 's' : ''} · ${sfEur(loyerEnCours)} de loyer mensuel en cours</span>
         <span class="sff-block__a">
           <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="sfAllerAjouterLocataire()">${sfAccIcon('plus', 15)} Ajouter un locataire</button>
@@ -13306,6 +13375,9 @@ async function renderAdministration(el) {
 
   await loadAdminData();
   switchAdminTab(adminTab);
+  // Une fois les SCI lues (la fenêtre les propose), et si l'on est resté là.
+  if (sfEcheanceDemandee && currentPage === 'administration') openEcheanceModal(null);
+  sfEcheanceDemandee = false;
 }
 
 // Les compteurs des onglets. `null` : pas de pastille.
@@ -13332,6 +13404,21 @@ function admMajCompteurs() {
   poser('bilans', allBilans.length);
 }
 
+/* LES ÉCHÉANCES ADMINISTRATIVES — une lecture, deux écrans (v=104).
+   ⚠️ L'accueil annonçait « Aucune échéance administrative programmée » sous
+   ses loyers, TOUJOURS : il ne les lisait pas (elles ne l'étaient qu'en
+   ouvrant Administration). Elles partent désormais avec la vague du
+   démarrage, et Administration relit par la même requête.
+   `sfEcheancesLues` : une lecture refusée ne doit pas faire dire « aucune ». */
+let sfEcheancesLues = false;
+function sfLireEcheances() {
+  return db.from('sci_echeances').select('*').eq('user_id', currentUser.id).order('date_echeance');
+}
+function sfPrendreEcheances(res) {
+  sfEcheancesLues = !!(res && !res.error);
+  allEcheances = (res && res.data) || [];
+}
+
 async function loadAdminData() {
   try {
     // S'assurer que allBiens est chargé (nécessaire pour le cashflow SCI)
@@ -13339,12 +13426,12 @@ async function loadAdminData() {
     const [sci, contacts, echeances, bilans] = await Promise.all([
       db.from('sci').select('*').order('created_at'),
       db.from('contacts').select('*').order('nom'),
-      db.from('sci_echeances').select('*').order('date_echeance'),
+      sfLireEcheances(),
       db.from('bilans_comptables').select('*,sci(nom_sci)').order('exercice', {ascending:false}),
     ]);
     allSCI       = sci.data || [];
     allContacts  = contacts.data || [];
-    allEcheances = echeances.data || [];
+    sfPrendreEcheances(echeances);
     allBilans    = bilans.data || [];
     admMajCompteurs();
   } catch(e) { console.error('loadAdminData', e); }
@@ -16466,23 +16553,23 @@ function sfsRenderLecture(el, s, dispo) {
       <section class="sff-block">
         <div class="sff-block__h"><h2 class="sff-block__t">Le prêt</h2></div>
         <div class="sff-block__b"><div class="sff-lines sff-lines--plain sfs-lines">
-          ${ligne('Montant emprunté', s.montant_emprunte ? esc(sfEur(s.montant_emprunte)) : 'Non renseigné')}
-          ${ligne('Taux nominal', s.taux_interet != null ? esc(sfPctNum(s.taux_interet, 2)) : 'Non renseigné')}
+          ${ligne('Montant emprunté', s.montant_emprunte ? esc(sfEur(s.montant_emprunte)) : sfAbsent('Non renseigné'))}
+          ${ligne('Taux nominal', s.taux_interet != null ? esc(sfPctNum(s.taux_interet, 2)) : sfAbsent('Non renseigné'))}
           ${ligne('Durée', esc(String(s.duree_ans || 20)) + ' ans')}
-          ${ligne('Mensualité hors assurance', c.calculable ? esc(sfEur(c.horsAss)) : 'Non disponible')}
-          ${dispo ? ligne('Assurance emprunteur', c.assuranceConnue ? esc(sfEur(c.assurance)) + ' /mois' : 'Non renseignée') : ''}
-          ${ligne('Mensualité assurance comprise', c.calculable ? esc(sfEur(c.mens)) : 'Non disponible', ' sff-line--tot')}
-          ${ligne('Intérêts', c.calculable ? esc(sfEur(c.interets)) : 'Non disponible')}
+          ${ligne('Mensualité hors assurance', c.calculable ? esc(sfEur(c.horsAss)) : sfAbsent('Non disponible'))}
+          ${dispo ? ligne('Assurance emprunteur', c.assuranceConnue ? esc(sfEur(c.assurance)) + ' /mois' : sfAbsent('Non renseignée')) : ''}
+          ${ligne('Mensualité assurance comprise', c.calculable ? esc(sfEur(c.mens)) : sfAbsent('Non disponible'), ' sff-line--tot')}
+          ${ligne('Intérêts', c.calculable ? esc(sfEur(c.interets)) : sfAbsent('Non disponible'))}
           ${dispo && c.assuranceConnue ? ligne('Coût de l\'assurance', esc(sfEur(c.coutAssurance))) : ''}
         </div></div>
       </section>
       <section class="sff-block">
         <div class="sff-block__h"><h2 class="sff-block__t">Votre situation</h2></div>
         <div class="sff-block__b"><div class="sff-lines sff-lines--plain sfs-lines">
-          ${ligne('Revenus mensuels', s.revenus_mensuels ? esc(sfEur(s.revenus_mensuels)) : 'Non renseignés')}
-          ${ligne('Loyer du bien', s.loyer_exige_banque ? esc(sfEur(s.loyer_exige_banque)) : 'Non renseigné')}
-          ${ligne('Revenus retenus par la banque', c.revenusRetenus ? esc(sfEur(c.revenusRetenus)) : 'Non disponible')}
-          ${ligne('Taux d\'endettement', c.calculable && c.te !== null ? `<span class="sfs-endet sfs-endet--${endet.etat}">${sfAccIcon(endet.icone, 13)} ${esc(endet.val)}</span>` : 'Non disponible', ' sff-line--tot')}
+          ${ligne('Revenus mensuels', s.revenus_mensuels ? esc(sfEur(s.revenus_mensuels)) : sfAbsent('Non renseignés'))}
+          ${ligne('Loyer du bien', s.loyer_exige_banque ? esc(sfEur(s.loyer_exige_banque)) : sfAbsent('Non renseigné'))}
+          ${ligne('Revenus retenus par la banque', c.revenusRetenus ? esc(sfEur(c.revenusRetenus)) : sfAbsent('Non disponible'))}
+          ${ligne('Taux d\'endettement', c.calculable && c.te !== null ? `<span class="sfs-endet sfs-endet--${endet.etat}">${sfAccIcon(endet.icone, 13)} ${esc(endet.val)}</span>` : sfAbsent('Non disponible'), ' sff-line--tot')}
         </div>
         ${c.calculable && c.te !== null ? `<p class="sfs-note">${endet.etat === 'ok' ? 'Dans' : 'Au-dessus de'} la limite de ${SF_ENDETTEMENT_MAX} % retenue par les banques.</p>` : ''}
         </div>

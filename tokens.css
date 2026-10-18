@@ -41,6 +41,13 @@
   --sf-font-display: "Outfit", "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
   --sf-font-ui:      "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --sf-font-num:     "JetBrains Mono", ui-monospace, "Cascadia Mono", "SF Mono", Menlo, monospace;
+  /* v=104 — L'ESPACE DES MILLIERS EN CHASSE FIXE. Dans une police à chasse
+     fixe, l'espace insécable U+00A0 (séparateur des milliers depuis la v=103)
+     est aussi large qu'un chiffre : « 168 000 » s'y lisait « 168  000 ».
+     Mesuré à 20 px : 12 px, contre 6 px pour l'espace fine d'avant. Toute
+     règle qui pose --sf-font-num pose aussi ce resserrement (word-spacing
+     s'applique à U+00A0, pas à l'espace fine devant € et %). */
+  --sf-num-espace:   -0.3em;
 
   /* ── Echelle typographique ────────────────────────────────────────────────
      Source unique. L'audit avait releve 36 tailles distinctes en dur, dont des
@@ -105,6 +112,19 @@
   --sf-space-10: 40px;
   --sf-space-11: 48px;
   --sf-space-12: 64px;
+
+  /* ── Rythme de mise en page (v=104) ───────────────────────────────────────
+     « Laisser de l'air » (Thomas, 18/10). Mesuré au banc sur 55 écrans : des
+     cartes empilées à 12 px, des onglets collés à la bande des chiffres clés,
+     des lignes de liste à 4 ou 8 px de marge. Cinq distances suffisent, et
+     elles grandissent avec l'écran : serrées au téléphone, aérées au bureau.
+     On écrit le RÔLE dans le composant, jamais la distance brute. */
+  --sf-rythme-section: clamp(36px, 3.2vw, 56px);  /* entre deux sections titrées */
+  --sf-rythme-bloc:    clamp(20px, 1.8vw, 28px);  /* entre deux cartes, empilées ou voisines */
+  --sf-rythme-titre:   clamp(12px, 1.1vw, 16px);  /* d'un titre de section à son contenu */
+  --sf-pad-carte:      clamp(16px, 1.6vw, 24px);  /* intérieur d'une carte, d'un chiffre clé */
+  --sf-pad-ligne-y:    clamp(14px, 1.2vw, 18px);  /* une ligne de liste, en haut et en bas */
+  --sf-pad-ligne-x:    clamp(16px, 1.6vw, 24px);  /* une ligne de liste, sur les côtés */
 
   /* ── Rayons ───────────────────────────────────────────────────────────────
      17 valeurs distinctes relevees a l'audit, de 2 px a 24 px. Cinq suffisent. */
