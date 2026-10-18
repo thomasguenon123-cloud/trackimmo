@@ -11,6 +11,16 @@
 # Revenir en arrière : remettre la source sur « Deploy from a branch ».
 # ⚠️ Un push sur `main` ne se publie QUE par ce fichier : des tests rouges
 # arrêtent la publication, et le site reste celui d'avant.
+#
+# ACTIONS ÉPINGLÉES, SOUS NODE.JS 24 (18/10/2026). GitHub abandonne Node.js 20 :
+# nos actions étaient exécutées d'office sous Node.js 24, avec un avertissement
+# à chaque publication. Chacune est désormais prise à l'EMPREINTE de son commit,
+# sa version en commentaire : une étiquette comme `@v7` suit la dernière v7.x
+# publiée, sans test — la faute des bibliothèques en version flottante. Toutes
+# déclarent `using: node24` dans leur action.yml (lu dans le dépôt officiel).
+# Les monter : lire `runs.using` et les notes de version au dépôt de l'action,
+# remplacer l'empreinte ET le commentaire, puis une publication de contrôle.
+# Garde : test/publication.test.js.
 name: Publication
 
 on:
@@ -31,16 +41,23 @@ jobs:
   construire:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Le jeton ne reste pas dans le dépôt cloné : rien, ensuite, ne s'en sert.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Aucune dépendance à mettre en cache ; GitHub conseille de couper le cache
+      # automatique dans un workflow qui a des droits de déploiement.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
+          package-manager-cache: false
       - name: Tests
         run: npm test
       - name: Construction (minification, vérifications)
         run: node scripts/construire.mjs
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      # v5 écarte les fichiers cachés (.xxx) : _site/ n'en contient aucun.
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: _site
 
@@ -52,4 +69,4 @@ jobs:
       url: ${{ steps.deploiement.outputs.page_url }}
     steps:
       - id: deploiement
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

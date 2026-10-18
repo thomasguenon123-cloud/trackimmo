@@ -32,6 +32,15 @@
   979 → 604 Ko au 18/10). Un fichier ajouté au site doit l'être au script
   (garde `publication.test.js`). Revenir en arrière : remettre la source sur
   « Deploy from a branch ». esbuild signale les erreurs CSS : les lire.
+  **Les actions du workflow tournent sous Node.js 24** (18/10, après la v=105 :
+  GitHub abandonne Node.js 20 et l'écrivait à chaque publication) et sont
+  **épinglées par empreinte de commit**, la version en commentaire
+  (`checkout` v7.0.1, `setup-node` v7.1.0, `configure-pages` v6.0.0,
+  `upload-pages-artifact` v5.0.0, `deploy-pages` v5.0.1). Les monter : lire
+  `runs.using` et les notes de version dans le dépôt officiel de l'action,
+  remplacer l'empreinte ET le commentaire, puis une publication de contrôle
+  dont on lit le journal. Cache de `setup-node` coupé, jeton non conservé par
+  `checkout`. Garde : `publication.test.js`.
 - **Bibliothèques hébergées dans `vendor/`** depuis la v=102 (supabase-js,
   Chart.js, pdf.js et son travailleur, html2canvas, jsPDF, pdf-lib, police
   Montserrat), versions exactes prises sur npm, licences jointes, empreintes
@@ -73,6 +82,10 @@
    bloc prêt à coller, ce qu'il doit voir, quoi faire en cas d'erreur, comment
    revenir en arrière), une étape à la fois — puis **vérifiée en lecture** de
    notre côté, sans le croire sur parole. Lecture SQL libre pour vérifier.
+   ⚠️ **Le connecteur MCP Supabase sert aussi TrackTrading** : le 18/10, Thomas
+   l'a reconnecté au projet de TrackTrading. Avant toute requête, vérifier le
+   projet visé (`get_project_url` doit rendre l'URL de Stonefolio, celle de la
+   CSP d'`index.html`) ; sinon, ne rien lire ni écrire, et le dire à Thomas.
 6. **Jamais de chiffre recopié** d'une note précédente : on le re-mesure sur le
    code ou la base du jour, et on livre la méthode qui le produit. Plusieurs
    chiffres du backlog se sont révélés faux exactement de cette façon.
@@ -481,7 +494,9 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 - **Une dépendance de CDN en version flottante (`@2`) est une mise en
   production sans test** : le 15/10, la production a pris une version de la
   veille. Toute bibliothèque est épinglée à une version exacte (garde
-  `audit-101.test.js`) ; monter de version = un geste testé au banc.
+  `audit-101.test.js`) ; monter de version = un geste testé au banc. Une
+  étiquette d'action GitHub (`@v4`, `@v7`) est la même faute : les actions du
+  workflow sont épinglées par empreinte de commit (voir Publication).
 - **ESLint `no-undef` voit ce que `node --check` ne voit pas** : « Grouper par
   type » levait une ReferenceError (`TYPES` disparu) depuis le passage au
   registre `TI_BIENS`. Lancer, sur une copie d'app.js :
