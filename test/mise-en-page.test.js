@@ -196,15 +196,20 @@ test('sur téléphone, les chiffres clés passent sur deux colonnes', () => {
 });
 
 test('les onglets de l’Administration tiennent sur un téléphone', () => {
-  const [base] = regle('.adm-tab');
-  assert.ok(base, 'témoin : la règle des onglets est trouvée');
-  assert.match(base.corps, /white-space\s*:\s*nowrap/, 'témoin : au large, les libellés tiennent sur une ligne');
-  const tel = REGLES.filter(r => /max-width\s*:\s*(\d+)px/.test(r.media) && Number(/max-width\s*:\s*(\d+)px/.exec(r.media)[1]) >= 440);
-  const rangee = tel.find(r => r.sel === '.adm-tabs');
-  assert.ok(rangee, 'Aucune règle pour téléphone : quatre onglets sur une ligne débordent de l\'écran (« Bilans comptables » coupé).');
-  assert.match(rangee.corps, /grid-template-columns\s*:\s*repeat\(\s*2\s*,\s*minmax\(0,\s*1fr\)\)/, 'deux rangées de deux');
-  const onglet = tel.find(r => r.sel === '.adm-tab' && r.media === rangee.media);
-  assert.ok(onglet && /white-space\s*:\s*normal/.test(onglet.corps), 'un libellé long passe à la ligne dans sa case');
+  /* v=103 : l'Administration prend les onglets soulignés du Suivi financier.
+     Sur téléphone, quatre onglets en ligne débordaient de 125 px (« Bilans
+     comptables » coupé, page dézoomée par Safari) : la rangée contient son
+     débordement (elle défile) et ramène l'onglet ouvert dans le champ. */
+  const rangee = regles(CSS['financier.css']).find(r => r.sel === '.mfx-tabs' && !r.media);
+  assert.ok(rangee, 'témoin : la règle de la rangée d’onglets est trouvée');
+  assert.match(rangee.corps, /overflow-x\s*:\s*auto/, 'la rangée doit défiler, pas élargir la page');
+  const corps = APP.slice(APP.indexOf('async function renderAdministration'), APP.indexOf('async function loadAdminData'));
+  assert.match(corps, /class="mfx-tabs" role="tablist" id="adm-onglets"/, 'l’Administration a quitté les onglets de la charte');
+  assert.match(corps, /class="mfx-tab" role="tab"[^>]*aria-selected=/, 'chaque onglet dit s’il est ouvert');
+  assert.doesNotMatch(corps, /adm-hero|adm-tabs/, 'le bandeau ou les onglets en boîte de l’ancienne charte sont revenus');
+  const bascule = APP.slice(APP.indexOf('function switchAdminTab'), APP.indexOf('function switchAdminTab') + 500);
+  assert.match(bascule, /sfOngletDansLeChamp\(document\.getElementById\('adm-onglets'\)\)/,
+    'au téléphone, l’onglet ouvert doit rester visible dans la rangée qui défile');
 });
 
 // ── 3. Les contrôles natifs portent la charte ──────────────────────────────
@@ -301,4 +306,74 @@ test('les lignes à pastille de l’accueil centrent leur titre', () => {
     assert.match(r, /display:\s*flex/, `témoin : ${sel} est bien une ligne flex`);
     assert.match(r, /align-items:\s*center/, `${sel} : un titre seul doit se centrer sur sa pastille`);
   }
+});
+
+/* v=103 — CHIFFRES CLÉS SANS CASE VIDE. Une rangée en `auto-fit` ne regarde
+   pas combien de chiffres elle porte : sur iPad en portrait, quatre chiffres
+   tombaient en « 3 + 1 », cinq en « 3 + 2 », et la case vide laissait voir le
+   fond qui dessine les séparateurs (mesuré au banc : l'accueil, les 24 onglets
+   de fiche, le Suivi financier, les Comptes rendus). La règle compte les
+   cases ; la sonde des grilles du banc l'a vérifiée sur 58 écrans à 15
+   largeurs, de 360 à 1 440 px. */
+test('une rangée de chiffres clés se règle sur leur nombre', () => {
+  const GRILLES = ['.acc-kpis', '.sfb-kpis', '.sff-kpis', '.mfx-kpis'];
+  const quant = n => REGLES.filter(r => r.sel.includes(`:has(> :nth-child(${n}):last-child)`) && !/>\s*:nth-child\((?:-n|n)/.test(r.sel.split(':has(')[1].slice(r.sel.split(':has(')[1].indexOf(')') + 1)));
+  const colonnes = (n, media) => {
+    const r = quant(n).find(x => x.media.replace(/\s/g, '') === media.replace(/\s/g, '') && /grid-template-columns/.test(x.corps));
+    assert.ok(r, `aucune règle pour ${n} chiffres sous « ${media} »`);
+    for (const g of GRILLES) assert.ok(r.sel.includes(g), `${g} échappe à la règle des ${n} chiffres`);
+    return (r.corps.match(/repeat\(\s*(\d+)/) || [])[1];
+  };
+  assert.equal(colonnes(3, '@media (min-width:561px)'), '3');
+  assert.equal(colonnes(4, '@media (min-width:561px)'), '2', '4 chiffres sur tablette : deux par deux, jamais « 3 + 1 »');
+  assert.equal(colonnes(4, '@media (min-width:900px)'), '4');
+  assert.equal(colonnes(5, '@media (min-width:561px)'), '6', '5 chiffres : grille de 6, « 3 + 2 » sans trou');
+  assert.equal(colonnes(5, '@media (min-width:1180px)'), '5');
+  assert.equal(colonnes(6, '@media (min-width:561px)'), '3');
+  // Les 5 chiffres : les trois premiers sur deux pistes, les deux derniers sur trois.
+  const span = REGLES.filter(r => r.sel.includes(':has(> :nth-child(5):last-child) >') && /grid-column\s*:\s*span/.test(r.corps));
+  assert.ok(span.some(r => /:nth-child\(-n\+3\)/.test(r.sel) && /span 2/.test(r.corps)), 'les trois premiers sur deux pistes');
+  assert.ok(span.some(r => /:nth-child\(n\+4\)/.test(r.sel) && /span 3/.test(r.corps)), 'les deux derniers sur trois pistes');
+  // Et l'annulation sur grand écran a la même précision que ce qu'elle annule.
+  const annule = REGLES.find(r => /min-width:1180px/.test(r.media) && r.sel.includes(':has(> :nth-child(5):last-child) >') && /grid-column\s*:\s*auto/.test(r.corps));
+  assert.ok(annule && /> :nth-child\(n\)/.test(annule.sel), '`> *` perd contre `> :nth-child(-n+3)` : les cases garderaient leur étendue');
+});
+
+test('les six actions rapides de l’accueil : 3 par ligne, 6 sur grand écran, 2 au téléphone', () => {
+  const r = (media) => REGLES.find(x => x.sel === '.acc-quick' && x.media.replace(/\s/g, '') === media && /grid-template-columns/.test(x.corps));
+  assert.match(r('').corps, /repeat\(3,\s*minmax\(0,\s*1fr\)\)/, 'une grille auto-fill mettait cinq actions puis une seule');
+  assert.match(r('@media(min-width:1400px)').corps, /repeat\(6,/);
+  assert.match(r('@media(max-width:560px)').corps, /repeat\(2,/);
+});
+
+test('le tableau de Mes biens ne défile pas d’un pixel pour rien', () => {
+  /* Un texte de cellule dépassait sa case d'un pixel (arrondi des colonnes) :
+     Windows affichait une barre de défilement sous le tableau de 1 024 à
+     1 280 px. `clip`, pas `hidden` : la cellule ne devient pas un conteneur
+     de défilement, et un vrai débord fait toujours défiler l'enveloppe. */
+  const td = REGLES.filter(r => r.sel === '.sfb-t td' && !r.media);
+  assert.ok(td.some(r => /overflow-x\s*:\s*clip/.test(r.corps)), 'les cellules ne rognent plus leur pixel de trop');
+  const wrap = REGLES.find(r => r.sel === '.sfb-tablewrap' && !r.media);
+  assert.match(wrap.corps, /overflow-x\s*:\s*auto/, 'témoin : un tableau plus large que l’écran défile toujours');
+});
+
+/* v=103 — UNE FEUILLE DE STYLE MUTILÉE NE SE VOIT PAS. En retirant une ligne
+   d'une liste de sélecteurs, sa déclaration était partie avec elle : la liste
+   restante se collait à la règle suivante, et le « ? » des états vides prenait
+   la taille d'un titre de page (28 à 46 px). Et un bloc sans sélecteur
+   (`{display:flex…}`, Paramètres › Mes SCI) traînait depuis des mois. Aucun
+   des deux ne lève d'erreur : le navigateur ignore ou recolle en silence. */
+test('aucune liste de sélecteurs interrompue, aucun bloc sans sélecteur', () => {
+  const fautes = [];
+  for (const [f, css] of Object.entries(CSS)) {
+    const t = lire(f).replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ''));
+    for (const m of t.matchAll(/,[ \t]*\n[ \t]*\n/g)) fautes.push(`${f}:${t.slice(0, m.index).split('\n').length} liste de sélecteurs interrompue par une ligne vide`);
+    for (const m of t.matchAll(/(^|[};])\s*\{/g)) fautes.push(`${f}:${t.slice(0, m.index + m[0].length).split('\n').length} bloc sans sélecteur`);
+    void css;
+  }
+  assert.deepEqual(fautes, []);
+  // Témoin : la règle du « ? » des états vides a gardé sa taille.
+  const vide = REGLES.find(r => r.sel.split(',').map(s => s.trim()).includes('.sff-empty__t .sf-lex__b'));
+  assert.ok(vide && /width\s*:\s*18px/.test(vide.corps), 'le « ? » d’un état vide a perdu sa taille');
+  assert.ok(!vide.sel.includes('.sff-h1'), 'la règle du « ? » des états vides est recollée à celle des titres');
 });

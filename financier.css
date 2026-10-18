@@ -296,6 +296,8 @@
    teinté suffit à signaler l'état, le texte prend `--sf-text`. */
 .mfx-tab[aria-selected="true"] .mfx-tab__n{ background:var(--sf-brand-wash-2); color:var(--sf-text); }
 .mfx-tab__n--alerte{ background:var(--sf-alert-wash); color:var(--sf-alert); }
+/* Une pastille sans nombre se cache par `hidden` (Administration, v=103). */
+.mfx-tab__n[hidden]{ display:none; }
 .mfx-pane[hidden]{ display:none; }
 
 /* ═══ BARRE D'OUTILS ═════════════════════════════════════════════════════════ */

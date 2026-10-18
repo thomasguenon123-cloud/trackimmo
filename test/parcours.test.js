@@ -122,41 +122,78 @@ test('aucun bouton quand tout est fait', () => {
   assert.equal(actions(html), 0);
 });
 
-// ── Le verdict cesse de mentir ─────────────────────────────────────────────
+// ── L'accueil rendu (v=103 : plus de bandeau « verdict ») ─────────────────
+/* Le bandeau redisait le titre « À traiter » placé juste dessous et poussait
+   les chiffres sous la ligne de flottaison. Ses trois règles restent, et se
+   vérifient désormais sur l'écran RENDU, pas sur le texte du code :
+     · l'argent passe avant le démarrage ;
+     · « Tout est à jour » ne se dit pas à un compte qui démarre ;
+     · un même geste ne s'affiche qu'une fois. */
+const { injecter } = require('./charger-app.js');
 
-test('RÉGRESSION — « Rien ne demande votre attention » ne s’affiche plus à vide', () => {
-  /* La phrase existe toujours, mais derrière `demarrage` : elle ne peut plus
-     s'afficher tant qu'un geste de démarrage reste à faire. */
-  const i = APP_JS.indexOf('const verdict = coutent');
-  assert.ok(i > -1, 'le verdict ne suit plus l’ordre attendu');
-  const bloc = APP_JS.slice(i, i + 1400);
-  /* ⚠️ L'ARGENT PASSE AVANT LE DÉMARRAGE. Un loyer en retard coûte pendant
-     qu'on apprend à se servir de l'outil : annoncer « plus que deux gestes »
-     au-dessus d'un impayé enterrerait le seul point qui presse. */
-  assert.ok(bloc.indexOf('vous coûte') < bloc.indexOf('pour démarrer'),
-    'ce qui coûte de l’argent doit être annoncé avant le démarrage');
-  assert.ok(bloc.indexOf('pour démarrer') < bloc.indexOf('Rien ne demande votre attention'),
-    'la branche « compte neuf » doit être évaluée avant celle des points');
+function accueil(donnees) {
+  const ctx = charger({ maintenant: new Date('2026-09-05T12:00:00') });
+  injecter(ctx, {
+    currentUser: { id: 'u1' }, currentProfile: { role: 'user', first_name: 'Alex' },
+    sfBiensCharges: true, allBiens: [], allLoyers: [], allCharges: [], allLocataires: [],
+    ...donnees,
+  });
+  const el = { innerHTML: '' };
+  ctx.renderAccueil(el);
+  return el.innerHTML;
+}
+const pos = (h, motif) => { const m = h.search(motif); return m; };
+const BIEN_VIDE = { id: 'b1', titre: 'T2 Nantes', ville: 'Nantes', statut: 'Acheté', mode_detention: 'propre',
+  prix_affiche: 150000, loyer_en_etat: 700, mensualite_credit: 870, surface_m2: 40, is_test: false };
+
+test('compte neuf : le parcours, jamais « Tout est à jour », jamais une liste vide', () => {
+  const h = accueil({});
+  assert.match(h, /Pour démarrer/, 'témoin : le parcours s’affiche');
+  assert.doesNotMatch(h, /Tout est à jour/, 'l’état vide se félicite devant un compte qui n’a rien');
+  assert.doesNotMatch(h, />À traiter</, 'une liste « À traiter » vide ne s’affiche pas pendant le démarrage');
+  assert.doesNotMatch(h, /acc-verdict/, 'le bandeau verdict est revenu');
+  // Sans bien acquis, le parcours passe avant les chiffres (trois « non disponible »).
+  assert.ok(pos(h, /Pour démarrer/) < pos(h, /Votre patrimoine/), 'un compte neuf voit d’abord le parcours');
 });
 
-test('RÉGRESSION — le verdict de démarrage porte un habillage qui existe', () => {
-  /* ⚠️ `type:''` rendait `class="acc-verdict acc-verdict--"`, qui ne
-     correspond à aucune règle : plus de fond, et surtout une pastille SANS
-     couleur de fond — dont l'icône est dessinée en `--sf-bg`, donc invisible
-     sur le fond de la page, qui est ce même `--sf-bg`. Exactement sur l'écran
-     d'un compte neuf, le seul que ce code sert. */
-  assert.match(APP_JS, /type:\s*'demarrage'/, 'le verdict de démarrage a perdu son type');
-  const css = fs.readFileSync(path.join(__dirname, '..', 'components.css'), 'utf8');
-  assert.match(css, /\.acc-verdict--demarrage\s*\{[^}]*background/,
-    'le modificateur n’a pas de fond : le bandeau perdrait son aplat');
-  assert.match(css, /\.acc-verdict--demarrage\s+\.acc-verdict__ic\s*\{[^}]*background/,
-    'sans fond sur la pastille, l’icône se dessine en --sf-bg sur --sf-bg : invisible');
+test('RÉGRESSION — l’argent passe avant le démarrage, et le même geste ne s’affiche qu’une fois', () => {
+  // Un bien acquis, sans locataire, avec une mensualité : ce point coûte, et
+  // il promet le geste suivant du parcours (« Déclarez son locataire »).
+  const h = accueil({ allBiens: [{ ...BIEN_VIDE }] });
+  assert.match(h, /Pour démarrer/, 'témoin : le parcours reste à faire');
+  assert.match(h, />À traiter/, 'témoin : il reste un point à traiter (aucune charge saisie)');
+  assert.ok(pos(h, /Votre patrimoine/) < pos(h, />À traiter/), 'qui possède un bien voit d’abord ce qu’il rapporte');
+  assert.ok(pos(h, />À traiter/) < pos(h, /Pour démarrer/),
+    'ce qui coûte doit être annoncé avant le parcours de démarrage');
+  const fois = (h.match(/bien acquis sans locataire/g) || []).length;
+  assert.equal(fois, 1, `« acquis sans locataire » s’affiche ${fois} fois : une fois dans À traiter, une fois dans le parcours`);
+  assert.match(h, /acc-pas__why">1 bien acquis sans locataire · /, 'le parcours reprend le constat chiffré du point qu’il remplace');
+  assert.match(h, /mensualités/, 'l’argent ne quitte pas l’écran');
 });
 
-test('RÉGRESSION — « Tout est à jour » ne se dit pas à un compte qui n’a rien', () => {
-  /* La liste « À traiter » est vide sur un compte neuf comme sur un
-     portefeuille tenu. La même phrase ne convient pas aux deux : « prospectez
-     l'esprit tranquille » suppose qu'il y a quelque chose à tenir. */
-  assert.match(APP_JS, /demarrage \? 'Rien à signaler pour l’instant' : 'Tout est à jour'/,
-    'l’état vide se félicite de nouveau devant un compte vide');
+test('portefeuille tenu : « Tout est à jour », sans parcours', () => {
+  const h = accueil({
+    allBiens: [{ ...BIEN_VIDE }],
+    allLocataires: [{ id: 'l1', bien_id: 'b1', statut: 'Actif', date_entree: '2026-01-01', loyer_hc: 650, charges: 50, jour_paiement: 5 }],
+    allLoyers: Array.from({ length: 9 }, (_, i) => ({ id: 'y' + i, bien_id: 'b1', locataire_id: 'l1', annee: 2026, mois: i + 1,
+      statut: 'Payé', loyer_du: 700, loyer_hc: 650, charges: 50, montant_encaisse: 700, date_encaissement: `2026-0${i + 1}-05` })),
+    allCharges: [{ id: 'c1', bien_id: 'b1', date_charge: '2026-02-10', montant: 120, categorie: 'Taxe foncière' }],
+  });
+  assert.doesNotMatch(h, /Pour démarrer/, 'le parcours disparaît quand les trois gestes sont faits');
+  assert.match(h, /Tout est à jour/, 'un portefeuille tenu se le voit dire');
+});
+
+test('les actions rapides mènent à l’action, chacune avec son icône', () => {
+  const h = accueil({});
+  const bloc = h.slice(h.indexOf('class="acc-quick"'));
+  const boutons = [...bloc.matchAll(/<button class="sf-quick" type="button" onclick="([^"]+)">\s*<span class="sf-quick__icon">([\s\S]*?)<\/span>\s*<span class="sf-quick__label">([^<]+)</g)];
+  assert.equal(boutons.length, 6, 'témoin : six actions rapides');
+  for (const [, cible, icone, libelle] of boutons) {
+    assert.match(icone, /^<svg/, `« ${libelle} » : icône vide (clé inconnue de SF_ACC_ICONS)`);
+    assert.doesNotMatch(cible, /^navigate\('module-financier'\)$/, `« ${libelle} » ouvre une page et laisse chercher le formulaire`);
+  }
+  const cibles = Object.fromEntries(boutons.map(([, c, , l]) => [l.trim(), c]));
+  assert.equal(cibles['Pointer un loyer'], 'sfAllerPointer()');
+  assert.equal(cibles['Ajouter un locataire'], 'sfAllerAjouterLocataire()');
+  assert.equal(cibles['Saisir une charge'], 'sfAllerSaisirCharge()');
 });

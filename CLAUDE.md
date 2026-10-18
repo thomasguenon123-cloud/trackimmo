@@ -25,6 +25,11 @@
   meta d'`index.html`) refuse tout script venu d'ailleurs et liste les seuls
   services appelés. Monter de version : `npm pack`, remplacer le fichier, ses
   deux empreintes, passer au banc (garde `dependances.test.js`).
+  **Depuis la v=103, seuls supabase-js et app.js se chargent au démarrage**
+  (`defer`) : Chart.js, pdf.js, html2canvas, jsPDF et pdf-lib (1,2 Mo) se
+  chargent à la première utilisation, une fois, AVEC leur empreinte
+  (`SF_BIBLIOS`, `sfChargerBiblio()`). Leur seconde empreinte vit donc dans
+  `SF_BIBLIOS`, plus dans `index.html`.
 - **Supabase** (projet `immo-pipeline`, eu-west-1) : Postgres + RLS sur toutes
   les tables, Storage, Auth (mot de passe + Google restreint aux comptes
   connus), Edge Functions (`admin-invite-user`, `admin-delete-user`,
@@ -76,7 +81,16 @@
   courte en français plein. Pas d'alerte permanente anxiogène.
 - **Montants alignés à DROITE**, en-têtes comprises ; le texte reste à gauche.
   Espace fine insécable U+202F devant `€` et `%` → `sfEur()`, `sfPctNum()`.
-  Virgule décimale. `tabular-nums`.
+  **Milliers séparés par l'espace insécable ordinaire U+00A0** (« 12 600 »,
+  arbitrage du 17/10, v=103) : tout nombre passe par `sfNombre()` ; jamais
+  `toLocaleString('fr-FR')` en direct, qui pose U+202F entre les milliers.
+  Virgule décimale. `tabular-nums`. Garde : `typographie.test.js`.
+- **Un montant se saisit comme il s'affiche** (v=103) : champ texte,
+  `inputmode="decimal"`, classe `sf-montant` (aligné à droite), lu par
+  `sfLireNombre()`, valeur initiale par `sfValeurChamp()` (0 reste 0). Vide :
+  la valeur par défaut annoncée ; illisible : refusé, en le disant. Seuls trois
+  entiers courts restent en `type="number"` (jour du mois, jours de rappel,
+  année). Garde : `saisie-montants.test.js`.
 - **Une donnée absente → « non disponible »**, jamais un 0 ou un chiffre inventé.
 - **Un bien VACANT se compte** (son cashflow est connu) ; seul un bien loué
   sans loyers saisis est écarté.
@@ -226,6 +240,52 @@
   `vie-privee.test.js` (aucune adresse d'un fournisseur personnel dans le dépôt).
 - **Pas d'entrée « Bientôt »** : une section non construite n'est pas affichée
   (`sfParamPropose`) ; elle réapparaît quand son statut passe à `'ready'`.
+- **Navigation** (v=103, arbitrage du 17/10) : un bandeau À PLAT — Accueil ·
+  Mes biens · Suivi financier · Locataires · Administration — et un menu
+  **Outils** (Simulations de crédit, Comptes rendus, Marché immobilier,
+  Portails immobiliers). Le libellé d'une entrée est le TITRE de la page
+  qu'elle ouvre. La page courante se dit (`active` + `aria-current="page"`),
+  sous-pages comprises (`SF_NAV_PARENT` dans `navigate`). Les **Locataires**
+  ont leur page (route `locataires`, `renderLocatairesPage`) ; l'ancien onglet
+  du Suivi financier retombe sur Performance. Garde : `navigation.test.js`.
+- **Une action mène là où elle se fait** (v=103) : « Pointer » ouvre le Suivi
+  mensuel de l'exercice, « Saisir une charge » la fenêtre de saisie, « Ajouter
+  un locataire » la fenêtre sur le bien concerné, « Compléter » la fiche sur
+  l'onglet du champ manquant (plusieurs biens : la liste filtrée). Chaque
+  destination est écrite une fois (`sfAller*`, `sfOuvrirFiche`,
+  `sfOuvrirBiens`) ; un onglet demandé est une clé de `TAB_DEFS`.
+- **Accueil** (v=103) : plus de bandeau « verdict ». Ordre : le patrimoine
+  (dès qu'un bien est acquis), « À traiter » (l'argent passe avant le
+  démarrage), « Pour démarrer », six actions rapides, l'agenda. « Tout est à
+  jour » ne se dit jamais pendant le démarrage ; le point « À traiter » qui
+  promet le prochain geste du parcours s'efface devant lui (le parcours
+  reprend son chiffre). Garde : `parcours.test.js`.
+- **Chiffres clés sans case vide** (v=103) : `.acc-kpis`, `.sfb-kpis`,
+  `.sff-kpis`, `.mfx-kpis` se règlent sur leur NOMBRE (`:has`) : 4 → deux par
+  deux puis une ligne dès 900 px ; 5 → « 3 + 2 » puis une ligne dès 1 180 px.
+  Vérifié par la sonde des grilles du banc (58 écrans, 15 largeurs).
+- **Mes biens sur tablette** (v=103) : sous 1 000 px, la liste s'ouvre en
+  grille (le tableau demande 970 px) ; une vue CHOISIE est retenue sur
+  l'appareil (`sf_vue_biens`, `sfVueParDefaut`).
+- **Administration à la charte** (v=103) : titre + « ? » et onglets soulignés
+  (`.mfx-top`, `.mfx-tabs`) ; les compteurs vivent dans les onglets, l'urgence
+  des échéances en pastille d'alerte avec son libellé lu.
+- **Paramètres** (v=103) : « Apparence » (une phrase) et « Mes SCI » (doublon
+  d'Administration) sont retirées ; un ancien lien `#parametres/sci` mène à
+  Administration. L'outil de migration base64 est retiré (plus rien à migrer,
+  vérifié en base le 17/10). **Données propose l'export complet** : un JSON
+  préparé sur l'appareil (`sfExporterDonnees`, `SF_EXPORT_TABLES`), chaque
+  lecture filtrée sur le compte, le profil sans e-mail ni données
+  d'administration, aucun fichier partiel sur une erreur. Toute table que
+  l'application écrit doit y figurer (garde `export.test.js`).
+- **Photos** (v=103) : réduites sur l'appareil avant l'envoi (1 600 px, JPEG,
+  HEIC converti ; l'original part si la lecture échoue — `sfReduirePhoto`),
+  liens signés en une requête (`TI_STORAGE.signedUrls`), images en
+  `loading="lazy"`.
+- **Démarrage** (v=103) : profil, préférences et données partent en UNE
+  vague (`sfEntrer`) ; rien n'est gardé avant que le profil ait dit « actif ».
+  L'écran se dessine avant le script (squelette, `sf-session` posé par un
+  script en tête d'`index.html`). Garde : `demarrage.test.js`.
 - **Ne jamais recopier une énumération en dur** : tout passe par `TI_BIENS`
   (statuts dérivés de `PHASE_MAP`).
 
@@ -273,7 +333,16 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
 | Nombre de comptes en attente sur l'icône du bandeau | `sfMajAttente()` |
 | Bouton de suppression définitive d'un compte | `btnSupprimer()` → `adminDeleteUser()` → fonction `admin-delete-user` |
 | Longueur minimale d'un mot de passe choisi | `SF_MDP_MIN` |
-| Bibliothèques et leurs empreintes | `vendor/` · `vendor/empreintes.json` |
+| Bibliothèques et leurs empreintes | `vendor/` · `vendor/empreintes.json` · chargement à la demande : `SF_BIBLIOS`, `sfChargerBiblio()` |
+| Mettre en forme un nombre (milliers U+00A0) | `sfNombre()` — `fmt()`, `sfEur()`, `sfPctNum()` passent par elle |
+| Valeur initiale d'un champ de montant (0 reste 0) | `sfValeurChamp()` |
+| Où mène une action (accueil et ailleurs) | `sfAllerPointer()`, `sfAllerSaisirCharge()`, `sfAllerAjouterLocataire()`, `sfAllerCompleter()`, `sfAllerMensualite()` · `sfOuvrirFiche(id, onglet)` · `sfOuvrirBiens({ onglet, etat })` |
+| Entrer dans l'application (une vague) | `sfEntrer()` · `sfChargerDonnees()` / `sfAppliquerDonnees()` |
+| Liens signés de plusieurs fichiers · vignettes | `TI_STORAGE.signedUrls()` · `sfUrlsVignettes()` |
+| Réduire une photo avant l'envoi | `sfReduirePhoto()` · `sfDimensionsReduites()` |
+| Jours de calendrier jusqu'à une date | `sfJoursJusqua()` — jamais `(date - maintenant) / 86 400 000` |
+| Vue de Mes biens à l'ouverture | `sfVueParDefaut()` |
+| Export complet des données · remettre un fichier | `sfExporterDonnees()`, `SF_EXPORT_TABLES` · `sfTelechargerFichier()` |
 
 ## Pièges connus — chacun a coûté au moins une fois
 
@@ -327,14 +396,35 @@ findings hauts de l'audit du 05/08 et des deux générateurs de loyers.
   d'`index.html`, sinon le navigateur refuse — à juste titre — le fichier
   substitué. Le démarrage avec les VRAIS fichiers se vérifie à part
   (`sbjs-essai.js` du 17/10 : empreintes acceptées, un octet modifié refusé).
+  Depuis la v=103, les bibliothèques chargées à la demande portent leur
+  empreinte dans app.js : le banc doit servir les VRAIS fichiers de
+  `vendor/` (ne plus substituer chart.js ni pdf.js), sinon elles sont refusées.
 - **Un écran qu'aucun test ne REND casse en silence** (v=100) : deux
   ReferenceError — « Mes biens » et la lecture d'une simulation — n'ont été
   vues qu'au banc, aucun test ne rendant ces écrans. Une garde d'écran appelle
   la fonction de rendu, elle ne lit pas seulement le source.
-- **app.js écrit U+202F (espace fine) devant `€` et `%`** : une recherche
-  avec une espace ordinaire échoue en silence. Et un script Python qui écrit
+- **app.js écrit U+202F (espace fine) devant `€` et `%`, et U+00A0 entre les
+  milliers** (v=103) : une recherche avec une espace ordinaire échoue en
+  silence. 55 lignes écrivaient `${fmt(x)} €` avec une espace ORDINAIRE (le
+  « € » partait seul à la ligne) : corrigées, garde `typographie.test.js`. Et un script Python qui écrit
   du JS : `${...}` dans une chaîne non formatée part tel quel dans le code
   (« ${N} » a cassé une page en v=100) — garde `aides.test.js`.
+- **Retirer une ligne d'une liste de sélecteurs CSS peut emporter sa
+  déclaration** (v=103) : la liste restante se recolle EN SILENCE à la règle
+  suivante — le « ? » des états vides a pris la taille d'un titre de page. Et
+  un bloc sans sélecteur (`{display:flex…}`) traînait depuis des mois. Garde :
+  `mise-en-page.test.js` (liste interrompue, bloc sans sélecteur).
+- **`auto-fit` ne regarde pas combien d'éléments porte la grille** : 4 chiffres
+  tombent en « 3 + 1 » et la case vide laisse voir le fond des séparateurs.
+  Régler par le nombre (`:has(> :nth-child(4):last-child)`) ; une annulation
+  doit avoir la même précision que ce qu'elle annule (`> :nth-child(n)`, pas
+  `> *`).
+- **Un pixel de texte qui dépasse sa cellule fait défiler un tableau** : sous
+  Windows, une barre de défilement apparaît pour un pixel. `overflow-x:clip`
+  sur la cellule (pas `hidden`, qui en ferait un conteneur de défilement).
+- **`parseFloat(x) || défaut` remplace un 0 saisi par le défaut** : une
+  assurance à 0 € devenait 33 €. Lire par `sfLireNombre()` et distinguer
+  vide (`null`), illisible (`NaN`) et zéro.
 - **Une garde contre le double envoi se pose AVANT le premier `await`** :
   posée après, deux appuis rapprochés passent tous les deux (v=96, trouvé au
   banc d'essai).

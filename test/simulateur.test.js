@@ -110,9 +110,9 @@ test('l\'endettement se juge à 35 %, et ne vaut pas zéro sans revenus', () => 
   const avec = te => ctx.sfSimEndettement({ calculable: true, te, dansLaLimite: te <= 35 });
   assert.equal(lire(ctx, 'SF_ENDETTEMENT_MAX'), 35);
   assert.equal(avec(35).etat, 'ok', '35 % pile reste dans la limite');
-  assert.match(avec(35).texte, /dans la limite de 35 %/);
+  assert.match(avec(35).texte, /dans la limite de 35\u202f%/);
   assert.equal(avec(35.1).etat, 'alerte');
-  assert.match(avec(35.1).texte, /au-dessus de la limite de 35 %/);
+  assert.match(avec(35.1).texte, /au-dessus de la limite de 35\u202f%/);
   assert.equal(avec(35.1).icone, 'alerte', 'la couleur ne porte jamais seule : une icône double le mot');
   const sans = ctx.sfSimEndettement(ctx.sfSimCalcul({ montant: 100000, taux: 3, duree: 20 }));
   assert.equal(sans.val, 'Non disponible', 'Sans revenus, l\'endettement s\'affiche comme un chiffre.');

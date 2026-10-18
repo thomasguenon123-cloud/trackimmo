@@ -23,9 +23,9 @@
      l'icône Apple l'ajout à l'écran d'accueil sur iPhone. Les trois portent
      `?v=` comme le reste : une favicon est mise en cache très agressivement,
      et sans la version le changement peut rester invisible des semaines. -->
-<link rel="icon" type="image/svg+xml" href="favicon.svg?v=102">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=102">
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=102">
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=103">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=103">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=103">
 <meta name="theme-color" content="#0A100C" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#F5F8F6" media="(prefers-color-scheme: light)">
 <!-- ⚠️ Le chargement de Google Fonts a été retiré le 13/08/2026 : « Inter » n'est
@@ -45,27 +45,49 @@
      correspond au fichier — monter de version = remplacer le fichier, son
      empreinte et vendor/empreintes.json, puis passer au banc. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://dizkljqobgiywxsbsdkd.supabase.co wss://dizkljqobgiywxsbsdkd.supabase.co https://geo.api.gouv.fr https://api.insee.fr https://data.ademe.fr https://api.pwnedpasswords.com; worker-src 'self' blob:; frame-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
-<script src="vendor/supabase-js-2.117.3/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R"></script>
-<script src="vendor/chart.js-4.4.0/chart.umd.js" integrity="sha384-FcQlsUOd0TJjROrBxhJdUhXTUgNJQxTMcxZe6nHbaEfFL1zjQ+bq/uRoBQxb0KMo"></script>
-<script src="vendor/pdfjs-3.11.174/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e"></script>
+<!-- v=103 : PREMIER AFFICHAGE SANS ATTENDRE app.js. Le script était au milieu
+     de la page, avant l'écran de connexion : le navigateur ne pouvait même pas
+     lire cet écran avant d'avoir téléchargé et exécuté les 984 Ko d'app.js ; et
+     un compte déjà connecté voyait l'écran de connexion clignoter avant
+     l'accueil. Désormais les scripts sont différés (`defer`, ordre conservé),
+     et cette ligne choisit le premier écran d'après la seule présence d'une
+     session enregistrée : l'écran de connexion tout de suite, ou le squelette
+     de l'application. app.js tranche ensuite, comme avant. Chart.js et pdf.js
+     ne sont plus chargés ici : sfChargerBiblio() les charge à la demande. -->
+<script>
+(function () {
+  var h = document.documentElement, session = null;
+  try { session = localStorage.getItem('sb-dizkljqobgiywxsbsdkd-auth-token'); } catch (e) {}
+  var lien = /(?:^|[#&?])(access_token|type|error_description|code)=/.test(location.hash + location.search);
+  h.className += (session || lien ? ' sf-session' : ' sf-sans-session') + ' sf-attente-app';
+})();
+</script>
+<!-- v=103 : les deux polices du premier écran sont demandées en même temps que
+     les feuilles de style, plus après elles : le texte ne saute plus quand elles
+     arrivent (décalage de mise en page mesuré au banc). JetBrains Mono, qui ne
+     sert qu'aux chiffres de l'application, reste chargée à la demande. -->
+<link rel="preload" href="fonts/InstrumentSans-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Outfit-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<script defer src="vendor/supabase-js-2.117.3/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R"></script>
+<script defer src="app.js?v=103"></script>
 <!-- ?v= : cache-busting — incrémenter à chaque déploiement modifiant CSS/JS.
      Depuis le 05/09/2026, les trois icônes le portent aussi : 8 références en tout. -->
 <!-- Socle de jetons Stonefolio (phase 2). Ne declare que des variables : aucun
      effet visuel tant qu'aucun composant ne les consomme. Charge AVANT
      styles.css pour que la migration puisse s'appuyer dessus. -->
-<link rel="stylesheet" href="tokens.css?v=102">
-<link rel="stylesheet" href="components.css?v=102">
-<link rel="stylesheet" href="styles.css?v=102">
+<link rel="stylesheet" href="tokens.css?v=103">
+<link rel="stylesheet" href="components.css?v=103">
+<link rel="stylesheet" href="styles.css?v=103">
 <!-- Suivi financier : chargé APRÈS styles.css, c'est ce qui permet aux deux
      surcharges de géométrie (`.sff-line` à 2 colonnes au lieu de 5) de gagner
      dans le seul périmètre `.mf-page`, sans toucher à la fiche bien. -->
-<link rel="stylesheet" href="financier.css?v=102">
+<link rel="stylesheet" href="financier.css?v=103">
 <!-- Tactile : chargée EN DERNIER, et c'est ce qui la fait fonctionner. Elle ne
      contient que des surcharges sous requête média (`any-pointer: coarse`) qui
      doivent gagner contre les quatre feuilles précédentes ; à spécificité égale,
      c'est l'ordre de chargement qui tranche. Aucun effet sur un poste sans
      pointeur tactile. -->
-<link rel="stylesheet" href="tactile.css?v=102">
+<link rel="stylesheet" href="tactile.css?v=103">
 </head>
 <body>
 
@@ -86,86 +108,43 @@
   </button>
 
   <nav class="sf-topnav__menus" id="sf-menus" aria-label="Navigation principale">
-
-      <div class="sf-menu" id="menu-marche">
-        <button class="sf-menu__btn" type="button" id="menubtn-marche"
-                aria-expanded="false" aria-haspopup="true" aria-controls="panel-marche"
-                onclick="sfToggleMenu('marche')">Marché
-          <svg class="sf-menu__car" width="11" height="11" viewBox="0 0 24 24" fill="none"
+    <!-- v=103 — UNE BARRE À PLAT. Neuf destinations dormaient derrière quatre
+         menus déroulants (dont « Marché », à une seule entrée) : chaque page,
+         l'accueil et Mes biens compris, demandait deux touchers. Les pages du
+         quotidien sont désormais en accès direct ; les outils d'appoint restent
+         groupés. Chaque libellé reprend EXACTEMENT le titre de sa page.
+         Les identifiants nav-<page> sont conservés : navigate() les surligne. -->
+    <a class="sf-menu__btn sf-nav__lien" id="nav-accueil" href="#" onclick="navigate('accueil');return false;">Accueil</a>
+    <a class="sf-menu__btn sf-nav__lien" id="nav-biens" href="#" onclick="navigate('biens');return false;">Mes biens</a>
+    <a class="sf-menu__btn sf-nav__lien" id="nav-module-financier" href="#" onclick="navigate('module-financier');return false;">Suivi financier</a>
+    <a class="sf-menu__btn sf-nav__lien" id="nav-locataires" href="#" onclick="navigate('locataires');return false;">Locataires</a>
+    <a class="sf-menu__btn sf-nav__lien" id="nav-administration" href="#" onclick="navigate('administration');return false;">Administration</a>
+    <div class="sf-menu" id="menu-outils">
+      <button class="sf-menu__btn" type="button" id="menubtn-outils"
+              aria-expanded="false" aria-haspopup="true" aria-controls="panel-outils"
+              onclick="sfToggleMenu('outils')">Outils
+        <svg class="sf-menu__car" width="11" height="11" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        </button>
-        <div class="sf-menu__panel" id="panel-marche" role="menu" aria-labelledby="menubtn-marche">
-          <a class="sf-menu__link" id="nav-marche-recherche" role="menuitem" href="#" onclick="navigate('marche-recherche');sfCloseMenus();return false;">
-            <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
-            <span><span class="sf-menu__t">Recherche par ville</span><span class="sf-menu__d">Population, revenus, emploi, équipements</span></span>
-          </a>
-        </div>
+      </button>
+      <div class="sf-menu__panel" id="panel-outils" role="menu" aria-labelledby="menubtn-outils">
+        <a class="sf-menu__link" id="nav-simulateur" role="menuitem" href="#" onclick="navigate('simulateur');sfCloseMenus();return false;">
+          <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>
+          <span><span class="sf-menu__t">Simulations de crédit</span><span class="sf-menu__d">Mensualités, coût du crédit, endettement</span></span>
+        </a>
+        <a class="sf-menu__link" id="nav-visites" role="menuitem" href="#" onclick="navigate('visites');sfCloseMenus();return false;">
+          <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7Z"/><path d="M9 13h6M9 17h4"/></svg></span>
+          <span><span class="sf-menu__t">Comptes rendus</span><span class="sf-menu__d">Visites et états des lieux</span></span>
+        </a>
+        <a class="sf-menu__link" id="nav-marche-recherche" role="menuitem" href="#" onclick="navigate('marche-recherche');sfCloseMenus();return false;">
+          <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
+          <span><span class="sf-menu__t">Marché immobilier</span><span class="sf-menu__d">Prix, population et revenus par commune</span></span>
+        </a>
+        <a class="sf-menu__link" id="nav-portails" role="menuitem" href="#" onclick="navigate('portails');sfCloseMenus();return false;">
+          <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></svg></span>
+          <span><span class="sf-menu__t">Portails immobiliers</span><span class="sf-menu__d">Les sites d’annonces en accès direct</span></span>
+        </a>
       </div>
-
-      <div class="sf-menu" id="menu-pipeline">
-        <button class="sf-menu__btn" type="button" id="menubtn-pipeline"
-                aria-expanded="false" aria-haspopup="true" aria-controls="panel-pipeline"
-                onclick="sfToggleMenu('pipeline')">Pipeline
-          <svg class="sf-menu__car" width="11" height="11" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        </button>
-        <div class="sf-menu__panel" id="panel-pipeline" role="menu" aria-labelledby="menubtn-pipeline">
-          <a class="sf-menu__link" id="nav-accueil" role="menuitem" href="#" onclick="navigate('accueil');sfCloseMenus();return false;">
-            <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span>
-            <span><span class="sf-menu__t">Tableau de bord</span><span class="sf-menu__d">Patrimoine réel et prospection</span></span>
-          </a>
-          <a class="sf-menu__link" id="nav-biens" role="menuitem" href="#" onclick="navigate('biens');sfCloseMenus();return false;">
-            <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M6 21V9l6-5 6 5v12M10 21v-5h4v5"/></svg></span>
-            <span><span class="sf-menu__t">Mes biens</span><span class="sf-menu__d">Grille, kanban, filtres, export</span></span>
-          </a>
-          <a class="sf-menu__link" id="nav-nouveau" role="menuitem" href="#" onclick="navigate('nouveau');sfCloseMenus();return false;">
-            <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>
-            <span><span class="sf-menu__t">Ajouter un bien</span><span class="sf-menu__d">Nouvelle fiche</span></span>
-          </a>
-        </div>
-      </div>
-
-      <div class="sf-menu" id="menu-gestion">
-        <button class="sf-menu__btn" type="button" id="menubtn-gestion"
-                aria-expanded="false" aria-haspopup="true" aria-controls="panel-gestion"
-                onclick="sfToggleMenu('gestion')">Gestion
-          <svg class="sf-menu__car" width="11" height="11" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        </button>
-        <div class="sf-menu__panel" id="panel-gestion" role="menu" aria-labelledby="menubtn-gestion">
-          <a class="sf-menu__link" id="nav-module-financier" role="menuitem" href="#" onclick="navigate('module-financier');sfCloseMenus();return false;">
-            <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></span>
-            <span><span class="sf-menu__t">Suivi financier</span><span class="sf-menu__d">Performance, portefeuille, suivi mensuel, locataires</span></span>
-          </a>
-          <a class="sf-menu__link" id="nav-administration" role="menuitem" href="#" onclick="navigate('administration');sfCloseMenus();return false;">
-            <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V9l7-5 7 5v12"/><path d="M9 21v-7h6v7"/></svg></span>
-            <span><span class="sf-menu__t">Administration</span><span class="sf-menu__d">SCI, documents, échéances, bilans</span></span>
-          </a>
-        </div>
-      </div>
-
-      <div class="sf-menu" id="menu-outils">
-        <button class="sf-menu__btn" type="button" id="menubtn-outils"
-                aria-expanded="false" aria-haspopup="true" aria-controls="panel-outils"
-                onclick="sfToggleMenu('outils')">Outils
-          <svg class="sf-menu__car" width="11" height="11" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        </button>
-        <div class="sf-menu__panel" id="panel-outils" role="menu" aria-labelledby="menubtn-outils">
-          <a class="sf-menu__link" id="nav-simulateur" role="menuitem" href="#" onclick="navigate('simulateur');sfCloseMenus();return false;">
-            <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>
-            <span><span class="sf-menu__t">Simulateur crédit</span><span class="sf-menu__d">Mensualités et capacité d'emprunt</span></span>
-          </a>
-          <a class="sf-menu__link" id="nav-visites" role="menuitem" href="#" onclick="navigate('visites');sfCloseMenus();return false;">
-            <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7Z"/><path d="M9 13h6M9 17h4"/></svg></span>
-            <span><span class="sf-menu__t">Comptes rendus</span><span class="sf-menu__d">Visites et états des lieux</span></span>
-          </a>
-          <a class="sf-menu__link" id="nav-portails" role="menuitem" href="#" onclick="navigate('portails');sfCloseMenus();return false;">
-            <span class="sf-menu__ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></svg></span>
-            <span><span class="sf-menu__t">Portails immo</span><span class="sf-menu__d">Raccourcis vers les sites d'annonces</span></span>
-          </a>
-        </div>
-      </div>
+    </div>
   </nav>
 
   <!-- Fil d'Ariane retire : il repetait une information deja portee deux fois
@@ -229,7 +208,14 @@
 <!-- MAIN -->
 <div class="main-wrap">
   <div class="content" id="content">
-    <div class="loading"><div class="spinner"></div>Chargement...</div>
+    <!-- v=103 : squelette de l'accueil pendant les lectures du démarrage
+         (un écran vide paraît plus long qu'une page qui se remplit). -->
+    <div class="sf-squelette" role="status" aria-busy="true" aria-label="Chargement de votre espace">
+      <div class="sf-squelette__titre"></div>
+      <div class="sf-squelette__kpis"><div></div><div></div><div></div><div></div></div>
+      <div class="sf-squelette__bloc"></div>
+      <div class="sf-squelette__bloc sf-squelette__bloc--court"></div>
+    </div>
   </div>
 </div>
 
@@ -246,7 +232,6 @@
 
 <div class="notif" id="notif"></div>
 
-<script src="app.js?v=102"></script>
 
 <!-- LIGHTBOX -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
@@ -449,7 +434,7 @@
         </div>
         <div class="sci-form-group">
           <label class="sci-form-label">Capital social (€)</label>
-          <input class="sci-form-input" id="sci-capital" placeholder="1 000" type="number" min="0">
+          <input class="sci-form-input sf-montant" id="sci-capital" placeholder="1 000" type="text" inputmode="decimal" autocomplete="off">
         </div>
       </div>
       <div class="sci-form-group">

@@ -46,3 +46,25 @@ test('aucune date du jour ne se lit plus en temps universel', () => {
   assert.ok((masque.match(/toISOString\(\)/g) || []).length >= 1, 'témoin : les horodatages (instants) restent en toISOString');
   assert.deepEqual(fautes, [], 'Une date du jour lue en temps universel donne la veille entre minuit et 2 h :\n' + fautes.join('\n'));
 });
+
+test('les jours jusqu’à une échéance se comptent en jours de calendrier (v=103)', () => {
+  /* L'Administration comptait `(new Date(date) - maintenant) / 86 400 000`,
+     arrondi au-dessus : à 0 h 30 l'été, une échéance du jour s'annonçait
+     « J−1 », et le compteur de l'onglet la rangeait parmi les « sous 30 jours »
+     un jour trop tôt. Témoin : dans ces conditions, l'ancien calcul se trompe. */
+  const ancien = Math.ceil((new Date('2026-07-01') - NUIT_D_ETE) / (1000 * 86400));
+  assert.equal(ancien, 1, 'le test ne reproduit pas le défaut');
+  const ctx = charger({ maintenant: NUIT_D_ETE });
+  assert.equal(ctx.sfJoursJusqua('2026-07-01'), 0, 'une échéance du jour n’est pas à J−1');
+  assert.equal(ctx.sfJoursJusqua('2026-07-02'), 1);
+  assert.equal(ctx.sfJoursJusqua('2026-06-30'), -1, 'hier est passé d’un jour');
+  assert.equal(ctx.sfJoursJusqua('2026-07-31'), 30);
+  // Le passage à l'heure d'hiver ne compte ni 23 ni 25 heures.
+  const avantHiver = charger({ maintenant: new Date('2026-10-24T12:00:00+02:00') });
+  assert.equal(avantHiver.sfJoursJusqua('2026-10-26'), 2);
+  assert.ok(Number.isNaN(ctx.sfJoursJusqua('')), 'une date absente ne vaut pas zéro jour');
+  // L'Administration lit ses échéances par cette fonction, plus en millisecondes.
+  const brut = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  assert.doesNotMatch(brut, /new Date\(e\.date_echeance\)\s*-\s*/, 'une échéance se compte de nouveau en millisecondes');
+  assert.ok((brut.match(/sfJoursJusqua\(e\.date_echeance\)/g) || []).length >= 2, 'témoin : le compteur et la liste lisent sfJoursJusqua');
+});

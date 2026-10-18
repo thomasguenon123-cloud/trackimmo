@@ -4,13 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stonefolio — Maintenance en cours</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- v=103 : plus de police chez Google Fonts (règle de la v=102 : l'adresse IP
+     des visiteurs ne part pas chez un tiers). La page est servie à toute
+     adresse inconnue du site, à n'importe quelle profondeur : un chemin relatif
+     vers fonts/ n'y tiendrait pas — elle prend la police du système. -->
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     min-height: 100vh;
     display: flex;
     align-items: center;

@@ -188,7 +188,7 @@ test('une suppression refusée par la base ne s\'annonce pas réussie', async ()
 
 test('supabase-js est épinglé à une version exacte', () => {
   // v=102 : hébergé dans vendor/, la version est dans le nom du dossier.
-  const m = INDEX.match(/<script src="vendor\/supabase-js-([^"/]+)\/supabase\.js"/);
+  const m = INDEX.match(/<script\b[^>]*\bsrc="vendor\/supabase-js-([^"/]+)\/supabase\.js"/);
   assert.ok(m, 'témoin : le script de supabase-js est chargé depuis vendor/');
   assert.match(m[1], /^\d+\.\d+\.\d+$/, `version flottante « ${m[1]} » : une sortie de la veille part en production sans test`);
 });

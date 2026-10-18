@@ -294,10 +294,23 @@ test('à la modification, les vignettes se dessinent par leur URL signée', asyn
   const ctx = app();
   const grille = { innerHTML: '' };
   ctx.document.getElementById = id => (id === 'bien-photos-grid' ? grille : null);
-  lire(ctx, 'TI_STORAGE').signedUrl = async () => 'https://exemple.supabase.co/signe/salon.jpg';
-  injecter(ctx, { bienPhotos: [{ kind: 'storage', bucket: 'biens-photos', path: 'u1/r1/salon.jpg', name: 'salon.jpg' }] });
+  // v=103 : toutes les vignettes en UNE demande de liens (createSignedUrls).
+  const demandes = [];
+  lire(ctx, 'TI_STORAGE').signedUrls = async (espace, chemins) => {
+    demandes.push([espace, Array.from(chemins)]);
+    return chemins.map(c => 'https://exemple.supabase.co/signe/' + c.split('/').pop());
+  };
+  lire(ctx, 'TI_STORAGE').signedUrl = async () => { throw new Error('un lien par photo : une requête chacune'); };
+  injecter(ctx, { bienPhotos: [
+    { kind: 'storage', bucket: 'biens-photos', path: 'u1/r1/salon.jpg', name: 'salon.jpg' },
+    { kind: 'storage', bucket: 'biens-photos', path: 'u1/r1/cuisine.jpg', name: 'cuisine.jpg' },
+  ] });
   await ctx.refreshBienPhotos();
+  assert.deepEqual(demandes, [['biens-photos', ['u1/r1/salon.jpg', 'u1/r1/cuisine.jpg']]],
+    'les vignettes doivent partir en une seule demande de liens');
   assert.match(grille.innerHTML, /src="https:\/\/exemple\.supabase\.co\/signe\/salon\.jpg"/);
+  assert.match(grille.innerHTML, /src="https:\/\/exemple\.supabase\.co\/signe\/cuisine\.jpg"/);
+  assert.match(grille.innerHTML, /loading="lazy"/, 'une vignette hors de l\'écran ne se charge pas d\'avance');
   assert.doesNotMatch(grille.innerHTML, /\[object Object\]/);
   // Et le rendu de la fiche les confie à cette fonction plutôt que de les écrire lui-même.
   const rendu = corps('renderNouveau');

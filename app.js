@@ -23,13 +23,60 @@ function sfToken(nom, repli) {
   } catch (e) { return repli; }
 }
 
+/* v=103 — LES BIBLIOTHÈQUES LOURDES SE CHARGENT QUAND ON EN A BESOIN.
+   ⚠️ LE DÉFAUT. Chart.js (69 Ko compressés) et pdf.js (88 Ko) étaient chargés
+   dans l'en-tête d'index.html : la page attendait de les avoir lus avant
+   d'afficher quoi que ce soit, à CHAQUE ouverture. Or Chart.js ne trace que les
+   deux courbes de la page Marché, et pdf.js ne sert qu'à lire une offre de prêt.
+   Mesuré le 17/10 en 4G lente : écran de connexion à 4,6 s avec eux, 2,9 s
+   sans ; note Lighthouse mobile 72 contre 86.
+   LA RÈGLE. Une bibliothèque qui ne sert pas au premier écran se charge à la
+   demande, par `sfChargerBiblio(nom)`, une seule fois, AVEC son empreinte : un
+   fichier modifié est refusé par le navigateur, comme dans index.html. Les
+   empreintes sont celles de vendor/empreintes.json (garde dependances.test.js). */
+const SF_BIBLIOS = {
+  chart:       { src: 'vendor/chart.js-4.4.0/chart.umd.js',
+                 integrity: 'sha384-FcQlsUOd0TJjROrBxhJdUhXTUgNJQxTMcxZe6nHbaEfFL1zjQ+bq/uRoBQxb0KMo',
+                 pret: () => typeof Chart !== 'undefined' },
+  pdfjs:       { src: 'vendor/pdfjs-3.11.174/pdf.min.js',
+                 integrity: 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e',
+                 pret: () => typeof pdfjsLib !== 'undefined' },
+  html2canvas: { src: 'vendor/html2canvas-1.4.1/html2canvas.min.js',
+                 integrity: 'sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H',
+                 pret: () => !!window.html2canvas },
+  jspdf:       { src: 'vendor/jspdf-2.5.1/jspdf.umd.min.js',
+                 integrity: 'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk',
+                 pret: () => !!(window.jspdf && window.jspdf.jsPDF) },
+  pdflib:      { src: 'vendor/pdf-lib-1.17.1/pdf-lib.min.js',
+                 integrity: 'sha384-weMABwrltA6jWR8DDe9Jp5blk+tZQh7ugpCsF3JwSA53WZM9/14PjS5LAJNHNjAI',
+                 pret: () => !!window.PDFLib },
+};
+const sfBibliosEnCours = {};
+function sfChargerBiblio(nom) {
+  const b = SF_BIBLIOS[nom];
+  if (!b) return Promise.reject(new Error('Bibliothèque inconnue : ' + nom));
+  if (b.pret()) return Promise.resolve();
+  if (!sfBibliosEnCours[nom]) {
+    sfBibliosEnCours[nom] = new Promise((ok, ko) => {
+      const s = document.createElement('script');
+      s.src = b.src; s.integrity = b.integrity; s.async = true;
+      s.onload = () => { if (nom === 'chart') sfReglerChart(); ok(); };
+      s.onerror = () => { delete sfBibliosEnCours[nom]; ko(new Error('Échec de chargement : ' + b.src)); };
+      document.head.appendChild(s);
+    });
+  }
+  return sfBibliosEnCours[nom];
+}
+
 // Sans ce reglage, Chart.js ecrit ses legendes et ses graduations dans son
 // gris par defaut (#666), pratiquement invisible sur le fond sombre.
-if (typeof Chart !== 'undefined') {
+function sfReglerChart() {
+  if (typeof Chart === 'undefined') return;
   Chart.defaults.color = sfToken('--sf-text-2', '#9BAEA4');
   Chart.defaults.borderColor = sfToken('--sf-chart-grid', 'rgba(234,240,236,.07)');
   Chart.defaults.font.family = sfToken('--sf-font-ui', 'system-ui, sans-serif');
 }
+sfReglerChart();
 
 // ═══════════════════════════════════════════════════════════
 //   MODULE STORAGE — Gestion des fichiers via Supabase Storage
@@ -84,6 +131,36 @@ const TI_STORAGE = {
     }
     this._urlCache[cacheKey] = { url: data.signedUrl, exp: now + this.SIGNED_TTL * 1000 };
     return data.signedUrl;
+  },
+  /* v=103 — PLUSIEURS LIENS EN UNE SEULE REQUÊTE. Une galerie demandait ses
+     liens un par un, chaque demande attendant la précédente : 13 photos, 13
+     allers-retours (environ 2 s en 4G) avant de voir la première. Rend les
+     liens dans l'ordre des chemins (null pour un chemin vide ou refusé). Si la
+     demande groupée échoue, chaque lien est redemandé seul : rien de pire
+     qu'avant. */
+  async signedUrls(bucket, paths) {
+    const liste = Array.isArray(paths) ? paths : [];
+    const now = Date.now();
+    const out = liste.map(p => {
+      const c = p && this._urlCache[`${bucket}:${p}`];
+      return c && c.exp > now + 60000 ? c.url : null;
+    });
+    const manquants = [...new Set(liste.filter((p, i) => p && !out[i]))];
+    if (!manquants.length) return out;
+    try {
+      const { data, error } = await db.storage.from(bucket).createSignedUrls(manquants, this.SIGNED_TTL);
+      if (error || !Array.isArray(data)) throw error || new Error('réponse vide');
+      const recus = {};
+      for (const r of data) {
+        if (r && r.signedUrl && !r.error) {
+          recus[r.path] = r.signedUrl;
+          this._urlCache[`${bucket}:${r.path}`] = { url: r.signedUrl, exp: now + this.SIGNED_TTL * 1000 };
+        }
+      }
+      return liste.map((p, i) => out[i] || (p && recus[p]) || null);
+    } catch (e) {
+      return Promise.all(liste.map((p, i) => out[i] || (p ? this.signedUrl(bucket, p) : null)));
+    }
   },
   async remove(bucket, paths) {
     const arr = Array.isArray(paths) ? paths : [paths];
@@ -280,9 +357,7 @@ async function doLogin() {
     const { data, error } = await db.auth.signInWithPassword({ email, password: pwd });
     if(error) { showAuthAlert(authErrorToFr(error)); return; }
 
-    if(!(await ensureProfileActive())) return;
-
-    await onAuthSuccess(data.user);
+    await sfEntrer(data.user);
   } catch(e) {
     console.error('[Stonefolio] Login error:', e);
     showAuthAlert('Erreur technique : ' + esc(e?.message || 'connexion impossible. Rechargez la page et réessayez.'));
@@ -294,9 +369,14 @@ async function doLogin() {
 // Vérifie le statut du profil (pending/disabled) avant de laisser entrer.
 // Retourne false (et déconnecte) si l'accès est refusé. Utilisé par le login
 // email/mot de passe ET par le retour de connexion Google.
+// v=103 : rend le PROFIL LU (ou true sans profil, cas legacy), pour que
+// l'entrée dans l'application ne le relise pas — il était lu deux fois de
+// suite, un aller-retour réseau de plus au démarrage.
 async function ensureProfileActive() {
+  let lu = null;
   try {
     const { data: profile } = await db.rpc('get_my_profile');
+    lu = profile || null;
     if(profile?.status === 'pending') {
       await db.auth.signOut();
       showAuthAlert(
@@ -317,6 +397,25 @@ async function ensureProfileActive() {
       return false;
     }
   } catch(e) { /* pas de profil = on laisse passer (cas legacy) */ }
+  return lu || true;
+}
+
+/* v=103 — ENTRER DANS L'APPLICATION EN UNE SEULE VAGUE DE REQUÊTES.
+   ⚠️ LE DÉFAUT. Le démarrage enchaînait cinq vagues, chacune attendant la
+   précédente : profil, profil encore, préférences, biens, puis locataires,
+   loyers et charges. Mesuré le 17/10 : 0,9 s d'attente en 4G après le
+   chargement des fichiers, pour des lectures qui prennent 2 à 4 ms en base.
+   LA RÈGLE. Le profil (qui décide de l'accès), les préférences et les données
+   partent ENSEMBLE. Rien n'est affiché ni gardé avant que le profil ait dit
+   « actif » : un compte en attente ou bloqué ne lit de toute façon rien
+   (règle `compte_actif` en base), et ce qui revient est jeté. */
+async function sfEntrer(user) {
+  currentUser = user;
+  const chargement = sfChargerDonnees();
+  const prefs = db.rpc('get_my_preferences').then(r => r.data, () => null);
+  const profil = await ensureProfileActive();
+  if (!profil) { currentUser = null; chargement.catch(() => {}); return false; }
+  await onAuthSuccess(user, { profil, prefs, chargement });
   return true;
 }
 
@@ -489,7 +588,7 @@ async function doSetNewPwd() {
     const { data, error } = await db.auth.updateUser({ password: pwd });
     if(error) { showAuthAlert(authErrorToFr(error)); return; }
     showAuthAlert('Mot de passe mis à jour ! Connexion en cours...', 'success');
-    setTimeout(() => { if(data.user) onAuthSuccess(data.user); }, 1000);
+    setTimeout(() => { if(data.user) sfEntrer(data.user); }, 1000);
   } catch(e) {
     showAuthAlert('Erreur. Réessayez ou demandez un nouveau lien.');
   } finally {
@@ -516,7 +615,7 @@ async function doLogout() {
 // ─────────────────────────────────────────
 //   SUCCÈS AUTH → ENTRÉE DANS L'APP
 // ─────────────────────────────────────────
-async function onAuthSuccess(user) {
+async function onAuthSuccess(user, demarrage = {}) {
   currentUser = user;
   // Masquer écran auth
   document.getElementById('auth-screen').style.display = 'none';
@@ -527,12 +626,12 @@ async function onAuthSuccess(user) {
   // Toutes les données ont maintenant un user_id, plus aucun orphelin en base.
   // Charger préférences
   loadPreferences();
-  // Charger le profil (rôle admin, etc.)
-  await loadProfile();
+  // Charger le profil (rôle admin, etc.) — déjà lu par sfEntrer, préférences en route
+  await loadProfile(demarrage);
   // Appliquer l'apparence depuis la DB (couleur + toggles), migre le localStorage si besoin
   await applyAppearanceFromPrefs();
   // Démarrer l'app
-  await loadAndStart();
+  await loadAndStart(demarrage.chargement);
 }
 
 // ─────────────────────────────────────────
@@ -589,6 +688,19 @@ let allBiens = [], currentPage = 'accueil', editingId = null, charts = {};
 // Vue par defaut : TABLEAU. L'ecran sert a comparer des biens entre eux, ce que
 // sept cartes separees ne permettent pas.
 let currentView = 'tableau';
+/* v=103 — SUR TABLETTE EN PORTRAIT ET AU TELEPHONE, LA GRILLE. Le tableau
+   demande 970 px : sur un iPad en portrait (738 px utiles), 230 px de colonnes
+   restaient hors de l'ecran, a faire defiler au doigt — Rendement, Cashflow et
+   Statut, les colonnes qui comptent. Sous 1 000 px, Mes biens s'ouvre donc en
+   grille. Une vue CHOISIE (boutons Tableau, Grille, Kanban) est retenue sur cet
+   appareil et prime toujours. */
+const SF_VUE_ETROITE = '(max-width: 999px)';
+function sfVueParDefaut() {
+  try { const v = localStorage.getItem('sf_vue_biens'); if (['tableau', 'grille', 'kanban'].includes(v)) return v; } catch(e) {}
+  return sfVueSansKanban();
+}
+// Le kanban range par phase : sur le patrimoine, il n'aurait qu'une colonne.
+function sfVueSansKanban() { return matchMedia(SF_VUE_ETROITE).matches ? 'grille' : 'tableau'; }
 let kanbanGroup = 'phase';
 let draggedBienId = null;
 let bienSortBy = 'cf';
@@ -776,8 +888,8 @@ function tiFormatChamp(bien, k) {
   const brut = bien?.[k];
   if (brut === null || brut === undefined || brut === '') return '';
   switch (c.type) {
-    case 'euro':      return `${fmt(parseFloat(brut) || 0)} €`;
-    case 'euro_mois': return `${fmt(parseFloat(brut) || 0)} €/mois`;
+    case 'euro':      return `${fmt(parseFloat(brut) || 0)} €`;
+    case 'euro_mois': return `${fmt(parseFloat(brut) || 0)} €/mois`;
     case 'm2':        return `${fmt(parseFloat(brut) || 0)} m²`;
     case 'annees':    { const n = parseInt(brut, 10) || 0; return `${n} an${n > 1 ? 's' : ''}`; }
     default:          return String(brut);
@@ -812,12 +924,74 @@ function tiCsv(entetes, lignes) {
 
 function tiTelechargerCsv(base, contenu) {
   const nom = `stonefolio-${base}-${sfAujourdhuiIso()}.csv`;
-  const blob = new Blob(['﻿' + contenu], { type: 'text/csv;charset=utf-8;' });
+  sfTelechargerFichier(nom, new Blob(['﻿' + contenu], { type: 'text/csv;charset=utf-8;' }));
+  return nom;
+}
+
+// Remet un fichier préparé sur l'appareil, sans aller-retour réseau.
+function sfTelechargerFichier(nom, blob) {
   const url = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement('a'), { href: url, download: nom });
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  return nom;
+}
+
+/* ═══ v=103 — EXPORT COMPLET (Paramètres › Données) ════════════════════════
+   La section annonçait « Exporter ou effacer vos données » et ne proposait que
+   deux suppressions ; l'export CSV de Mes biens ne couvre que les biens. Ici,
+   TOUT ce que le compte a saisi, en un fichier JSON préparé sur l'appareil :
+   c'est le droit à la portabilité (RGPD, art. 20) et un gage de confiance.
+   ⚠️ CLOISONNEMENT. Chaque lecture est filtrée sur le compte connecté
+   (`user_id`), EN PLUS des règles de la base : un administrateur peut lire les
+   profils des autres, et son export ne doit contenir que ses données. Du
+   profil, on ne prend que le prénom, le nom, le téléphone et la date de
+   création — ni l'adresse e-mail, ni le rôle, ni l'invitant, ni les notes de
+   l'administration. Les fichiers (photos, PDF) n'y sont pas : ils se
+   téléchargent depuis chaque fiche. `bank_presets` est un catalogue partagé,
+   pas une donnée du compte. */
+const SF_EXPORT_TABLES = ['biens', 'loyers_mensuels', 'charges_reelles', 'locataires', 'visites', 'actions',
+  'simulations_credit', 'dossiers_bancaires', 'sci', 'sci_contacts', 'sci_documents', 'sci_echeances',
+  'contacts', 'bilans_comptables', 'user_preferences'];
+const SF_EXPORT_PROFIL = 'first_name, last_name, phone, created_at';
+let sfExportEnCours = false;
+
+async function sfExporterDonnees() {
+  if (sfExportEnCours || !currentUser) return;   // avant le premier await
+  sfExportEnCours = true;
+  const btn = document.getElementById('sf-export-btn');
+  const retour = document.getElementById('sf-export-retour');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="sf-attente"></span>Préparation…'; }
+  try {
+    const uid = currentUser.id;
+    const [profil, ...lots] = await Promise.all([
+      db.from('profiles').select(SF_EXPORT_PROFIL).eq('user_id', uid).maybeSingle(),
+      ...SF_EXPORT_TABLES.map(t => sfLireTout(() => db.from(t).select('*').eq('user_id', uid).order('id'))),
+    ]);
+    const erreur = sfPremiereErreur([profil, ...lots]);
+    if (erreur) throw erreur;
+    const tables = {}, comptes = {};
+    SF_EXPORT_TABLES.forEach((t, i) => { tables[t] = lots[i].data || []; comptes[t] = tables[t].length; });
+    const contenu = {
+      application: 'Stonefolio',
+      format: 'stonefolio-export-1',
+      exporte_le: new Date().toISOString(),
+      profil: profil.data || null,
+      comptes,
+      fichiers: 'Les photos et documents ne sont pas inclus : ils se téléchargent depuis chaque fiche.',
+      tables,
+    };
+    const nom = `stonefolio-donnees-${sfAujourdhuiIso()}.json`;
+    sfTelechargerFichier(nom, new Blob([JSON.stringify(contenu, null, 2)], { type: 'application/json' }));
+    const total = Object.values(comptes).reduce((a, n) => a + n, 0);
+    if (retour) retour.textContent = `${nom} · ${sfNombre(total)} enregistrement${total > 1 ? 's' : ''}`;
+    showNotif('Vos données sont téléchargées');
+  } catch (e) {
+    if (retour) retour.textContent = '';
+    showNotif('L’export n’a pas abouti : ' + (e?.message || 'erreur inconnue') + '. Rien n’a été téléchargé.', true);
+  } finally {
+    sfExportEnCours = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = sfAccIcon('disquette', 15) + ' Télécharger toutes mes données'; }
+  }
 }
 
 // Valeur d'un champ de bien destinee au CSV : numerique quand le type l'est,
@@ -992,18 +1166,17 @@ function sfProfilNom(profil) {
   };
 }
 
-async function loadProfile() {
-  try {
-    const { data } = await db.rpc('get_my_profile');
-    currentProfile = data;
-  } catch(e) {
-    currentProfile = null;
-  }
-  // Charger les préférences métier (frais notaire, durée, assurance, seuil)
-  try {
-    const { data: prefs } = await db.rpc('get_my_preferences');
-    if(prefs) userPrefs = prefs;
-  } catch(e) { /* garde les défauts */ }
+// v=103 : le profil déjà lu à l'entrée (sfEntrer) n'est pas relu, et les
+// préférences sont lues EN MÊME TEMPS que lui, plus l'une après l'autre.
+async function loadProfile({ profil = null, prefs = null } = {}) {
+  const [p, pr] = await Promise.all([
+    profil && profil !== true ? profil
+      : db.rpc('get_my_profile').then(r => r.data ?? null, () => null),
+    // Préférences métier (frais notaire, durée, assurance, seuil)
+    prefs || db.rpc('get_my_preferences').then(r => r.data, () => null),
+  ]);
+  currentProfile = p;
+  if (pr) userPrefs = pr;   // sinon on garde les défauts
   sfRefreshTopnav();
 }
 
@@ -1469,6 +1642,8 @@ async function adminEnableUser(profileId) {
 
 
 async function init() {
+  // v=103 : app.js est là, ses boutons répondent (voir index.html, sf-attente-app).
+  document.documentElement.classList.remove('sf-attente-app');
   checkRecoveryHash();
   // Erreur OAuth au retour de Google (ex : signup bloqué par trg_block_external_signup)
   const oauthError = checkOAuthErrorInUrl();
@@ -1496,13 +1671,12 @@ async function init() {
     if (session?.user) {
       // Contrôle pending/disabled aussi ici : couvre le retour de connexion
       // Google (la session arrive par redirection, sans passer par doLogin)
-      if(!(await ensureProfileActive())) {
+      if(!(await sfEntrer(session.user))) {
         document.getElementById('auth-screen').style.display = 'flex';
         const form = document.getElementById('form-login');
         if(form) form.style.display = 'block';
         return;
       }
-      await onAuthSuccess(session.user);
     } else {
       document.getElementById('auth-screen').style.display = 'flex';
       showForm('login');
@@ -1515,12 +1689,18 @@ async function init() {
   }
 }
 
-async function loadAndStart() {
+async function loadAndStart(chargement) {
   // P2 : loyers, charges et locataires chargés dès le démarrage — le cashflow
   // réel s'affiche dans tout le pipeline, plus seulement dans le Module financier
   // Les biens D'ABORD : loyers, charges et locataires se filtrent sur eux.
-  await loadBiens();
-  await Promise.all([loadLocataires(), loadMfFinancialData()]);
+  // v=103 : lus EN MÊME TEMPS (sfChargerDonnees), filtrés ensuite dans cet ordre.
+  // Si la lecture groupée échoue sur les biens, on retombe sur l'ancien chemin,
+  // qui relit les biens avant de filtrer le reste.
+  const res = chargement ? await chargement.catch(() => null) : null;
+  if (!(res && sfAppliquerDonnees(res))) {
+    await loadBiens();
+    await Promise.all([loadLocataires(), loadMfFinancialData()]);
+  }
   // Routage hash au démarrage : #parametres ou #parametres/section
   if (window.location.hash.startsWith('#parametres')) {
     navigate('parametres');
@@ -1603,16 +1783,39 @@ async function sfInclureTests(oui) {
   navigate(currentPage);
 }
 
-async function loadBiens() {
-  if(!currentUser) return;
-  // Filtre user_id explicite côté client (défense en profondeur en plus du RLS)
-  const { data, error } = await db.from('biens')
-    .select('*')
-    .eq('user_id', currentUser.id)
+// v=103 : chaque lecture de démarrage est écrite UNE fois (requête, puis ce
+// qu'on fait du résultat), et sert au chargement groupé (sfChargerDonnees)
+// comme aux rechargements après une écriture (loadBiens, loadLocataires…).
+// Filtre user_id explicite côté client (défense en profondeur en plus du RLS).
+function sfLireBiens() {
+  return db.from('biens').select('*').eq('user_id', currentUser.id)
     .order('created_at', { ascending: false });
-  if (error) { showNotif('Erreur connexion : '+error.message, true); return; }
+}
+function sfPrendreBiens({ data, error }) {
+  if (error) { showNotif('Erreur connexion : '+error.message, true); return false; }
   allBiens = data || [];
   sfBiensCharges = true;
+  return true;
+}
+async function loadBiens() {
+  if(!currentUser) return;
+  sfPrendreBiens(await sfLireBiens());
+}
+
+/* Le chargement groupé du démarrage : biens, locataires, loyers et charges
+   EN MÊME TEMPS. Rien n'est gardé ici — sfAppliquerDonnees s'en charge, une
+   fois le profil vérifié, et dans l'ordre qu'exige le filtre des biens de
+   test : les biens d'abord, puis ce qui se rattache à eux. */
+function sfChargerDonnees() {
+  if (!currentUser) return Promise.resolve(null);
+  return Promise.all([sfLireBiens(), sfLireLocataires(), sfLireLoyers(), sfLireCharges()])
+    .then(([biens, locataires, loyers, charges]) => ({ biens, locataires, loyers, charges }));
+}
+function sfAppliquerDonnees(res) {
+  if (!res || !sfPrendreBiens(res.biens)) return false;
+  sfPrendreLocataires(res.locataires);
+  sfPrendreFinances(res.loyers, res.charges);
+  return true;
 }
 
 
@@ -1670,7 +1873,16 @@ function cfDisplayData(b) {
   if(manque.length) return { mode:'incomplet', value:null, prev, hasPrev, attenteReel:false, manque };
   return { mode:'previsionnel', value: hasPrev ? prev : null, prev, hasPrev, attenteReel: acquis, manque };
 }
-function fmt(n){return Math.round(n).toLocaleString('fr-FR');}
+// Separateur de milliers : l'ESPACE INSECABLE ordinaire U+00A0 (« 12 600 »),
+// celle des releves bancaires. `toLocaleString('fr-FR')` pose une espace fine
+// U+202F : juste en typographie, mais si etroite dans la police du texte
+// courant que « 1 250 000 » se lisait d'un bloc (arbitrage de Thomas, v=103).
+// L'espace fine reste DEVANT € et % (sfEur, sfPct) : elle y colle l'unite au
+// nombre sans l'en eloigner. Toute mise en forme d'un nombre passe par ici.
+function sfNombre(v, options) {
+  return Number(v).toLocaleString('fr-FR', options).replace(/\u202F/g, '\u00A0');
+}
+function fmt(n){ return sfNombre(Math.round(n)); }
 
 // Montant et pourcentage avec l'ESPACE FINE INSECABLE U+202F devant l'unite.
 // Une espace ordinaire laisse le « € » ou le « % » passer seul a la ligne quand
@@ -1687,8 +1899,7 @@ function sfPctNum(v, dec = 2){
   // `minimumFractionDigits:0` : les decimales nulles tombent. « 0 % » et non
   // « 0,00 % », « 33 % » et non « 33,00 % » — c'est ce que montre la maquette,
   // et une decimale a zero n'apporte aucune precision.
-  return sfPct(Number(v).toLocaleString('fr-FR',
-    { minimumFractionDigits: 0, maximumFractionDigits: dec }));
+  return sfPct(sfNombre(v, { minimumFractionDigits: 0, maximumFractionDigits: dec }));
 }
 // Petits nombres en toutes lettres dans une PHRASE — « Deux de vos 3 biens »
 // melait les deux registres. Au-dela de neuf, le chiffre reste plus lisible.
@@ -2077,12 +2288,12 @@ function sfParcoursDemarrage(biens, loyers, locataires) {
     { fait: acquis.some(b => sfLocataireEnPlace(b.id, locataires)),
       titre: 'Déclarez son locataire',
       enjeu: "C'est le bail qui fait naître les échéances : sa date d'entrée, son loyer et ses charges suffisent à générer l'année.",
-      action: 'Ajouter un locataire', cible: "navigate('module-financier')" },
+      action: 'Ajouter un locataire', cible: "sfAllerAjouterLocataire()", cle: 'locataire' },
 
     { fait: tousLoyers.some(sfLoyerPointe),
       titre: 'Pointez un loyer encaissé',
       enjeu: 'Stonefolio sépare ce qui est <strong>dû</strong> de ce qui est <strong>encaissé</strong> : votre cashflow réel ne compte que le second.',
-      action: 'Ouvrir le suivi', cible: "navigate('module-financier')" },
+      action: 'Pointer un loyer', cible: "sfAllerPointer()", cle: 'loyer' },
   ];
 }
 
@@ -2090,15 +2301,20 @@ function sfParcoursDemarrage(biens, loyers, locataires) {
    ce qui est fait porte une coche, ce qui vient porte son bouton, ce qui suit
    reste gris. Montrer un bouton sur une étape inatteignable serait promettre
    un raccourci qui n'existe pas. */
-function sfParcoursHtml(parcours) {
+// v=103 : `lie` est le point « À traiter » qui promet le même geste que
+// l'étape suivante ; l'accueil ne l'affiche plus en double, l'étape reprend son
+// constat (« 2 biens acquis sans locataire · −1 740 € de mensualités… »).
+function sfParcoursHtml(parcours, lie = null) {
   const prochain = parcours.findIndex(g => !g.fait);
   return parcours.map((g, i) => {
     const etat = g.fait ? 'fait' : i === prochain ? 'suivant' : 'plus-tard';
+    const constat = i === prochain && lie
+      ? `<p class="acc-pas__why">${esc(lie.titre)}${lie.chiffre ? ' · ' + lie.enjeu : ''}</p>` : '';
     return `
       <div class="acc-pas acc-pas--${etat}">
         <span class="acc-pas__n" aria-hidden="true">${g.fait ? sfAccIcon('ok', 14) : i + 1}</span>
         <div class="acc-pas__body">
-          <p class="acc-pas__t">${esc(g.titre)}${sfAide(g.enjeu, g.titre)}</p>
+          <p class="acc-pas__t">${esc(g.titre)}${sfAide(g.enjeu, g.titre)}</p>${constat}
         </div>
         ${i === prochain ? `<span class="acc-pas__a">
           <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="${g.cible}">${esc(g.action)}</button>
@@ -2122,6 +2338,67 @@ function sfParcoursAMontrer(parcours) {
   return parcours.some(g => !g.fait);
 }
 
+/* ═══ v=103 — UNE ACTION MÈNE À L'ENDROIT OÙ ELLE SE FAIT ═════════════════
+   ⚠️ LE DÉFAUT. Sept boutons de l'accueil (« Pointer », « Saisir », « Ajouter
+   un locataire », « Compléter », « Renseigner », et les actions rapides
+   « Pointer un loyer », « Saisir une charge ») ouvraient une PAGE — le Suivi
+   financier sur son dernier onglet, Performance par défaut, ou la liste des
+   biens — et laissaient chercher l'onglet, le mois ou le formulaire.
+   LA RÈGLE. Chaque destination est écrite ici, une fois, et sert à tous les
+   boutons qui la promettent : un seul bien concerné, on l'ouvre là où l'on agit ;
+   plusieurs, on ouvre la liste déjà filtrée sur eux. */
+// L'onglet est une clé de TAB_DEFS (renderBienDetail) : les appels littéraux
+// sont vérifiés par navigation.test.js, et le champ manquant porte l'onglet
+// du registre TI_BIENS.CHAMPS, aligné sur les mêmes clés.
+function sfOuvrirFiche(id, onglet) {
+  _reopenDetailTab = onglet || null;
+  openDetail(id);
+}
+// Mes biens, sur l'onglet et le filtre de complétude demandés (lus par renderBiens).
+let sfbEtatDemande = null;
+function sfOuvrirBiens({ onglet = null, etat = null } = {}) {
+  if (onglet === 'prospect' || onglet === 'detenus') bienOnglet = onglet;
+  sfbEtatDemande = etat;
+  navigate('biens');
+}
+function sfAllerPointer() {
+  mfSuiviBienFilter = null;
+  mfExercice = new Date().getFullYear();
+  mfTab = 'suivi';
+  navigate('module-financier');
+}
+function sfAllerSaisirCharge() {
+  const eligibles = sfBiensComptes().filter(b => b.statut === 'Acheté' || b.statut === 'Compromis signé');
+  if (!eligibles.length) {
+    showNotif('Une charge se rattache à un bien acquis : déclarez d’abord le vôtre.');
+    return;
+  }
+  mfOpenChargeModal(eligibles.length === 1 ? { bien_id: eligibles[0].id } : {});
+}
+function sfAllerAjouterLocataire() {
+  const sansLoc = sfBiensComptes().filter(b => sfDetenu(b) && !sfLocataireEnPlace(b.id));
+  openLocataireModal(null, sansLoc.length === 1 ? sansLoc[0].id : undefined);
+}
+function sfAllerCompleter() {
+  const incompletes = sfBiensComptes().filter(b => b.statut !== 'Abandonné' && !sfBienComplet(b));
+  if (incompletes.length === 1) {
+    const b = incompletes[0];
+    return sfOuvrirFiche(b.id, (sfManquants(b)[0] || {}).tab || 'bien');
+  }
+  const prospect = incompletes.some(b => !sfDetenu(b));
+  sfOuvrirBiens({ onglet: prospect ? 'prospect' : 'detenus', etat: 'ko' });
+}
+function sfAllerMensualite() {
+  const sansMensu = sfBiensComptes().filter(b => sfDetenu(b) && !((parseFloat(b.mensualite_credit) || 0) > 0));
+  if (sansMensu.length === 1) return sfOuvrirFiche(sansMensu[0].id, 'finances');
+  sfOuvrirBiens({ onglet: 'detenus' });
+}
+// Après une écriture lancée depuis l'accueil (charge, locataire), l'accueil se
+// redessine : son point « À traiter » doit disparaître sous les yeux.
+function sfRafraichirAccueil() {
+  if (currentPage === 'accueil') { const el = document.getElementById('content'); if (el) renderAccueil(el); }
+}
+
 function sfPointsAttention() {
   const pts = [];
   const comptes     = sfBiensComptes();
@@ -2140,10 +2417,10 @@ function sfPointsAttention() {
     pts.push({ rang: 0, type: 'loss', icone: 'maison',
       titre: `${sansLoc.length} bien${pl(sansLoc.length,'','s')} acquis sans locataire`,
       enjeu: mensu > 0
-        ? `<strong class="sf-loss">−${fmt(mensu)} €</strong> de mensualités chaque mois, zéro loyer en face.`
+        ? `<strong class="sf-loss">−${fmt(mensu)} €</strong> de mensualités chaque mois, zéro loyer en face.`
         : `Aucun loyer en face de ${pl(sansLoc.length,'cette acquisition','ces acquisitions')}.`,
       chiffre: mensu > 0,
-      action: 'Ajouter un locataire', cible: `navigate('module-financier')` });
+      action: 'Ajouter un locataire', cible: `sfAllerAjouterLocataire()`, cle: 'locataire' });
   }
 
   /* 1 bis. Un bien acquis dont le MODE DE DÉTENTION n'est pas renseigné.
@@ -2195,9 +2472,9 @@ function sfPointsAttention() {
       titre,
       chiffre: true,
       enjeu: retards.length
-        ? `<strong class="sf-loss">${fmt(manque)} €</strong> attendus et non encaissés.`
-        : `Votre cashflow est sous-estimé de <strong>${fmt(manque)} €</strong>.`,
-      action: 'Pointer', cible: `navigate('module-financier')` });
+        ? `<strong class="sf-loss">${fmt(manque)} €</strong> attendus et non encaissés.`
+        : `Votre cashflow est sous-estimé de <strong>${fmt(manque)} €</strong>.`,
+      action: 'Pointer', cible: `sfAllerPointer()`, cle: 'loyer' });
   }
 
   // 3. Sans charges, le cashflow parait MEILLEUR qu'il n'est — piege inverse
@@ -2207,7 +2484,7 @@ function sfPointsAttention() {
     pts.push({ rang: 2, type: 'info', icone: 'doc',
       titre: `Aucune charge saisie en ${annee}`,
       enjeu: `Votre cashflow paraît meilleur qu'il ne l'est.`,
-      action: 'Saisir', cible: `navigate('module-financier')` });
+      action: 'Saisir', cible: `sfAllerSaisirCharge()`, cle: 'charge' });
   }
 
   // 4. Fiche a qui il manque une information essentielle : elle n'est pas
@@ -2226,7 +2503,7 @@ function sfPointsAttention() {
       titre: `${incompletes.length} fiche${pl(incompletes.length,'','s')} à compléter`,
       enjeu: `${pl(incompletes.length,'Elle est exclue','Elles sont exclues')} de vos indicateurs` +
              (top ? ` — il manque le plus souvent <strong>${esc(top[0].toLowerCase())}</strong>.` : '.'),
-      action: 'Compléter', cible: `navigate('biens')` });
+      action: 'Compléter', cible: `sfAllerCompleter()`, cle: 'fiche' });
   }
 
   // 5. Un bien acquis sans mensualite faussee aussi le cashflow, dans l'autre sens.
@@ -2235,7 +2512,7 @@ function sfPointsAttention() {
     pts.push({ rang: 4, type: 'info', icone: 'banque',
       titre: `${sansMensu.length} bien${pl(sansMensu.length,'','s')} acquis sans mensualité de crédit`,
       enjeu: `Leur cashflow est calculé comme s'ils étaient payés comptant.`,
-      action: 'Renseigner', cible: `navigate('biens')` });
+      action: 'Renseigner', cible: `sfAllerMensualite()`, cle: 'mensualite' });
   }
 
   return pts.sort((a, b) => a.rang - b.rang);
@@ -2491,7 +2768,6 @@ function renderAccueil(el) {
   const sansLoyerProsp = prospection.filter(b => !((parseFloat(b.loyer_en_etat) || 0) > 0)).length;
   const pts = sfPointsAttention();
   const agenda = sfAgenda60j();
-  const coutent = pts.filter(p => p.type === 'loss').length;
   const prenom = sfProfilNom().prenom;
   const dateJour = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
 
@@ -2499,60 +2775,61 @@ function renderAccueil(el) {
   const demarrage = sfParcoursAMontrer(parcours);
   const reste = parcours.filter(g => !g.fait).length;
 
-  /* ⚠️ « RIEN NE DEMANDE VOTRE ATTENTION » EST FAUX SUR UN COMPTE NEUF. La
-     phrase se calculait sur `pts.length === 0`, qui ne distingue pas « rien à
-     signaler » de « rien du tout ». Quelqu'un qui n'a rien saisi lisait donc
-     que ses loyers étaient pointés et ses fiches complètes.
+  /* v=103 — L'ACCUEIL N'A PLUS DE BANDEAU « VERDICT ». Il redisait le titre
+     « À traiter · 2 points » placé juste dessous, et poussait les chiffres du
+     patrimoine sous la ligne de flottaison (iPad et 1280 × 800). Ce qu'il
+     portait reste, à sa place :
+       · l'argent passe avant le démarrage : « À traiter », classé du plus
+         coûteux au moins urgent, vient AVANT « Pour démarrer » ;
+       · « Tout est à jour » ne se dit jamais à un compte qui démarre : pendant
+         le démarrage, une liste « À traiter » vide ne s'affiche pas ;
+       · un même geste ne s'affiche qu'une fois : le point « À traiter » qui
+         promet le prochain geste du parcours s'efface devant lui, et le
+         parcours reprend son chiffre (l'argent ne quitte pas l'écran). */
+  const prochain = demarrage ? parcours.find(g => !g.fait) : null;
+  const lie = prochain && pts.find(p => p.cle && p.cle === prochain.cle) || null;
+  const ptsVus = lie ? pts.filter(p => p !== lie) : pts;
 
-     ⚠️ MAIS L'ARGENT PASSE AVANT LE DÉMARRAGE. Un loyer en retard coûte
-     pendant qu'on apprend à se servir de l'outil : annoncer « plus que deux
-     gestes » au-dessus d'un impayé enterrerait le seul point qui presse. Le
-     verdict suit donc cet ordre — ce qui coûte, puis le démarrage, puis le
-     reste. */
-  const verdict = coutent
-    ? { type:'alerte', icone:'alerte',
-        txt:`${pts.length} point${pts.length>1?'s':''} demande${pts.length>1?'nt':''} votre attention`,
-        sub:`${coutent === 1 ? 'L\'un d\'eux vous coûte' : coutent + ' d\'entre eux vous coûtent'} de l'argent chaque mois${pts.length > coutent ? ' ; les autres faussent vos chiffres.' : '.'}` }
-    : demarrage
-    ? { type:'demarrage', icone:'info',
-        txt: reste === 3 ? 'Votre patrimoine n’est pas encore déclaré'
-                         : `Plus que ${reste} geste${reste > 1 ? 's' : ''} pour démarrer`,
-        sub: pts.length
-          ? `Stonefolio calculera vos loyers et votre cashflow réel. ${pts.length} point${pts.length>1?'s':''} vous attend${pts.length>1?'ent':''} plus bas.`
-          : 'Ensuite, Stonefolio calcule vos loyers, votre cashflow réel et votre déclaration.' }
-    : pts.length === 0
-    ? { type:'ok', icone:'ok', txt:'Rien ne demande votre attention',
-        sub:'Vos loyers sont pointés et vos fiches sont complètes.' }
-    : { type:'alerte', icone:'alerte',
-        txt:`${pts.length} point${pts.length>1?'s':''} demande${pts.length>1?'nt':''} votre attention`,
-        sub: coutent
-          ? `${coutent === 1 ? 'L\'un d\'eux vous coûte' : coutent + ' d\'entre eux vous coûtent'} de l'argent chaque mois${pts.length > coutent ? ' ; les autres faussent vos chiffres.' : '.'}`
-          : `Aucun ne vous coûte d'argent — ils faussent vos chiffres.` };
-
-  el.innerHTML = `
-    <div class="acc-hello">
-      <h1>Bonjour${prenom ? ' ' + esc(prenom) : ''}</h1>
-      <span class="acc-date sf-num">${dateJour}</span>
-    </div>
-
-    <div class="acc-verdict acc-verdict--${verdict.type}">
-      <span class="acc-verdict__ic">${sfAccIcon(verdict.icone, 20)}</span>
-      <div>
-        <div class="acc-verdict__txt">${verdict.txt}${sfAide(verdict.sub, verdict.txt)}</div>
+  const blocPatrimoine = `
+    <h2 class="acc-sec">Votre patrimoine
+      <span class="acc-sec__n sf-num">${acquis.length} bien${acquis.length>1?'s':''} acquis · 12 derniers mois</span></h2>
+    <div class="acc-kpis">
+      <div class="sf-kpi">
+        <span class="sf-kpi__label">Ce que ça rapporte${sfAide(acquis.length
+          ? 'Les loyers encaissés moins les charges et le crédit, en moyenne par mois sur les 12 derniers mois.'
+          : 'Aucun bien acquis pour l’instant : ce chiffre apparaîtra avec votre premier achat.', 'Ce que ça rapporte')}</span>
+        ${acquis.length
+          ? `<span class="sf-kpi__value ${patCF>=0?'sf-kpi__value--gain':'sf-kpi__value--loss'}">${patCF>=0?'+':'−'}${fmt(Math.abs(patCF/12))} €</span>
+             <span class="sf-kpi__sub">par mois</span>`
+          : `<span class="sf-kpi__value sf-kpi__value--none">non disponible</span>`}
+      </div>
+      <div class="sf-kpi">
+        <span class="sf-kpi__label">Loyers encaissés${sfAide('Les loyers pointés comme encaissés sur les 12 derniers mois, charges comprises.', 'Loyers encaissés')}</span>
+        <span class="sf-kpi__value">${fmt(patLoyers)} €</span>
+        <span class="sf-kpi__sub">sur 12 mois</span>
+      </div>
+      <div class="sf-kpi">
+        <span class="sf-kpi__label">Turnover${sfAide(tauxLoue === null
+          ? 'Aucun bien acquis pour l’instant : ce chiffre apparaîtra avec votre premier achat.'
+          : `La part du temps où vos biens ont été loués sur les 12 derniers mois : ${bmLoues} mois loués sur ${bmTotal} mois de détention.`, 'Turnover')}</span>
+        ${tauxLoue === null
+          ? `<span class="sf-kpi__value sf-kpi__value--none">non disponible</span>`
+          : `<span class="sf-kpi__value ${tauxLoue>=70?'sf-kpi__value--gain':'sf-kpi__value--loss'}">${tauxLoue} %</span>
+             <span class="sf-kpi__sub">${tauxLoue>=70 ? 'au-dessus du seuil de 70 %' : 'sous le seuil de 70 %'}</span>`}
+      </div>
+      <div class="sf-kpi">
+        <span class="sf-kpi__label">Fiches en prospection${sfAide(prospection.length
+          ? (sansLoyerProsp ? `Dont ${sansLoyerProsp} sans loyer estimé : leur rendement ne peut pas encore se calculer.` : 'Toutes ont un loyer estimé : leur rendement se calcule.')
+          : 'Les annonces que vous suivez, de la première visite à l’offre.', 'Fiches en prospection')}</span>
+        <span class="sf-kpi__value">${prospection.length}</span>
       </div>
     </div>
-
-    <div class="acc-bento">
-      <section>
-        ${demarrage ? `
-        <h2 class="acc-sec">Pour démarrer <span class="acc-sec__n sf-num">${3 - reste} sur 3</span></h2>
-        <div class="sf-card sf-card--flat" style="margin-bottom:var(--sf-space-7)">
-          ${sfParcoursHtml(parcours)}
-        </div>` : ''}
-
-        <h2 class="acc-sec">À traiter <span class="acc-sec__n sf-num">${pts.length} point${pts.length>1?'s':''}</span></h2>
+  `;
+  const blocATraiter = (ptsVus.length || !demarrage) ? `
+    <section class="acc-bloc">
+        <h2 class="acc-sec">À traiter <span class="acc-sec__n sf-num">${ptsVus.length} point${ptsVus.length>1?'s':''}</span>${ptsVus.length > 1 ? sfAide('Ce qui vous coûte de l’argent vient en premier, puis ce qui fausse vos chiffres.', 'À traiter') : ''}</h2>
         <div class="sf-card sf-card--flat">
-          ${pts.length ? pts.map(p => `
+          ${ptsVus.length ? ptsVus.map(p => `
             <div class="sf-alert${p.type ? ' sf-alert--' + p.type : ''}">
               <span class="sf-alert__icon">${sfAccIcon(p.icone)}</span>
               <div class="sf-alert__body">
@@ -2564,80 +2841,58 @@ function renderAccueil(el) {
               </span>
             </div>`).join('') : `
             <div class="sf-empty">
-              <div class="sf-empty__icon">${sfAccIcon(demarrage ? 'info' : 'ok', 22)}</div>
+              <div class="sf-empty__icon">${sfAccIcon('ok', 22)}</div>
               ${/* ⚠️ NE PAS SE FÉLICITER PENDANT LE DÉMARRAGE. « Tout est à
                     jour » et « prospectez l'esprit tranquille » sont vrais
-                    d'un portefeuille tenu, faux d'un compte qui n'a rien. */''}
-              <h3 class="sf-empty__title">${demarrage ? 'Rien à signaler pour l’instant' : 'Tout est à jour'}${sfAide(demarrage
-                ? 'Les alertes apparaîtront ici dès que vous aurez déclaré un bien et son bail.'
-                : 'Aucun loyer en attente, aucune fiche incomplète. Vous pouvez prospecter l\'esprit tranquille.')}</h3>
-              ${demarrage ? '' : `<div class="sf-empty__actions">
+                    d'un portefeuille tenu, faux d'un compte qui n'a rien :
+                    pendant le démarrage, ce bloc ne s'affiche pas (v=103). */''}
+              <h3 class="sf-empty__title">Tout est à jour${sfAide('Aucun loyer en attente, aucune fiche incomplète. Vous pouvez prospecter l\'esprit tranquille.')}</h3>
+              <div class="sf-empty__actions">
                 <button class="sf-btn sf-btn--primary" type="button" onclick="navigate('marche-recherche')">Explorer une ville</button>
-              </div>`}
+              </div>
             </div>`}
         </div>
-      </section>
+    </section>` : '';
+  const blocDemarrage = demarrage ? `
+    <section class="acc-bloc">
+      <h2 class="acc-sec">Pour démarrer <span class="acc-sec__n sf-num">${3 - reste} sur 3</span></h2>
+      <div class="sf-card sf-card--flat">
+        ${sfParcoursHtml(parcours, lie)}
+      </div>
+    </section>` : '';
+  const blocActions = `
+    <section class="acc-bloc">
+    <h2 class="acc-sec">Actions</h2>
+    <div class="acc-quick">
+      ${[
+        ['plus',      'Ajouter un bien',      "navigate('nouveau')"],
+        ['check',     'Pointer un loyer',     'sfAllerPointer()'],
+        ['gens',      'Ajouter un locataire', 'sfAllerAjouterLocataire()'],
+        ['doc',       'Saisir une charge',    'sfAllerSaisirCharge()'],
+        ['credit',    'Simuler un crédit',    "navigate('simulateur')"],
+        ['loupe',     'Explorer une ville',   "navigate('marche-recherche')"],
+      ].map(([ic, lab, js]) => `
+      <button class="sf-quick" type="button" onclick="${js}">
+        <span class="sf-quick__icon">${sfAccIcon(ic, 18)}</span>
+        <span class="sf-quick__label">${lab}</span>
+      </button>`).join('')}
+    </div>
+    </section>`;
 
-      <section>
-        <h2 class="acc-sec">Actions</h2>
-        <div class="acc-quick">
-          <button class="sf-quick" type="button" onclick="navigate('nouveau')">
-            <span class="sf-quick__icon">${sfAccIcon('plus', 18)}</span>
-            <span class="sf-quick__label">Ajouter un bien</span>
-          </button>
-          <button class="sf-quick" type="button" onclick="navigate('module-financier')">
-            <span class="sf-quick__icon">${sfAccIcon('check', 18)}</span>
-            <span class="sf-quick__label">Pointer un loyer</span>
-          </button>
-          <button class="sf-quick" type="button" onclick="navigate('marche-recherche')">
-            <span class="sf-quick__icon">${sfAccIcon('loupe', 18)}</span>
-            <span class="sf-quick__label">Explorer une ville</span>
-          </button>
-          <button class="sf-quick" type="button" onclick="navigate('simulateur')">
-            <span class="sf-quick__icon">${sfAccIcon('credit', 18)}</span>
-            <span class="sf-quick__label">Simuler un crédit</span>
-          </button>
-          <button class="sf-quick" type="button" onclick="navigate('module-financier')">
-            <span class="sf-quick__icon">${sfAccIcon('doc', 18)}</span>
-            <span class="sf-quick__label">Saisir une charge</span>
-          </button>
-        </div>
-      </section>
+  /* Un compte qui possède un bien voit d'abord ce qu'il rapporte. Un compte
+     qui n'en a pas encore commence par le parcours : trois « non disponible »
+     en tête de page ne lui diraient rien. */
+  el.innerHTML = `
+    <div class="acc-hello">
+      <h1>Bonjour${prenom ? ' ' + esc(prenom) : ''}</h1>
+      <span class="acc-date sf-num">${dateJour}</span>
     </div>
 
-    <h2 class="acc-sec">Votre patrimoine
-      <span class="acc-sec__n sf-num">${acquis.length} bien${acquis.length>1?'s':''} acquis · 12 derniers mois</span></h2>
-    <div class="acc-kpis">
-      <div class="sf-kpi">
-        <span class="sf-kpi__label">Ce que ça rapporte${sfAide(acquis.length
-          ? 'Les loyers encaissés moins les charges et le crédit, en moyenne par mois sur les 12 derniers mois.'
-          : 'Aucun bien acquis pour l’instant : ce chiffre apparaîtra avec votre premier achat.', 'Ce que ça rapporte')}</span>
-        ${acquis.length
-          ? `<span class="sf-kpi__value ${patCF>=0?'sf-kpi__value--gain':'sf-kpi__value--loss'}">${patCF>=0?'+':'−'}${fmt(Math.abs(patCF/12))} €</span>
-             <span class="sf-kpi__sub">par mois</span>`
-          : `<span class="sf-kpi__value sf-kpi__value--none">non disponible</span>`}
-      </div>
-      <div class="sf-kpi">
-        <span class="sf-kpi__label">Loyers encaissés${sfAide('Les loyers pointés comme encaissés sur les 12 derniers mois, charges comprises.', 'Loyers encaissés')}</span>
-        <span class="sf-kpi__value">${fmt(patLoyers)} €</span>
-        <span class="sf-kpi__sub">sur 12 mois</span>
-      </div>
-      <div class="sf-kpi">
-        <span class="sf-kpi__label">Turnover${sfAide(tauxLoue === null
-          ? 'Aucun bien acquis pour l’instant : ce chiffre apparaîtra avec votre premier achat.'
-          : `La part du temps où vos biens ont été loués sur les 12 derniers mois : ${bmLoues} mois loués sur ${bmTotal} mois de détention.`, 'Turnover')}</span>
-        ${tauxLoue === null
-          ? `<span class="sf-kpi__value sf-kpi__value--none">non disponible</span>`
-          : `<span class="sf-kpi__value ${tauxLoue>=70?'sf-kpi__value--gain':'sf-kpi__value--loss'}">${tauxLoue} %</span>
-             <span class="sf-kpi__sub">${tauxLoue>=70 ? 'au-dessus du seuil de 70 %' : 'sous le seuil de 70 %'}</span>`}
-      </div>
-      <div class="sf-kpi">
-        <span class="sf-kpi__label">Fiches en prospection${sfAide(prospection.length
-          ? (sansLoyerProsp ? `Dont ${sansLoyerProsp} sans loyer estimé : leur rendement ne peut pas encore se calculer.` : 'Toutes ont un loyer estimé : leur rendement se calcule.')
-          : 'Les annonces que vous suivez, de la première visite à l’offre.', 'Fiches en prospection')}</span>
-        <span class="sf-kpi__value">${prospection.length}</span>
-      </div>
-    </div>
+    ${acquis.length ? blocPatrimoine : ''}
+    ${blocATraiter}
+    ${blocDemarrage}
+    ${acquis.length ? '' : blocPatrimoine}
+    ${blocActions}
 
     <div class="acc-bento">
       <section>
@@ -2653,7 +2908,7 @@ function renderAccueil(el) {
                     ? `<span class="sf-ag__retard">En retard</span> · échu le ${a.jour} ${a.moisCourt}`
                     : a.meta}</p>
                 </div>
-                <span class="sf-ag__amount">${fmt(a.montant)} €</span>
+                <span class="sf-ag__amount">${fmt(a.montant)} €</span>
                 <label class="sf-ag__check" title="${esc(a.pointe ? 'Annuler le pointage' : 'Pointer ce loyer comme encaissé')}">
                   <input type="checkbox" ${a.pointe ? 'checked' : ''}
                          onchange="sfPointerLoyer('${a.bienId}', ${a.mois}, ${a.annee}, this)">
@@ -2679,7 +2934,7 @@ function renderAccueil(el) {
             <div class="acc-pipe" onclick="openDetail('${b.id}')">
               <span class="sf-pill">${esc(b.statut || '—')}</span>
               <span class="acc-pipe__t">${esc(b.titre || 'Sans titre')}</span>
-              <span class="acc-pipe__c sf-num">${b.prix_affiche ? fmt(b.prix_affiche) + ' €' : '—'}</span>
+              <span class="acc-pipe__c sf-num">${b.prix_affiche ? fmt(b.prix_affiche) + ' €' : '—'}</span>
             </div>`).join('') + `
             <div style="padding:var(--sf-space-5) var(--sf-space-6)">
               <button class="sf-btn sf-btn--ghost sf-btn--sm sf-btn--block" type="button" onclick="navigate('biens')">
@@ -2848,6 +3103,11 @@ function renderBiens(el) {
       <span class="sfb-src sfb-src--manque">À compléter</span>
       ${sfAide('<b>Réel</b> : calculé sur vos loyers encaissés.<br><b>Attente</b> : bien acquis, loyers pas encore pointés.<br><b>Estimé</b> : projection avant achat.<br><b>À compléter</b> : une information essentielle manque.', 'les pastilles du cashflow')}
     </div>`;
+  currentView = sfVueParDefaut();
+  if (bienOnglet === 'detenus' && currentView === 'kanban') currentView = sfVueSansKanban();
+  // v=103 : ouverte depuis « Compléter » de l'accueil, la liste arrive filtrée.
+  if (sfbEtatDemande && document.getElementById('f-etat')) document.getElementById('f-etat').value = sfbEtatDemande;
+  sfbEtatDemande = null;
   applyFilters();
 }
 
@@ -3291,13 +3551,14 @@ async function sfBulkStatut() {
 // ── HELPERS VUE ──
 function setView(v) {
   currentView = v;
+  try { localStorage.setItem('sf_vue_biens', v); } catch(e) {}
   applyFilters();
 }
 function sfSetOnglet(o) {
   bienOnglet = o;
   // Le kanban range par phase : sur le patrimoine il n'y aurait qu'une colonne
   // « Acheté ». On retombe sur le tableau plutôt que d'afficher une vue vide de sens.
-  if(bienOnglet === 'detenus' && currentView === 'kanban') currentView = 'tableau';
+  if(bienOnglet === 'detenus' && currentView === 'kanban') currentView = sfVueSansKanban();
   applyFilters();
 }
 function sfSetDensite(d) {
@@ -3382,11 +3643,11 @@ function renderCard(b) {
         d.value != null ? (d.value>0?'+':'')+fmt(d.value)+' €' : '—'}</span>
     </div>
     <div class="sfb-card__stats">
-      <div class="sfb-card__cell"><span class="sfb-card__cl">Prix</span><span class="sfb-card__cv">${sfNum(b.prix_affiche,' €')}</span></div>
-      <div class="sfb-card__cell"><span class="sfb-card__cl">Loyer</span><span class="sfb-card__cv">${sfNum(b.loyer_en_etat,' €')}</span></div>
+      <div class="sfb-card__cell"><span class="sfb-card__cl">Prix</span><span class="sfb-card__cv">${sfNum(b.prix_affiche,' €')}</span></div>
+      <div class="sfb-card__cell"><span class="sfb-card__cl">Loyer</span><span class="sfb-card__cv">${sfNum(b.loyer_en_etat,' €')}</span></div>
       <div class="sfb-card__cell"><span class="sfb-card__cl">Charges</span><span class="sfb-card__cv sfb-charges">${ch>0?fmt(ch)+' €':'<span class="sfb-vide-val">—</span>'}</span></div>
-      <div class="sfb-card__cell"><span class="sfb-card__cl">Rdt</span>
-        <span class="sfb-card__cv ${r==null?'':r>=seuil?'sf-gain':''}">${r==null?'<span class="sfb-vide-val">—</span>':r.toFixed(1)+' %'}</span></div>
+      <div class="sfb-card__cell"><span class="sfb-card__cl">Rendement</span>
+        <span class="sfb-card__cv ${r==null?'':r>=seuil?'sf-gain':''}">${r==null?'<span class="sfb-vide-val">—</span>':sfPctNum(r, 1)}</span></div>
     </div>
   </article>`;
 }
@@ -3946,7 +4207,15 @@ function sfnNombre(id) {
 function sfnFormaterNombre(n) {
   const v = parseFloat(n);
   if (!Number.isFinite(v) || v === 0) return '';
-  return v.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+  return sfNombre(v, { maximumFractionDigits: 2 });
+}
+
+// La valeur initiale d'un champ de montant hors de la fiche : « 1 250 »,
+// « 0 » reste « 0 » (une assurance à 0 € est une saisie), rien reste vide.
+function sfValeurChamp(v) {
+  if (v === null || v === undefined || v === '') return '';
+  const n = Number(v);
+  return Number.isFinite(n) ? sfNombre(n, { maximumFractionDigits: 2 }) : '';
 }
 
 function sfnFormater(input) {
@@ -4438,154 +4707,16 @@ function tiNormalizeDocs(paths, legacyB64, bucket) {
   return [];
 }
 
-// ═══════════════════════════════════════════════════════════
-//   MIGRATION base64 → Storage (idempotente, admin uniquement)
-// ═══════════════════════════════════════════════════════════
-async function tiMigrateToStorage() {
-  if (!currentUser) { showNotif('Non authentifié', true); return; }
-  const logEl = document.getElementById('ti-migration-log');
-  const btn = document.getElementById('ti-migration-btn');
-  const log = (msg) => { if(logEl){ logEl.innerHTML += msg + '<br>'; logEl.scrollTop = logEl.scrollHeight; } };
-  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="sf-attente"></span>Migration en cours…'; }
-  if(logEl){ logEl.style.display = 'block'; logEl.innerHTML = ''; }
-
-  let totalMigrated = 0, totalErrors = 0;
-
-  try {
-    // ── 1. BIENS : photos + documents ──
-    log('<strong>Biens — photos et documents…</strong>');
-    const { data: biens, error: bErr } = await db.from('biens')
-      .select('id, photos, documents, photos_paths, documents_paths')
-      .eq('user_id', currentUser.id);
-    if (bErr) throw bErr;
-
-    for (const b of biens || []) {
-      const needPhotos = (!b.photos_paths || b.photos_paths.length === 0) && Array.isArray(b.photos) && b.photos.length > 0;
-      const needDocs = (!b.documents_paths || b.documents_paths.length === 0) && Array.isArray(b.documents) && b.documents.length > 0;
-      if (!needPhotos && !needDocs) continue;
-
-      const update = {};
-      if (needPhotos) {
-        const paths = [];
-        for (let i = 0; i < b.photos.length; i++) {
-          try {
-            const up = await TI_STORAGE.uploadDataURL('biens-photos', b.id, b.photos[i], `photo-${i+1}.jpg`);
-            paths.push({ path: up.path, name: up.name });
-            totalMigrated++;
-          } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] photo ${i+1} bien ${b.id.slice(0,8)} : ${esc(e.message)}`); }
-        }
-        update.photos_paths = paths;
-      }
-      if (needDocs) {
-        const paths = [];
-        for (let i = 0; i < b.documents.length; i++) {
-          const d = b.documents[i];
-          try {
-            const up = await TI_STORAGE.uploadDataURL('biens-documents', b.id, d.data || d, d.name || `doc-${i+1}.pdf`);
-            paths.push({ path: up.path, name: up.name });
-            totalMigrated++;
-          } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] doc ${i+1} bien ${b.id.slice(0,8)} : ${esc(e.message)}`); }
-        }
-        update.documents_paths = paths;
-      }
-      if (Object.keys(update).length) {
-        const { error: uErr } = await db.from('biens').update(update).eq('id', b.id);
-        if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update bien ${b.id.slice(0,8)} : ${esc(uErr.message)}`); }
-        else log(`&nbsp;&nbsp;[ok] Bien ${b.id.slice(0,8)} migré`);
-      }
-    }
-
-    log(`<br><strong>Comptes rendus — photos…</strong>`);
-    const { data: visites, error: vErr } = await db.from('visites')
-      .select('id, photos, photos_paths')
-      .eq('user_id', currentUser.id);
-    if (vErr) throw vErr;
-    for (const v of visites || []) {
-      const need = (!v.photos_paths || v.photos_paths.length === 0) && Array.isArray(v.photos) && v.photos.length > 0;
-      if (!need) continue;
-      const paths = [];
-      for (let i = 0; i < v.photos.length; i++) {
-        try {
-          const up = await TI_STORAGE.uploadDataURL('visites-photos', v.id, v.photos[i], `photo-${i+1}.jpg`);
-          paths.push({ path: up.path, name: up.name });
-          totalMigrated++;
-        } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] photo ${i+1} visite ${v.id.slice(0,8)} : ${esc(e.message)}`); }
-      }
-      const { error: uErr } = await db.from('visites').update({ photos_paths: paths }).eq('id', v.id);
-      if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update visite ${v.id.slice(0,8)} : ${esc(uErr.message)}`); }
-      else log(`&nbsp;&nbsp;[ok] Visite ${v.id.slice(0,8)} migrée`);
-    }
-
-    log(`<br><strong>Simulations — PDF…</strong>`);
-    const { data: sims, error: sErr } = await db.from('simulations_credit')
-      .select('id, pdf_data, pdf_name, pdf_path')
-      .eq('user_id', currentUser.id);
-    if (sErr) throw sErr;
-    for (const sim of sims || []) {
-      const need = !sim.pdf_path && sim.pdf_data && sim.pdf_data.startsWith('data:');
-      if (!need) continue;
-      try {
-        const up = await TI_STORAGE.uploadDataURL('simulations-pdf', sim.id, sim.pdf_data, sim.pdf_name || 'simulation.pdf');
-        const { error: uErr } = await db.from('simulations_credit').update({ pdf_path: up.path }).eq('id', sim.id);
-        if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update sim ${sim.id.slice(0,8)} : ${esc(uErr.message)}`); }
-        else { totalMigrated++; log(`&nbsp;&nbsp;[ok] Simulation ${sim.id.slice(0,8)} migrée`); }
-      } catch(e) { totalErrors++; log(`&nbsp;&nbsp;[erreur] PDF sim ${sim.id.slice(0,8)} : ${esc(e.message)}`); }
-    }
-
-    log(`<br><strong>Locataires — documents…</strong>`);
-    const { data: locs, error: lErr } = await db.from('locataires')
-      .select('id, documents')
-      .eq('user_id', currentUser.id);
-    if (lErr) throw lErr;
-    for (const loc of locs || []) {
-      if (!Array.isArray(loc.documents) || !loc.documents.length) continue;
-      let needUpdate = false;
-      const migrated = [];
-      for (const doc of loc.documents) {
-        if (doc.storage_path) { migrated.push(doc); continue; }
-        if (doc.data && doc.data.startsWith('data:')) {
-          try {
-            const up = await TI_STORAGE.uploadDataURL('locataires-documents', loc.id, doc.data, doc.name);
-            migrated.push({ name:doc.name, type:doc.type, mime:doc.mime, size:doc.size, uploaded_at:doc.uploaded_at, storage_path:up.path, data:null });
-            needUpdate = true;
-            totalMigrated++;
-          } catch(e) { totalErrors++; migrated.push(doc); log(`&nbsp;&nbsp;[erreur] doc locataire ${loc.id.slice(0,8)} : ${esc(e.message)}`); }
-        } else { migrated.push(doc); }
-      }
-      if (needUpdate) {
-        const { error: uErr } = await db.from('locataires').update({ documents: migrated }).eq('id', loc.id);
-        if (uErr) { totalErrors++; log(`&nbsp;&nbsp;[erreur] update locataire ${loc.id.slice(0,8)} : ${esc(uErr.message)}`); }
-        else log(`&nbsp;&nbsp;[ok] Locataire ${loc.id.slice(0,8)} migré`);
-      }
-    }
-
-    log(`<br><strong>Migration terminée</strong>`);
-    log(`Fichiers migrés : ${totalMigrated} · Erreurs : ${totalErrors}`);
-    log(`<em>Note : les colonnes base64 d'origine sont conservées — c'est le filet de sécurité, et il reste en place. Rien ne les videra automatiquement.</em>`);
-    if (totalMigrated > 0) await loadBiens();
-    showNotif(`Migration : ${totalMigrated} fichier(s) migré(s)${totalErrors?', '+totalErrors+' erreur(s)':''}`, totalErrors>0);
-  } catch(e) {
-    log(`<br><strong style="color:var(--sf-loss)">Erreur globale : ${esc(e.message)}</strong>`);
-    showNotif('Erreur migration : '+e.message, true);
-  } finally {
-    /* ⚠️ MEME LIBELLE QUE DANS LE GABARIT (`paramsMaintenanceHtml`). Le
-       `finally` REECRIVAIT l'ancien texte avec son emoji : apres UNE SEULE
-       migration, le bouton perdait son icone et retrouvait le vieux
-       libelle — definitivement, jusqu'au rechargement. */
-    if(btn){ btn.disabled = false;
-             btn.innerHTML = sfAccIcon('echange',14) + ' Lancer la migration base64 vers Storage'; }
-  }
-}
+// La MIGRATION base64 → Storage (bouton de Maintenance, `tiMigrateToStorage`)
+// a été retirée en v=103 : vérifié en base le 17/10/2026, plus aucune photo,
+// aucun document ni aucune offre en base64 sans son fichier. La lecture des
+// anciennes données (`tiNormalizePhotos`, `kind: 'b64'`) reste.
 
 // ── Résolution média pour AFFICHAGE (Storage → signed URL, fallback base64) ──
 async function tiResolveMedia(paths, legacyB64, bucket) {
   if (Array.isArray(paths) && paths.length) {
-    const out = [];
-    for (const p of paths) {
-      const url = await TI_STORAGE.signedUrl(bucket, p.path);
-      if (url) out.push({ url, name: p.name || 'photo' });
-    }
-    return out;
+    const urls = await TI_STORAGE.signedUrls(bucket, paths.map(p => p.path));
+    return paths.map((p, i) => urls[i] ? { url: urls[i], name: p.name || 'photo' } : null).filter(Boolean);
   }
   if (Array.isArray(legacyB64) && legacyB64.length) {
     return legacyB64.map(d => ({ url: d, name: 'photo' }));
@@ -4594,12 +4725,8 @@ async function tiResolveMedia(paths, legacyB64, bucket) {
 }
 async function tiResolveDocs(paths, legacyB64, bucket) {
   if (Array.isArray(paths) && paths.length) {
-    const out = [];
-    for (const p of paths) {
-      const url = await TI_STORAGE.signedUrl(bucket, p.path);
-      if (url) out.push({ url, name: p.name || 'document.pdf' });
-    }
-    return out;
+    const urls = await TI_STORAGE.signedUrls(bucket, paths.map(p => p.path));
+    return paths.map((p, i) => urls[i] ? { url: urls[i], name: p.name || 'document.pdf' } : null).filter(Boolean);
   }
   if (Array.isArray(legacyB64) && legacyB64.length) {
     return legacyB64.map(d => ({ url: d.data || d, name: d.name || 'document.pdf' }));
@@ -4607,31 +4734,100 @@ async function tiResolveDocs(paths, legacyB64, bucket) {
   return [];
 }
 
+/* v=103 — UNE PHOTO SE RÉDUIT SUR L'APPAREIL AVANT DE PARTIR.
+   ⚠️ LE DÉFAUT. Le fichier choisi partait tel quel : une photo d'iPad ou
+   d'iPhone pèse 3 à 5 Mo. Dix photos d'une visite, c'était 30 à 50 Mo à
+   envoyer en 4G, puis autant à recharger à chaque ouverture de la galerie.
+   LA RÈGLE. Le plus grand côté est ramené à 1 600 px (largement de quoi voir
+   un détail à l'écran ou dans le dossier banque), en JPEG de bonne qualité :
+   environ 300 Ko. Le format HEIC de l'iPhone est converti au passage. Une
+   photo déjà petite et légère part telle quelle, et si l'appareil ne sait pas
+   la lire, l'original part : la réduction ne fait jamais perdre une photo. */
+const SF_PHOTO_MAX = 1600;
+const SF_PHOTO_QUALITE = 0.82;
+const SF_PHOTO_LEGERE = 600 * 1024;
+function sfDimensionsReduites(largeur, hauteur, max = SF_PHOTO_MAX) {
+  if (!(largeur > 0 && hauteur > 0)) return null;
+  const k = Math.min(1, max / Math.max(largeur, hauteur));
+  return { largeur: Math.round(largeur * k), hauteur: Math.round(hauteur * k), reduite: k < 1 };
+}
+async function sfReduirePhoto(fichier) {
+  try {
+    const convertir = !/^image\/(jpeg|png|webp)$/i.test(fichier.type || '');
+    let image;
+    if (window.createImageBitmap) {
+      image = await createImageBitmap(fichier, { imageOrientation: 'from-image' });
+    } else {
+      const url = URL.createObjectURL(fichier);
+      try {
+        image = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = url; });
+      } finally { URL.revokeObjectURL(url); }
+    }
+    const d = sfDimensionsReduites(image.width, image.height);
+    if (!d || (!d.reduite && fichier.size <= SF_PHOTO_LEGERE && !convertir)) return fichier;
+    const c = document.createElement('canvas');
+    c.width = d.largeur; c.height = d.hauteur;
+    const g = c.getContext('2d');
+    g.fillStyle = '#FFFFFF';                  // un PNG transparent ne vire pas au noir
+    g.fillRect(0, 0, d.largeur, d.hauteur);
+    g.drawImage(image, 0, 0, d.largeur, d.hauteur);
+    if (image.close) image.close();
+    const blob = await new Promise(ok => c.toBlob(ok, 'image/jpeg', SF_PHOTO_QUALITE));
+    if (!blob || (blob.size >= fichier.size && !convertir)) return fichier;
+    const nom = (fichier.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg';
+    return new File([blob], nom, { type: 'image/jpeg', lastModified: fichier.lastModified || Date.now() });
+  } catch (e) {
+    return fichier;
+  }
+}
+function sfLireDataUrl(fichier) {
+  return new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = ko; r.readAsDataURL(fichier); });
+}
+// Ajoute les photos choisies, réduites, dans l'ordre du choix.
+async function sfAjouterPhotos(fichiers, liste, apres) {
+  for (const f of Array.from(fichiers)) {
+    if (!(f.type || '').startsWith('image/')) continue;
+    const reduite = await sfReduirePhoto(f);
+    liste.push({ kind: 'b64', data: await sfLireDataUrl(reduite), name: reduite.name || f.name, _file: reduite });
+    apres();
+  }
+}
+
 function handleBienPhotos(e) {
-  Array.from(e.target.files).forEach(f => {
-    if (!f.type.startsWith('image/')) return;
-    const r = new FileReader();
-    r.onload = ev => {
-      bienPhotos.push({ kind: 'b64', data: ev.target.result, name: f.name, _file: f });
-      sfnModifie = true;
-      refreshBienPhotos();
-    };
-    r.readAsDataURL(f);
-  });
+  const fichiers = Array.from(e.target.files);
   e.target.value = '';   // la même photo peut être reprise après l'avoir retirée
+  return sfAjouterPhotos(fichiers, bienPhotos, () => { sfnModifie = true; refreshBienPhotos(); });
 }
 
 function removeBienPhoto(i) { bienPhotos.splice(i, 1); sfnModifie = true; refreshBienPhotos(); }
 
+// v=103 : les liens des vignettes rangées dans le stockage, en une requête par
+// espace (une galerie peut mêler deux espaces, d'où le regroupement).
+async function sfUrlsVignettes(photos, espaceParDefaut) {
+  const urls = photos.map(() => null);
+  const parEspace = {};
+  photos.forEach((p, i) => {
+    if (p.kind === 'b64' || !p.path) return;
+    const e = p.bucket || espaceParDefaut;
+    (parEspace[e] = parEspace[e] || []).push(i);
+  });
+  await Promise.all(Object.entries(parEspace).map(async ([e, indices]) => {
+    const recus = await TI_STORAGE.signedUrls(e, indices.map(i => photos[i].path));
+    indices.forEach((i, k) => { urls[i] = recus[k]; });
+  }));
+  return urls;
+}
+
 async function refreshBienPhotos() {
   const el = document.getElementById('bien-photos-grid');
   if (!el) return;
-  // Affichage : base64 direct, Storage par URL signée (asynchrone)
-  const items = await Promise.all(bienPhotos.map(async (p, i) => {
-    const src = p.kind === 'b64' ? p.data : await TI_STORAGE.signedUrl(p.bucket || 'biens-photos', p.path);
-    return `<div class="sfn-vignette"><img src="${esc(src || '')}" alt="${esc(p.name || 'Photo du bien')}">
+  // Affichage : base64 direct, Storage par URL signée — toutes en une requête (v=103)
+  const urls = await sfUrlsVignettes(bienPhotos, 'biens-photos');
+  const items = bienPhotos.map((p, i) => {
+    const src = p.kind === 'b64' ? p.data : urls[i];
+    return `<div class="sfn-vignette"><img src="${esc(src || '')}" alt="${esc(p.name || 'Photo du bien')}" loading="lazy" decoding="async">
       <button type="button" class="sfn-retirer" onclick="removeBienPhoto(${i})" aria-label="Retirer la photo ${i + 1}">${sfAccIcon('croix', 14)}</button></div>`;
-  }));
+  });
   el.innerHTML = items.join('') || '<p class="sfn-vide">Aucune photo pour l’instant.</p>';
   if (document.getElementById('sfn-resume-fichiers')) sfnMaj();
 }
@@ -5118,11 +5314,11 @@ function inlineRefreshHero(bienId) {
   const cfEl = document.querySelector('#detail-content .bien-detail-cf');
   if(cfEl) {
     cfEl.style.color = !has ? 'rgba(255,255,255,0.5)' : cf >= 0 ? '#bbf7d0' : '#fecdd3';
-    cfEl.textContent = has ? fmt(cf) + ' €/mois' : '—';
+    cfEl.textContent = has ? fmt(cf) + ' €/mois' : '—';
   }
   const acqEl = document.querySelector('#detail-content .bien-detail-hero div:first-child div:last-child');
   if(acqEl && acqEl.textContent.startsWith('Acquisition totale')) {
-    acqEl.textContent = 'Acquisition totale : ' + (emprunt ? fmt(emprunt) + ' €' : '—');
+    acqEl.textContent = 'Acquisition totale : ' + (emprunt ? fmt(emprunt) + ' €' : '—');
   }
   // Frais notaire affiché peut aussi avoir bougé
   const fnSpan = document.querySelector(`#detail-content .inline-edit[data-id="${bienId}"][data-field="frais_notaire"]`);
@@ -5445,7 +5641,7 @@ async function renderBienDetail(el) {
   const finPostes = [
     { lab:'Prix affiché',          k:'prix_affiche',  col:'var(--sf-brand-3)',      fixe:false },
     { lab:'Frais de notaire',      k:'frais_notaire', col:'var(--sf-text-3)',       fixe:true,
-      note:`calculés à ${+(notairePct()*100).toFixed(1)} %` },
+      note:`calculés à ${sfPctNum(notairePct()*100, 1)}` },
     { lab:"Frais d'agence",        k:'frais_agence',  col:'var(--sf-info)',         fixe:false },
     { lab:'Constitution de la SCI',k:'creation_sci',  col:'var(--sf-alert)',        fixe:false },
     { lab:'Travaux',               k:'travaux',       col:'var(--sf-border-strong)',fixe:false },
@@ -5557,8 +5753,8 @@ async function renderBienDetail(el) {
             : `<span class="inline-edit" data-id="${b.id}" data-field="statut" data-type="select-statut" data-value="${(b.statut||'').replace(/"/g,'&quot;')}" onclick="inlineEditField(this)"><span class="statut-pill phase-${phase}">${esc(b.statut||'—')}</span></span>`}
 
           ${b.statut === 'Abandonné' ? '' : sfDetenu(b)
-            ? `<button class="sf-btn sf-btn--ghost sf-btn--sm sf-btn--block sff-rail__act"
-                       onclick="bdRemettreEnProspection('${b.id}')">Remettre en prospection</button>`
+            ? `<button class="sff-add sff-rail__act"
+                       onclick="bdRemettreEnProspection('${b.id}')">${sfAccIcon('retour',13)} Remettre en prospection</button>`
             : `<button class="sf-btn sf-btn--primary sf-btn--sm sf-btn--block sff-rail__act"
                        onclick="bdDemarrerAcquisition('${b.id}')">${sfAccIcon('check',14)} Confirmer l'acquisition</button>`}
         </div>
@@ -6564,7 +6760,7 @@ function bdOpenGallery() {
   document.getElementById('detail-content').innerHTML = `
     <div style="padding:12px 16px 18px">
       <div class="bien-gallery">
-        ${bdPhotos.map(p => `<img src="${p}" onclick="openLightbox('${p}')" title="Cliquer pour agrandir">`).join('')}
+        ${bdPhotos.map((p, i) => `<img src="${esc(p)}" alt="Photo ${i + 1}" loading="lazy" decoding="async" onclick="openLightbox(${escJs(p)})" title="Cliquer pour agrandir">`).join('')}
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:16px">
         <button class="sf-btn sf-btn--secondary" onclick="closeModal('modal-detail')">Fermer</button>
@@ -6750,15 +6946,6 @@ let bkdocLibsPromise = null;
 let bkdocPresetsCache = null;
 let bkdocCtx = null; // contexte du modal en cours { bien, scis, sims, photoPaths, selPhotos }
 
-function bkdocLoadScript(src){
-  return new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = src; s.onload = res;
-    s.onerror = () => rej(new Error('Échec de chargement : ' + src));
-    document.head.appendChild(s);
-  });
-}
-
 function bkdocEnsureLibs(){
   if(!bkdocLibsPromise){
     bkdocLibsPromise = (async () => {
@@ -6769,12 +6956,9 @@ function bkdocEnsureLibs(){
         l.href = 'vendor/montserrat-5.0.19/montserrat.css';
         document.head.appendChild(l);
       }
-      const jobs = [];
-      // v=102 : hébergées ici (vendor/), mêmes versions exactes qu'avant chez cdnjs.
-      if(!window.html2canvas) jobs.push(bkdocLoadScript('vendor/html2canvas-1.4.1/html2canvas.min.js'));
-      if(!(window.jspdf && window.jspdf.jsPDF)) jobs.push(bkdocLoadScript('vendor/jspdf-2.5.1/jspdf.umd.min.js'));
-      if(!window.PDFLib) jobs.push(bkdocLoadScript('vendor/pdf-lib-1.17.1/pdf-lib.min.js'));
-      await Promise.all(jobs);
+      // v=102 : hébergées ici (vendor/). v=103 : chargées avec leur empreinte,
+      // par le même chargeur que Chart.js et pdf.js (sfChargerBiblio).
+      await Promise.all(['html2canvas', 'jspdf', 'pdflib'].map(sfChargerBiblio));
     })();
     bkdocLibsPromise.catch(() => { bkdocLibsPromise = null; }); // permet un retry si échec réseau
   }
@@ -6782,7 +6966,7 @@ function bkdocEnsureLibs(){
 }
 
 // ── Helpers de formatage ──
-function bkdocEUR(n){ return (n == null || isNaN(n)) ? '—' : fmt(n) + ' €'; }
+function bkdocEUR(n){ return (n == null || isNaN(n)) ? '—' : fmt(n) + ' €'; }
 function bkdocDateFR(d){ const dt = d ? new Date(d) : new Date(); return dt.toLocaleDateString('fr-FR', {day:'numeric', month:'long', year:'numeric'}); }
 function bkdocFilename(titre){
   const d = new Date();
@@ -6917,9 +7101,11 @@ async function openDossierModal(bienId){
       <div class="bkdoc-progress" id="bkdoc-progress"></div>`;
 
     // Miniatures : résolution asynchrone des URLs signées (sans bloquer l'ouverture)
-    document.querySelectorAll('#bkdoc-photo-grid img[data-bkpath]').forEach(async img => {
-      try { img.src = await TI_STORAGE.signedUrl('biens-photos', img.getAttribute('data-bkpath')); } catch(e) { /* vignette grise */ }
-    });
+    // v=103 : toutes les miniatures en une requête.
+    const bkImgs = [...document.querySelectorAll('#bkdoc-photo-grid img[data-bkpath]')];
+    TI_STORAGE.signedUrls('biens-photos', bkImgs.map(img => img.getAttribute('data-bkpath')))
+      .then(urls => bkImgs.forEach((img, i) => { if (urls[i]) img.src = urls[i]; }))
+      .catch(() => { /* vignettes grises */ });
 
     saveBtn.disabled = false;
   } catch(e) {
@@ -6978,16 +7164,16 @@ function bkdocBuildPages(d){
   const totalAcq = prix + notaire + travaux + agence + csci;
   const rendement = prix > 0 ? (loyer * 12 / prix) * 100 : 0;
   const cfCls2 = cashflow > 0 ? 'pos' : (cashflow < 0 ? 'neg' : '');
-  const cfTxt = (cashflow > 0 ? '+' : '') + fmt(cashflow) + ' €';
+  const cfTxt = (cashflow > 0 ? '+' : '') + fmt(cashflow) + ' €';
 
   // Indicateurs clés conditionnels : seuls les indicateurs renseignés ET présentables
   // figurent en page 2 (un cashflow négatif ou un loyer absent n'est pas un "indicateur clé" ;
   // la synthèse financière page 4 expose de toute façon la réalité complète des chiffres).
   const inds = [];
-  if(cashflow > 0) inds.push({ v: '+' + fmt(cashflow) + ' €/mois', l: 'Cashflow mensuel positif' });
-  if(rendement > 0) inds.push({ v: rendement.toFixed(2).replace('.', ',') + ' %', l: 'Rendement brut' });
+  if(cashflow > 0) inds.push({ v: '+' + fmt(cashflow) + ' €/mois', l: 'Cashflow mensuel positif' });
+  if(rendement > 0) inds.push({ v: rendement.toFixed(2).replace('.', ',') + ' %', l: 'Rendement brut' });
   if(loyer > 0) inds.push({ v: bkdocEUR(loyer), l: 'Loyer mensuel attendu' });
-  if(prix > 0 && num(b.surface_m2) > 0) inds.push({ v: fmt(prix / num(b.surface_m2)) + ' €/m²', l: 'Prix au m²' });
+  if(prix > 0 && num(b.surface_m2) > 0) inds.push({ v: fmt(prix / num(b.surface_m2)) + ' €/m²', l: 'Prix au m²' });
   const indicHtml = inds.length
     ? `<div class="bcard hl"><div class="bcard-h">Indicateurs clés</div>${inds.slice(0,3).map(i => `<div class="pf"><span class="pf-dot"></span><div><b>${i.v}</b><div class="pf-l">${i.l}</div></div></div>`).join('')}</div>`
     : '';
@@ -7056,7 +7242,7 @@ function bkdocBuildPages(d){
         <div class="ftable">
           <div class="ft-h">Montant d'acquisition</div>
           <div class="ft-r"><span>Prix affiché</span><b>${bkdocEUR(prix)}</b></div>
-          <div class="ft-r"><span>Frais de notaire (7 %)</span><b>${bkdocEUR(notaire)}</b></div>
+          <div class="ft-r"><span>Frais de notaire (7 %)</span><b>${bkdocEUR(notaire)}</b></div>
           <div class="ft-r"><span>Travaux</span><b>${bkdocEUR(travaux)}</b></div>
           <div class="ft-r"><span>Frais d'agence</span><b>${bkdocEUR(agence)}</b></div>
           <div class="ft-r"><span>Création SCI</span><b>${bkdocEUR(csci)}</b></div>
@@ -7074,7 +7260,7 @@ function bkdocBuildPages(d){
       </div>
       <div class="kpi-row">
         <div class="kpi-big ${cfCls2}"><div class="kpi-l">Cashflow mensuel</div><div class="kpi-v">${cfTxt}</div></div>
-        <div class="kpi-big"><div class="kpi-l">Rendement brut</div><div class="kpi-v accent-txt">${rendement > 0 ? rendement.toFixed(2).replace('.', ',') + ' %' : '—'}</div></div>
+        <div class="kpi-big"><div class="kpi-l">Rendement brut</div><div class="kpi-v accent-txt">${rendement > 0 ? rendement.toFixed(2).replace('.', ',') + ' %' : '—'}</div></div>
       </div>
     </div>${foot}
   </div>`);
@@ -7087,7 +7273,7 @@ function bkdocBuildPages(d){
     const c = sfSimDepuisLigne(s);
     const te = c.calculable && c.te !== null ? c.te : num(s.taux_endettement);
     const teCls = te <= SF_ENDETTEMENT_MAX ? 'ok' : 'bad';
-    const teNote = te <= SF_ENDETTEMENT_MAX ? `Dans la limite de ${SF_ENDETTEMENT_MAX} % retenue par les banques` : `Au-dessus de la limite de ${SF_ENDETTEMENT_MAX} %`;
+    const teNote = te <= SF_ENDETTEMENT_MAX ? `Dans la limite de ${SF_ENDETTEMENT_MAX} % retenue par les banques` : `Au-dessus de la limite de ${SF_ENDETTEMENT_MAX} %`;
     const mensDoc = c.calculable ? c.mens : num(s.mensualite_calculee);
     pages.push(`<div class="page" style="${vars}">${hdr}
       <div class="ibody">
@@ -7096,11 +7282,11 @@ function bkdocBuildPages(d){
         <p class="blead">Simulation : ${esc(s.nom_simulation || '—')}${s.date_document ? ' — ' + bkdocDateFR(s.date_document) : ''}</p>
         <div class="fin-grid">
           <div class="fin-card"><div class="fin-l">Montant emprunté</div><div class="fin-v">${bkdocEUR(num(s.montant_emprunte))}</div></div>
-          <div class="fin-card"><div class="fin-l">Taux d'intérêt</div><div class="fin-v">${num(s.taux_interet).toFixed(2).replace('.', ',')} %</div></div>
+          <div class="fin-card"><div class="fin-l">Taux d'intérêt</div><div class="fin-v">${num(s.taux_interet).toFixed(2).replace('.', ',')} %</div></div>
           <div class="fin-card"><div class="fin-l">Durée</div><div class="fin-v">${fmt(num(s.duree_ans))} ans</div></div>
           <div class="fin-card"><div class="fin-l">Mensualité${c.assuranceConnue ? ', assurance comprise' : ''}</div><div class="fin-v">${bkdocEUR(mensDoc)}</div></div>
         </div>
-        ${te ? `<div class="endet"><div class="endet-l">Taux d'endettement</div><div class="endet-badge ${teCls}">${te.toFixed(0)} %</div><div class="endet-note">${teNote}</div></div>` : ''}
+        ${te ? `<div class="endet"><div class="endet-l">Taux d'endettement</div><div class="endet-badge ${teCls}">${sfPctNum(te, 0)}</div><div class="endet-note">${teNote}</div></div>` : ''}
         ${d.hasAnnex ? '<p class="annex-note">La simulation détaillée est jointe en annexe de ce dossier.</p>' : ''}
       </div>${foot}
     </div>`);
@@ -7125,7 +7311,7 @@ function bkdocBuildPages(d){
         <div class="bassoc-avatar">${bkdocInitials(a.prenom, a.nom)}</div>
         <div class="bassoc-body">
           <div class="bassoc-name">${esc(((a.prenom || '') + ' ' + (a.nom || '')).trim() || 'Associé')}</div>
-          <div class="bassoc-role">Associé${a.parts_pct ? ' · ' + a.parts_pct + ' % des parts' : ''}</div>
+          <div class="bassoc-role">Associé${a.parts_pct ? ' · ' + a.parts_pct + ' % des parts' : ''}</div>
           ${contact ? `<div class="bassoc-contact">${contact}</div>` : ''}
           ${facts ? `<div class="assoc-facts">${facts}</div>` : ''}
         </div>
@@ -7182,10 +7368,8 @@ async function bkdocGenerate(){
     const chosen = bkdocCtx.photoPaths.length > 5
       ? bkdocCtx.photoPaths.filter((_, i) => bkdocCtx.selPhotos.has(i)).slice(0, 5)
       : bkdocCtx.photoPaths.slice(0, 5);
-    const photoUrls = [];
-    for(const p of chosen){
-      try { photoUrls.push(await TI_STORAGE.signedUrl('biens-photos', p.path)); } catch(e) { /* photo ignorée */ }
-    }
+    // v=103 : en une requête ; une photo sans lien est ignorée.
+    const photoUrls = (await TI_STORAGE.signedUrls('biens-photos', chosen.map(p => p.path)).catch(() => [])).filter(Boolean);
 
     bkdocProgress('Construction des pages…');
     const coverData = await bkdocMakeCoverWedge(BKDOC_COVER_URL, preset);
@@ -7300,20 +7484,19 @@ const PAGE_LABELS = {accueil:'Tableau de bord',biens:'Mes biens',nouveau:'Ajoute
            'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
   }
 
+/* v=103 — DEUX SECTIONS RETIRÉES, et les familles d'une seule entrée
+   regroupées. « Apparence » ne contenait qu'une phrase (« Thème sombre ») : la
+   charte est unique, il n'y a rien à régler. « Mes SCI » redisait
+   Administration › Mes SCI (même liste, même bouton) : les SCI se gèrent à un
+   seul endroit. Un ancien lien #parametres/sci mène à Administration. */
 const PARAMS_SECTIONS = [
   { family:'Mon compte', items:[
     { id:'compte',       label:'Compte',           icon:'user', status:'ready' },
     { id:'securite',     label:'Sécurité',         icon:'lock', status:'soon' },
     { id:'notifications',label:'Notifications',    icon:'bell', status:'soon' },
-  ]},
-  { family:'Préférences', items:[
-    { id:'apparence',    label:'Apparence',        icon:'palette', status:'ready' },
     { id:'metier',       label:'Préférences métier',icon:'sliders', status:'ready' },
-    { id:'integrations', label:'Intégrations',     icon:'plug', status:'soon', adminOnly:true },
-  ]},
-  { family:'Données & gestion', items:[
     { id:'donnees',      label:'Données',          icon:'data', status:'ready' },
-    { id:'sci',          label:'Mes SCI',          icon:'bank', status:'ready' },
+    { id:'integrations', label:'Intégrations',     icon:'plug', status:'soon', adminOnly:true },
   ]},
   // « Utilisateurs » a quitte les Parametres en phase 4 : la gestion des
   // comptes est une fonction d'administration, pas un reglage personnel. Elle
@@ -7361,6 +7544,12 @@ function renderParametres(el) {
   // Une URL directe vers une section non proposée — réservée aux admins, ou
   // pas encore construite — retombe sur Compte, sans écran d'attente.
   const hashSection = (window.location.hash.match(/#parametres\/([a-z]+)/)||[])[1];
+  if (hashSection === 'sci' || currentParamsSection === 'sci') {
+    currentParamsSection = 'compte';
+    adminTab = 'sci';
+    navigate('administration');
+    return;
+  }
   if (hashSection && sfParamAccessible(hashSection, isAdmin)) currentParamsSection = hashSection;
   else if (!sfParamAccessible(currentParamsSection, isAdmin)) currentParamsSection = 'compte';
 
@@ -7430,11 +7619,9 @@ function renderParamsSection() {
 
   // Sections prêtes
   if(sec==='compte') c.innerHTML = paramsCompteHtml();
-  else if(sec==='apparence') { c.innerHTML = paramsApparenceHtml(); syncAppearanceControls(); }
   else if(sec==='metier') { c.innerHTML = paramsMetierHtml(); sfPrefTauxAfficher(); }
   else if(sec==='apropos') c.innerHTML = paramsAproposHtml();
   else if(sec==='donnees') c.innerHTML = paramsDonneesHtml();
-  else if(sec==='sci') { c.innerHTML = paramsSciHtml(); loadSCIList(); }
   // Compatibilite : les anciens liens #parametres/utilisateurs renvoient vers
   // la page dediee. Une seule route vers la gestion des comptes, pas deux.
   else if(sec==='utilisateurs') { navigate('admin-users'); return; }
@@ -7509,21 +7696,6 @@ async function saveMyProfile() {
 // mais d'une decision de conception — une couleur choisie au hasard par
 // l'utilisateur ne peut pas garantir les contrastes ni la separation entre le
 // vert de marque et le vert « valeur positive ».
-function paramsApparenceHtml() {
-  return `
-    <div class="params-section-title">${sfIcon('palette', 20)} Apparence${sfAide('Le thème de Stonefolio.', 'Apparence')}</div>
-    <div class="params-card">
-      <div class="params-card-title">Thème sombre${sfAide('Les couleurs ne sont pas modifiables : elles portent du sens — le vert signale une valeur positive, le corail une valeur négative.', 'le thème')}</div>
-    </div>`;
-}
-
-// La section Apparence n'a plus de controle a synchroniser : les interrupteurs
-// de graphiques sont partis en phase 5 avec les graphiques, et le nuancier de
-// couleurs avec l'arbitrage « DA unique ». Conservee pour son appelant.
-// `colorMatches`, qui ne servait qu'a retrouver la pastille active du
-// nuancier, est supprimee avec lui.
-function syncAppearanceControls() { /* plus rien a synchroniser */ }
-
 // ── Section PRÉFÉRENCES MÉTIER ──
 function paramsMetierHtml() {
   const p = userPrefs || {};
@@ -7534,19 +7706,19 @@ function paramsMetierHtml() {
       <div class="params-field-grid">
         <div class="params-field">
           <span class="sf-tete"><label class="params-field-label" for="pref-notaire">Frais de notaire (%)</label>${sfAide('Appliqués automatiquement au prix d’achat. Par défaut : 7 %.', 'Frais de notaire (%)')}</span>
-          <input class="params-input" id="pref-notaire" type="number" step="0.1" min="0" max="30" value="${p.notaire_pct ?? 7}">
+          <input class="params-input sf-montant" id="pref-notaire" type="text" inputmode="decimal" autocomplete="off" value="${esc(sfValeurChamp(p.notaire_pct ?? 7))}">
         </div>
         <div class="params-field">
           <span class="sf-tete"><label class="params-field-label" for="pref-duree">Durée de crédit (ans)</label>${sfAide('Pré-remplie à la création d’un bien. Par défaut : 20 ans.', 'Durée de crédit (ans)')}</span>
-          <input class="params-input" id="pref-duree" type="number" step="1" min="1" max="40" value="${p.duree_credit_ans ?? 20}">
+          <input class="params-input sf-montant" id="pref-duree" type="text" inputmode="numeric" autocomplete="off" value="${esc(sfValeurChamp(p.duree_credit_ans ?? 20))}">
         </div>
         <div class="params-field">
           <span class="sf-tete"><label class="params-field-label" for="pref-assurance">Assurance propriétaire non occupant (€/mois)</label>${sfAide('Pré-remplie à la création d’un bien. Par défaut : 33 €.', 'Assurance propriétaire non occupant (€/mois)')}</span>
-          <input class="params-input" id="pref-assurance" type="number" step="1" min="0" value="${p.assurance_mois ?? 33}">
+          <input class="params-input sf-montant" id="pref-assurance" type="text" inputmode="decimal" autocomplete="off" value="${esc(sfValeurChamp(p.assurance_mois ?? 33))}">
         </div>
         <div class="params-field">
           <span class="sf-tete"><label class="params-field-label" for="pref-seuil">Seuil de rentabilité (%)</label>${sfAide('Au-dessus, le rendement s’affiche en vert. Par défaut : 5 %.', 'Seuil de rentabilité (%)')}</span>
-          <input class="params-input" id="pref-seuil" type="number" step="0.1" min="0" max="100" value="${p.seuil_rentabilite ?? 5}">
+          <input class="params-input sf-montant" id="pref-seuil" type="text" inputmode="decimal" autocomplete="off" value="${esc(sfValeurChamp(p.seuil_rentabilite ?? 5))}">
         </div>
       </div>
       ${/* Le taux de crédit n'existe qu'une fois sa colonne ajoutée en base
@@ -7556,7 +7728,7 @@ function paramsMetierHtml() {
       <div class="params-field-grid">
         <div class="params-field">
           <span class="sf-tete"><label class="params-field-label" for="pref-taux">Votre taux de crédit (%)</label>${sfAide('Celui de votre courtier ou de votre banque. Il sert à estimer la mensualité d’une nouvelle fiche et à pré-remplir une simulation. Laissé vide, Stonefolio prend le taux moyen.', 'votre taux de crédit')}</span>
-          <input class="params-input" id="pref-taux" type="text" inputmode="decimal" autocomplete="off"
+          <input class="params-input sf-montant" id="pref-taux" type="text" inputmode="decimal" autocomplete="off"
                  value="${esc(sfnFormaterNombre(p.taux_credit))}" placeholder="ex. 3,4">
         </div>
         <div class="params-field">
@@ -7583,14 +7755,34 @@ async function sfPrefTauxAfficher() {
 
 async function saveMyPreferences() {
   const btn = document.getElementById('pref-save-btn');
-  const notaire = parseFloat(document.getElementById('pref-notaire')?.value) || 7;
-  const duree = parseInt(document.getElementById('pref-duree')?.value) || 20;
-  const assurance = parseFloat(document.getElementById('pref-assurance')?.value) || 33;
-  const seuil = parseFloat(document.getElementById('pref-seuil')?.value) || 5;
+  /* v=103 : champs texte lus par sfLireNombre. `parseFloat(x) || 33`
+     remplaçait une assurance saisie à 0 € par 33 €, et des frais de notaire à
+     0 par 7 % : un chiffre inventé à la place d'une saisie. Un champ VIDE
+     reprend la valeur par défaut annoncée dans son « ? » ; un champ illisible
+     ou hors bornes est refusé, en le disant. */
+  const lirePref = (id, defaut, min, max, entier, nom) => {
+    const champ = document.getElementById(id);
+    const n = champ ? sfLireNombre(champ.value) : null;
+    if (n === null) return defaut;
+    if (!Number.isFinite(n) || n < min || n > max || (entier && !Number.isInteger(n))) {
+      showNotif(`${nom} : indiquez ${entier ? 'un nombre entier' : 'un nombre'} entre ${min} et ${max}.`, true);
+      champ.focus();
+      return undefined;
+    }
+    return n;
+  };
+  const notaire = lirePref('pref-notaire', 7, 0, 30, false, 'Frais de notaire');
+  if (notaire === undefined) return;
+  const duree = lirePref('pref-duree', 20, 1, 40, true, 'Durée de crédit');
+  if (duree === undefined) return;
+  const assurance = lirePref('pref-assurance', 33, 0, 1000, false, 'Assurance propriétaire non occupant');
+  if (assurance === undefined) return;
+  const seuil = lirePref('pref-seuil', 5, 0, 100, false, 'Seuil de rentabilité');
+  if (seuil === undefined) return;
   const champTaux = document.getElementById('pref-taux');
   const taux = champTaux ? sfLireNombre(champTaux.value) : undefined;
   if(champTaux && taux !== null && !(taux > 0 && taux <= 20)) {
-    showNotif('Le taux de crédit doit être compris entre 0 et 20 %, ou laissé vide.', true);
+    showNotif('Le taux de crédit doit être compris entre 0 et 20 %, ou laissé vide.', true);
     champTaux.focus();
     return;
   }
@@ -7665,6 +7857,11 @@ function paramsAproposHtml() {
 function paramsDonneesHtml() {
   return `
     <div class="params-section-title">${sfIcon('data',20)} Données${sfAide('Exporter ou effacer vos données.', 'Données')}</div>
+    <div class="params-card">
+      <div class="params-card-title">Exporter vos données${sfAide('Un fichier JSON avec tout ce que vous avez saisi : biens, loyers, charges, locataires, comptes rendus, échanges, simulations, dossiers banque, SCI, contacts, échéances, bilans et préférences. Les photos et documents n’y sont pas : ils se téléchargent depuis chaque fiche. Le fichier est préparé sur votre appareil.', 'l’export de vos données')}</div>
+      <button class="sf-btn sf-btn--secondary" id="sf-export-btn" type="button" onclick="sfExporterDonnees()">${sfAccIcon('disquette', 15)} Télécharger toutes mes données</button>
+      <p class="sf-export__retour" id="sf-export-retour" aria-live="polite"></p>
+    </div>
     <div class="params-danger">
       <div class="params-danger-header">${sfAccIcon('alerte',15)} Zone de danger</div>
       <div class="params-danger-body">
@@ -7686,28 +7883,10 @@ function paramsDonneesHtml() {
     </div>`;
 }
 
-// ── Section MES SCI ──
-function paramsSciHtml() {
-  return `
-    <div class="params-section-title">${sfIcon('bank',20)} Mes SCI${sfAide('Vos sociétés civiles immobilières.', 'Mes SCI')}</div>
-    <div class="params-card">
-      <div id="sci-list-container">
-        <div class="sci-empty" style="padding:12px 0;text-align:left;font-size:12px;color:var(--c-muted)">Chargement…</div>
-      </div>
-      <button class="sci-add-btn" onclick="openSCIModal(null)">＋ Ajouter une SCI</button>
-    </div>`;
-}
-
 // ── Section MAINTENANCE (admin) ──
 function paramsMaintenanceHtml() {
   return `
     <div class="params-section-title">${sfIcon('wrench',20)} Maintenance${sfAide('Outils techniques d’administration de la plateforme.', 'Maintenance')}</div>
-    <div class="params-card">
-      <div class="params-card-title">Migration du stockage${sfAide('Les photos et documents passent de l’ancien stockage (base64 en base de données) à Supabase Storage. Opération sûre et ré-exécutable : les fichiers déjà migrés sont ignorés, et les données d’origine sont conservées.', 'la migration du stockage')}</div>
-      <button id="ti-migration-btn" class="btn btn-primary" style="width:100%;font-size:13px" onclick="tiMigrateToStorage()">${sfAccIcon('echange',14)} Lancer la migration base64 vers Storage</button>
-      <div id="ti-migration-log" style="display:none;margin-top:10px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:10px;font-size:11px;font-family:monospace;max-height:200px;overflow-y:auto;line-height:1.6"></div>
-    </div>
-
     <div class="params-card">
       <div class="params-card-title">Données de démonstration${sfAide('Des données factices, pour éprouver les écrans sans saisie. Elles portent la mention « TEST » et n’existent que dans votre compte. Les fiches restent dans la liste des biens, sans entrer dans aucun chiffre.', 'les données de démonstration')}</div>
       <div class="mfs-toggle-row" style="margin-bottom:10px">
@@ -7750,11 +7929,10 @@ function paramsMaintenanceHtml() {
 // n'a eu besoin d'etre reecrit.
 
 // Quelle section contient quelle page — sert a surligner le bon menu.
+// v=103 : un seul menu déroulant reste, « Outils » ; les pages du quotidien
+// sont des liens directs du bandeau (voir index.html).
 const SF_MENU_PAGES = {
-  marche:   ['marche-recherche'],
-  pipeline: ['accueil','biens','nouveau','bien-detail'],
-  gestion:  ['module-financier','administration'],
-  outils:   ['simulateur','simulation','visites','compte-rendu','portails'],
+  outils:   ['simulateur','simulation','visites','compte-rendu','portails','marche-recherche'],
   // Ni « parametres » ni « admin-users » ne figurent ici : ce ne sont plus des
   // menus deroulants mais des icones directes du bandeau, que navigate()
   // surligne deja via #nav-parametres et #nav-admin-users.
@@ -7827,15 +8005,17 @@ function navigate(page) {
   if(page !== 'parametres' && window.location.hash.startsWith('#parametres')) {
     history.replaceState(null, '', window.location.pathname);
   }
-  ['accueil','biens','nouveau','simulateur','visites','portails','administration','module-financier','admin-users','marche-recherche','parametres'].forEach(p => {
-    document.getElementById('nav-'+p)?.classList.toggle('active', p === page);
-    document.getElementById('sub-'+p)?.classList.toggle('active', p === page);
-  });
-  // La fiche bien n'a pas d'entrée de menu : on garde « Mes biens » surligné
-  if(page === 'bien-detail') document.getElementById('nav-biens')?.classList.add('active');
+  // La fiche bien n'a pas d'entrée de menu : on garde « Mes biens » surligné.
   // Un compte rendu ouvert garde « Comptes rendus » surligné, de même.
-  if(page === 'compte-rendu') document.getElementById('nav-visites')?.classList.add('active');
-  if(page === 'simulation') document.getElementById('nav-simulateur')?.classList.add('active');
+  const SF_NAV_PARENT = { 'bien-detail': 'biens', 'nouveau': 'biens', 'compte-rendu': 'visites', 'simulation': 'simulateur' };
+  const surligne = SF_NAV_PARENT[page] || page;
+  ['accueil','biens','locataires','simulateur','visites','portails','administration','module-financier','admin-users','marche-recherche','parametres'].forEach(p => {
+    const lien = document.getElementById('nav-'+p);
+    if(!lien) return;
+    lien.classList.toggle('active', p === surligne);
+    // v=103 : la page courante se dit aussi aux lecteurs d'écran.
+    if(p === surligne) lien.setAttribute('aria-current', 'page'); else lien.removeAttribute('aria-current');
+  });
   // Le bandeau surligne aussi la SECTION qui contient la page courante, pour
   // qu'on sache où l'on est même quand le menu est refermé.
   Object.entries(SF_MENU_PAGES).forEach(([cle, pages]) => {
@@ -7864,6 +8044,7 @@ function navigate(page) {
   else if(page==='portails') renderPortails(el);
   else if(page==='administration') renderAdministration(el);
   else if(page==='module-financier') renderModuleFinancier(el);
+  else if(page==='locataires') renderLocatairesPage(el);
   else if(page==='marche-recherche') renderMarcheRecherche(el);
   else if(page==='parametres') {
     if(!window.location.hash.startsWith('#parametres')) history.replaceState(null,'','#parametres/'+currentParamsSection);
@@ -8270,14 +8451,11 @@ async function renderModuleFinancier(el) {
 function mfRenderShell() {
   const el = document.getElementById('content');
   if (!el) return;
+  if (mfTab === 'locataires') mfTab = 'performance';   // v=103 : l'onglet est devenu une page
   const annees = mfExercicesDisponibles();
   if (!annees.includes(mfExercice)) mfExercice = annees[0];
   const k = mfConsolide(mfExercice);
   const nonSoldes = mfLoyersNonSoldes(mfExercice).length;
-  // Le compteur de l'onglet « Locataires » : ceux qui occupent un bien, preavis
-  // compris. Un depart annonce ne fait pas disparaitre le locataire de l'onglet
-  // ou l'on va justement le suivre jusqu'au bout.
-  const locEnPlace = allLocataires.filter(sfEstOccupant).length;
 
   // ⚠️ « non disponible » plutôt qu'un zéro trompeur : un rendement incalculable
   // n'est pas un rendement nul. C'est la variante `--none` du composant KPI.
@@ -8334,7 +8512,6 @@ function mfRenderShell() {
         ['performance', 'Performance',   'graph',     null],
         ['portefeuille','Portefeuille',  'mallette',  k.biens.length || null],
         ['suivi',       'Suivi mensuel', 'agenda',    nonSoldes || null],
-        ['locataires',  'Locataires',    'personnes', locEnPlace || null],
       ].map(([id, lab, ic, n]) => `
         <button class="mfx-tab" role="tab" aria-selected="${mfTab === id}" onclick="switchMfTab('${id}')">
           ${sfAccIcon(ic, 16)} ${lab}${n ? `<span class="mfx-tab__n${id === 'suivi' ? ' mfx-tab__n--alerte' : ''}">${n}</span>` : ''}
@@ -8372,7 +8549,30 @@ function switchMfTab(tab) {
   if(tab === 'performance')      renderMfPerformance(c);
   else if(tab === 'portefeuille') renderMfPortefeuille(c);
   else if(tab === 'suivi')       renderMfSuivi(c);
-  else if(tab === 'locataires')  renderMfLocataires(c);
+}
+
+/* v=103 — LES LOCATAIRES ONT LEUR PAGE. Ils étaient le quatrième onglet du
+   Suivi financier : qui cherche un locataire ne pense pas « finance ». La page
+   reprend le même contenu (kanban, à réclamer, fins de bail, échéances), sous
+   son propre titre et son entrée de bandeau. Le conteneur garde l'identifiant
+   `mf-content` : tous les rafraîchissements après une écriture le retrouvent. */
+async function renderLocatairesPage(el) {
+  el.innerHTML = `<div class="mf-page"><div class="mfx-wrap">
+    <div class="loading"><div class="spinner"></div>Chargement…</div>
+  </div></div>`;
+  if(!allBiens.length && currentUser) await loadBiens();
+  await Promise.all([loadLocataires(), loadMfFinancialData()]);
+  if (currentPage !== 'locataires') return;   // on a quitté la page entre-temps
+  el.innerHTML = `
+  <div class="mf-page"><div class="mfx-wrap">
+    <div class="mfx-top">
+      <div>
+        <h1 class="mfx-h1">Locataires${sfAide('Vos baux, du candidat au départ : les loyers à réclamer, les préavis et dépôts à restituer, les échéances des trois prochains mois.', 'cette page')}</h1>
+      </div>
+    </div>
+    <div id="mf-content"></div>
+  </div></div>`;
+  renderMfLocataires(document.getElementById('mf-content'));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -9652,12 +9852,12 @@ function mfOpenEncaissementPopup(event, bienId, mois, annee) {
         </label>`).join('')}
       <div class="mfx-champ" id="enc-montant-row" style="${statutActuel === 'Partiel' ? '' : 'display:none'}">
         <label for="enc-montant">Loyer encaissé</label>
-        <input type="number" id="enc-montant" value="${esc(montantEnc)}" min="0" step="1" inputmode="numeric" oninput="mfPopupTotalChange()">
+        <input class="sf-montant" type="text" inputmode="decimal" autocomplete="off" id="enc-montant" value="${esc(sfValeurChamp(montantEnc))}" oninput="mfPopupTotalChange()">
       </div>
       ${chargesDuesAff > 0 ? `
       <div class="mfx-champ" id="enc-charges-row" style="${statutActuel === 'Partiel' ? '' : 'display:none'}">
         <label for="enc-charges">Charges encaissées</label>
-        <input type="number" id="enc-charges" value="${esc(chargesEnc)}" min="0" step="1" inputmode="numeric" oninput="mfPopupTotalChange()">
+        <input class="sf-montant" type="text" inputmode="decimal" autocomplete="off" id="enc-charges" value="${esc(sfValeurChamp(chargesEnc))}" oninput="mfPopupTotalChange()">
         <p class="mfx-champ__aide" id="enc-total-aide"></p>
       </div>` : ''}
       <div class="mfx-champ" id="enc-date-row" style="${(statutActuel === 'Payé' || statutActuel === 'Partiel') ? '' : 'display:none'}">
@@ -9721,7 +9921,7 @@ function mfPopupStatutChange(input) {
 function mfPopupTotalChange() {
   const aide = document.getElementById('enc-total-aide');
   if(!aide) return;
-  const nb = id => { const v = parseFloat(document.getElementById(id)?.value); return Number.isFinite(v) ? v : 0; };
+  const nb = id => { const v = sfLireNombre(document.getElementById(id)?.value); return Number.isFinite(v) ? v : 0; };
   aide.textContent = 'Total reçu : ' + sfEur(nb('enc-montant') + nb('enc-charges'));
 }
 
@@ -9773,9 +9973,10 @@ async function mfPopupConfirm() {
   let montantEnc = null, chargesEnc = null;
   if(statut === 'Payé') { montantEnc = loyerDu; chargesEnc = chargesDues > 0 ? chargesDues : null; }
   else if(statut === 'Partiel') {
-    const lu = id => { const v = parseFloat(document.getElementById(id)?.value); return Number.isFinite(v) ? v : null; };
+    const lu = id => sfLireNombre(document.getElementById(id)?.value);
     const vL = lu('enc-montant');
     const vC = chargesDues > 0 ? lu('enc-charges') : null;
+    if(Number.isNaN(vL) || Number.isNaN(vC)) { showNotif('Montant illisible : écrivez-le en chiffres, par exemple 1 250 ou 850,50', true); return; }
     const total = (vL || 0) + (vC || 0);
     if(total <= 0) { showNotif('Saisir un montant reçu', true); return; }
     if((vL != null && vL < 0) || (vC != null && vC < 0)) { showNotif('Un montant reçu ne peut pas être négatif', true); return; }
@@ -9897,7 +10098,7 @@ function mfOpenChargeModal(preset) {
 
         <div class="form-group">
           <label class="form-label">Montant (€) *</label>
-          <input type="number" class="form-input" id="charge-montant" value="${esc(initial.montant || '')}" min="0" step="0.01" required>
+          <input type="text" inputmode="decimal" autocomplete="off" class="form-input sf-montant" id="charge-montant" value="${esc(sfValeurChamp(initial.montant || ''))}" required>
         </div>
 
         <div class="form-group">
@@ -9976,7 +10177,7 @@ async function mfSaveCharge(chargeId) {
   const cat = document.getElementById('charge-categorie')?.value;
   const date = document.getElementById('charge-date')?.value;
   const libelle = document.getElementById('charge-libelle')?.value?.trim() || null;
-  const montant = parseFloat(document.getElementById('charge-montant')?.value);
+  const montant = sfLireNombre(document.getElementById('charge-montant')?.value);
   const frequence = document.getElementById('charge-frequence')?.value || 'Ponctuelle';
   const lissable = document.getElementById('charge-lissable')?.checked || false;
   const recuperable = document.getElementById('charge-recuperable')?.checked || false;
@@ -10012,8 +10213,9 @@ async function mfSaveCharge(chargeId) {
     showNotif(chargeId ? 'Charge mise à jour' : 'Charge ajoutée');
     closeModal('modal-detail');
     const c = document.getElementById('mf-content');
-    if(c) renderMfSuivi(c);
+    if(c && currentPage === 'module-financier') renderMfSuivi(c);
     mfMajBadges();
+    sfRafraichirAccueil();
   } catch(e) {
     showNotif('Erreur : ' + e.message, true);
   }
@@ -10134,7 +10336,9 @@ function mfEcheancesBail(loc, bien) {
 }
 
 function renderMfLocataires(c) {
-  const annee = mfExercice;
+  // v=103 : les locataires ont leur propre page, hors du Suivi financier et de
+  // son sélecteur d'exercice : on y suit l'année en cours.
+  const annee = new Date().getFullYear();
   const cnt = { all: allLocataires.length };
   LOC_STATUTS.forEach(s => cnt[s] = allLocataires.filter(l => l.statut === s).length);
   /* Le filtre par statut est mort avec les pastilles : le kanban montre les
@@ -10232,7 +10436,7 @@ function renderMfLocataires(c) {
         <div class="mfx-relance__s">${aReclamer.map(x => `${esc([x.loc?.prenom, x.loc?.nom].filter(Boolean).join(' ') || 'Locataire inconnu')} · ${x.mois.map(m => MOIS_LONGS[m - 1].toLowerCase()).join(', ')}`).join(' — ')}</div>
       </div>
       <span style="margin-left:auto">
-        <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="switchMfTab('suivi')">Ouvrir le suivi mensuel</button>
+        <button class="sf-btn sf-btn--secondary sf-btn--sm" onclick="sfAllerPointer()">Ouvrir le suivi mensuel</button>
       </span>
     </div>` : ''}
 
@@ -10271,7 +10475,7 @@ function renderMfLocataires(c) {
                   <p class="sfx-fin__x"><b>${sfEur(f.dep.depot)} à restituer${tard ? '' : ` avant le ${dFr}`}</b>
                     ${tard ? `— <span class="sf-loss">échéance dépassée ${quand}</span>` : `— ${quand}`}</p>
                   <p class="sfx-fin__x">${esc(sfDepotDetail(f.dep))}${tard
-                    ? ` · la loi prévoit 10 % du loyer hors charges par mois commencé` : ''}</p>`}
+                    ? ` · la loi prévoit 10 % du loyer hors charges par mois commencé` : ''}</p>`}
               </div>
               <div class="sfx-fin__a">
                 ${f.etape === 'preavis'
@@ -10292,7 +10496,7 @@ function renderMfLocataires(c) {
         <p class="sff-block__t">Annuaire</p>
         <span class="sff-block__n">${cnt.all} locataire${cnt.all > 1 ? 's' : ''} · ${cnt['Actif']} actif${cnt['Actif'] > 1 ? 's' : ''} · ${cnt['Candidat']} candidat${cnt['Candidat'] > 1 ? 's' : ''} · ${sfEur(loyerEnCours)} de loyer mensuel en cours</span>
         <span class="sff-block__a">
-          <button class="sf-btn sf-btn--primary sf-btn--sm" onclick="openLocataireModal(null)">${sfAccIcon('plus', 15)} Nouveau locataire</button>
+          <button class="sf-btn sf-btn--primary sf-btn--sm" type="button" onclick="sfAllerAjouterLocataire()">${sfAccIcon('plus', 15)} Ajouter un locataire</button>
         </span>
       </div>
       <div class="sff-block__b">
@@ -10737,8 +10941,8 @@ function sfInvariantsBail(avant, apres) {
        bouton qui n'existe pas. */
     return { champ: 'loc-depot',
              message: val('depot_restitue_le')
-               ? `Ce dépôt est soldé : ${fmt(ret)} € retenus, restitution enregistrée. Son montant ne se corrige plus depuis la fiche.`
-               : `${fmt(ret)} € ont été retenus sur ce dépôt : il ne peut pas être ramené à ${fmt(dep)} €.` };
+               ? `Ce dépôt est soldé : ${fmt(ret)} € retenus, restitution enregistrée. Son montant ne se corrige plus depuis la fiche.`
+               : `${fmt(ret)} € ont été retenus sur ce dépôt : il ne peut pas être ramené à ${fmt(dep)} €.` };
 
   return null;
 }
@@ -11150,7 +11354,7 @@ async function sfCongeConfirmer() {
     if(typeof loadMfFinancialData === 'function') await loadMfFinancialData();
     await loadLocataires();
     const c = document.getElementById('mf-content');
-    if(c && mfTab === 'locataires') renderMfLocataires(c);
+    if(c && currentPage === 'locataires') renderMfLocataires(c);
     if(currentPage === 'bien-detail') bdRefresh();
   } catch(e) {
     /* ⚠️ L'ÉCRITURE N'EST PAS ATOMIQUE — Supabase n'expose pas de transaction
@@ -11164,7 +11368,7 @@ async function sfCongeConfirmer() {
     await loadLocataires();
     if(typeof loadMfFinancialData === 'function') await loadMfFinancialData();
     const c0 = document.getElementById('mf-content');
-    if(c0 && mfTab === 'locataires') renderMfLocataires(c0);
+    if(c0 && currentPage === 'locataires') renderMfLocataires(c0);
     sfCongeFermer();
   }
 }
@@ -11234,7 +11438,7 @@ async function sfCongeRevoquer(locId) {
   if(typeof loadMfFinancialData === 'function') await loadMfFinancialData();
   await loadLocataires();
   const c = document.getElementById('mf-content');
-  if(c && mfTab === 'locataires') renderMfLocataires(c);
+  if(c && currentPage === 'locataires') renderMfLocataires(c);
   if(currentPage === 'bien-detail') bdRefresh();
 }
 
@@ -11278,7 +11482,7 @@ function sfDepotRender() {
   if(!loc) { sfDepotFermer(); return; }
   const nom   = [loc.prenom, loc.nom].filter(Boolean).join(' ') || 'Ce locataire';
   const total = parseFloat(loc.depot_garantie) || 0;
-  const ret   = Math.min(Math.max(parseFloat(sfDepot.retenue) || 0, 0), total);
+  const ret   = Math.min(Math.max(sfLireNombre(sfDepot.retenue) || 0, 0), total);
   const rendu = total - ret;
   const e     = sfDepot.echeance;
   const fr    = iso => iso ? new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR') : '—';
@@ -11297,7 +11501,7 @@ function sfDepotRender() {
           <input type="date" class="sf-input" id="dp-date" value="${esc(sfDepot.date)}"
                  onchange="sfDepotSetDate(this.value)" aria-label="Date de restitution">
           ${tard ? `<p class="bd-acq__note sf-loss">Après l'échéance : la loi prévoit
-             <strong>10 % du loyer mensuel hors charges par mois commencé</strong> de retard.</p>` : ''}
+             <strong>10 % du loyer mensuel hors charges par mois commencé</strong> de retard.</p>` : ''}
         </div>
       </section>
 
@@ -11307,7 +11511,7 @@ function sfDepotRender() {
           ? ` — <strong>attention</strong>, aucun état des lieux de sortie n'est constaté : une retenue
              sans constat contradictoire n'est pas opposable` : ''}.</p>
         <div class="bd-acq__sous">
-          <input type="number" class="sf-input" id="dp-retenue" min="0" max="${total}" step="10"
+          <input type="text" inputmode="decimal" autocomplete="off" class="sf-input sf-montant" id="dp-retenue"
                  value="${esc(sfDepot.retenue)}" onchange="sfDepotSetRetenue(this.value)"
                  aria-label="Montant retenu">
           <ul class="bd-acq__liste" style="margin-top:var(--sf-space-5)">
@@ -11342,8 +11546,9 @@ async function sfDepotConfirmer() {
   const loc = allLocataires.find(l => l.id === sfDepot.locId);
   if(!loc) return;
   if(!sfDepot.date) { showNotif('Indiquez la date de restitution', true); return; }
+  if(Number.isNaN(sfLireNombre(sfDepot.retenue))) { showNotif('Montant retenu illisible : écrivez-le en chiffres, par exemple 350', true); return; }
   const total = parseFloat(loc.depot_garantie) || 0;
-  const ret   = Math.min(Math.max(parseFloat(sfDepot.retenue) || 0, 0), total);
+  const ret   = Math.min(Math.max(sfLireNombre(sfDepot.retenue) || 0, 0), total);
 
   sfDepot.enCours = true;
   const b = document.getElementById('dp-ok');
@@ -11361,7 +11566,7 @@ async function sfDepotConfirmer() {
   showNotif(`Dépôt restitué · ${sfEur(total - ret)} rendus${ret > 0 ? ` · ${sfEur(ret)} retenus` : ''}`);
   await loadLocataires();
   const c = document.getElementById('mf-content');
-  if(c && mfTab === 'locataires') renderMfLocataires(c);
+  if(c && currentPage === 'locataires') renderMfLocataires(c);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -11372,7 +11577,7 @@ async function sfDepotConfirmer() {
      · le délai court depuis la REMISE DES CLÉS ;
      · il vaut UN mois si l'état des lieux est conforme à celui d'entrée,
        DEUX sinon ;
-     · le retard coûte 10 % du loyer mensuel hors charges par mois commencé.
+     · le retard coûte 10 % du loyer mensuel hors charges par mois commencé.
 
    ⚠️ POURQUOI DEMANDER ICI, ET PAS AU CONGÉ. Au moment du congé, ni la date
    des clés ni la conformité ne sont connues — les inscrire alors aurait été
@@ -11438,7 +11643,7 @@ async function sfLocDrop(e, colEl) {
      que l'acte n'est pas confirmé, rien n'a bougé — ni en base, ni à l'écran.
      Même règle qu'au dépôt dans « Finalisé ». */
   const c = document.getElementById('mf-content');
-  if(c && mfTab === 'locataires') renderMfLocataires(c);
+  if(c && currentPage === 'locataires') renderMfLocataires(c);
 
   if(loc.statut === 'Actif'   && cible === 'Préavis') return sfCongeDemarrer(id);
   if(loc.statut === 'Préavis' && cible === 'Sorti')   return sfSortieDemarrer(id);
@@ -11552,7 +11757,7 @@ function sfSortieVueSortie(loc) {
               <em>· ${esc(sfDepotDetail(dep))}</em></li>
             ${!dep.constate ? `<li>Le délai sera <strong>recalculé</strong> dès que l'état des lieux sera
               renseigné — deux mois s'il n'est pas conforme.</li>` : ''}
-            <li>Passé ce terme, la loi prévoit <strong>10 % du loyer mensuel hors charges par mois
+            <li>Passé ce terme, la loi prévoit <strong>10 % du loyer mensuel hors charges par mois
               commencé</strong> de retard.</li>
           </ul>`
         : `<p class="bd-acq__sx">Aucun dépôt de garantie n'est enregistré sur ce bail : rien à restituer.</p>`}
@@ -11669,7 +11874,7 @@ async function sfSortieConfirmer() {
 
     await loadLocataires();
     const c = document.getElementById('mf-content');
-    if(c && mfTab === 'locataires') renderMfLocataires(c);
+    if(c && currentPage === 'locataires') renderMfLocataires(c);
     if(currentPage === 'bien-detail') bdRefresh();
   } catch(e) {
     sfSortie.enCours = false;
@@ -11841,22 +12046,22 @@ function mfBilanFeedRender() {
   } else if(regime === 'IR') {
     const lignesTriees = Object.keys(d.parLigne).sort();
     apercuHtml = `
-      <div class="bilanfeed-src">${sfAccIcon('boite',13)} Sources : ${biensSci.length} bien${biensSci.length > 1 ? 's' : ''} · loyers encaissés et charges payées en ${annee}${d.recuperablesExclues > 0 ? ` · ${fmt(d.recuperablesExclues)} € de charges récupérables exclues` : ''}</div>
-      <div class="bilan-resume-row"><span>Loyers perçus (encaissés)</span><span>${fmt(d.loyers)} €</span></div>
-      ${lignesTriees.map(l => `<div class="bilan-resume-row sub"><span>L.${l} — ${CERFA_LIGNE_LABELS[l] || 'Autres'}</span><span>−${fmt(d.parLigne[l])} €</span></div>`).join('')}
-      ${lignesTriees.length === 0 ? `<div class="bilan-resume-row sub"><span>Charges déductibles</span><span>0 €</span></div>` : ''}
-      <div class="bilan-resume-row total"><span>Résultat foncier estimé</span><span id="bf-resultat" style="color:${(d.loyers - d.chargesTotal) >= 0 ? 'var(--positive)' : 'var(--negative)'}">${(d.loyers - d.chargesTotal) >= 0 ? '+' : ''}${fmt(d.loyers - d.chargesTotal)} €</span></div>`;
+      <div class="bilanfeed-src">${sfAccIcon('boite',13)} Sources : ${biensSci.length} bien${biensSci.length > 1 ? 's' : ''} · loyers encaissés et charges payées en ${annee}${d.recuperablesExclues > 0 ? ` · ${fmt(d.recuperablesExclues)} € de charges récupérables exclues` : ''}</div>
+      <div class="bilan-resume-row"><span>Loyers perçus (encaissés)</span><span>${fmt(d.loyers)} €</span></div>
+      ${lignesTriees.map(l => `<div class="bilan-resume-row sub"><span>L.${l} — ${CERFA_LIGNE_LABELS[l] || 'Autres'}</span><span>−${fmt(d.parLigne[l])} €</span></div>`).join('')}
+      ${lignesTriees.length === 0 ? `<div class="bilan-resume-row sub"><span>Charges déductibles</span><span>0 €</span></div>` : ''}
+      <div class="bilan-resume-row total"><span>Résultat foncier estimé</span><span id="bf-resultat" style="color:${(d.loyers - d.chargesTotal) >= 0 ? 'var(--positive)' : 'var(--negative)'}">${(d.loyers - d.chargesTotal) >= 0 ? '+' : ''}${fmt(d.loyers - d.chargesTotal)} €</span></div>`;
   } else {
     const pcgTries = Object.keys(d.parPcg).sort((a, b) => (PCG_CR_LABELS.charges[a] || '').localeCompare(PCG_CR_LABELS.charges[b] || ''));
     apercuHtml = `
-      <div class="bilanfeed-src">${sfAccIcon('boite',13)} Sources : ${biensSci.length} bien${biensSci.length > 1 ? 's' : ''} · trésorerie ${annee}${d.recuperablesExclues > 0 ? ` · ${fmt(d.recuperablesExclues)} € de charges récupérables exclues` : ''}</div>
-      <div class="bilan-resume-row"><span>${PCG_CR_LABELS.produits.loyers}</span><span>${fmt(d.loyers)} €</span></div>
-      ${pcgTries.map(k => `<div class="bilan-resume-row sub"><span>${PCG_CR_LABELS.charges[k] || k}</span><span>−${fmt(d.parPcg[k])} €</span></div>`).join('')}
+      <div class="bilanfeed-src">${sfAccIcon('boite',13)} Sources : ${biensSci.length} bien${biensSci.length > 1 ? 's' : ''} · trésorerie ${annee}${d.recuperablesExclues > 0 ? ` · ${fmt(d.recuperablesExclues)} € de charges récupérables exclues` : ''}</div>
+      <div class="bilan-resume-row"><span>${PCG_CR_LABELS.produits.loyers}</span><span>${fmt(d.loyers)} €</span></div>
+      ${pcgTries.map(k => `<div class="bilan-resume-row sub"><span>${PCG_CR_LABELS.charges[k] || k}</span><span>−${fmt(d.parPcg[k])} €</span></div>`).join('')}
       <div style="font-size:11px;font-weight:700;color:var(--c-muted);margin:10px 0 4px">DOTATIONS AUX AMORTISSEMENTS (6811) — à saisir</div>
       <div class="bilanfeed-dot-grid">
-        <div><label>Immeuble</label><input type="number" class="form-input" id="bf-am-imm" value="${esc(dotations.immeuble || '')}" min="0" step="0.01" placeholder="0" oninput="mfBilanFeedResultat()"></div>
-        <div><label>Travaux</label><input type="number" class="form-input" id="bf-am-trav" value="${esc(dotations.travaux || '')}" min="0" step="0.01" placeholder="0" oninput="mfBilanFeedResultat()"></div>
-        <div><label>Mobilier</label><input type="number" class="form-input" id="bf-am-mob" value="${esc(dotations.mobilier || '')}" min="0" step="0.01" placeholder="0" oninput="mfBilanFeedResultat()"></div>
+        <div><label>Immeuble</label><input type="text" inputmode="decimal" autocomplete="off" class="form-input sf-montant" id="bf-am-imm" value="${esc(sfValeurChamp(dotations.immeuble || ''))}" placeholder="0" oninput="mfBilanFeedResultat()"></div>
+        <div><label>Travaux</label><input type="text" inputmode="decimal" autocomplete="off" class="form-input sf-montant" id="bf-am-trav" value="${esc(sfValeurChamp(dotations.travaux || ''))}" placeholder="0" oninput="mfBilanFeedResultat()"></div>
+        <div><label>Mobilier</label><input type="text" inputmode="decimal" autocomplete="off" class="form-input sf-montant" id="bf-am-mob" value="${esc(sfValeurChamp(dotations.mobilier || ''))}" placeholder="0" oninput="mfBilanFeedResultat()"></div>
       </div>
       <div class="bilan-resume-row total"><span>Résultat net estimé</span><span id="bf-resultat"></span></div>`;
   }
@@ -11885,11 +12090,11 @@ function mfBilanFeedResultat() {
   const el = document.getElementById('bf-resultat');
   const d = bilanFeedCtx?.computed;
   if(!el || !d) return;
-  const dot = (parseFloat(document.getElementById('bf-am-imm')?.value) || 0)
-            + (parseFloat(document.getElementById('bf-am-trav')?.value) || 0)
-            + (parseFloat(document.getElementById('bf-am-mob')?.value) || 0);
+  const dot = (sfLireNombre(document.getElementById('bf-am-imm')?.value) || 0)
+            + (sfLireNombre(document.getElementById('bf-am-trav')?.value) || 0)
+            + (sfLireNombre(document.getElementById('bf-am-mob')?.value) || 0);
   const r = d.loyers - d.chargesTotal - dot;
-  el.textContent = (r >= 0 ? '+' : '') + fmt(r) + ' €';
+  el.textContent = (r >= 0 ? '+' : '') + fmt(r) + ' €';
   el.style.color = r >= 0 ? 'var(--positive)' : 'var(--negative)';
 }
 
@@ -11957,9 +12162,9 @@ async function mfBilanFeedWrite() {
       produits:  { loyers: d.loyers, charges_recuperees: 0, autres: 0 },
       charges:   d.parPcg,
       dotations: {
-        immeuble: parseFloat(document.getElementById('bf-am-imm')?.value) || 0,
-        travaux:  parseFloat(document.getElementById('bf-am-trav')?.value) || 0,
-        mobilier: parseFloat(document.getElementById('bf-am-mob')?.value) || 0,
+        immeuble: sfLireNombre(document.getElementById('bf-am-imm')?.value) || 0,
+        travaux:  sfLireNombre(document.getElementById('bf-am-trav')?.value) || 0,
+        mobilier: sfLireNombre(document.getElementById('bf-am-mob')?.value) || 0,
       },
     };
   }
@@ -11998,15 +12203,18 @@ async function mfBilanFeedWrite() {
 //  LOCATAIRES — Étape 2
 // ═════════════════════════════════════════════════════
 
+function sfLireLocataires() {
+  return db.from('locataires').select('*').eq('user_id', currentUser.id)
+    .order('created_at', { ascending: false });
+}
+function sfPrendreLocataires({ data, error }) {
+  if (error) { showNotif('Erreur chargement locataires : '+error.message, true); return; }
+  allLocataires = sfLignesComptees(data || []);
+}
 async function loadLocataires() {
   if(!currentUser) return;
   await sfAssurerBiens();
-  const { data, error } = await db.from('locataires')
-    .select('*')
-    .eq('user_id', currentUser.id)
-    .order('created_at', { ascending: false });
-  if (error) { showNotif('Erreur chargement locataires : '+error.message, true); return; }
-  allLocataires = sfLignesComptees(data || []);
+  sfPrendreLocataires(await sfLireLocataires());
 }
 
 /* v=101 — LIRE TOUTES LES LIGNES. Une requête rend au plus 1 000 lignes
@@ -12028,27 +12236,35 @@ async function sfLireTout(construire) {
 }
 
 // ─── Chargement loyers + charges du user (pour Module Financier) ───
-async function loadMfFinancialData() {
-  if(!currentUser) return;
-  await sfAssurerBiens();
-  // Parallèle pour gagner du temps
-  const [loyersRes, chargesRes] = await Promise.all([
-    sfLireTout(() => db.from('loyers_mensuels')
-      .select('*')
-      .eq('user_id', currentUser.id)
-      .order('annee', { ascending: false })
-      .order('mois', { ascending: false })
-      .order('id')),
-    sfLireTout(() => db.from('charges_reelles')
-      .select('*')
-      .eq('user_id', currentUser.id)
-      .order('date_charge', { ascending: false })
-      .order('id'))
-  ]);
+function sfLireLoyers() {
+  const uid = currentUser.id;
+  return sfLireTout(() => db.from('loyers_mensuels')
+    .select('*')
+    .eq('user_id', uid)
+    .order('annee', { ascending: false })
+    .order('mois', { ascending: false })
+    .order('id'));
+}
+function sfLireCharges() {
+  const uid = currentUser.id;
+  return sfLireTout(() => db.from('charges_reelles')
+    .select('*')
+    .eq('user_id', uid)
+    .order('date_charge', { ascending: false })
+    .order('id'));
+}
+function sfPrendreFinances(loyersRes, chargesRes) {
   if(loyersRes.error)  showNotif('Erreur loyers : '+loyersRes.error.message, true);
   if(chargesRes.error) showNotif('Erreur charges : '+chargesRes.error.message, true);
   allLoyers  = sfLignesComptees(loyersRes.data  || []);
   allCharges = sfLignesComptees(chargesRes.data || []);
+}
+async function loadMfFinancialData() {
+  if(!currentUser) return;
+  await sfAssurerBiens();
+  // Parallèle pour gagner du temps
+  const [loyersRes, chargesRes] = await Promise.all([sfLireLoyers(), sfLireCharges()]);
+  sfPrendreFinances(loyersRes, chargesRes);
 }
 
 // ─── Helpers calculs financiers Module Financier ───
@@ -12348,11 +12564,12 @@ async function mfDocViewer(doc) {
     openDoc(src); // PDF ou autre
   }
 }
+// Unités françaises (octet, Ko, Mo) et virgule décimale : « 2.5 MB » était de l'anglais (v=103).
 function mfFmtSize(bytes) {
   if(!bytes) return '—';
-  if(bytes < 1024) return bytes + ' B';
-  if(bytes < 1024*1024) return Math.round(bytes/1024) + ' KB';
-  return (bytes/1024/1024).toFixed(1) + ' MB';
+  if(bytes < 1024) return sfNombre(bytes) + ' o';
+  if(bytes < 1024*1024) return sfNombre(Math.round(bytes/1024)) + ' Ko';
+  return sfNombre(bytes/1024/1024, { maximumFractionDigits: 1 }) + ' Mo';
 }
 
 // ─── Modal Locataire ───
@@ -12396,7 +12613,7 @@ function openLocataireModal(id, presetBienId) {
         <input class="sf-input" id="loc-employeur" value="${esc(l?.employeur||'')}" placeholder="Entreprise XYZ"></div>
     </div>
     <div class="sf-field"><label class="sf-label">Revenus nets mensuels (€)</label>
-      <input class="sf-input" id="loc-revenus" type="number" min="0" step="100" value="${esc(l?.revenus_mensuels||'')}" placeholder="2 500"></div>
+      <input class="sf-input sf-montant" id="loc-revenus" type="text" inputmode="decimal" autocomplete="off" value="${esc(sfValeurChamp(l?.revenus_mensuels||''))}" placeholder="2 500"></div>
 
     <!-- Garant -->
     <div class="locf-sect">${sfAccIcon('balance',15)} Garant / Caution</div>
@@ -12410,7 +12627,7 @@ function openLocataireModal(id, presetBienId) {
         </select></div>
     </div>
     <div class="sf-field"><label class="sf-label">Revenus du garant (€/mois)</label>
-      <input class="sf-input" id="loc-garant-revenus" type="number" min="0" step="100" value="${esc(l?.garant_revenus||'')}" placeholder="3 000"></div>
+      <input class="sf-input sf-montant" id="loc-garant-revenus" type="text" inputmode="decimal" autocomplete="off" value="${esc(sfValeurChamp(l?.garant_revenus||''))}" placeholder="3 000"></div>
 
     <!-- Bail -->
     <div class="locf-sect">${sfAccIcon('maison',15)} Bail</div>
@@ -12443,12 +12660,12 @@ function openLocataireModal(id, presetBienId) {
     </div>
     <div class="locf-grid">
       <div class="sf-field"><label class="sf-label">Loyer HC (€/mois)</label>
-        <input class="sf-input" id="loc-loyer" type="number" min="0" step="10" value="${esc(l?.loyer_bail_hc||'')}" placeholder="850"></div>
+        <input class="sf-input sf-montant" id="loc-loyer" type="text" inputmode="decimal" autocomplete="off" value="${esc(sfValeurChamp(l?.loyer_bail_hc||''))}" placeholder="850"></div>
       <div class="sf-field"><label class="sf-label">Charges (€/mois)</label>
-        <input class="sf-input" id="loc-charges" type="number" min="0" step="5" value="${esc(l?.charges_bail||'')}" placeholder="50"></div>
+        <input class="sf-input sf-montant" id="loc-charges" type="text" inputmode="decimal" autocomplete="off" value="${esc(sfValeurChamp(l?.charges_bail||''))}" placeholder="50"></div>
     </div>
     <div class="sf-field"><label class="sf-label">Dépôt de garantie (€)</label>
-      <input class="sf-input" id="loc-depot" type="number" min="0" step="50" value="${esc(l?.depot_garantie||'')}" placeholder="850"></div>
+      <input class="sf-input sf-montant" id="loc-depot" type="text" inputmode="decimal" autocomplete="off" value="${esc(sfValeurChamp(l?.depot_garantie||''))}" placeholder="850"></div>
 
     <!-- Statut -->
     <div class="locf-sect">${sfAccIcon('horloge',15)} Statut</div>
@@ -12542,7 +12759,9 @@ function removeLocDoc(i) {
 
 function getLocataireFormData() {
   const v = id => { const e = document.getElementById(id); return e?.value?.trim() || null; };
-  const num = id => { const x = parseFloat(document.getElementById(id)?.value); return isNaN(x) ? null : x; };
+  // v=103 : sfLireNombre — « 1 200 » ou « 850,50 » se lisent ; une saisie
+  // illisible rend NaN, refusée par saveLocataire (jamais enregistrée à 0).
+  const num = id => sfLireNombre(document.getElementById(id)?.value);
   const statutEl = document.querySelector('input[name="loc-statut"]:checked');
   return {
     nom:            v('loc-nom'),
@@ -12574,6 +12793,15 @@ function getLocataireFormData() {
 async function saveLocataire() {
   const data = getLocataireFormData();
   if(!data.nom) { showNotif('Le nom est obligatoire', true); return; }
+  for (const [cle, champ, nom] of [['loyer_bail_hc', 'loc-loyer', 'Loyer'], ['charges_bail', 'loc-charges', 'Charges'],
+      ['depot_garantie', 'loc-depot', 'Dépôt de garantie'], ['revenus_mensuels', 'loc-revenus', 'Revenus'],
+      ['garant_revenus', 'loc-garant-revenus', 'Revenus du garant']]) {
+    if (Number.isNaN(data[cle])) {
+      showNotif(`${nom} illisible : écrivez-le en chiffres, par exemple 1 250 ou 850,50`, true);
+      document.getElementById(champ)?.focus();
+      return;
+    }
+  }
 
   // Un locataire actif rattache a un bien SANS date d'entree est un piege :
   // autoGenerateLoyers sort en return 0 sans rien dire, aucun loyer n'est cree,
@@ -12782,10 +13010,14 @@ async function saveLocataire() {
       : (attenduDesLoyers ? ' · aucun nouveau loyer à générer' : '');
     showNotif(`Locataire ${editingLocataireId ? 'mis à jour' : 'créé'}${suffixe}`);
     await loadLocataires();
+    // v=103 : depuis la page Locataires ou l'accueil aussi, les loyers générés
+    // doivent se voir tout de suite (à réclamer, échéances, points à traiter).
+    if(['locataires', 'accueil', 'bien-detail'].includes(currentPage)) await loadMfFinancialData();
     const c = document.getElementById('mf-content');
-    if(c && mfTab === 'locataires') renderMfLocataires(c);
-    // Créé depuis la fiche d'un bien : recharger loyers générés puis rafraîchir
-    if(currentPage === 'bien-detail') { await loadMfFinancialData(); bdRefresh(); }
+    if(c && currentPage === 'locataires') renderMfLocataires(c);
+    // Créé depuis la fiche d'un bien : rafraîchir la fiche
+    if(currentPage === 'bien-detail') bdRefresh();
+    sfRafraichirAccueil();
   } catch(e) {
     showNotif('Erreur : '+e.message, true);
   } finally {
@@ -12811,7 +13043,7 @@ async function deleteLocataire() {
   closeAdmModal();
   await loadLocataires();
   const c = document.getElementById('mf-content');
-  if(c && mfTab === 'locataires') renderMfLocataires(c);
+  if(c && currentPage === 'locataires') renderMfLocataires(c);
 }
 
 // ─── Auto-génération des loyers mensuels ───
@@ -13033,49 +13265,71 @@ let adminTab = 'sci'; // onglet actif : sci | annuaire | echeances | bilans
 let allContacts = [], allEcheances = [], allBilans = [];
 let editingContactId = null, editingEcheanceId = null, editingBilanId = null;
 
+/* v=103 — L'ADMINISTRATION À LA CHARTE. Elle gardait le bandeau vert de
+   l'ancienne charte (surtitre, trois compteurs) et des onglets en boîte,
+   quand le Suivi financier, les Locataires et la fiche ont un titre, son « ? »
+   et des onglets soulignés. Les compteurs passent dans les onglets, comme
+   « Portefeuille 2 » : le nombre de SCI, de contacts, de bilans, et pour les
+   Échéances, celles à traiter sous 30 jours (pastille d'alerte, nombre lisible
+   et libellé dit au lecteur d'écran — la couleur ne porte pas seule).
+   ⚠️ TROIS BOUTONS ONT QUITTÉ CET EN-TÊTE le 27/09/2026, et il ne faut pas les
+   y remettre : « Générer tests », « Supprimer tests » et « Tout supprimer »
+   étaient visibles de TOUT utilisateur, sans garde de rôle. Les outils de test
+   vivent dans Paramètres › Maintenance (administrateurs) ; la suppression
+   totale dans la Zone de danger de Paramètres › Données. */
+const ADM_ONGLETS = [
+  ['sci',       'Mes SCI',           'colonne'],
+  ['annuaire',  'Annuaire',          'gens'],
+  ['echeances', 'Échéances',         'agenda'],
+  ['bilans',    'Bilans comptables', 'graph'],
+];
+
 async function renderAdministration(el) {
+  if (!ADM_ONGLETS.some(([id]) => id === adminTab)) adminTab = 'sci';
   el.innerHTML = `
   <div class="admin-page">
-    <!-- Hero -->
-    <div class="adm-hero">
+    <div class="mfx-top">
       <div>
-        <div class="adm-hero-label">Gestion administrative</div>
-        <div class="adm-hero-title">Administration${sfAide('Vos SCI, vos contacts et vos obligations comptables.', 'cette page')}</div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:12px;">
-        <div class="adm-hero-kpis" id="adm-kpis">
-          <div class="adm-kpi"><div class="adm-kpi-val" id="adm-k-sci">—</div><div class="adm-kpi-lab">SCI</div></div>
-          <div class="adm-kpi"><div class="adm-kpi-val" id="adm-k-contacts">—</div><div class="adm-kpi-lab">Contacts</div></div>
-          <div class="adm-kpi"><div class="adm-kpi-val" id="adm-k-ech">—</div><div class="adm-kpi-lab">Échéances</div></div>
-        </div>
-        <!-- ATTENTION : TROIS BOUTONS ONT QUITTE CET EN-TETE le 27/09/2026, et il ne faut
-             pas les y remettre. « Generer tests », « Supprimer tests » et
-             « Tout supprimer » etaient visibles de TOUT utilisateur, sans
-             garde de role, a cote des indicateurs — deux clics entre un
-             nouveau venu et la perte de ses SCI, contacts, echeances et
-             bilans. Meme famille que la purge base64 retiree le 05/09.
-             Les outils de donnees de test vivent desormais dans
-             Parametres > Maintenance, qui est reserve aux administrateurs ;
-             la suppression totale vit dans la Zone de danger de
-             Parametres > Donnees, ou l'utilisateur va quand il CHERCHE a
-             effacer, pas quand il consulte ses SCI. -->
+        <h1 class="mfx-h1">Administration${sfAide('Vos SCI, vos contacts et vos obligations comptables.', 'cette page')}</h1>
       </div>
     </div>
 
-    <!-- Tabs -->
-    <div class="adm-tabs">
-      <button class="adm-tab active" id="adm-tab-sci"      onclick="switchAdminTab('sci')">${sfAccIcon('colonne',15)} Mes SCI</button>
-      <button class="adm-tab"        id="adm-tab-annuaire" onclick="switchAdminTab('annuaire')">${sfAccIcon('gens',15)} Annuaire</button>
-      <button class="adm-tab"        id="adm-tab-echeances"onclick="switchAdminTab('echeances')">${sfAccIcon('agenda',15)} Échéances</button>
-      <button class="adm-tab"        id="adm-tab-bilans"   onclick="switchAdminTab('bilans')">${sfAccIcon('graph',15)} Bilans comptables</button>
+    <div class="mfx-tabs" role="tablist" id="adm-onglets">
+      ${ADM_ONGLETS.map(([id, lab, ic]) => `
+        <button class="mfx-tab" role="tab" id="adm-tab-${id}" aria-selected="${adminTab === id}" onclick="switchAdminTab('${id}')">
+          ${sfAccIcon(ic, 16)} ${lab}<span class="mfx-tab__n" id="adm-n-${id}" hidden></span>
+        </button>`).join('')}
     </div>
 
-    <!-- Contenu onglets -->
     <div id="adm-content" class="adm-tab-content"></div>
   </div>`;
 
   await loadAdminData();
   switchAdminTab(adminTab);
+}
+
+// Les compteurs des onglets. `null` : pas de pastille.
+function admMajCompteurs() {
+  const urg = allEcheances.filter(e => {
+    if(e.est_faite) return false;
+    return sfJoursJusqua(e.date_echeance) <= 30;
+  }).length;
+  const poser = (id, n, alerte, libelle) => {
+    const el = document.getElementById('adm-n-' + id);
+    if (!el) return;
+    el.hidden = !n;
+    el.textContent = n ? String(n) : '';
+    el.classList.toggle('mfx-tab__n--alerte', !!alerte);
+    if (libelle) el.setAttribute('aria-label', libelle); else el.removeAttribute('aria-label');
+  };
+  poser('sci', allSCI.length);
+  poser('annuaire', allContacts.length);
+  /* ⚠️ « EN RETARD » SERAIT FAUX : `urg` compte tout ce qui tombe dans les
+     30 jours, échéances à venir comprises — la liste dessous distingue
+     « J−20 » de « 12 j de retard ». Sans urgence, la pastille dit le total. */
+  if (urg) poser('echeances', urg, true, `${urg} à traiter sous 30 jours, sur ${allEcheances.length}`);
+  else poser('echeances', allEcheances.length);
+  poser('bilans', allBilans.length);
 }
 
 async function loadAdminData() {
@@ -13092,44 +13346,16 @@ async function loadAdminData() {
     allContacts  = contacts.data || [];
     allEcheances = echeances.data || [];
     allBilans    = bilans.data || [];
-    // KPIs hero
-    const urg = allEcheances.filter(e => {
-      if(e.est_faite) return false;
-      const j = Math.ceil((new Date(e.date_echeance)-new Date())/(1000*86400));
-      return j <= 30;
-    }).length;
-    const kSci = document.getElementById('adm-k-sci');
-    const kCon = document.getElementById('adm-k-contacts');
-    const kEch = document.getElementById('adm-k-ech');
-    if(kSci) kSci.textContent = allSCI.length;
-    if(kCon) kCon.textContent = allContacts.length;
-    /* ⚠️ LE SIGNAL D'URGENCE AVAIT DISPARU au premier jet de ce lot : le
-     compteur affichait `${urg} ⚠️`, et le remplacer par le seul total faisait
-     PERDRE l'information. Elle revient ici, et sans emoji : le nombre en
-     retard suivi du total, plus un titre qui le dit en toutes lettres.
-     ⚠️ La couleur ne porte pas seule — regle 4 de la planche de marque.
-     Le « N / M » se lit en noir et blanc, et le titre est accessible au
-     clavier comme au lecteur d'ecran. */
-  if(kEch) {
-    kEch.textContent = urg ? `${urg}/${allEcheances.length}` : allEcheances.length;
-    kEch.classList.toggle('adm-kpi-val--urgent', !!urg);
-    /* ⚠️ « EN RETARD » AURAIT ETE FAUX : `urg` compte tout ce qui tombe
-       dans les 30 jours (`j <= 30`), echeances a venir comprises. Le dire
-       autrement mettrait l'en-tete en contradiction avec la liste juste en
-       dessous, qui distingue « J−20 » de « 12 j de retard ». */
-    kEch.title = urg ? `${urg} échéance${urg > 1 ? 's' : ''} à traiter sous 30 jours, sur ${allEcheances.length}`
-                     : `${allEcheances.length} échéance${allEcheances.length > 1 ? 's' : ''}`;
-  }
-    // Mettre à jour aussi la liste dans Paramètres
-    renderSCIList();
+    admMajCompteurs();
   } catch(e) { console.error('loadAdminData', e); }
 }
 
 function switchAdminTab(tab) {
   adminTab = tab;
-  ['sci','annuaire','echeances','bilans'].forEach(t => {
-    document.getElementById('adm-tab-'+t)?.classList.toggle('active', t === tab);
+  ADM_ONGLETS.forEach(([t]) => {
+    document.getElementById('adm-tab-'+t)?.setAttribute('aria-selected', String(t === tab));
   });
+  sfOngletDansLeChamp(document.getElementById('adm-onglets'));
   const c = document.getElementById('adm-content');
   if(!c) return;
   if(tab === 'sci')       renderAdmSCI(c);
@@ -13187,7 +13413,7 @@ function renderAdmSCI(c) {
             <button class="sci-card-edit" onclick="event.stopPropagation();openSCIModal('${s.id}')" title="Modifier" aria-label="Modifier la SCI">${sfAccIcon('crayon',14)}</button>
           </div>
           <div class="sci-card-stats">
-            <div class="sci-stat"><div class="sci-stat-val">${s.capital_social ? fmt(s.capital_social)+' €' : '—'}</div><div class="sci-stat-lab">Capital</div></div>
+            <div class="sci-stat"><div class="sci-stat-val">${s.capital_social ? fmt(s.capital_social)+' €' : '—'}</div><div class="sci-stat-lab">Capital</div></div>
             <div class="sci-stat"><div class="sci-stat-val">${nbAssoc}</div><div class="sci-stat-lab">Associé${nbAssoc>1?'s':''}</div></div>
             <div class="sci-stat"><div class="sci-stat-val">${biensSCI.length}</div><div class="sci-stat-lab">Bien${biensSCI.length>1?'s':''}</div></div>
             <div class="sci-stat"><div class="sci-stat-val" style="color:${cfSCI.length?cfColor:'var(--c-dim)'}">${cfSCI.length ? (cashflow>=0?'+':'−')+sfEur(Math.abs(cashflow)) : '—'}</div><div class="sci-stat-lab">Cashflow/mois${ecartes ? ` · ${ecartes} à compléter` : ''}</div></div>
@@ -13276,10 +13502,9 @@ function renderAdmAnnuaire(c) {
 // ONGLET 3 — ÉCHÉANCES
 // ─────────────────────────────────────────────
 function renderAdmEcheances(c) {
-  const now = new Date();
   const withDays = allEcheances.map(e => ({
     ...e,
-    joursRestants: Math.ceil((new Date(e.date_echeance) - now) / (1000*86400))
+    joursRestants: sfJoursJusqua(e.date_echeance)
   })).sort((a,b) => a.joursRestants - b.joursRestants);
 
   // Meme regle que `roleIcons` : des cles du jeu unique, pas des emojis.
@@ -13414,13 +13639,13 @@ function renderAdmBilans(c) {
         <div class="bilan-card" onclick="openBilanModal('${b.id}')">
           <div class="bilan-card-head">
             <div>
-              <div class="bilan-card-title">Bilan ${b.exercice} — ${esc(b.sci?.nom_sci||'—')}</div>
+              <div class="bilan-card-title">Bilan ${b.exercice}${(() => { const n = b.sci?.nom_sci || allSCI.find(x => x.id === b.sci_id)?.nom_sci; return n ? ' — ' + esc(n) : ''; })()}</div>
               <div class="bilan-card-sub">Régime <span class="bilan-badge ${b.regime.toLowerCase()}">${b.regime}</span></div>
             </div>
             <div style="text-align:right">
               <div style="font-size:11px;color:${statutColor};font-weight:600">${esc(b.statut)}</div>
               ${alimente ? `
-              <div style="font-size:18px;font-weight:800;color:${resultat>=0?'var(--positive)':'var(--negative)'};margin-top:2px">${resultat>=0?'+':''}${fmt(resultat)} €</div>
+              <div style="font-size:18px;font-weight:800;color:${resultat>=0?'var(--positive)':'var(--negative)'};margin-top:2px">${resultat>=0?'+':''}${fmt(resultat)} €</div>
               <div style="font-size:10px;color:var(--c-muted)">Résultat net</div>` : `
               <div style="font-size:13px;font-weight:600;color:var(--c-muted);margin-top:4px">Non alimenté</div>
               <div style="font-size:10px;color:var(--c-dim)">via Suivi financier › Performance</div>`}
@@ -13682,20 +13907,20 @@ function openBilanModal(id) {
     let lignes = '';
     if(b.regime === 'IR') {
       lignes = `
-        <div class="bilan-resume-row"><span>Loyers perçus</span><span>${fmt(parseFloat(b.ir_loyers_percus)||0)} €</span></div>
-        <div class="bilan-resume-row"><span>Charges déductibles (2044)</span><span>−${fmt(bilanSumObj(b.ir_charges_deductibles))} €</span></div>`;
+        <div class="bilan-resume-row"><span>Loyers perçus</span><span>${fmt(parseFloat(b.ir_loyers_percus)||0)} €</span></div>
+        <div class="bilan-resume-row"><span>Charges déductibles (2044)</span><span>−${fmt(bilanSumObj(b.ir_charges_deductibles))} €</span></div>`;
     } else {
       const cr = b.is_compte_resultat || {};
       lignes = `
-        <div class="bilan-resume-row"><span>Produits</span><span>${fmt(bilanSumObj(cr.produits))} €</span></div>
-        <div class="bilan-resume-row"><span>Charges</span><span>−${fmt(bilanSumObj(cr.charges))} €</span></div>
-        <div class="bilan-resume-row"><span>Dotations amortissements (6811)</span><span>−${fmt(bilanSumObj(bilanDotations(b)))} €</span></div>`;
+        <div class="bilan-resume-row"><span>Produits</span><span>${fmt(bilanSumObj(cr.produits))} €</span></div>
+        <div class="bilan-resume-row"><span>Charges</span><span>−${fmt(bilanSumObj(cr.charges))} €</span></div>
+        <div class="bilan-resume-row"><span>Dotations amortissements (6811)</span><span>−${fmt(bilanSumObj(bilanDotations(b)))} €</span></div>`;
     }
     resumeHtml = `
       <div class="bilan-info-box" style="margin-bottom:16px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--c-muted);margin-bottom:8px">${sfAccIcon('graph',13)} Données de l'exercice</div>
         ${lignes}
-        <div class="bilan-resume-row total"><span>Résultat net</span><span style="color:${resultat>=0?'var(--positive)':'var(--negative)'}">${resultat>=0?'+':''}${fmt(resultat)} €</span></div>
+        <div class="bilan-resume-row total"><span>Résultat net</span><span style="color:${resultat>=0?'var(--positive)':'var(--negative)'}">${resultat>=0?'+':''}${fmt(resultat)} €</span></div>
       </div>`;
   }
   document.getElementById('adm-modal-body').innerHTML = `
@@ -14373,8 +14598,8 @@ async function fetchNews(communeNom) {
 function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
 
   // ── Helpers ──────────────────────────────────────────────────
-  const fmtN = v => (v != null) ? Number(v).toLocaleString('fr-FR') : '—';
-  const fmtE = v => (v != null) ? Number(v).toLocaleString('fr-FR') + ' €' : '—';
+  const fmtN = v => (v != null) ? sfNombre(v) : '—';
+  const fmtE = v => (v != null) ? sfNombre(v) + ' €' : '—';
   const yr   = v => v ? `<div class="kpi-year">données ${v}</div>` : '';
 
   // `icone` est une CLE du jeu SF_ACC_ICONS, plus un emoji : le dessin ne
@@ -14405,17 +14630,17 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   const pop  = m.population;
   const dens = (pop && m.surface) ? Math.round(pop / (m.surface / 100)) : null;
   const rawTail = (pop && m.nb_menages > 0) ? pop / m.nb_menages : null;
-  const tailMen = (rawTail && rawTail >= 1 && rawTail <= 5) ? rawTail.toFixed(1) : null;
+  const tailMen = (rawTail && rawTail >= 1 && rawTail <= 5) ? sfNombre(rawTail, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : null;
 
   const kpis1 = [
     pop                   ? kpi('gens', fmtN(pop),                  'Population',          m.annee_population, 'teal') : '',
     dens                  ? kpi('pin', fmtN(dens),                 'Hab/km²',             m.annee_population) : '',
     m.surface             ? kpi('graph', Math.round(m.surface/100)+' km²', 'Superficie') : '',
     m.niveau_vie_median   ? kpi('euro', fmtE(m.niveau_vie_median),   'Niveau de vie médian',m.annee_revenus, 'green') : '',
-    m.taux_pauvrete!=null ? kpi('graph', m.taux_pauvrete.toString().replace('.',',')+' %', 'Taux de pauvreté', m.annee_revenus, m.taux_pauvrete > 20 ? 'orange' : 'green') : '',
-    m.pct_locataires!=null? kpi('cle', m.pct_locataires+' %',       'Taux de locataires',  m.annee_logements) : '',
+    m.taux_pauvrete!=null ? kpi('graph', m.taux_pauvrete.toString().replace('.',',')+' %', 'Taux de pauvreté', m.annee_revenus, m.taux_pauvrete > 20 ? 'orange' : 'green') : '',
+    m.pct_locataires!=null? kpi('cle', m.pct_locataires+' %',       'Taux de locataires',  m.annee_logements) : '',
     tailMen               ? kpi('maison', tailMen,                     'Pers. par ménage',    m.annee_population) : '',
-    m.pct_bac_plus!=null  ? kpi('carnet', m.pct_bac_plus+' %',         'Part Bac+',           m.annee_diplomes) : '',
+    m.pct_bac_plus!=null  ? kpi('carnet', m.pct_bac_plus+' %',         'Part Bac+',           m.annee_diplomes) : '',
   ].filter(Boolean);
 
   const sec1 = `
@@ -14430,7 +14655,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   // ── SECTION 2 : Marché du travail ────────────────────────────
   // Le taux national sert de repère : 17,8 % ne parle pas sans point de comparaison
   const kpis2 = [
-    m.taux_chomage!=null      ? kpi('graph', m.taux_chomage.toString().replace('.',',')+' %', 'Taux de chômage', m.annee_activite, m.taux_chomage > 12 ? 'orange' : 'green') : '',
+    m.taux_chomage!=null      ? kpi('graph', m.taux_chomage.toString().replace('.',',')+' %', 'Taux de chômage', m.annee_activite, m.taux_chomage > 12 ? 'orange' : 'green') : '',
     m.nb_creations_ent!=null  ? kpi('ville', fmtN(m.nb_creations_ent),'Créations d\'ent.',   m.annee_entreprises, 'teal') : '',
   ].filter(Boolean);
 
@@ -14479,7 +14704,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   const sec4 = ademe ? `
     <div class="marche-chart-card">
       <div class="marche-chart-title">${sfAccIcon('eclair',18)} Performance énergétique (DPE) — ${esc(commune)}</div>
-      <div class="marche-chart-sub">Source : ADEME · DPE v2 · ${ademe.total.toLocaleString('fr-FR')} diagnostics analysés</div>
+      <div class="marche-chart-sub">Source : ADEME · DPE v2 · ${sfNombre(ademe.total)} diagnostics analysés</div>
       <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-top:14px">
         <div style="flex:1;min-width:200px">
           <div style="display:flex;flex-direction:column;gap:4px">
@@ -14504,7 +14729,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
           </div>
           ${ademe.pctFG != null ? `<div class="marche-kpi" style="min-width:140px">
             <div class="marche-kpi-icon">${sfAccIcon('alerte', 20)}</div>
-            <div class="marche-kpi-val ${ademe.pctFG > 20 ? 'orange' : 'green'}">${ademe.pctFG} %</div>
+            <div class="marche-kpi-val ${ademe.pctFG > 20 ? 'orange' : 'green'}">${ademe.pctFG} %</div>
             <div class="marche-kpi-lab">Logements F/G (énergivores)</div>
           </div>` : ''}
         </div>
@@ -14549,7 +14774,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
           ${news.articles.map(a => `
             <a href="${safeUrl(a.url)}" target="_blank" rel="noopener" style="display:flex;gap:10px;text-decoration:none;background:var(--c-bg);border-radius:8px;padding:12px;transition:opacity .15s;align-items:flex-start" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
-              ${a.urlToImage ? `<img src="${safeUrl(a.urlToImage)}" style="width:60px;height:45px;object-fit:cover;border-radius:4px;flex-shrink:0" onerror="this.style.display='none'">` : '<div style="width:60px;height:45px;background:var(--c-border);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--c-muted)">' + sfAccIcon('actu',20) + '</div>'}
+              ${a.urlToImage ? `<img src="${safeUrl(a.urlToImage)}" loading="lazy" decoding="async" style="width:60px;height:45px;object-fit:cover;border-radius:4px;flex-shrink:0" onerror="this.style.display='none'">` : '<div style="width:60px;height:45px;background:var(--c-border);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--c-muted)">' + sfAccIcon('actu',20) + '</div>'}
               <div style="min-width:0">
                 <div style="font-size:13px;font-weight:600;color:var(--c-text);margin-bottom:3px;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${esc((a.title||'').replace(/<[^>]+>/g,''))}</div>
                 <div style="font-size:11px;color:var(--c-muted)">${esc(a.source?.name||'')} · ${esc((a.publishedAt||'').substring(0,10))}</div>
@@ -14606,7 +14831,7 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
           <div class="marche-pont-bien" onclick="openDetail('${x.id}')">
             <span class="t">${esc(x.titre || 'Sans titre')}</span>
             <span class="st">${esc(x.statut || '—')}</span>
-            <span class="cf ${d.value==null?'':d.value>=0?'pos':'neg'}">${d.value!=null?(d.value>0?'+':'')+fmt(d.value)+' €/m':'—'}</span>
+            <span class="cf ${d.value==null?'':d.value>=0?'pos':'neg'}">${d.value!=null?(d.value>0?'+':'')+fmt(d.value)+' €/m':'—'}</span>
           </div>`;
         }).join('')}
       </div>` : `
@@ -14617,9 +14842,12 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
   el.innerHTML = header + ponts + sec1 + sec2 + sec3 + sec4 + sec5 + sec6 + dvfNote;
 
   // ── Dessiner les graphiques ───────────────────────────────────
-  setTimeout(() => {
+  // v=103 : Chart.js n'est chargé qu'ici, à la première courbe affichée.
+  sfChargerBiblio('chart').catch(() => null).then(() => {
     if (marcheChart) { try{marcheChart.destroy();}catch(e){} marcheChart=null; }
     if (typeof Chart === 'undefined') return;
+    // La page a pu être quittée pendant le chargement : rien à dessiner.
+    if (!document.getElementById('chart-pop') && !document.getElementById('chart-ent')) return;
 
     const mkLine = (id, labels, vals, color, label, fmtTip) => {
       const ctx = document.getElementById(id);
@@ -14642,16 +14870,16 @@ function renderMarcheResults(el, commune, dept, codeInsee, cp, m, ademe, news) {
     if (m.popEvo?.length >= 2) {
       marcheChart = mkLine('chart-pop',
         m.popEvo.map(x=>x.annee), m.popEvo.map(x=>x.val),
-        'rgb(107,184,224)', 'Population', v => v?.toLocaleString('fr-FR')+' hab.');
+        'rgb(107,184,224)', 'Population', v => v != null ? sfNombre(v) + ' hab.' : '');
     }
     // Pas de graphique du chômage : le dossier complet INSEE ne publie ce taux
     // que pour l'année la plus récente (aucune série temporelle disponible).
     if (m.entEvo?.length >= 2) {
       mkLine('chart-ent',
         m.entEvo.map(x=>x.annee), m.entEvo.map(x=>x.val),
-        'rgb(23,160,107)', "Créations d'entreprises", v => v?.toLocaleString('fr-FR'));
+        'rgb(23,160,107)', "Créations d'entreprises", v => v != null ? sfNombre(v) : '');
     }
-  }, 80);
+  });
 }
 
 
@@ -14870,6 +15098,9 @@ async function purgeAllAdminData() {
 }
 
 // ── PORTAILS ──
+/* v=103 : les icônes des sites étaient demandées à Google (s2/favicons) — neuf
+   requêtes vers un tiers, qui recevait l'adresse IP du visiteur, ce que la
+   v=102 a voulu supprimer partout. Une pastille aux initiales les remplace. */
 function renderPortails(el) {
   const groupes = [
     {
@@ -14915,7 +15146,7 @@ function renderPortails(el) {
         <div class="portails-grid" style="margin-bottom:8px">
           ${g.items.map(p=>`
             <a class="portail-card" href="${safeUrl(p.url)}" target="_blank" rel="noopener">
-              <img class="portail-favicon" src="https://www.google.com/s2/favicons?domain=${p.icon}&sz=64" alt="${esc(p.name)}" onerror="this.style.display='none'">
+              <span class="portail-favicon portail-favicon--initiale" aria-hidden="true">${esc(p.name.replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 2))}</span>
               <div>
                 <div class="portail-name">${esc(p.name)}</div>
                 <div class="portail-desc">${p.desc}</div>
@@ -15092,7 +15323,7 @@ async function renderVisites(el) {
   const nb = k => ind.parNature.find(x => x.k === k)?.n || 0;
   // « 4 », « 3,5 » : une décimale nulle n'apporte rien (même règle que sfPctNum).
   const moyenne = ind.moyenne == null ? null
-    : ind.moyenne.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+    : sfNombre(ind.moyenne, { minimumFractionDigits: 0, maximumFractionDigits: 1 });
 
   el.innerHTML = `
   <div class="sff-page sfc sfc-liste">
@@ -15495,6 +15726,17 @@ function sfDateIso(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 function sfAujourdhuiIso() { return sfDateIso(new Date()); }
+// Jours CALENDAIRES d'aujourd'hui (heure de l'appareil) jusqu'à une date
+// « YYYY-MM-DD » : 0 le jour même, négatif une fois passée. Compté sur deux
+// dates UTC, jamais en millisecondes depuis l'instant présent : l'ancien calcul
+// (`(new Date(date) - now) / 86 400 000`, arrondi au-dessus) annonçait « J−1 »
+// pour une échéance du jour entre minuit et 2 h l'été (v=103).
+function sfJoursJusqua(dateIso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateIso || ''));
+  if (!m) return NaN;
+  const [a, mo, j] = sfAujourdhuiIso().split('-').map(Number);
+  return Math.round((Date.UTC(+m[1], +m[2] - 1, +m[3]) - Date.UTC(a, mo - 1, j)) / 86400000);
+}
 
 // Toute saisie : le compte rendu est modifié ; changer la nature révèle ou
 // cache ce qui en dépend, sans redessiner — la saisie en cours resterait perdue.
@@ -15534,17 +15776,10 @@ function setRating(n) {
 }
 
 function handlePhotos(e) {
-  Array.from(e.target.files).forEach(f => {
-    if (!f.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      visitPhotos.push({ kind: 'b64', data: ev.target.result, name: f.name, _file: f });
-      sfcModifie = true;
-      refreshPhotosPreview();
-    };
-    reader.readAsDataURL(f);
-  });
+  const fichiers = Array.from(e.target.files);
   e.target.value = '';
+  // v=103 : réduites avant l'envoi, comme celles d'un bien (sfAjouterPhotos).
+  return sfAjouterPhotos(fichiers, visitPhotos, () => { sfcModifie = true; refreshPhotosPreview(); });
 }
 
 function removePhoto(i) { visitPhotos.splice(i, 1); sfcModifie = true; refreshPhotosPreview(); }
@@ -15552,11 +15787,12 @@ function removePhoto(i) { visitPhotos.splice(i, 1); sfcModifie = true; refreshPh
 async function refreshPhotosPreview() {
   const el = document.getElementById('photos-preview');
   if (!el) return;
-  const items = await Promise.all(visitPhotos.map(async (p, i) => {
-    const src = p.kind === 'b64' ? p.data : await TI_STORAGE.signedUrl(p.bucket || 'visites-photos', p.path);
-    return `<div class="sfn-vignette"><img src="${esc(src || '')}" alt="${esc(p.name || 'Photo de la visite')}">
+  const urls = await sfUrlsVignettes(visitPhotos, 'visites-photos');
+  const items = visitPhotos.map((p, i) => {
+    const src = p.kind === 'b64' ? p.data : urls[i];
+    return `<div class="sfn-vignette"><img src="${esc(src || '')}" alt="${esc(p.name || 'Photo de la visite')}" loading="lazy" decoding="async">
       <button type="button" class="sfn-retirer" onclick="removePhoto(${i})" aria-label="Retirer la photo ${i + 1}">${sfAccIcon('croix', 14)}</button></div>`;
-  }));
+  });
   el.innerHTML = items.join('') || '<p class="sfn-vide">Aucune photo pour l’instant.</p>';
 }
 
@@ -15794,8 +16030,8 @@ function sfSimDepuisLigne(s) {
 function sfSimEndettement(c) {
   if (!c?.calculable || c.te === null) return { val: 'Non disponible', etat: 'none', texte: 'revenus non renseignés' };
   return c.dansLaLimite
-    ? { val: sfPctNum(c.te, 1), etat: 'ok', texte: `dans la limite de ${SF_ENDETTEMENT_MAX} %`, icone: 'ok' }
-    : { val: sfPctNum(c.te, 1), etat: 'alerte', texte: `au-dessus de la limite de ${SF_ENDETTEMENT_MAX} %`, icone: 'alerte' };
+    ? { val: sfPctNum(c.te, 1), etat: 'ok', texte: `dans la limite de ${SF_ENDETTEMENT_MAX} %`, icone: 'ok' }
+    : { val: sfPctNum(c.te, 1), etat: 'alerte', texte: `au-dessus de la limite de ${SF_ENDETTEMENT_MAX} %`, icone: 'alerte' };
 }
 
 // Une simulation compte-t-elle dans les chiffres ? Celle d'un bien de test
@@ -16248,7 +16484,7 @@ function sfsRenderLecture(el, s, dispo) {
           ${ligne('Revenus retenus par la banque', c.revenusRetenus ? esc(sfEur(c.revenusRetenus)) : 'Non disponible')}
           ${ligne('Taux d\'endettement', c.calculable && c.te !== null ? `<span class="sfs-endet sfs-endet--${endet.etat}">${sfAccIcon(endet.icone, 13)} ${esc(endet.val)}</span>` : 'Non disponible', ' sff-line--tot')}
         </div>
-        ${c.calculable && c.te !== null ? `<p class="sfs-note">${endet.etat === 'ok' ? 'Dans' : 'Au-dessus de'} la limite de ${SF_ENDETTEMENT_MAX} % retenue par les banques.</p>` : ''}
+        ${c.calculable && c.te !== null ? `<p class="sfs-note">${endet.etat === 'ok' ? 'Dans' : 'Au-dessus de'} la limite de ${SF_ENDETTEMENT_MAX} % retenue par les banques.</p>` : ''}
         </div>
       </section>
     </div>
@@ -16373,7 +16609,7 @@ function sfsRenderSaisie(el, s, dispo, taux) {
             ${sfsChampHtml({ id: 's-revenus', lab: 'Revenus mensuels nets', val: s.revenus_mensuels, unite: '€/mois',
               aide: 'Les vôtres, ou ceux de tous les emprunteurs.' })}
             ${sfsChampHtml({ id: 's-loyer-banque', lab: 'Loyer du bien', val: s.loyer_exige_banque, unite: '€/mois',
-              aide: `La banque en compte ${Math.round(SF_LOYER_RETENU * 100)} % dans vos revenus.` })}
+              aide: `La banque en compte ${Math.round(SF_LOYER_RETENU * 100)} % dans vos revenus.` })}
           </div></div>
         </section>
 
@@ -16464,7 +16700,7 @@ function sfsValider(e) {
   const ok = [
     sfsErreur('s-nom', e.nom ? '' : 'Donnez un nom à cette simulation.'),
     sfsErreur('s-montant', Number.isNaN(e.montant) ? 'Montant illisible.' : e.montant > 0 && e.montant <= 20000000 ? '' : 'Indiquez le montant emprunté.'),
-    sfsErreur('s-taux', Number.isNaN(e.taux) ? 'Taux illisible.' : e.taux !== null && e.taux >= 0 && e.taux <= 20 ? '' : 'Indiquez un taux entre 0 et 20 %.'),
+    sfsErreur('s-taux', Number.isNaN(e.taux) ? 'Taux illisible.' : e.taux !== null && e.taux >= 0 && e.taux <= 20 ? '' : 'Indiquez un taux entre 0 et 20 %.'),
     sfsErreur('s-duree', Number.isNaN(e.duree) ? 'Durée illisible.' : e.duree >= 1 && e.duree <= 40 && Number.isInteger(e.duree) ? '' : 'Indiquez une durée entière, de 1 à 40 ans.'),
     !document.getElementById('s-assurance') || sfsErreur('s-assurance', Number.isNaN(e.assurance) ? 'Montant illisible.' : ''),
     sfsErreur('s-revenus', Number.isNaN(e.revenus) ? 'Montant illisible.' : ''),
@@ -16665,6 +16901,7 @@ async function extractPDF(evt) {
   const dit = html => { if (etat) etat.innerHTML = html; };
   dit('Lecture de l’offre…');
   try {
+    await sfChargerBiblio('pdfjs');   // v=103 : chargée à la première offre lue
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs-3.11.174/pdf.worker.min.js';
     /* v=101 : pdf.js 3.11 compile certaines polices en code exécutable
        (CVE-2024-4367) : un PDF piégé exécutait du script sur la plateforme.
@@ -16914,39 +17151,9 @@ async function loadSCIList() {
       .order('created_at', { ascending: false });
     if (error) throw error;
     allSCI = data || [];
-    renderSCIList();
   } catch(e) {
     console.error('loadSCIList:', e);
-    const c = document.getElementById('sci-list-container');
-    if(c) c.innerHTML = '<div style="font-size:12px;color:var(--sf-loss);padding:4px 0">Erreur — <a href="#" onclick="closeSettings();navigate(\'administration\')" style="color:var(--accent)">Gérer mes SCI</a></div>';
   }
-}
-
-// ── Rendu liste SCI dans le panneau Paramètres ──
-function renderSCIList() {
-  const c = document.getElementById('sci-list-container');
-  if (!c) return;
-  if (!allSCI.length) {
-    c.innerHTML = '<div class="sci-empty" style="padding:8px 0;text-align:left;font-size:12px;color:var(--c-muted)">Aucune SCI. <a href="#" onclick="closeSettings();navigate(\'administration\')" style="color:var(--accent)">Créer une SCI</a></div>';
-    return;
-  }
-  c.innerHTML = allSCI.map(s => {
-    const initials = (s.nom_sci || 'SC').substring(0, 2).toUpperCase();
-    const nbAssoc = (s.associes || []).length;
-    const sub = [
-      nbAssoc ? `${nbAssoc} associé${nbAssoc > 1 ? 's' : ''}` : 'Associés à définir',
-      s.capital_social ? `Capital : ${fmt(s.capital_social)} €` : ''
-    ].filter(Boolean).join(' · ');
-    return `
-      <div class="sci-list-item" onclick="openSCIModal('${s.id}')">
-        <div class="sci-list-avatar">${initials}</div>
-        <div>
-          <div class="sci-list-name">${esc(s.nom_sci)}</div>
-          <div class="sci-list-sub">${sub}</div>
-        </div>
-        <div class="sci-list-arrow">›</div>
-      </div>`;
-  }).join('') + '<div style="padding:6px 0 2px;font-size:11px;text-align:center"><a href="#" onclick="closeSettings();navigate(\'administration\')" style="color:var(--accent)">Gérer mes SCI</a></div>';
 }
 
 // ── Ouvrir modal SCI (null = nouvelle, id = édition) ──
@@ -16969,7 +17176,7 @@ function openSCIModal(id) {
     document.getElementById('sci-nom').value = sci.nom_sci || '';
     document.getElementById('sci-siret').value = sci.siret || '';
     document.getElementById('sci-adresse').value = sci.adresse || '';
-    document.getElementById('sci-capital').value = sci.capital_social || '';
+    document.getElementById('sci-capital').value = sfValeurChamp(sci.capital_social || '');
     document.getElementById('sci-notes').value = sci.notes || '';
     sciAssocies = JSON.parse(JSON.stringify(sci.associes || []));
     loadSCIExistingDocs(id);
@@ -17031,8 +17238,8 @@ function renderAssociesList() {
           <input class="sci-form-input" value="${esc(a.email||'')}" oninput="updateAssocie(${i},'email',this.value)" placeholder="email@exemple.com">
         </div>
         <div>
-          <label class="sci-form-label">Parts %</label>
-          <input class="sci-form-input" type="number" min="0" max="100" value="${esc(a.parts_pct||'')}" oninput="updateAssocie(${i},'parts_pct',parseFloat(this.value)||0)" placeholder="50">
+          <label class="sci-form-label">Parts (%)</label>
+          <input class="sci-form-input sf-montant" type="text" inputmode="decimal" autocomplete="off" value="${esc(sfValeurChamp(a.parts_pct||''))}" oninput="updateAssocie(${i},'parts_pct',sfLireNombre(this.value)||0)" placeholder="50">
         </div>
       </div>
       <div class="assoc-sub">Situation professionnelle${sfAide('Facultative : elle sert au dossier remis à la banque.', 'la situation professionnelle')}</div>
@@ -17055,7 +17262,7 @@ function renderAssociesList() {
         </div>
         <div>
           <label class="sci-form-label">Revenus mensuels nets (€)</label>
-          <input class="sci-form-input" type="number" min="0" step="50" value="${esc(a.revenus_mensuels??'')}" oninput="updateAssocie(${i},'revenus_mensuels',this.value===''?null:(parseFloat(this.value)||0))" placeholder="Ex : 2800">
+          <input class="sci-form-input sf-montant" type="text" inputmode="decimal" autocomplete="off" value="${esc(sfValeurChamp(a.revenus_mensuels))}" oninput="updateAssocie(${i},'revenus_mensuels',sfLireNombre(this.value)===null?null:(sfLireNombre(this.value)||0))" placeholder="Ex : 2800">
         </div>
       </div>
     </div>`).join('');
@@ -17096,6 +17303,12 @@ function updateAssocie(idx, field, val) {
 async function saveSCI() {
   const nom = document.getElementById('sci-nom').value.trim();
   if (!nom) { showNotif('Le nom de la SCI est obligatoire.', true); return; }
+  const capital = sfLireNombre(document.getElementById('sci-capital').value);
+  if (Number.isNaN(capital)) {
+    showNotif('Capital illisible : écrivez-le en chiffres, par exemple 1 000', true);
+    document.getElementById('sci-capital').focus();
+    return;
+  }
 
   const btn = document.getElementById('sci-btn-save');
   btn.disabled = true;
@@ -17105,7 +17318,7 @@ async function saveSCI() {
     nom_sci:        nom,
     siret:          document.getElementById('sci-siret').value.trim() || null,
     adresse:        document.getElementById('sci-adresse').value.trim() || null,
-    capital_social: parseFloat(document.getElementById('sci-capital').value) || 0,
+    capital_social: capital || 0,
     notes:          document.getElementById('sci-notes').value.trim() || null,
     associes:       sciAssocies,
     user_id:        currentUser.id

@@ -701,36 +701,10 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 }
 .acc-date{ font-size:var(--sf-font-caption); color:var(--c-muted); padding-bottom:var(--sf-space-2); }
 
-/* Le verdict : la reponse en dix secondes, avant tout detail. */
-.acc-verdict{
-  display:flex; align-items:center; gap:var(--sf-space-5);
-  padding:var(--sf-space-6) var(--sf-space-7);
-  border-radius:var(--sf-radius-md); margin-bottom:var(--sf-space-7);
-}
-.acc-verdict--alerte{ background:var(--sf-alert-wash); }
-.acc-verdict--ok{ background:var(--sf-gain-wash); }
-/* ⚠️ LE DÉMARRAGE A BESOIN DE SON PROPRE HABILLAGE. Sans modificateur, le
-   verdict rendait `class="acc-verdict acc-verdict--"` — qui ne correspond à
-   aucune règle : plus de fond, et surtout une pastille SANS couleur de fond,
-   dont l'icône est dessinée en `--sf-bg`. Elle devenait donc invisible sur le
-   fond de la page, qui est ce même `--sf-bg`. Exactement sur l'écran d'un
-   compte neuf, le seul que ce code sert. */
-.acc-verdict--demarrage{ background:var(--sf-brand-wash); }
-.acc-verdict--demarrage .acc-verdict__ic{ background:var(--sf-brand-vivid); }
-.acc-verdict__ic{
-  width:38px; height:38px; flex-shrink:0; display:grid; place-items:center;
-  /* Le texte de la pastille se lit sur un aplat sature (alerte ou gain) :
-     c'est le fond sombre du theme qui fait le contraste, pas un blanc en dur. */
-  border-radius:var(--sf-radius-full); color:var(--sf-bg);
-}
-.acc-verdict--alerte .acc-verdict__ic{ background:var(--sf-alert); }
-.acc-verdict--ok .acc-verdict__ic{ background:var(--sf-gain); }
-.acc-verdict__txt{
-  font-family:var(--sf-font-display); font-size:var(--sf-font-h3);
-  font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-snug);
-  color:var(--c-text);
-}
-.acc-verdict__sub{ font-size:var(--sf-font-caption); color:var(--c-dim); margin-top:2px; }
+/* v=103 : le bandeau « verdict » (.acc-verdict) est retiré — il redisait le
+   titre « À traiter » et poussait le patrimoine sous la ligne de flottaison.
+   Chaque bloc de l'accueil est une section empilée, à son rang. */
+.acc-bloc{ margin-bottom:var(--sf-space-7); min-width:0; }
 
 /* Grille asymetrique : l'essentiel a gauche, les raccourcis a droite. */
 .acc-bento{
@@ -743,13 +717,24 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
   display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
   gap:var(--sf-space-6); margin-bottom:var(--sf-space-7);
 }
-.acc-quick{ display:flex; flex-direction:column; gap:var(--sf-space-4); }
+/* v=103 : les actions rapides en rangée compacte (trois par ligne sur iPad,
+   six sur grand écran, deux au téléphone) au lieu de cinq tuiles pleine
+   largeur qui occupaient 350 px de haut. */
+/* Six actions : trois par ligne (deux lignes égales), six sur très grand
+   écran, deux au téléphone. Une grille « auto-fill » en mettait cinq puis
+   une seule, et faisait passer un libellé sur deux lignes à 1 280 px. */
+.acc-quick{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--sf-space-4); }
+@media (min-width:1400px){ .acc-quick{ grid-template-columns:repeat(6,minmax(0,1fr)); } }
+@media (max-width:560px){ .acc-quick{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
 .acc-sec{
   font-family:var(--sf-font-display); font-size:var(--sf-font-h3);
   font-weight:var(--sf-weight-semibold); letter-spacing:var(--sf-track-snug);
   color:var(--c-text); margin:0 0 var(--sf-space-5);
-  display:flex; align-items:baseline; gap:var(--sf-space-4);
+  display:flex; align-items:baseline; gap:var(--sf-space-1) var(--sf-space-4);
+  /* v=103 : sur téléphone, le sous-titre passe SOUS le titre plutôt que de le
+     couper en deux (« Votre / patrimoine » à 390 px). */
+  flex-wrap:wrap;
 }
 .acc-sec__n{ font-size:var(--sf-font-caption); color:var(--c-muted);
              font-weight:var(--sf-weight-regular); letter-spacing:0; }
@@ -905,6 +890,11 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
   line-height:1.55; max-width:62ch;
 }
 .acc-pas__body{ min-width:0; }
+/* v=103 : le constat du point « À traiter » repris par l'étape suivante. */
+.acc-pas__why{
+  margin:var(--sf-space-2) 0 0; font-size:var(--sf-font-caption);
+  color:var(--sf-text-2); line-height:var(--sf-lh-snug);
+}
 .acc-pas__a{ margin-left:auto; padding-left:var(--sf-space-5); }
 
 /* L'étape faite s'efface : elle a rempli son office. */
@@ -1004,15 +994,8 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
 .adm-vide-ic{ color:var(--sf-text-3); margin-bottom:var(--sf-space-5);
               display:flex; justify-content:center; }
 
-/* Le compteur d'échéances en retard.
-   ⚠️ CETTE RÈGLE NE POUVAIT PAS GAGNER au premier jet, et rien ne le
-   signalait. `.adm-kpi-val{color:white}` vit dans styles.css, qui est chargé
-   APRÈS components.css : à spécificité égale, c'est le dernier qui peint. La
-   couleur d'urgence était donc morte. Deux classes valent une spécificité de
-   plus, et l'ordre de chargement cesse de décider.
-   ⚠️ La couleur ne porte pas seule — règle 4 : le compteur affiche « N / M »
-   et son `title` dit l'urgence en toutes lettres. */
-.adm-kpi-val.adm-kpi-val--urgent{ color:var(--sf-alert); }
+/* (v=103 : le compteur d'échéances est devenu la pastille de l'onglet,
+   `.mfx-tab__n--alerte`.) */
 
 /* L'icône de l'alerte de connexion — premier écran qu'un invité voit. */
 .auth-alert__ic{ display:inline-flex; flex:none; }
@@ -1107,3 +1090,58 @@ textarea.sf-input{ height:auto; min-height:88px; padding:var(--sf-space-4) var(-
   min-width:var(--sf-control-h); justify-content:center; padding:0 var(--sf-space-4);
   font-family:var(--sf-font-display); font-weight:var(--sf-weight-semibold);
 }
+
+/* ═══ v=103 — PREMIER AFFICHAGE, AVANT app.js ═════════════════════════════
+   Une ligne d'index.html pose `sf-session` (une session est enregistrée dans
+   ce navigateur) ou `sf-sans-session`, et `sf-attente-app` tant qu'app.js n'a
+   pas démarré. Avec une session, l'écran de connexion reste caché — il
+   clignotait avant l'accueil — et le squelette tient la place. app.js tranche
+   ensuite par un style en ligne, qui l'emporte sur ces règles. */
+html.sf-session #auth-screen{display:none}
+/* Tant qu'app.js n'est pas là, ses boutons ne répondraient pas : on le dit. */
+html.sf-attente-app .auth-btn,
+html.sf-attente-app .auth-btn-google{pointer-events:none;opacity:.6;cursor:progress}
+
+.sf-squelette{display:flex;flex-direction:column;gap:var(--sf-space-6);padding-block:var(--sf-space-4)}
+.sf-squelette > div,
+.sf-squelette__kpis > div{background:var(--sf-surface-2);border-radius:var(--sf-radius-md)}
+.sf-squelette__titre{height:40px;width:min(320px,70%)}
+.sf-squelette__kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sf-space-5);background:none !important}
+.sf-squelette__kpis > div{height:96px}
+.sf-squelette__bloc{height:180px}
+.sf-squelette__bloc--court{height:120px;width:min(640px,100%)}
+@media (max-width:560px){ .sf-squelette__kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (prefers-reduced-motion:no-preference){
+  .sf-squelette > div:not(.sf-squelette__kpis),
+  .sf-squelette__kpis > div{animation:sf-squelette-pulse 1.4s ease-in-out infinite}
+}
+@keyframes sf-squelette-pulse{50%{opacity:.55}}
+
+/* v=103 — Portails : pastille aux initiales du site (plus d'icône demandée à Google). */
+.portail-favicon--initiale{display:inline-flex;align-items:center;justify-content:center;
+  font:700 15px/1 var(--sf-font-display,inherit);color:var(--sf-text-2);letter-spacing:.02em;flex-shrink:0}
+
+/* ═══ v=103 — BANDEAU À PLAT ═══════════════════════════════════════════════
+   Les pages du quotidien sont des liens directs (.sf-nav__lien), dessinés
+   comme les boutons de menu. La page courante porte le vert de MARQUE, comme
+   la section active des menus (jamais le vert lumineux des valeurs), et
+   aria-current="page". */
+.sf-nav__lien{ text-decoration:none; }
+.sf-nav__lien.active{ background:var(--sf-brand-wash-2); color:var(--sf-brand-vivid); }
+@media (max-width:1080px) and (min-width:921px){
+  /* Entre 921 et 1080 px (iPad en paysage), on resserre plutôt que de passer
+     au menu ☰ : six entrées tiennent sur une ligne. */
+  .sf-topnav__brand{ margin-right:var(--sf-space-4); }
+  .sf-topnav__menus .sf-menu__btn{ padding:var(--sf-space-4) var(--sf-space-4); font-size:var(--sf-font-body); }
+}
+
+/* v=103 — UN MONTANT SE SAISIT COMME IL S'AFFICHE. Les champs de montant hors
+   de la fiche (encaissement, charge, dépôt, locataire, associés, préférences,
+   amortissements) étaient en `type="number"` : « 1 200 » ou « 850,50 » y était
+   refusé selon l'appareil, et la valeur partait VIDE. Champ texte au clavier
+   numérique, lu par sfLireNombre(), aligné à droite comme les montants. */
+input.sf-montant{ text-align:right; font-variant-numeric:tabular-nums; }
+
+/* Le retour de l'export (Paramètres › Données, v=103) : le nom du fichier remis. */
+.sf-export__retour{ margin:var(--sf-space-4) 0 0; font-size:var(--sf-font-body-sm); color:var(--sf-text-2); }
+.sf-export__retour:empty{ display:none; }

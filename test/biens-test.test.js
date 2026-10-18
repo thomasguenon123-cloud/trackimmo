@@ -224,6 +224,7 @@ test('les lectures agrégées de allBiens passent toutes par sfBiensComptes', ()
     mfBiensExercice: 'filtrée par mfDansLePerimetre, qui applique sfBienCompte',
     mfLoyersNonSoldes: 'filtrée par mfDansLePerimetre, qui applique sfBienCompte',
     renderModuleFinancier: 'teste seulement si les biens sont chargés',
+    renderLocatairesPage: 'teste seulement si les biens sont chargés (v=103)',
     loadAdminData: 'teste seulement si les biens sont chargés',
     purgeTestData: 'supprime les fiches de test',
     purgeAllData: 'supprime TOUT : doit compter tous les biens',

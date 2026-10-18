@@ -454,7 +454,7 @@ test('ramener le dépôt sous une retenue déjà actée est refusé', () => {
   const r = app.sfInvariantsBail(BAIL_SORTI, { depot_garantie: 0, date_entree: '2025-06-11',
                                                date_sortie: '2026-09-23' });
   assert.equal(r.champ, 'loc-depot');
-  assert.match(r.message, /200 € ont été retenus/);
+  assert.match(r.message, /200\u202f€ ont été retenus/);
   // Le dépôt peut baisser TANT QU'IL COUVRE la retenue : 200 exactement passe.
   assert.equal(app.sfInvariantsBail(BAIL_SORTI, { depot_garantie: 200,
                                                   date_entree: '2025-06-11',
@@ -523,5 +523,5 @@ test('le dépôt d’un bail soldé se refuse en le disant', () => {
   // Non soldé : la phrase reste celle qui dit comment s'en sortir.
   assert.match(app.sfInvariantsBail(BAIL_SORTI,
     { depot_garantie: 0, date_entree: '2025-06-11', date_sortie: '2026-09-23' }).message,
-    /200 € ont été retenus/);
+    /200\u202f€ ont été retenus/);
 });
